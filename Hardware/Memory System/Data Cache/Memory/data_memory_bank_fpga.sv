@@ -1,0 +1,94 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : data_memory_bank_fpga.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : Memory bank for data cache which compose a slice of the cache block
+//               in a way. The memory has 2 ports, one read only (for load unit), the
+//               other one is for both read and write operations (for store unit).
+//               Since RISCV support store of byte multiples (byte, half-word, word)
+//               the memory has a signal to enable the bytes to write.
+//               Both reads and writes happens on the positive edge of the clock.
+//               Parameters for memory size and net size are defined into 
+//               `data_memory_pkg.sv`
+// ------------------------------------------------------------------------------------
+
+`ifndef DATA_MEMORY_BANK_FPGA_SV
+    `define DATA_MEMORY_BANK_FPGA_SV
+
+`include "../../../Include/data_memory_pkg.sv"
+
+module data_memory_bank_fpga (
+    input  logic                    clk_i,
+    input  logic [PORT_BYTES - 1:0] byte_write_i,
+
+    /* Port 0 (R / W) interface */
+    input  logic [ADDR_WIDTH - 1:0] port0_write_address_i,
+    input  logic [PORT_WIDTH - 1:0] port0_data_i,
+    input  logic                    port0_write_i,
+    input  logic [ADDR_WIDTH - 1:0] port0_read_address_i,
+    output logic [PORT_WIDTH - 1:0] port0_data_o,
+    input  logic                    port0_read_i,
+
+    /* Port 1 (R) interface */
+    input  logic [ADDR_WIDTH - 1:0] port1_read_address_i,
+    output logic [PORT_WIDTH - 1:0] port1_data_o,
+    input  logic                    port1_read_i          
+);
+
+//----------//
+//  MEMORY  //
+//----------//
+
+    logic [PORT_WIDTH - 1:0] data_cache [CACHE_DEPTH - 1:0];
+
+    localparam BYTE_WIDTH = 8;
+
+        always_ff @(posedge clk_i) begin : bank_port0
+            if (port0_write_i) begin 
+                for (int i = 0; i < PORT_BYTES; ++i) begin : byte_write
+                    if (byte_write_i[i]) begin
+                        data_cache[port0_write_address_i][i*BYTE_WIDTH +: BYTE_WIDTH] <= port0_data_i[i*BYTE_WIDTH +: BYTE_WIDTH];
+                    end
+                end : byte_write
+            end
+            
+            if (port0_read_i) begin 
+                port0_data_o <= data_cache[port0_read_address_i];
+            end 
+        end : bank_port0
+
+        always_ff @(posedge clk_i) begin : bank_port1
+            if (port1_read_i) begin 
+                port1_data_o <= data_cache[port1_read_address_i];
+            end 
+        end : bank_port1
+
+endmodule : data_memory_bank_fpga
+
+`endif 
