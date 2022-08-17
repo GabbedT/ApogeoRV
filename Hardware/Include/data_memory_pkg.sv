@@ -64,6 +64,17 @@ package data_memory_pkg;
     } data_cache_packet_t;
 
 
+    /* Access memory chip */
+    typedef struct packed {
+        logic valid;
+
+        logic dirty;
+
+        logic tag;
+        
+        logic data;
+    } data_cache_enable_t;
+
     /* Load / Store width */
     typedef enum logic [1:0] {BYTE, HALF_WORD, WORD, DOUBLE_WORD} mem_op_width_t;
 
