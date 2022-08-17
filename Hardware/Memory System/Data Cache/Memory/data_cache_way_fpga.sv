@@ -9,10 +9,7 @@
 module data_cache_way_fpga (
     input  logic                    clk_i,
     input  logic                    enable_way_i,
-    input  logic                    access_data_i,
-    input  logic                    access_tag_i,
-    input  logic                    access_valid_i,
-    input  logic                    access_dirty_i,
+    input  data_cache_enable_t      enable_i,                   
     input  logic [PORT_BYTES - 1:0] byte_write_i,
 
     /* Port 0 (R / W) interface */
@@ -29,14 +26,14 @@ module data_cache_way_fpga (
     input  logic [CHIP_ADDR  - 1:0] port1_read_i 
 );
 
-    logic [CHIP_ADDR  - 1:0] port0_write, port0_read, port1_read;
+    logic [CHIP_ADDR - 1:0] port0_write, port0_read, port1_read;
 
     /* Port 0 */
-    assign port0_write = port0_write_i & enable_way_i;
-    assign port0_read = port0_read_i & enable_way_i;
+    assign port0_write = port0_write_i & {CHIP_ADDR{enable_way_i}};
+    assign port0_read = port0_read_i;
 
     /* Port 1 */
-    assign port1_read = port1_read_i & enable_way_i;
+    assign port1_read = port1_read_i;
 
 
 //----------//
@@ -60,20 +57,20 @@ module data_cache_way_fpga (
         .port0_write_address_i ( port0_write_address_i         ),
         .port0_valid_i         ( port0_cache_packet_i.valid    ),
         .port0_dirty_i         ( port0_cache_packet_i.dirty    ),
-        .port0_valid_write_i   ( |port0_write & access_valid_i ),
-        .port0_dirty_write_i   ( |port0_write & access_dirty_i ),
+        .port0_valid_write_i   ( |port0_write & enable_i.valid ),
+        .port0_dirty_write_i   ( |port0_write & enable_i.dirty ),
         .port0_read_address_i  ( port0_read_address_i          ),
         .port0_valid_o         ( port0_cache_packet_o.valid    ),
         .port0_dirty_o         ( port0_cache_packet_o.dirty    ),
-        .port0_valid_read_i    ( |port0_read & access_valid_i  ),
-        .port0_dirty_read_i    ( |port0_read & access_dirty_i  ),
+        .port0_valid_read_i    ( |port0_read & enable_i.valid  ),
+        .port0_dirty_read_i    ( |port0_read & enable_i.dirty  ),
 
         /* Port 1 (R) interface */
         .port1_read_address_i  ( port1_read_address_i          ),
         .port1_valid_o         ( port1_cache_packet_o.valid    ),
         .port1_dirty_o         ( port1_cache_packet_o.dirty    ),
-        .port1_valid_read_i    ( |port0_read & access_valid_i  ),
-        .port1_dirty_read_i    ( |port0_read & access_dirty_i  ),
+        .port1_valid_read_i    ( |port0_read & enable_i.valid  ),
+        .port1_dirty_read_i    ( |port0_read & enable_i.dirty  )
     );
 
 
@@ -83,34 +80,35 @@ module data_cache_way_fpga (
         /* Port 0 (R / W) interface */
         .port0_write_address_i ( port0_write_address_i        ),
         .port0_tag_i           ( port0_cache_packet_i.tag     ),
-        .port0_write_i         ( |port0_write & access_tag_i  ),
+        .port0_write_i         ( |port0_write & enable_i.tag  ),
         .port0_read_address_i  ( port0_read_address_i         ),
         .port0_tag_o           ( port0_cache_packet_o.tag     ),
-        .port0_read_i          ( |port0_read & access_tag_i   ),
+        .port0_read_i          ( |port0_read & enable_i.tag   ),
 
         /* Port 1 (R) interface */
         .port1_read_address_i  ( port1_read_address_i         ),
         .port1_tag_o           ( port1_cache_packet_o.tag     ),
-        .port1_read_i          ( |port1_read_i & access_tag_i ) 
+        .port1_read_i          ( |port1_read_i & enable_i.tag ) 
     );
 
 
     data_cache_block_fpga cache_block (
         .clk_i                 ( clk_i                         ),
         .byte_write_i          ( byte_write_i                  ),
+        .chip_enable_i         ( enable_i.data                 ),
 
         /* Port 0 (R / W) interface */
         .port0_write_address_i ( port0_write_address_i         ),
         .port0_data_i          ( port0_cache_packet_i.word     ),
-        .port0_write_i         ( port0_write_i & access_data_i ),
+        .port0_write_i         ( port0_write_i                 ),
         .port0_read_address_i  ( port0_read_address_i          ),
         .port0_data_o          ( port0_cache_packet_o.word     ),
-        .port0_read_i          ( port0_read_i & access_data_i  ),
+        .port0_read_i          ( port0_read_i                  ),
 
         /* Port 1 (R) interface */
         .port1_read_address_i  ( port1_read_address_i          ),
         .port1_data_o          ( port1_cache_packet_o.word     ),
-        .port1_read_i          ( port1_read_i & access_data_i  ) 
+        .port1_read_i          ( port1_read_i                  )  
     );
 
 endmodule : data_cache_way_fpga
