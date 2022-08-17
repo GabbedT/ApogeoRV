@@ -17,21 +17,18 @@ module store_unit_cache_control (
     input  data_cache_addr_t        store_unit_full_address_i,
     input  mem_op_width_t           store_unit_data_width_i,
 
-    /* Port 0 cache interface */
+    /* Cache interface */
+    input  logic                    cache_hit_i,
     output logic                    write_cache_o,
     output logic                    read_cache_o,
     output data_cache_addr_t        address_o,
     output logic [PORT_BYTES - 1:0] byte_write_o, 
-    output logic [PORT_WIDTH - 1:0] data_cache_o,
+    output logic [PORT_WIDTH - 1:0] data_o,
     output logic                    dirty_o,
     output logic                    valid_o,
+    output data_cache_enable_t      cache_enable_o,
 
     output logic                    write_buffer_o,
-    input  logic                    hit_i,
-    output logic                    access_data_o,
-    output logic                    access_tag_o,
-    output logic                    access_valid_o,
-    output logic                    access_dirty_o,
     output logic                    done_o,
     output logic                    idle_o
 );
@@ -61,43 +58,27 @@ module store_unit_cache_control (
             state_NXT = state_CRT;
 
             done_o = 1'b0;
+            write_buffer_o = 1'b0;
+
             read_cache_o = 1'b0;
             write_cache_o = 1'b0;
-            write_buffer_o = 1'b0;
-            access_data_o = 1'b0;
-            access_tag_o = 1'b0;
-            access_valid_o = 1'b0;
-            access_dirty_o = 1'b0;
+            cache_enable_o = 4'b0;
             dirty_o = 1'b0;
             valid_o = 1'b0;
-            
             address_o = 'b0;
             byte_write_o = 'b0;
-            data_cache_o = 'b0;
+            data_o = 'b0;
 
             case (state_CRT)
 
                 /* 
-                 *  Stay idle until, send address to cache and read as soon as
-                 *  a valid request from store unit arrives. 
+                 *  Stay idle until a valid address is received, 
+                 *  send address to cache and read immediately 
                  */
                 IDLE: begin
                     /* Store request and invalidate request need to read the
                      * cache block first */
-                    if (store_unit_write_cache_i) begin
-                        state_NXT = COMPARE_TAG;
-
-                        /* Initiate cache read */
-                        read_cache_o = 1'b1;
-                        address_o.index = store_unit_full_address_i.index;
-                        address_o.chip_sel = store_unit_full_address_i.chip_sel;
-
-                        access_tag_o = 1'b1;
-                        access_data_o = 1'b1;
-                        access_valid_o = 1'b1;
-                        access_dirty_o = 1'b1;
-
-                    end else if (store_unit_data_i) begin
+                    if (invalidate_i) begin
                         state_NXT = COMPARE_TAG;
 
                         /* Initiate cache read */
@@ -105,38 +86,29 @@ module store_unit_cache_control (
                         address_o.index = invalidate_full_address_i.index;
                         address_o.chip_sel = invalidate_full_address_i.chip_sel;
 
-                        access_tag_o = 1'b1;
-                        access_data_o = 1'b1;
-                        access_valid_o = 1'b1;
-                        access_dirty_o = 1'b1;
-                    end
+                        cache_enable_o = 4'b1;
+
+                    end else if (store_unit_write_cache_i) begin
+                        state_NXT = COMPARE_TAG;
+
+                        /* Initiate cache read */
+                        read_cache_o = 1'b1;
+                        address_o.index = store_unit_full_address_i.index;
+                        address_o.chip_sel = store_unit_full_address_i.chip_sel;
+
+                        cache_enable_o = 4'b1;
+                    end 
                 end
 
                 /* 
-                 * The block is retrieved from cache, the tag is then compared
-                 * to part of the address sended and an hit signal is received
+                 *  The block is retrieved from cache, the tag is then compared
+                 *  to part of the address sended and an hit signal is received.
                  */
                 COMPARE_TAG: begin
-                    /* No need to access the whole data */
-                    access_tag_o = 1'b1;
-                    access_valid_o = 1'b1;
-                    access_dirty_o = 1'b1;
-
-                    if (store_unit_write_cache_i) begin 
-                        address_o.tag = store_unit_full_address_i.tag;
-
-                        if (hit_i) begin
-                            /* Write in cache */
-                            state_NXT = WRITE_DATA;
-                        end else begin
-                            /* Send a write request to memory
-                             * unit */
-                            state_NXT = MEMORY_WRITE;
-                        end
-                    end else if (invalidate_i) begin
+                    if (invalidate_i) begin
                         address_o.tag = invalidate_full_address_i.tag;
 
-                        if (hit_i) begin
+                        if (cache_hit_i) begin
                             state_NXT = INVALIDATE;
                         end else begin
                             /* If a miss happens the invalid block 
@@ -144,11 +116,23 @@ module store_unit_cache_control (
                              * are needed */
                             state_NXT = IDLE;
                         end  
-                    end
+                    end else if (store_unit_write_cache_i) begin 
+                        address_o.tag = store_unit_full_address_i.tag;
+
+                        if (cache_hit_i) begin
+                            /* Write in cache */
+                            state_NXT = WRITE_DATA;
+                        end else begin
+                            /* Send a write request to memory
+                             * unit */
+                            state_NXT = MEMORY_WRITE;
+                        end
+                    end 
                 end
 
                 /* 
-                 *  Simply write data into cache, tag it as dirty
+                 *  Simply write data into cache, tag it as dirty. Write data
+                 *  memory block and dirty memory block.
                  */
                 WRITE_DATA: begin
                     write_cache_o = 1'b1;
@@ -156,8 +140,8 @@ module store_unit_cache_control (
                     
                     dirty_o = 1'b1;
 
-                    access_dirty_o = 1'b1;
-                    access_data_o = 1'b1;
+                    cache_enable_o.data = 1'b1;
+                    cache_enable_o.dirty = 1'b1;
 
                     state_NXT = IDLE;
                     done_o = 1'b1;
@@ -167,29 +151,32 @@ module store_unit_cache_control (
                             byte_write_o[store_unit_full_address_i.byte_sel] = 1'b1;
 
                             case (store_unit_full_address_i.byte_sel) 
-                                2'b00: data_cache_o[7:0] = store_unit_data_i[7:0];
+                                2'b00: data_o[7:0] = store_unit_data_i[7:0];
 
-                                2'b01: data_cache_o[15:8] = store_unit_data_i[7:0];
+                                2'b01: data_o[15:8] = store_unit_data_i[7:0];
 
-                                2'b10: data_cache_o[23:16] = store_unit_data_i[7:0];
+                                2'b10: data_o[23:16] = store_unit_data_i[7:0];
 
-                                2'b11: data_cache_o[31:24] = store_unit_data_i[7:0];
+                                2'b11: data_o[31:24] = store_unit_data_i[7:0];
                             endcase
                         end 
 
                         HALF_WORD: begin
                             if (store_unit_full_address_i.byte_sel[1]) begin
+                                /* Write upper 16 bits */
                                 byte_write_o = 4'b1100;
-                                data_cache_o[PORT_WIDTH - 1:(PORT_WIDTH / 2)] = store_unit_data_i[(PORT_WIDTH / 2) - 1:0];
+                                data_o[PORT_WIDTH - 1:(PORT_WIDTH / 2)] = store_unit_data_i[(PORT_WIDTH / 2) - 1:0];
                             end else begin
+                                /* Write lower 16 bits */
                                 byte_write_o = 4'b0011;
-                                data_cache_o[(PORT_WIDTH / 2) - 1:0] = store_unit_data_i;
+                                data_o[(PORT_WIDTH / 2) - 1:0] = store_unit_data_i;
                             end
                         end
 
                         WORD, DOUBLE_WORD: begin
+                            /* Write word */
                             byte_write_o = 4'b1111;
-                            data_cache_o = store_unit_data_i;
+                            data_o = store_unit_data_i;
                         end
                     endcase
                 end
@@ -199,10 +186,11 @@ module store_unit_cache_control (
                  */
                 MEMORY_WRITE: begin
                     write_buffer_o = 1'b1;
+  
                     address_o = store_unit_full_address_i;
-                    data_cache_o = store_unit_data_i;
-                    done_o = 1'b1;
+                    data_o = store_unit_data_i;
 
+                    done_o = 1'b1;
                     state_NXT = IDLE;
                 end
 
@@ -211,10 +199,10 @@ module store_unit_cache_control (
                  */
                 INVALIDATE: begin
                     address_o.index = store_unit_full_address_i.index;
-                    access_valid_o = 1'b1;
+                    cache_enable_o.valid = 1'b1;
                     valid_o = 1'b0;
+                    
                     done_o = 1'b1;
-
                     state_NXT = IDLE;
                 end
             endcase
