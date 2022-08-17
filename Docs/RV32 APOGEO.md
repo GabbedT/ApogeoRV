@@ -452,8 +452,38 @@ To write into cache the processor first needs to read values to compare tag to f
 * 16KB total size
 * 4-way associativity
 * 16 bytes block size
-* 1 write 1 read port
+* 1 write 1 read/write port
 * Write back 
 * No write allocate
 * Early restart
 * Byte write granularity 
+* Reset signal mantain data into cache
+
+Cache is composed of different banks to reduce total area and power. Data memory block, to avoid having a 16 * 8 bit wide port, is built of 4 different banks with ports of 32 bits each. Every bank has 1 read and 1 read/write port and one of the 4 bank can be accessed at time (for 1 port). Banks are accessed with the address bits (4:3), which are decoded into 4 different control signals. Every bank has byte write capability. Banks share: address and data; control signals (write, byte write, read) are not shared.
+Then there is tag memory block, dirty and valid block that can be accessed separately still with 2 ports (valid block is initialized at startup to all 0).
+
+Data + tag + dirty + valid memory blocks compose a way. Every memory block has an enable signal to discriminate certain accesses. A way has also an enable signal to kill any write operation (you want really write a single way) 
+
+4 ways are combined. They share data and address but different way enable.
+
+## LOAD OPERATION 
+
+In a load operation first check the cache (port 1). Send index and chip select with a read signal to cache system, read data, tag, valid and dirty. Perform a tag check and if equals and this with valid signal. That is an hit, if tags are different or block is invalid, that is a miss (save dirty bit).
+
+If hit, just deliver the data to load unit. 
+
+If miss:
+
+Request a load from memory (send the address and a valid signal to memory unit), while waiting for data to arrive: if dirty read the entire cache block and send to memory unit to write back to RAM. When data arrives latch it in a register, and allocate the new data in a randow way.
+
+Memory interface has 64 bit data width so the entire cache block arrives in two cycles after memory latency
+
+## WRITE OPERATION
+
+To write data into cache first read the tag and valid memory block and do a comparison with the address tag
+
+If hit, just write the data into the location and assert the dirty bit
+
+If miss:
+
+Just allocate the address and data into the write buffer and let the memory unit manage the writing to RAM
