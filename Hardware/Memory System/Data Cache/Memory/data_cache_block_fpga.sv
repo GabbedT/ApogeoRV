@@ -7,6 +7,7 @@
 module data_cache_block_fpga (
     input  logic                    clk_i,
     input  logic [PORT_BYTES - 1:0] byte_write_i,
+    input  logic                    chip_enable_i,
 
     /* Port 0 (R / W) interface */
     input  logic [ADDR_WIDTH - 1:0] port0_write_address_i,
@@ -63,21 +64,21 @@ module data_cache_block_fpga (
     generate
         for (i = 0; i < CACHE_CHIP; ++i) begin
             data_memory_bank_fpga data_cache_block_bank (
-                .clk_i                 ( clk_i              ),
-                .byte_write_i          ( byte_write_i       ),
+                .clk_i                 ( clk_i                          ),
+                .byte_write_i          ( byte_write_i                   ),
 
                 /* Port 0 (R / W) interface */
-                .port0_write_address_i ( port0_write_address_i ),
-                .port0_data_i          ( port0_data_i    ),
-                .port0_write_i         ( port0_write[i]        ),
-                .port0_read_address_i  ( port0_read_address_i  ),
-                .port0_data_o          ( port0_data_read[i]    ),
-                .port0_read_i          ( port0_read[i]         ),
+                .port0_write_address_i ( port0_write_address_i          ),
+                .port0_data_i          ( port0_data_i                   ),
+                .port0_write_i         ( port0_write[i] & chip_enable_i ),
+                .port0_read_address_i  ( port0_read_address_i           ),
+                .port0_data_o          ( port0_data_read[i]             ),
+                .port0_read_i          ( port0_read[i] & chip_enable_i  ),
 
                 /* Port 1 (R) interface */
-                .port1_read_address_i  ( port1_read_address_i  ),
-                .port1_data_o          ( port1_data_read[i]    ),
-                .port1_read_i          ( port1_read[i]         )  
+                .port1_read_address_i  ( port1_read_address_i           ),
+                .port1_data_o          ( port1_data_read[i]             ),
+                .port1_read_i          ( port1_read[i] & chip_enable_i  )  
             );
         end
     endgenerate
