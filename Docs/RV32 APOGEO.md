@@ -468,7 +468,7 @@ Data + tag + dirty + valid memory blocks compose a way. Every memory block has a
 
 ## LOAD OPERATION 
 
-In a load operation first check the cache (port 1). Send index and chip select with a read signal to cache system, read data, tag, valid and dirty. Perform a tag check and if equals and this with valid signal. That is an hit, if tags are different or block is invalid, that is a miss (save dirty bit).
+In a load operation first check addresses in write buffer and store unit, then access the cache (port 1). Send index and chip select with a read signal to cache system, read data, tag, valid and dirty. Perform a tag check and if equals and this with valid signal. That is an hit, if tags are different or block is invalid, that is a miss (save dirty bit).
 
 If hit, just deliver the data to load unit. 
 
@@ -487,3 +487,8 @@ If hit, just write the data into the location and assert the dirty bit
 If miss:
 
 Just allocate the address and data into the write buffer and let the memory unit manage the writing to RAM
+
+
+## OPERATIONS ORDERING
+
+Being an out of order processor, operations can overlap. Accessing the cache takes 3 cycles for both load and stores thus they will be in order. When a miss occours stores will write the write buffer, loads will always check both write buffer and store unit addresses.
