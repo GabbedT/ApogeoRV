@@ -121,7 +121,7 @@ package rv32_instructions_pkg;
         /* Is a speculative instruction */
         logic        speculative;
 
-        /* If the instruction has beed fetched after 
+        /* If the instruction has been fetched after 
          * a taken jump or not */
         logic        branch_taken;
 
