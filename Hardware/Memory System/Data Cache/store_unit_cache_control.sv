@@ -30,7 +30,6 @@ module store_unit_cache_control (
     output logic                    cache_valid_o,
     output data_cache_enable_t      cache_enable_o,
 
-    output mem_op_width_t           data_width_o,
     input  logic                    store_buffer_idle_i,
     output logic                    push_store_buffer_o,
     output logic                    done_o,
@@ -64,7 +63,6 @@ module store_unit_cache_control (
             done_o = 1'b0;
             push_store_buffer_o = 1'b0;
             processor_acknowledge_o = 1'b0;
-            data_width_o = BYTE;
             
             cache_read_o = 1'b0;
             cache_write_o = 1'b0;
@@ -192,7 +190,6 @@ module store_unit_cache_control (
                 MEMORY_WRITE: begin
                     push_store_buffer_o = store_buffer_idle_i;
 
-                    data_width_o = store_unit_data_width_i;
                     cache_address_o = store_unit_full_address_i;
                     cache_data_o = store_unit_data_i;
 
