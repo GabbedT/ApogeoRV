@@ -42,7 +42,6 @@ module load_unit_cache_control (
     input  logic                     store_buffer_full_i,
     input  logic                     store_buffer_port_idle_i,
     output logic [PORT_WIDTH - 1:0]  data_o,
-    output mem_op_width_t            data_width_o,
     output logic                     data_valid_o,
     output logic                     push_store_buffer_o,
     output logic                     done_o,
@@ -54,13 +53,16 @@ module load_unit_cache_control (
 //  DATAPATH  //
 //------------//
 
-    /* Store cache line from external memory */
-    logic [BLOCK_WIDTH - 1:0] external_memory_data;
+    /* External memory will supply the cache line in more clock cycles since
+     * the data interface is narrower than the cache line */
+    logic [BLOCK_WIDTH - 1:0] external_memory_data, cache_line;
 
         always_ff @(posedge clk_i) begin : memory_data_register
             if (external_data_valid_i) begin 
                 external_memory_data <= {external_data_i, external_memory_data[BLOCK_WIDTH - 1:PORT_WIDTH]};
-            end
+            end else if (cache_line_valid_i) begin
+                external_memory_data <= cache_line;
+            end 
         end : memory_data_register
 
 
@@ -129,6 +131,26 @@ module load_unit_cache_control (
 
 
         always_comb begin : fsm_logic
+            /* Default values */
+            state_NXT = state_CRT;
+            chip_select_NXT = chip_select_CRT;
+
+            cache_address_o = 'b0;
+            cache_enable_o = 'b0;
+            cache_dirty_o = 1'b0;
+            cache_valid_o = 1'b0;
+            cache_port1_read_o = 1'b0;
+            cache_port0_write_o = 1'b0;
+            
+            enable_lfsr = 1'b1;
+            processor_request_o = 1'b0;
+            push_store_buffer_o = 1'b0;
+            cache_line = external_memory_data;
+            data_valid_o = 1'b0;
+            data_o = 'b0;
+            done_o = 1'b0;
+
+
             case (state_CRT)
 
                 /* 
@@ -141,12 +163,12 @@ module load_unit_cache_control (
                         state_NXT = COMPARE_TAG;
 
                         /* Access all the cache */
-                        cache_enable_o = 4'b1;
+                        cache_enable_o = 4'hF;
 
                         /* Cache control */
                         cache_port1_read_o = 1'b1;
-                        cache_address_o.index = load_unit_full_address_i.index;
-                        cache_address_o.chip_sel = load_unit_full_address_i.chip_sel;
+                        cache_address_o.index = load_unit_address_i.index;
+                        cache_address_o.chip_sel = load_unit_address_i.chip_sel;
 
                         /* If data is found in the store buffer or is inside the 
                          * store unit, there's no need to check for an hit */
@@ -168,7 +190,7 @@ module load_unit_cache_control (
                 COMPARE_TAG: begin
                     if (cache_port1_hit_i) begin
                         state_NXT = DATA_STABLE; 
-                        cache_data_NXT = cache_packet_i.word; 
+                        cache_data_NXT = cache_data_i; 
                     end else begin
                         state_NXT = MEMORY_REQUEST;
                     end
@@ -230,7 +252,7 @@ module load_unit_cache_control (
 
                     cache_port1_read_o = 1'b1;
                     chip_select_NXT = chip_select_CRT + 1'b1;
-                    cache_enable_o.word = 1'b1;  
+                    cache_enable_o.data = 1'b1;  
 
                     enable_lfsr = 1'b0;
                     state_NXT = WRITE_BACK;
@@ -244,7 +266,6 @@ module load_unit_cache_control (
                     enable_lfsr = 1'b0;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
-                        data_width_o = WORD;
                         data_o = cache_data_i;
                         cache_address_o = load_unit_address_i;
 
@@ -270,7 +291,7 @@ module load_unit_cache_control (
                 ALLOCATE: begin
                     if (cache_line_valid_i & cache_port0_idle_i) begin
                         if (chip_select_CRT == 'b0) begin
-                            cache_enable_o = 4'b1;
+                            cache_enable_o = 4'hF;
 
                             cache_dirty_o = 1'b0;
                             cache_valid_o = 1'b1;
@@ -281,7 +302,7 @@ module load_unit_cache_control (
                         cache_port0_write_o = 1'b1;
                         data_o = external_memory_data[PORT_WIDTH - 1:0];
 
-                        external_memory_data = external_memory_data >> PORT_WIDTH;
+                        cache_line = external_memory_data >> PORT_WIDTH;
 
                         /* End of cache line reached */
                         if (chip_select_CRT == (BLOCK_WIDTH / PORT_WIDTH - 1)) begin
