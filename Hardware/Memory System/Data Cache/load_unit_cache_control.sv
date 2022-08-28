@@ -1,3 +1,41 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// -------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------
+// FILE NAME : store_unit_cache_control.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// -------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : Cache controller for load operations. It provide a simple interface 
+//               to cache for the load unit and memory unit. Manages simple cache 
+//               transactions and new block allocation in case of cache miss. To reduce
+//               hit time and ensure coherency the store unit and store buffer addresses
+//               are checked. During a miss the entire pipeline front end is stalled 
+//               while the backend keep executing the remaining instructions. 
+// -------------------------------------------------------------------------------------
+
 `ifndef LOAD_UNIT_CACHE_CONTROL_SV
     `define LOAD_UNIT_CACHE_CONTROL_SV
 
@@ -7,6 +45,7 @@
 module load_unit_cache_control (
     input  logic                     clk_i,
     input  logic                     rst_n_i,
+    output logic                     stall_pipeline_o,
 
     /* External interface */
     input  logic [PORT_WIDTH - 1:0]  external_data_i,
@@ -142,11 +181,12 @@ module load_unit_cache_control (
             cache_port1_read_o = 1'b0;
             cache_port0_write_o = 1'b0;
             
-            enable_lfsr = 1'b1;
+            cache_line = external_memory_data;
             processor_request_o = 1'b0;
             push_store_buffer_o = 1'b0;
-            cache_line = external_memory_data;
+            stall_pipeline_o = 1'b0;
             data_valid_o = 1'b0;
+            enable_lfsr = 1'b1;
             data_o = 'b0;
             done_o = 1'b0;
 
@@ -193,6 +233,7 @@ module load_unit_cache_control (
                         cache_data_NXT = cache_data_i; 
                     end else begin
                         state_NXT = MEMORY_REQUEST;
+                        stall_pipeline_o = 1'b1;
                     end
                 end
 
@@ -212,14 +253,13 @@ module load_unit_cache_control (
                  */
                 MEMORY_REQUEST: begin
                     processor_request_o = 1'b1;
+                    stall_pipeline_o = 1'b1;
 
                     if (external_acknowledge_i) begin
                         state_NXT = READ_CACHE;
 
                         cache_port1_read_o = 1'b1;
                         cache_address_o = load_unit_address_i; 
-
-                        enable_lfsr = 1'b0;
 
                         cache_enable_o.dirty = 1'b1;
                     end
@@ -231,8 +271,8 @@ module load_unit_cache_control (
                  *  be written back to memory. Else just allocate new data.
                  */
                 DIRTY_CHECK: begin
-                    chip_select_NXT = 'b0;
                     enable_lfsr = 1'b0;
+                    stall_pipeline_o = 1'b1;
 
                     if (cache_dirty_i) begin
                         state_NXT = WRITE_BACK;
@@ -248,14 +288,24 @@ module load_unit_cache_control (
                  *  last one.
                  */
                 READ_CACHE: begin
-                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
-
-                    cache_port1_read_o = 1'b1;
+                    state_NXT = WRITE_BACK;
                     chip_select_NXT = chip_select_CRT + 1'b1;
-                    cache_enable_o.data = 1'b1;  
 
                     enable_lfsr = 1'b0;
-                    state_NXT = WRITE_BACK;
+                    stall_pipeline_o = 1'b1;
+
+                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
+                    cache_port1_read_o = 1'b1;
+                    cache_enable_o.data = 1'b1;
+
+                    /* During the first access, check if the block is dirty to 
+                     * determine if it needs to be written back */
+                    if (chip_select_CRT == 'b0) begin 
+                        state_NXT = DIRTY_CHECK;
+
+                        cache_enable_o.data = 1'b1;  
+                        cache_enable_o.dirty = 1'b1;  
+                    end
                 end
 
                 
@@ -289,6 +339,8 @@ module load_unit_cache_control (
                  *  allocate status and tag bits.
                  */
                 ALLOCATE: begin
+                    enable_lfsr = 1'b0; 
+
                     if (cache_line_valid_i & cache_port0_idle_i) begin
                         if (chip_select_CRT == 'b0) begin
                             cache_enable_o = 4'hF;
@@ -302,6 +354,7 @@ module load_unit_cache_control (
                         cache_port0_write_o = 1'b1;
                         data_o = external_memory_data[PORT_WIDTH - 1:0];
 
+                        /* Shift the cache line supplied by the memory */
                         cache_line = external_memory_data >> PORT_WIDTH;
 
                         /* End of cache line reached */
