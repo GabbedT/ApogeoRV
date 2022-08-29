@@ -40,36 +40,38 @@
 `include "../../Include/data_memory_pkg.sv"
 
 module store_unit_cache_control (
-    input  logic                    clk_i,
-    input  logic                    rst_n_i,
+    input  logic                     clk_i,
+    input  logic                     rst_n_i,
 
     /* External interface */
-    input  logic                    external_invalidate_i,
-    input  data_cache_addr_t        external_invalidate_address_i,
-    output logic                    processor_acknowledge_o,
+    input  logic                     external_invalidate_i,
+    input  data_cache_addr_t         external_invalidate_address_i,
+    output logic                     processor_acknowledge_o,
 
     /* Store unit interface */
-    input  logic                    store_unit_write_cache_i,
-    input  logic [PORT_WIDTH - 1:0] store_unit_data_i,
-    input  data_cache_addr_t        store_unit_full_address_i,
-    input  mem_op_width_t           store_unit_data_width_i,
+    input  logic                     store_unit_write_cache_i,
+    input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
+    input  data_cache_addr_t         store_unit_full_address_i,
+    input  mem_op_width_t            store_unit_data_width_i,
 
     /* Cache interface */
-    input  logic                    cache_port0_idle_i,
-    input  logic                    cache_hit_i,
-    output logic                    cache_write_o,
-    output logic                    cache_read_o,
-    output data_cache_addr_t        cache_address_o,
-    output logic [PORT_BYTES - 1:0] cache_byte_write_o, 
-    output logic [PORT_WIDTH - 1:0] cache_data_o,
-    output logic                    cache_dirty_o,
-    output logic                    cache_valid_o,
-    output data_cache_enable_t      cache_enable_o,
+    input  logic                     cache_port0_idle_i,
+    input  logic                     cache_hit_i,
+    input  logic [WAYS_NUMBER - 1:0] cache_way_hit_i,
+    output logic                     cache_write_o,
+    output logic                     cache_read_o,
+    output data_cache_addr_t         cache_address_o,
+    output logic [PORT_BYTES - 1:0]  cache_byte_write_o, 
+    output logic [PORT_WIDTH - 1:0]  cache_data_o,
+    output logic                     cache_dirty_o,
+    output logic                     cache_valid_o,
+    output logic [WAYS_NUMBER - 1:0] cache_way_enable_o,
+    output data_cache_enable_t       cache_enable_o,
 
-    input  logic                    store_buffer_idle_i,
-    output logic                    push_store_buffer_o,
-    output logic                    done_o,
-    output logic                    idle_o
+    input  logic                     store_buffer_idle_i,
+    output logic                     push_store_buffer_o,
+    output logic                     done_o,
+    output logic                     idle_o
 );
 
 
@@ -92,6 +94,17 @@ module store_unit_cache_control (
     assign idle_o = (state_NXT == IDLE);
 
 
+    /* Save the hitting way */
+    
+    logic latch_way_hit; 
+
+        always_ff @(posedge clk_i) begin : way_hit_register
+            if (latch_way_hit) begin
+                cache_way_enable_o <= cache_way_hit_i;
+            end
+        end : way_hit_register
+
+
         always_comb begin : fsm_logic
             /* Default values */
             state_NXT = state_CRT;
@@ -99,6 +112,7 @@ module store_unit_cache_control (
             done_o = 1'b0;
             push_store_buffer_o = 1'b0;
             processor_acknowledge_o = 1'b0;
+            latch_way_hit = 1'b0;
             
             cache_read_o = 1'b0;
             cache_write_o = 1'b0;
@@ -125,7 +139,8 @@ module store_unit_cache_control (
                         cache_read_o = 1'b1;
                         cache_address_o = external_invalidate_address_i;
 
-                        cache_enable_o = 4'b1;
+                        cache_enable_o.tag = 4'b1;
+                        cache_enable_o.valid = 4'b1;
                         processor_acknowledge_o = 1'b1;
 
                     end else if (store_unit_write_cache_i & cache_port0_idle_i) begin
@@ -135,7 +150,8 @@ module store_unit_cache_control (
                         cache_read_o = 1'b1;
                         cache_address_o = store_unit_full_address_i;
 
-                        cache_enable_o = 4'b1;
+                        cache_enable_o.tag = 4'b1;
+                        cache_enable_o.valid = 4'b1;
                     end 
                 end
 
@@ -144,6 +160,8 @@ module store_unit_cache_control (
                  *  to part of the address sended and an hit signal is received.
                  */
                 COMPARE_TAG: begin
+                    latch_way_hit = 1'b1;
+
                     if (external_invalidate_i) begin
                         cache_address_o = external_invalidate_address_i;
 
