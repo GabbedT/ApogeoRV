@@ -21,7 +21,7 @@
 // SOFTWARE.
 // -------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------
-// FILE NAME : store_unit_cache_control.sv
+// FILE NAME : load_unit_cache_control.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -70,6 +70,7 @@ module load_unit_cache_control (
     input  logic                     cache_port1_hit_i,
     input  logic                     cache_dirty_i,
     input  logic [PORT_WIDTH - 1:0]  cache_data_i,
+    input  logic [PORT_WIDTH - 1:0]  cache_data_writeback_i,
     output logic                     cache_dirty_o,
     output logic                     cache_valid_o,
     output logic                     cache_port1_read_o, 
@@ -254,6 +255,7 @@ module load_unit_cache_control (
                 MEMORY_REQUEST: begin
                     processor_request_o = 1'b1;
                     stall_pipeline_o = 1'b1;
+                    enable_lfsr = 1'b0;
 
                     if (external_acknowledge_i) begin
                         state_NXT = READ_CACHE;
@@ -270,7 +272,7 @@ module load_unit_cache_control (
                  *  Check if the block is dirty. if dirty then the block needs to
                  *  be written back to memory. Else just allocate new data.
                  */
-                DIRTY_CHECK: begin
+                DIRTY_CHECK: begin 
                     enable_lfsr = 1'b0;
                     stall_pipeline_o = 1'b1;
 
@@ -316,7 +318,7 @@ module load_unit_cache_control (
                     enable_lfsr = 1'b0;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
-                        data_o = cache_data_i;
+                        data_o = cache_data_writeback_i;
                         cache_address_o = load_unit_address_i;
 
                         push_store_buffer_o = 1'b1;
