@@ -54,16 +54,23 @@ module load_unit_cache_control (
     input  logic                     external_acknowledge_i,
     output logic                     processor_request_o,
 
+    /* Store buffer interface */
+    input  logic                     str_buffer_address_match_i,
+    input  logic [PORT_WIDTH - 1:0]  str_buffer_data_i,
+    input  logic                     store_buffer_full_i,
+    input  logic                     store_buffer_port_idle_i,
+    output logic                     store_buffer_push_data_o,
+
     /* Store unit interface */
-    input  logic                     wr_buffer_address_match_i,
-    input  logic [PORT_WIDTH - 1:0]  wr_buffer_data_i,
     input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
-    input  logic [31:0]              store_unit_address_i,
+    input  logic [XLEN - 1:0]        store_unit_address_i,
     input  logic                     store_unit_idle_i,
 
     /* Load unit interface */
     input  logic                     load_unit_read_cache_i,
     input  data_cache_addr_t         load_unit_address_i,
+    output logic [PORT_WIDTH - 1:0]  data_o,
+    output logic                     data_valid_o,
 
     /* Cache interface */
     input  logic                     cache_port0_idle_i,
@@ -75,15 +82,11 @@ module load_unit_cache_control (
     output logic                     cache_valid_o,
     output logic                     cache_port1_read_o, 
     output logic                     cache_port0_write_o,
-    output logic [WAYS_NUMBER - 1:0] cache_enable_way_o,
+    output logic [WAYS_NUMBER - 1:0] cache_random_way_o,
     output data_cache_addr_t         cache_address_o,
     output data_cache_enable_t       cache_enable_o,
 
-    input  logic                     store_buffer_full_i,
-    input  logic                     store_buffer_port_idle_i,
-    output logic [PORT_WIDTH - 1:0]  data_o,
-    output logic                     data_valid_o,
-    output logic                     push_store_buffer_o,
+    output logic                     controlling_port0_o,              
     output logic                     done_o,
     output logic                     idle_o
 );
@@ -144,7 +147,7 @@ module load_unit_cache_control (
 
     assign random_way = lfsr_data[1:0];
 
-    assign cache_enable_way_o = random_way;
+    assign cache_random_way_o = random_way;
 
 
     /* Check if store unit is writing in the same memory location */
@@ -173,24 +176,25 @@ module load_unit_cache_control (
         always_comb begin : fsm_logic
             /* Default values */
             state_NXT = state_CRT;
+            cache_data_NXT = cache_data_CRT;
             chip_select_NXT = chip_select_CRT;
 
-            cache_address_o = 'b0;
-            cache_enable_o = 'b0;
-            cache_dirty_o = 1'b0;
-            cache_valid_o = 1'b0;
-            cache_port1_read_o = 1'b0;
+            cache_port1_read_o = 1'b0; 
             cache_port0_write_o = 1'b0;
+            cache_address_o = 'b0;
+            cache_enable_o = 'b0; 
+            cache_dirty_o = 1'b0; 
+            cache_valid_o = 1'b0; 
             
             cache_line = external_memory_data;
             processor_request_o = 1'b0;
-            push_store_buffer_o = 1'b0;
+            store_buffer_push_data_o = 1'b0;
+            controlling_port0_o = 1'b0;
             stall_pipeline_o = 1'b0;
             data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
             data_o = 'b0;
             done_o = 1'b0;
-
 
             case (state_CRT)
 
@@ -216,9 +220,9 @@ module load_unit_cache_control (
                         if (store_unit_address_match) begin 
                             state_NXT = DATA_STABLE;
                             cache_data_NXT = store_unit_data_i;
-                        end else if (wr_buffer_address_match_i) begin
+                        end else if (str_buffer_address_match_i) begin
                             state_NXT = DATA_STABLE;
-                            cache_data_NXT = wr_buffer_data_i;                            
+                            cache_data_NXT = str_buffer_data_i;                            
                         end
                     end
                 end
@@ -244,6 +248,7 @@ module load_unit_cache_control (
                  */
                 DATA_STABLE: begin
                     data_valid_o = 1'b1;
+                    data_o = cache_data_CRT;
                     state_NXT = IDLE;
                 end
 
@@ -321,7 +326,7 @@ module load_unit_cache_control (
                         data_o = cache_data_writeback_i;
                         cache_address_o = load_unit_address_i;
 
-                        push_store_buffer_o = 1'b1;
+                        store_buffer_push_data_o = 1'b1;
 
                         /* If the end of the block is reached, allocate a new block */
                         if (chip_select_CRT == (BLOCK_WIDTH / PORT_WIDTH - 1)) begin
@@ -344,6 +349,8 @@ module load_unit_cache_control (
                     enable_lfsr = 1'b0; 
 
                     if (cache_line_valid_i & cache_port0_idle_i) begin
+                        controlling_port0_o = 1'b1;
+                        
                         if (chip_select_CRT == 'b0) begin
                             cache_enable_o = 4'hF;
 

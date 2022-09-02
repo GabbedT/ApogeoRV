@@ -51,7 +51,7 @@ module store_unit_cache_control (
     /* Store unit interface */
     input  logic                     store_unit_write_cache_i,
     input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
-    input  data_cache_addr_t         store_unit_full_address_i,
+    input  data_cache_addr_t         store_unit_address_i,
     input  mem_op_width_t            store_unit_data_width_i,
 
     /* Cache interface */
@@ -65,11 +65,14 @@ module store_unit_cache_control (
     output logic [PORT_WIDTH - 1:0]  cache_data_o,
     output logic                     cache_dirty_o,
     output logic                     cache_valid_o,
-    output logic [WAYS_NUMBER - 1:0] cache_way_enable_o,
+    output logic [WAYS_NUMBER - 1:0] cache_enable_way_o,
     output data_cache_enable_t       cache_enable_o,
 
-    input  logic                     store_buffer_idle_i,
-    output logic                     push_store_buffer_o,
+    /* Store buffer interface */
+    input  logic                     store_buffer_port_idle_i,
+    output logic                     store_buffer_push_data_o,
+    
+    output logic                     controlling_port0_o,
     output logic                     done_o,
     output logic                     idle_o
 );
@@ -100,7 +103,7 @@ module store_unit_cache_control (
 
         always_ff @(posedge clk_i) begin : way_hit_register
             if (latch_way_hit) begin
-                cache_way_enable_o <= cache_way_hit_i;
+                cache_enable_way_o <= cache_way_hit_i;
             end
         end : way_hit_register
 
@@ -110,8 +113,9 @@ module store_unit_cache_control (
             state_NXT = state_CRT;
 
             done_o = 1'b0;
-            push_store_buffer_o = 1'b0;
+            store_buffer_push_data_o = 1'b0;
             processor_acknowledge_o = 1'b0;
+            controlling_port0_o = 1'b0;
             latch_way_hit = 1'b0;
             
             cache_read_o = 1'b0;
@@ -137,6 +141,7 @@ module store_unit_cache_control (
 
                         /* Initiate cache read */
                         cache_read_o = 1'b1;
+                        controlling_port0_o = 1'b1;
                         cache_address_o = external_invalidate_address_i;
 
                         cache_enable_o.tag = 4'b1;
@@ -148,7 +153,8 @@ module store_unit_cache_control (
 
                         /* Initiate cache read */
                         cache_read_o = 1'b1;
-                        cache_address_o = store_unit_full_address_i;
+                        controlling_port0_o = 1'b1;
+                        cache_address_o = store_unit_address_i;
 
                         cache_enable_o.tag = 4'b1;
                         cache_enable_o.valid = 4'b1;
@@ -174,7 +180,7 @@ module store_unit_cache_control (
                             state_NXT = IDLE;
                         end  
                     end else if (store_unit_write_cache_i) begin 
-                        cache_address_o = store_unit_full_address_i;
+                        cache_address_o = store_unit_address_i;
 
                         if (cache_hit_i) begin
                             /* Write in cache */
@@ -192,22 +198,25 @@ module store_unit_cache_control (
                  *  memory block and dirty memory block.
                  */
                 WRITE_DATA: begin
-                    cache_write_o = 1'b1;
-                    cache_address_o = store_unit_full_address_i;
-                    
-                    cache_dirty_o = 1'b1;
+                    if (cache_port0_idle_i) begin
+                        cache_write_o = 1'b1;
+                        cache_address_o = store_unit_address_i;
+                        
+                        cache_dirty_o = 1'b1;
 
-                    cache_enable_o.data = 1'b1;
-                    cache_enable_o.dirty = 1'b1;
+                        cache_enable_o.data = 1'b1;
+                        cache_enable_o.dirty = 1'b1;
 
-                    state_NXT = IDLE;
-                    done_o = 1'b1;
+                        state_NXT = IDLE;
+                        done_o = 1'b1;
+                        controlling_port0_o = 1'b1;
+                    end
 
                     case (store_unit_data_width_i)
                         BYTE: begin 
-                            cache_byte_write_o[store_unit_full_address_i.byte_sel] = 1'b1;
+                            cache_byte_write_o[store_unit_address_i.byte_sel] = 1'b1;
 
-                            case (store_unit_full_address_i.byte_sel) 
+                            case (store_unit_address_i.byte_sel) 
                                 2'b00: cache_data_o[7:0] = store_unit_data_i[7:0];
 
                                 2'b01: cache_data_o[15:8] = store_unit_data_i[7:0];
@@ -219,7 +228,7 @@ module store_unit_cache_control (
                         end 
 
                         HALF_WORD: begin
-                            if (store_unit_full_address_i.byte_sel[1]) begin
+                            if (store_unit_address_i.byte_sel[1]) begin
                                 /* Write upper 16 bits */
                                 cache_byte_write_o = 4'b1100;
                                 cache_data_o[PORT_WIDTH - 1:(PORT_WIDTH / 2)] = store_unit_data_i[(PORT_WIDTH / 2) - 1:0];
@@ -242,9 +251,9 @@ module store_unit_cache_control (
                  *  Write data into the write buffer 
                  */
                 MEMORY_WRITE: begin
-                    push_store_buffer_o = store_buffer_idle_i;
+                    store_buffer_push_data_o = store_buffer_port_idle_i;
 
-                    cache_address_o = store_unit_full_address_i;
+                    cache_address_o = store_unit_address_i;
                     cache_data_o = store_unit_data_i;
 
                     done_o = 1'b1;
@@ -255,12 +264,16 @@ module store_unit_cache_control (
                  *  Invalidate cache entry by writing valid bit
                  */
                 INVALIDATE: begin
-                    cache_address_o = store_unit_full_address_i;
-                    cache_enable_o.valid = 1'b1;
-                    cache_valid_o = 1'b0;
+                    if (cache_port0_idle_i) begin
+                        cache_address_o = store_unit_address_i;
+                        cache_enable_o.valid = 1'b1;
+                        cache_valid_o = 1'b0;
+
+                        controlling_port0_o = 1'b1;
                     
-                    done_o = 1'b1;
-                    state_NXT = IDLE;
+                        done_o = 1'b1;
+                        state_NXT = IDLE;
+                    end
                 end
             endcase
         end : fsm_logic
