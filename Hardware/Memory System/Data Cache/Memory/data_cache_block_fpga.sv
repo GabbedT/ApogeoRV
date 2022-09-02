@@ -44,48 +44,41 @@
 
 module data_cache_block_fpga (
     input  logic                    clk_i,
-    input  logic [PORT_BYTES - 1:0] byte_write_i,
-    input  logic                    chip_enable_i,
 
     /* Port 0 (R / W) interface */
-    input  logic [ADDR_WIDTH - 1:0] port0_write_address_i,
+    input  logic [PORT_BYTES - 1:0] port0_byte_write_i,
+    input  logic [CHIP_ADDR  - 1:0] port0_chip_select_i,
+    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
     input  logic [PORT_WIDTH - 1:0] port0_data_i,
-    input  logic [CHIP_ADDR  - 1:0] port0_write_i,
-    input  logic [ADDR_WIDTH - 1:0] port0_read_address_i,
-    output logic [PORT_WIDTH - 1:0] port0_data_o,
-    input  logic [CHIP_ADDR  - 1:0] port0_read_i,
+    input                           port0_write_i,
 
     /* Port 1 (R) interface */
-    input  logic [ADDR_WIDTH - 1:0] port1_read_address_i,
+    input  logic [CHIP_ADDR  - 1:0] port1_chip_select_i,
+    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
     output logic [PORT_WIDTH - 1:0] port1_data_o,
-    input  logic [CHIP_ADDR  - 1:0] port1_read_i 
+    input  logic                    port1_read_i 
 );
 
 //----------------//
 //  DECODE LOGIC  //
 //----------------//
 
-    logic [CACHE_CHIP - 1:0] port0_write, port0_read, port1_read;
+    logic [CACHE_CHIP - 1:0] port0_enable, port1_enable;
 
         always_comb begin 
             /* Default values */
-            port0_write = 'b0;
-            port0_read = 'b0;
-            port1_read = 'b0;
+            port0_enable = 'b0;
+            port1_enable = 'b0;
 
-            for (int i = 0; i < CACHE_CHIP; ++i) begin : decode
-                if (port0_write_i == i) begin
-                    port0_write[i] = 1'b1;
+            for (int i = 0; i < CACHE_CHIP; ++i) begin : decode_logic
+                if (port0_chip_select_i == i) begin
+                    port0_enable[i] = 1'b1;
                 end
 
-                if (port0_read_i == i) begin
-                    port0_read[i] = 1'b1;
+                if (port1_chip_select_i == i) begin
+                    port1_enable[i] = 1'b1;
                 end
-
-                if (port1_read_i == i) begin
-                    port1_read[i] = 1'b1;
-                end
-            end : decode
+            end : decode_logic
         end
 
 
@@ -94,7 +87,7 @@ module data_cache_block_fpga (
 //----------//
 
     /* Memory chip output data */
-    logic [CACHE_CHIP - 1:0][PORT_WIDTH - 1:0] port0_data_read, port1_data_read;
+    logic [CACHE_CHIP - 1:0][PORT_WIDTH - 1:0] port1_data_read;
 
     genvar i;
 
@@ -102,36 +95,31 @@ module data_cache_block_fpga (
     generate
         for (i = 0; i < CACHE_CHIP; ++i) begin
             data_memory_bank_fpga data_cache_block_bank (
-                .clk_i                 ( clk_i                          ),
-                .byte_write_i          ( byte_write_i                   ),
+                .clk_i              ( clk_i                           ),
 
                 /* Port 0 (R / W) interface */
-                .port0_write_address_i ( port0_write_address_i          ),
-                .port0_data_i          ( port0_data_i                   ),
-                .port0_write_i         ( port0_write[i] & chip_enable_i ),
-                .port0_read_address_i  ( port0_read_address_i           ),
-                .port0_data_o          ( port0_data_read[i]             ),
-                .port0_read_i          ( port0_read[i] & chip_enable_i  ),
+                .port0_byte_write_i ( port0_byte_write_i              ),
+                .port0_address_i    ( port0_address_i                 ),
+                .port0_data_i       ( port0_data_i                    ),
+                .port0_write_i      ( port0_write_i & port0_enable[i] ),
 
                 /* Port 1 (R) interface */
-                .port1_read_address_i  ( port1_read_address_i           ),
-                .port1_data_o          ( port1_data_read[i]             ),
-                .port1_read_i          ( port1_read[i] & chip_enable_i  )  
+                .port1_address_i    ( port1_address_i                 ),
+                .port1_data_o       ( port1_data_read[i]              ),
+                .port1_read_i       ( port1_read_i & port1_enable[i]  )  
             );
         end
     endgenerate
 
     /* Since data arrives after 1 clock cycle, the active chip address needs to be stored */
-    logic [CHIP_ADDR - 1:0] port0_read_reg, port1_read_reg;
+    logic [CHIP_ADDR - 1:0] port1_read_data_select;
 
         always_ff @(posedge clk_i) begin
-            port0_read_reg <= port0_read_i;
-            port1_read_reg <= port1_read_i;
+            port1_read_data_select <= port1_chip_select_i;
         end
 
     /* Output assignment */
-    assign port0_data_o = port0_data_read[port0_read_reg];
-    assign port1_data_o = port1_data_read[port1_read_reg];
+    assign port1_data_o = port1_data_read[port1_read_data_select];
 
 endmodule : data_cache_block_fpga
 
