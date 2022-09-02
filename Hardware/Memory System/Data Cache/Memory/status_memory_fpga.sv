@@ -42,19 +42,18 @@ module status_memory_fpga (
     input  logic                    clk_i,
 
     /* Port 0 (R / W) interface */
-    input  logic [ADDR_WIDTH - 1:0] port0_write_address_i,
+    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
     input  logic                    port0_valid_i,
     input  logic                    port0_dirty_i,
     input  logic                    port0_valid_write_i,
     input  logic                    port0_dirty_write_i,
-    input  logic [ADDR_WIDTH - 1:0] port0_read_address_i,
     output logic                    port0_valid_o,
     output logic                    port0_dirty_o,
     input  logic                    port0_valid_read_i,
     input  logic                    port0_dirty_read_i,
 
     /* Port 1 (R) interface */
-    input  logic [ADDR_WIDTH - 1:0] port1_read_address_i,
+    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
     output logic                    port1_valid_o,
     output logic                    port1_dirty_o,
     input  logic                    port1_valid_read_i,
@@ -76,17 +75,17 @@ module status_memory_fpga (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : valid_memory_port0
             if (port0_valid_write_i) begin
-                valid_memory[port0_write_address_i] <= port0_valid_i;
+                valid_memory[port0_address_i] <= port0_valid_i;
             end
 
             if (port0_valid_read_i) begin
-                port0_valid_o <= valid_memory[port0_read_address_i];
+                port0_valid_o <= valid_memory[port0_address_i];
             end
         end : valid_memory_port0
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : valid_memory_port1
             if (port1_valid_read_i) begin
-                port1_valid_o <= valid_memory[port1_read_address_i];
+                port1_valid_o <= valid_memory[port1_address_i];
             end
         end : valid_memory_port1
 
@@ -99,17 +98,17 @@ module status_memory_fpga (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : dirty_memory_port0
             if (port0_dirty_write_i) begin
-                dirty_memory[port0_write_address_i] <= port0_dirty_i;
+                dirty_memory[port0_address_i] <= port0_dirty_i;
             end
 
             if (port0_dirty_read_i) begin
-                port0_dirty_o <= dirty_memory[port0_read_address_i];
+                port0_dirty_o <= dirty_memory[port0_address_i];
             end
         end : dirty_memory_port0
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : dirty_memory_port1
             if (port1_dirty_read_i) begin
-                port1_dirty_o <= dirty_memory[port1_read_address_i];
+                port1_dirty_o <= dirty_memory[port1_address_i];
             end
         end : dirty_memory_port1
 
