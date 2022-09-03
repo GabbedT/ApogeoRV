@@ -63,9 +63,7 @@ module tag_memory_fpga (
         always_ff @(posedge clk_i) begin : tag_memory_port0
             if (port0_write_i) begin
                 tag_memory[port0_address_i] <= port0_tag_i;
-            end
-            
-            if (port0_read_i) begin
+            end else if (port0_read_i) begin
                 port0_tag_o <= tag_memory[port0_address_i];
             end
         end : tag_memory_port0

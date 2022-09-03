@@ -76,9 +76,7 @@ module status_memory_fpga (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : valid_memory_port0
             if (port0_valid_write_i) begin
                 valid_memory[port0_address_i] <= port0_valid_i;
-            end
-
-            if (port0_valid_read_i) begin
+            end else if (port0_valid_read_i) begin
                 port0_valid_o <= valid_memory[port0_address_i];
             end
         end : valid_memory_port0
@@ -99,9 +97,7 @@ module status_memory_fpga (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : dirty_memory_port0
             if (port0_dirty_write_i) begin
                 dirty_memory[port0_address_i] <= port0_dirty_i;
-            end
-
-            if (port0_dirty_read_i) begin
+            end else if (port0_dirty_read_i) begin
                 port0_dirty_o <= dirty_memory[port0_address_i];
             end
         end : dirty_memory_port0
