@@ -281,10 +281,17 @@ module load_unit_cache_control (
                     enable_lfsr = 1'b0;
                     stall_pipeline_o = 1'b1;
 
-                    if (cache_dirty_i) begin
-                        state_NXT = WRITE_BACK;
-                    end else begin
-                        state_NXT = ALLOCATE;
+                    if (!store_buffer_full_i & store_buffer_port_idle_i) begin
+                        data_o = cache_data_writeback_i;
+                        cache_address_o = load_unit_address_i;
+
+                        store_buffer_push_data_o = 1'b1;
+
+                        if (cache_dirty_i) begin
+                            state_NXT = READ_CACHE;
+                        end else begin
+                            state_NXT = ALLOCATE;
+                        end
                     end
                 end
 
@@ -329,7 +336,7 @@ module load_unit_cache_control (
                         store_buffer_push_data_o = 1'b1;
 
                         /* If the end of the block is reached, allocate a new block */
-                        if (chip_select_CRT == (BLOCK_WIDTH / PORT_WIDTH - 1)) begin
+                        if (chip_select_CRT == ((BLOCK_WIDTH / PORT_WIDTH) - 1)) begin
                             state_NXT = ALLOCATE;
                             chip_select_NXT = 'b0;
                         end else begin
