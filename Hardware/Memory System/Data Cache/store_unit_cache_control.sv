@@ -98,11 +98,12 @@ module store_unit_cache_control (
 
 
     /* Save the hitting way */
-    
     logic latch_way_hit; 
 
-        always_ff @(posedge clk_i) begin : way_hit_register
-            if (latch_way_hit) begin
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : way_hit_register
+            if (!rst_n_i) begin 
+                cache_enable_way_o <= 'b0;
+            end else if (latch_way_hit) begin
                 cache_enable_way_o <= cache_way_hit_i;
             end
         end : way_hit_register
@@ -251,13 +252,15 @@ module store_unit_cache_control (
                  *  Write data into the write buffer 
                  */
                 MEMORY_WRITE: begin
-                    store_buffer_push_data_o = store_buffer_port_idle_i;
+                    if (store_buffer_port_idle_i) begin 
+                        store_buffer_push_data_o = 1'b1;
+
+                        done_o = 1'b1;
+                        state_NXT = IDLE;
+                    end 
 
                     cache_address_o = store_unit_address_i;
                     cache_data_o = store_unit_data_i;
-
-                    done_o = 1'b1;
-                    state_NXT = IDLE;
                 end
 
                 /* 
