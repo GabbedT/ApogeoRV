@@ -367,6 +367,7 @@ module load_unit_cache_control (
                             cache_enable_o.data = 1'b1;
                         end
 
+                        chip_select_NXT = chip_select_CRT + 1'b1;
                         cache_port0_write_o = 1'b1;
                         data_o = external_memory_data[PORT_WIDTH - 1:0];
 
