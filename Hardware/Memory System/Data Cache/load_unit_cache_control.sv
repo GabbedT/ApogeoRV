@@ -248,6 +248,7 @@ module load_unit_cache_control (
                  */
                 DATA_STABLE: begin
                     data_valid_o = 1'b1;
+                    done_o = 1'b1;
                     data_o = cache_data_CRT;
                     state_NXT = IDLE;
                 end
@@ -375,7 +376,7 @@ module load_unit_cache_control (
                         cache_line = external_memory_data >> PORT_WIDTH;
 
                         /* End of cache line reached */
-                        if (chip_select_CRT == (BLOCK_WIDTH / PORT_WIDTH - 1)) begin
+                        if (chip_select_CRT == (BLOCK_WORDS - 1)) begin
                             state_NXT = IDLE;
                             done_o = 1'b1;
                         end
