@@ -10,6 +10,7 @@ package data_memory_pkg;
     /* Block size */
     localparam BLOCK_WIDTH = 128;
     localparam BLOCK_BYTES = BLOCK_WIDTH / 8;
+    localparam BLOCK_WORDS = BLOCK_WIDTH / PORT_WIDTH;
 
     /* Total block number */
     localparam CACHE_SIZE = 2 ** 14;
