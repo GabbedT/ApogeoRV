@@ -55,7 +55,8 @@ module data_cache_memory_fpga (
     input  logic                     port0_write_i,
     input  logic                     port0_read_i,
     input  data_cache_packet_t       port0_cache_packet_i,
-    output data_cache_packet_t [WAYS_NUMBER - 1:0] port0_cache_packet_o,
+    output logic [WAYS_NUMBER - 1:0] port0_valid_o,
+    output logic [WAYS_NUMBER - 1:0][TAG_SIZE - 1:0] port0_tag_o,
 
     /* Port 1 (R) interface */
     input  data_cache_enable_t       port1_enable_i,
@@ -81,7 +82,8 @@ module data_cache_memory_fpga (
                 .port0_cache_packet_i ( port0_cache_packet_i    ),
                 .port0_write_i        ( port0_write_i           ),
                 .port0_read_i         ( port0_read_i            ),
-                .port0_cache_packet_o ( port0_cache_packet_o[i] ),
+                .port0_valid_o        ( port0_valid_o[i]        ),
+                .port0_tag_o          ( port0_tag_o[i]          ),
 
                 /* Port 1 (R) interface */
                 .port1_enable_i       ( port1_enable_i          ),
