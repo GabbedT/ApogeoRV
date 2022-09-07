@@ -45,6 +45,19 @@ package data_memory_pkg;
 
         /* Select one of four bytes in a word of 32 bit */
         logic [1:0]              byte_sel;
+    } data_cache_full_addr_t;
+
+ 
+    typedef struct packed {
+        /* Tag to ensure that the data retrieved has 
+         * the same address */
+        logic [TAG_SIZE - 1:0]   tag;
+
+        /* Actual cache address */
+        logic [ADDR_WIDTH - 1:0] index;
+
+        /* A way may be composed of more SRAM chip */
+        logic [CHIP_ADDR - 1:0]  chip_sel;
     } data_cache_addr_t;
 
 
