@@ -48,9 +48,7 @@ module status_memory_fpga (
     input  logic                    port0_valid_write_i,
     input  logic                    port0_dirty_write_i,
     output logic                    port0_valid_o,
-    output logic                    port0_dirty_o,
     input  logic                    port0_valid_read_i,
-    input  logic                    port0_dirty_read_i,
 
     /* Port 1 (R) interface */
     input  logic [ADDR_WIDTH - 1:0] port1_address_i,
@@ -97,9 +95,7 @@ module status_memory_fpga (
         always_ff @(posedge clk_i) begin : dirty_memory_port0
             if (port0_dirty_write_i) begin
                 dirty_memory[port0_address_i] <= port0_dirty_i;
-            end else if (port0_dirty_read_i) begin
-                port0_dirty_o <= dirty_memory[port0_address_i];
-            end
+            end 
         end : dirty_memory_port0
 
         always_ff @(posedge clk_i) begin : dirty_memory_port1
