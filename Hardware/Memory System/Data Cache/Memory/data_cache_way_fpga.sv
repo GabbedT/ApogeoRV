@@ -53,7 +53,8 @@ module data_cache_way_fpga (
     input  data_cache_packet_t      port0_cache_packet_i,
     input  logic                    port0_write_i,
     input  logic                    port0_read_i,
-    output data_cache_packet_t      port0_cache_packet_o,
+    output logic                    port0_valid_o,
+    output logic [TAG_SIZE - 1:0 ]  port0_tag_o,
 
     /* Port 1 (R) interface */
     input  data_cache_enable_t      port1_enable_i, 
@@ -96,10 +97,8 @@ module data_cache_way_fpga (
         .port0_dirty_i       ( port0_cache_packet_i.dirty         ),
         .port0_valid_write_i ( port0_write & port0_enable_i.valid ),
         .port0_dirty_write_i ( port0_write & port0_enable_i.dirty ),
-        .port0_valid_o       ( port0_cache_packet_o.valid         ),
-        .port0_dirty_o       ( port0_cache_packet_o.dirty         ),
+        .port0_valid_o       ( port0_valid_o                      ),
         .port0_valid_read_i  ( port0_read & port0_enable_i.valid  ),
-        .port0_dirty_read_i  ( port0_read & port0_enable_i.dirty  ),
 
         /* Port 1 (R) interface */
         .port1_address_i     ( port1_address_i                    ),
@@ -117,7 +116,7 @@ module data_cache_way_fpga (
         .port0_address_i ( port0_address_i                  ),
         .port0_tag_i     ( port0_cache_packet_i.tag         ),
         .port0_write_i   ( port0_write & port0_enable_i.tag ),
-        .port0_tag_o     ( port0_cache_packet_o.tag         ),
+        .port0_tag_o     ( port0_tag_o                      ),
         .port0_read_i    ( port0_read & port0_enable_i.tag  ),
 
         /* Port 1 (R) interface */
@@ -143,8 +142,6 @@ module data_cache_way_fpga (
         .port1_data_o        ( port1_cache_packet_o.word         ),
         .port1_read_i        ( port1_read & port1_enable_i.data  )  
     );
-
-    assign port0_cache_packet_o.word = 'b0;
 
 endmodule : data_cache_way_fpga
 
