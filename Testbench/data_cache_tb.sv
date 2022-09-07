@@ -1,3 +1,6 @@
+`ifndef DATA_CACHE_TESTBENCH_SV
+    `define DATA_CACHE_TESTBENCH_SV
+
 `include "../Hardware/Memory System/Data Cache/data_cache.sv"
 
 module data_cache_tb ();
@@ -95,7 +98,7 @@ module data_cache_tb ();
 
         test_cache_store();
 
-        $display("Storing data in cache...")
+        $display("Storing data in cache...");
         
         @(posedge clk_i);
         store_unit_write_cache_i <= 1'b0;
@@ -144,7 +147,7 @@ module data_cache_tb ();
 
         $display("Loading data from cache...");
 
-        test_cache_load();
+        test_cache_load(load_data);
 
         @(posedge clk_i);
         load_unit_read_cache_i <= 1'b0;
@@ -152,6 +155,7 @@ module data_cache_tb ();
         if (dut.cache_port1_hit) begin 
             $display("Cache hit!");
             wait(load_unit_done_o);
+            assert(load_data == load_unit_data_o);
             $display("Data loaded!");
         end else begin
             $display("Cache miss! Data request from memory...");
@@ -205,31 +209,25 @@ module data_cache_tb ();
         rst_n_i <= 1'b1;
         @(posedge clk_i);
 
-        fork
-            begin : store_unit
-                for (int i = 0; i < 512; ++i) begin
-                    cache_store_data();
-                    test_cache_store();
-                end
+        repeat(512) begin
+            cache_store_data();
+        end
 
-                for (int i = 0; i < 32; ++i) begin
-                    cache_invalidate_data();
-                end
-            end : store_unit
-
-            begin : load_unit
-                for (int i = 0; i < 512; ++i) begin
-                    cache_load_data();
-                    test_cache_load(load_data);
-                end
-
-                for (int i = 0; i < 32; ++i) begin
-                    cache_load_data_str_buf();
-                end
-            end : load_unit
-        join
+        repeat(16) begin
+            cache_invalidate_data();
+        end
         
+        repeat(512) begin
+            cache_load_data();
+        end
+
+        repeat(8) begin
+            cache_load_data_str_buf();
+        end
+
         $finish;
     end
 
 endmodule : data_cache_tb
+
+`endif
