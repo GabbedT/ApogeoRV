@@ -36,7 +36,7 @@ module data_cache (
     /* Store unit interface */
     input  logic                     store_unit_write_cache_i,
     input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
-    input  data_cache_addr_t         store_unit_address_i,
+    input  data_cache_full_addr_t    store_unit_address_i,
     input  mem_op_width_t            store_unit_data_width_i,
     input  logic                     store_unit_idle_i,
     output logic                     store_unit_done_o,
@@ -81,7 +81,8 @@ module data_cache (
         data_cache_packet_t       write_packet;
 
         /* Read packets coming from the cache ways */
-        data_cache_packet_t [WAYS_NUMBER - 1:0] read_packet;
+        logic [WAYS_NUMBER - 1:0] valid;
+        logic [WAYS_NUMBER - 1:0][TAG_SIZE - 1:0] tag;
 
     } cache_port0_t;
 
@@ -164,7 +165,7 @@ module data_cache (
      } cache_port1_t;
 
     cache_port1_t cache_port1;
-
+ 
 
 //--------------//
 //  DATA CACHE  //
@@ -183,7 +184,8 @@ module data_cache (
             .port0_write_i        ( cache_port0.write        ),
             .port0_read_i         ( cache_port0.read         ),
             .port0_cache_packet_i ( cache_port0.write_packet ),
-            .port0_cache_packet_o ( cache_port0.read_packet  ),
+            .port0_valid_o        ( cache_port0.valid        ),
+            .port0_tag_o          ( cache_port0.tag          ),
 
             /* Port 1 (R) interface */
             .port1_enable_i       ( cache_port1.enable       ),
@@ -199,22 +201,12 @@ module data_cache (
 //  PORT 0 HIT LOGIC  //
 //--------------------//
 
-    logic [WAYS_NUMBER - 1:0][TAG_SIZE   - 1:0] cache_port0_tag;
-    logic [WAYS_NUMBER - 1:0]                   cache_port0_valid; 
-
-        always_comb begin
-            for (int i = 0; i < WAYS_NUMBER; ++i) begin
-                cache_port0_tag[i] = cache_port0.read_packet[i].tag;
-                cache_port0_valid[i] = cache_port0.read_packet[i].valid;
-            end
-        end
-
     logic [WAYS_NUMBER - 1:0] cache_port0_way_hit;
     logic                     cache_port0_hit;
 
     data_cache_port0_hit_check port0_hit_check (
-        .cache_tag_i            ( cache_port0_tag              ),
-        .cache_valid_i          ( cache_port0_valid            ),
+        .cache_tag_i            ( cache_port0.tag              ),
+        .cache_valid_i          ( cache_port0.valid            ),
         .address_tag_i          ( cache_port0.write_packet.tag ), // POSSIBLE BUG SINCE ADDR IS NOT REGISTRED
 
         .hit_o                  ( cache_port0_hit              ),
