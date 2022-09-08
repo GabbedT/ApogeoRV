@@ -35,8 +35,6 @@
 //               accessed at once.  
 // --------------------------------------------------------------------------------------
 
-// TODO: Eliminate read port for data in port0
-
 `ifndef DATA_CACHE_MEMORY_SV
     `define DATA_CACHE_MEMORY_SV
 
