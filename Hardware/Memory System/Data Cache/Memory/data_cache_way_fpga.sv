@@ -104,8 +104,8 @@ module data_cache_way_fpga (
         .port1_address_i     ( port1_address_i                    ),
         .port1_valid_o       ( port1_cache_packet_o.valid         ),
         .port1_dirty_o       ( port1_cache_packet_o.dirty         ),
-        .port1_valid_read_i  ( port0_read & port1_enable_i.valid  ),
-        .port1_dirty_read_i  ( port0_read & port1_enable_i.dirty  )
+        .port1_valid_read_i  ( port1_read & port1_enable_i.valid  ),
+        .port1_dirty_read_i  ( port1_read & port1_enable_i.dirty  )
     );
 
 
