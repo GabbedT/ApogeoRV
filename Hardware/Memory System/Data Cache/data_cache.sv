@@ -21,7 +21,7 @@ module data_cache (
     input  logic                     external_invalidate_i,
     input  data_cache_addr_t         external_invalidate_address_i,
     input  logic                     external_acknowledge_i,
-    input  logic                     cache_line_valid_i,
+    input  logic [BLOCK_WORDS - 1:0] word_number_i,
     output logic                     processor_request_o,
     output logic                     processor_acknowledge_o,
 
@@ -39,12 +39,13 @@ module data_cache (
     input  data_cache_full_addr_t    store_unit_address_i,
     input  mem_op_width_t            store_unit_data_width_i,
     input  logic                     store_unit_idle_i,
+    output data_cache_full_addr_t    store_unit_address_o,
     output logic                     store_unit_done_o,
     output logic                     store_unit_idle_o,
 
     /* Load unit interface */
     input  logic                     load_unit_read_cache_i,
-    input  data_cache_addr_t         load_unit_address_i,
+    input  data_cache_full_addr_t    load_unit_address_i,
     output data_cache_addr_t         load_unit_address_o,
     output logic [PORT_WIDTH - 1:0]  load_unit_data_o,
     output logic                     load_unit_data_valid_o,
@@ -91,7 +92,7 @@ module data_cache (
     logic         ldu_cache_port0_idle, stu_cache_port0_idle;
 
 
-    assign ldu_port0.byte_write = 'b1;
+    assign ldu_port0.byte_write = '1;
     assign ldu_port0.read = 1'b0;
 
         always_comb begin : port0_arbiter
@@ -281,9 +282,9 @@ module data_cache (
         .stall_pipeline_o           ( stall_pipeline_o ),
 
         /* External interface */
+        .word_number_i              ( word_number_i          ),
         .external_data_i            ( external_data_i        ),
         .external_data_valid_i      ( external_data_valid_i  ),
-        .cache_line_valid_i         ( cache_line_valid_i     ),
         .external_acknowledge_i     ( external_acknowledge_i ),
         .processor_request_o        ( processor_request_o    ),
 
@@ -317,7 +318,8 @@ module data_cache (
         .cache_port0_write_o        ( ldu_port0.write              ),
         .cache_random_way_o         ( ldu_port0.enable_way         ),
         .cache_address_o            ( ldu_port0_addr               ),
-        .cache_enable_o             ( cache_port1.enable           ),
+        .cache_port0_enable_o       ( ldu_port0.enable             ),
+        .cache_port1_enable_o       ( cache_port1.enable           ),
 
         .controlling_port0_o        ( ldu_port0_request ),
         .done_o                     ( load_unit_done_o  ),
@@ -341,6 +343,8 @@ module data_cache (
 //-------------------------//
 
     data_cache_addr_t stu_port0_addr;
+
+    logic [1:0] store_address_byte_sel;
 
     store_unit_cache_control store_unit_controller (
         .clk_i                         ( clk_i   ),
@@ -374,15 +378,18 @@ module data_cache (
         /* Store buffer interface */
         .store_buffer_port_idle_i      ( store_buffer_port_idle_i     ),
         .store_buffer_push_data_o      ( store_buffer_stu_push_data_o ),
-    
-        .controlling_port0_o           ( stu_port0_request ),
-        .done_o                        ( store_unit_done_o ),
-        .idle_o                        ( store_unit_idle_o )
+
+        .store_address_byte_o          ( store_address_byte_sel ),
+        .controlling_port0_o           ( stu_port0_request      ),
+        .done_o                        ( store_unit_done_o      ),
+        .idle_o                        ( store_unit_idle_o      )
     );
 
     assign stu_port0.address =  stu_port0_addr.index;
     assign stu_port0.write_packet.tag = stu_port0_addr.tag;
     assign stu_port0.chip_select = stu_port0_addr.chip_sel;
+
+    assign store_unit_address_o = {stu_port0_addr, store_address_byte_sel}; 
 
 endmodule : data_cache
 
