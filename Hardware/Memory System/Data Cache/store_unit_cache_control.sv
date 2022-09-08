@@ -72,6 +72,7 @@ module store_unit_cache_control (
     input  logic                     store_buffer_port_idle_i,
     output logic                     store_buffer_push_data_o,
     
+    output logic [1:0]               store_address_byte_o,
     output logic                     controlling_port0_o,
     output logic                     done_o,
     output logic                     idle_o
@@ -125,6 +126,7 @@ module store_unit_cache_control (
             cache_dirty_o = 1'b0;
             cache_valid_o = 1'b0;
             cache_address_o = {store_unit_address_i.tag, store_unit_address_i.index, store_unit_address_i.chip_sel};
+            store_address_byte_o = store_unit_address_i.byte_sel;
             cache_byte_write_o = 'b0;
             cache_data_o = 'b0;
 
@@ -178,6 +180,7 @@ module store_unit_cache_control (
                              * is not in cache, no further operations
                              * are needed */
                             state_NXT = IDLE;
+                            done_o = 1'b1;
                         end  
                     end else if (store_unit_write_cache_i) begin 
                         if (cache_hit_i) begin
