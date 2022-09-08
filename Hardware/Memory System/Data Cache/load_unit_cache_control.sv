@@ -48,9 +48,9 @@ module load_unit_cache_control (
     output logic                     stall_pipeline_o,
 
     /* External interface */
+    input  logic [BLOCK_WORDS - 1:0] word_number_i,
     input  logic [PORT_WIDTH - 1:0]  external_data_i,
     input  logic                     external_data_valid_i,
-    input  logic                     cache_line_valid_i,
     input  logic                     external_acknowledge_i,
     output logic                     processor_request_o,
 
@@ -68,7 +68,7 @@ module load_unit_cache_control (
 
     /* Load unit interface */
     input  logic                     load_unit_read_cache_i,
-    input  data_cache_addr_t         load_unit_address_i,
+    input  data_cache_full_addr_t    load_unit_address_i,
     output logic [PORT_WIDTH - 1:0]  data_o,
     output logic                     data_valid_o,
 
@@ -84,7 +84,8 @@ module load_unit_cache_control (
     output logic                     cache_port0_write_o,
     output logic [WAYS_NUMBER - 1:0] cache_random_way_o,
     output data_cache_addr_t         cache_address_o,
-    output data_cache_enable_t       cache_enable_o,
+    output data_cache_enable_t       cache_port0_enable_o,
+    output data_cache_enable_t       cache_port1_enable_o,
 
     output logic                     controlling_port0_o,              
     output logic                     done_o,
@@ -98,15 +99,39 @@ module load_unit_cache_control (
 
     /* External memory will supply the cache line in more clock cycles since
      * the data interface is narrower than the cache line */
-    logic [BLOCK_WIDTH - 1:0] external_memory_data, cache_line;
+    logic [BLOCK_WORDS - 1:0][PORT_WIDTH - 1:0] external_memory_data;
 
-        always_ff @(posedge clk_i) begin : memory_data_register
-            if (external_data_valid_i) begin 
-                external_memory_data <= {external_data_i, external_memory_data[BLOCK_WIDTH - 1:PORT_WIDTH]};
-            end else if (cache_line_valid_i) begin
-                external_memory_data <= cache_line;
-            end 
-        end : memory_data_register
+        always_ff @(posedge clk_i) begin : cache_line_register
+            for (int i = 0; i < BLOCK_WORDS; ++i) begin 
+                if (external_data_valid_i & word_number_i[i]) begin 
+                    external_memory_data[i] <= external_data_i;
+                end 
+            end
+        end : cache_line_register
+
+
+    /* Track number of data supplied by memory */
+    logic [$clog2(BLOCK_WORDS):0] memory_data_cnt_CRT, memory_data_cnt_NXT;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_memory_counter
+            if (!rst_n_i) begin 
+                memory_data_cnt_CRT <= '0;
+            end else begin
+                memory_data_cnt_CRT <= memory_data_cnt_NXT;
+            end
+        end : data_memory_counter
+
+
+    /* Track number of data allocated in the cache */
+    logic [$clog2(BLOCK_WORDS) - 1:0] allocated_data_cnt_CRT, allocated_data_cnt_NXT;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : allocated_data_counter
+            if (!rst_n_i) begin
+                allocated_data_cnt_CRT <= '0;
+            end else begin
+                allocated_data_cnt_CRT <= allocated_data_cnt_NXT;
+            end
+        end : allocated_data_counter
 
 
     /* Store data from cache */
@@ -123,7 +148,7 @@ module load_unit_cache_control (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : chip_select_register
             if (!rst_n_i) begin
-                chip_select_CRT <= 'b0;
+                chip_select_CRT <= '0;
             end else begin
                 chip_select_CRT <= chip_select_NXT;
             end
@@ -133,7 +158,6 @@ module load_unit_cache_control (
     /* LFSR for selecting the way to replace with random policy */
     logic [2:0] lfsr_data;
     logic       lfsr_function, enable_lfsr;
-    logic [1:0] random_way;
 
     assign lfsr_function = !(lfsr_data[2] ^ lfsr_data[1]);
 
@@ -145,9 +169,15 @@ module load_unit_cache_control (
             end
         end : lfsr_shift_register
 
-    assign random_way = lfsr_data[1:0];
-
-    assign cache_random_way_o = random_way;
+        always_comb begin
+            for (int i = 0; i < WAYS_NUMBER; ++i) begin
+                if (i == lfsr_data[1:0]) begin
+                    cache_random_way_o[i] = 1'b1;
+                end else begin
+                    cache_random_way_o[i] = 1'b0;
+                end
+            end
+        end
 
 
     /* Check if store unit is writing in the same memory location */
@@ -178,23 +208,30 @@ module load_unit_cache_control (
             state_NXT = state_CRT;
             cache_data_NXT = cache_data_CRT;
             chip_select_NXT = chip_select_CRT;
+            allocated_data_cnt_NXT = allocated_data_cnt_CRT;
+            memory_data_cnt_NXT = memory_data_cnt_CRT;
 
             cache_port1_read_o = 1'b0; 
             cache_port0_write_o = 1'b0;
-            cache_address_o = 'b0;
-            cache_enable_o = 'b0; 
+            cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, load_unit_address_i.chip_sel};
+            cache_port0_enable_o = '0; 
+            cache_port1_enable_o = '0; 
             cache_dirty_o = 1'b0; 
             cache_valid_o = 1'b0; 
-            
-            cache_line = external_memory_data;
+      
             processor_request_o = 1'b0;
             store_buffer_push_data_o = 1'b0;
             controlling_port0_o = 1'b0;
             stall_pipeline_o = 1'b0;
             data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
-            data_o = 'b0;
+            data_o = '0;
             done_o = 1'b0;
+
+            if (external_data_valid_i) begin
+                memory_data_cnt_NXT = memory_data_cnt_CRT + 1'b1;
+            end 
+
 
             case (state_CRT)
 
@@ -208,7 +245,7 @@ module load_unit_cache_control (
                         state_NXT = COMPARE_TAG;
 
                         /* Access all the cache */
-                        cache_enable_o = 4'hF;
+                        cache_port1_enable_o = '1;
 
                         /* Cache control */
                         cache_port1_read_o = 1'b1;
@@ -255,21 +292,17 @@ module load_unit_cache_control (
 
 
                 /*
-                 *  Send a read request to memory unit and read the cache dirty 
-                 *  bit at the same time. Only the dirty bit needs to be accessed.
+                 *  Send a read request to memory unit.
                  */
                 MEMORY_REQUEST: begin
                     processor_request_o = 1'b1;
                     stall_pipeline_o = 1'b1;
                     enable_lfsr = 1'b0;
 
+                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, load_unit_address_i.chip_sel}; 
+
                     if (external_acknowledge_i) begin
                         state_NXT = READ_CACHE;
-
-                        cache_port1_read_o = 1'b1;
-                        cache_address_o = load_unit_address_i; 
-
-                        cache_enable_o.dirty = 1'b1;
                     end
                 end
 
@@ -284,14 +317,16 @@ module load_unit_cache_control (
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
                         data_o = cache_data_writeback_i;
-                        cache_address_o = load_unit_address_i;
-
-                        store_buffer_push_data_o = 1'b1;
+                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT}; 
 
                         if (cache_dirty_i) begin
                             state_NXT = READ_CACHE;
+                            store_buffer_push_data_o = 1'b1;
+
+                            chip_select_NXT = chip_select_CRT + 1'b1;
                         end else begin
                             state_NXT = ALLOCATE;
+                            chip_select_NXT = '0;
                         end
                     end
                 end
@@ -304,22 +339,21 @@ module load_unit_cache_control (
                  */
                 READ_CACHE: begin
                     state_NXT = WRITE_BACK;
-                    chip_select_NXT = chip_select_CRT + 1'b1;
 
                     enable_lfsr = 1'b0;
                     stall_pipeline_o = 1'b1;
 
                     cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
                     cache_port1_read_o = 1'b1;
-                    cache_enable_o.data = 1'b1;
+                    cache_port1_enable_o.data = 1'b1;
 
                     /* During the first access, check if the block is dirty to 
                      * determine if it needs to be written back */
-                    if (chip_select_CRT == 'b0) begin 
+                    if (chip_select_CRT == '0) begin 
                         state_NXT = DIRTY_CHECK;
 
-                        cache_enable_o.data = 1'b1;  
-                        cache_enable_o.dirty = 1'b1;  
+                        cache_port1_enable_o.data = 1'b1;  
+                        cache_port1_enable_o.dirty = 1'b1;  
                     end
                 end
 
@@ -329,19 +363,21 @@ module load_unit_cache_control (
                  */
                 WRITE_BACK: begin
                     enable_lfsr = 1'b0;
+                    stall_pipeline_o = 1'b1;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
                         data_o = cache_data_writeback_i;
-                        cache_address_o = load_unit_address_i;
+                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT}; 
 
                         store_buffer_push_data_o = 1'b1;
 
                         /* If the end of the block is reached, allocate a new block */
                         if (chip_select_CRT == ((BLOCK_WIDTH / PORT_WIDTH) - 1)) begin
                             state_NXT = ALLOCATE;
-                            chip_select_NXT = 'b0;
+                            chip_select_NXT = '0;
                         end else begin
                             state_NXT = READ_CACHE;
+                            chip_select_NXT = chip_select_CRT + 1'b1;
                         end
                     end
                 end
@@ -351,33 +387,41 @@ module load_unit_cache_control (
                  *  When the entire cache line has been received from the memory,
                  *  write multiple times the cache keeping the index and incrementing
                  *  the chip select signal as the write happens. In the first write
-                 *  allocate status and tag bits.
+                 *  allocate status and tag bits. Allocate new data as soon as data
+                 *  arrives.
                  */
                 ALLOCATE: begin
                     enable_lfsr = 1'b0; 
+                    stall_pipeline_o = 1'b1;
 
-                    if (cache_line_valid_i & cache_port0_idle_i) begin
+                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
+
+                    if (cache_port0_idle_i) begin
                         controlling_port0_o = 1'b1;
                         
-                        if (chip_select_CRT == 'b0) begin
-                            cache_enable_o = 4'hF;
+                        if (chip_select_CRT == '0) begin
+                            cache_port0_enable_o = '1;
 
                             cache_dirty_o = 1'b0;
                             cache_valid_o = 1'b1;
                         end else begin
-                            cache_enable_o.data = 1'b1;
+                            cache_port0_enable_o.data = 1'b1;
                         end
 
-                        chip_select_NXT = chip_select_CRT + 1'b1;
-                        cache_port0_write_o = 1'b1;
-                        data_o = external_memory_data[PORT_WIDTH - 1:0];
-
-                        /* Shift the cache line supplied by the memory */
-                        cache_line = external_memory_data >> PORT_WIDTH;
+                        /* Keep allocating data if the number of word in the cache 
+                         * line register is higher than the number of word allocated */
+                        if (allocated_data_cnt_CRT < memory_data_cnt_CRT) begin 
+                            chip_select_NXT = chip_select_CRT + 1'b1;
+                            allocated_data_cnt_NXT = allocated_data_cnt_CRT + 1'b1;
+                            
+                            cache_port0_write_o = 1'b1;
+                            data_o = external_memory_data[allocated_data_cnt_CRT];
+                        end
 
                         /* End of cache line reached */
                         if (chip_select_CRT == (BLOCK_WORDS - 1)) begin
                             state_NXT = IDLE;
+                            memory_data_cnt_NXT = '0;
                             done_o = 1'b1;
                         end
                     end
