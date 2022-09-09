@@ -43,7 +43,6 @@ module data_cache_port1_hit_check (
     input  logic [TAG_SIZE - 1:0]    address_tag_i,
 
     output logic                     hit_o,
-    output logic [WAYS_NUMBER - 1:0] way_hit_o,
     output logic [PORT_WIDTH - 1:0]  cache_data_o
 );
 
@@ -72,9 +71,6 @@ module data_cache_port1_hit_check (
 
     /* Return the data in the cache way that has hitted */
     assign cache_data_o = cache_data_i[data_select];
-
-    /* Which way has been hitted */
-    assign way_hit_o = way_hit;
 
 endmodule : data_cache_port1_hit_check
 
