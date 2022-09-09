@@ -89,13 +89,36 @@ module data_cache (
 
     cache_port0_t ldu_port0, stu_port0, cache_port0;
     logic         ldu_port0_request, stu_port0_request;
-    logic         ldu_cache_port0_idle, stu_cache_port0_idle;
+    logic         ldu_cache_port0_grant, stu_cache_port0_grant;
 
 
     assign ldu_port0.byte_write = '1;
     assign ldu_port0.read = 1'b0;
 
         always_comb begin : port0_arbiter
+            /* Port 0 status */
+            case ({stu_port0_request, ldu_port0_request})
+                2'b00: begin
+                    ldu_cache_port0_grant = 1'b0;
+                    stu_cache_port0_grant = 1'b0;
+                end
+
+                2'b01: begin
+                    ldu_cache_port0_grant = 1'b1;
+                    stu_cache_port0_grant = 1'b0;  
+                end
+
+                2'b10: begin
+                    ldu_cache_port0_grant = 1'b0;
+                    stu_cache_port0_grant = 1'b1;  
+                end
+
+                2'b11: begin
+                    ldu_cache_port0_grant = 1'b0;
+                    stu_cache_port0_grant = 1'b1;  
+                end
+            endcase
+
             if (stu_port0_request) begin
                 /* Port 0 signals */
                 cache_port0.write_packet = stu_port0.write_packet;
@@ -106,10 +129,6 @@ module data_cache (
                 cache_port0.chip_select = stu_port0.chip_select;
                 cache_port0.byte_write = stu_port0.byte_write;
                 cache_port0.enable_way = stu_port0.enable_way;
-  
-                /* Port 0 status */
-                ldu_cache_port0_idle = 1'b0;
-                stu_cache_port0_idle = 1'b1;
             end else if (ldu_port0_request) begin
                 /* Port 0 signals */
                 cache_port0.write_packet = ldu_port0.write_packet;
@@ -120,10 +139,6 @@ module data_cache (
                 cache_port0.chip_select = ldu_port0.chip_select;
                 cache_port0.byte_write = ldu_port0.byte_write;
                 cache_port0.enable_way = ldu_port0.enable_way;
-                
-                /* Port 0 status */
-                ldu_cache_port0_idle = 1'b1;
-                stu_cache_port0_idle = 1'b0;
             end else begin
                 /* Port 0 signals */
                 cache_port0.write_packet = stu_port0.write_packet;
@@ -134,10 +149,6 @@ module data_cache (
                 cache_port0.chip_select = stu_port0.chip_select;
                 cache_port0.byte_write = stu_port0.byte_write;
                 cache_port0.enable_way = 'b0;
-                
-                /* Port 0 status */
-                ldu_cache_port0_idle = 1'b1;
-                stu_cache_port0_idle = 1'b1;
             end
         end : port0_arbiter
 
@@ -232,7 +243,6 @@ module data_cache (
             end
         end
 
-    logic [WAYS_NUMBER - 1:0] cache_port1_way_hit;
     logic [PORT_WIDTH - 1:0]  cache_port1_data_hit;
     logic                     cache_port1_hit;
 
@@ -243,7 +253,6 @@ module data_cache (
         .address_tag_i          ( cache_tag            ),   // POSSIBLE BUG SINCE ADDR IS NOT REGISTRED
 
         .hit_o                  ( cache_port1_hit      ),
-        .way_hit_o              ( cache_port1_way_hit  ),
         .cache_data_o           ( cache_port1_data_hit )
     );
 
@@ -307,7 +316,7 @@ module data_cache (
         .data_valid_o               ( load_unit_data_valid_o      ),
 
         /* Cache interface */
-        .cache_port0_idle_i         ( ldu_cache_port0_idle         ),
+        .cache_port0_granted_i      ( ldu_cache_port0_grant        ),
         .cache_port1_hit_i          ( cache_port1_hit              ),
         .cache_dirty_i              ( cache_port1_dirty            ),
         .cache_data_i               ( cache_port1_data_hit         ),
@@ -321,7 +330,7 @@ module data_cache (
         .cache_port0_enable_o       ( ldu_port0.enable             ),
         .cache_port1_enable_o       ( cache_port1.enable           ),
 
-        .controlling_port0_o        ( ldu_port0_request ),
+        .port0_request_o            ( ldu_port0_request ),
         .done_o                     ( load_unit_done_o  ),
         .idle_o                     ( load_unit_idle_o  )
     );
@@ -362,7 +371,7 @@ module data_cache (
         .store_unit_data_width_i       ( store_unit_data_width_i  ),
 
         /* Cache interface */
-        .cache_port0_idle_i            ( stu_cache_port0_idle         ),
+        .cache_port0_granted_i         ( stu_cache_port0_grant         ),
         .cache_hit_i                   ( cache_port0_hit              ),
         .cache_way_hit_i               ( cache_port0_way_hit          ),
         .cache_write_o                 ( stu_port0.write              ),
@@ -380,7 +389,7 @@ module data_cache (
         .store_buffer_push_data_o      ( store_buffer_stu_push_data_o ),
 
         .store_address_byte_o          ( store_address_byte_sel ),
-        .controlling_port0_o           ( stu_port0_request      ),
+        .port0_request_o               ( stu_port0_request      ),
         .done_o                        ( store_unit_done_o      ),
         .idle_o                        ( store_unit_idle_o      )
     );
