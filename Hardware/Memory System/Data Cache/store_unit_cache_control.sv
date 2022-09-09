@@ -55,7 +55,7 @@ module store_unit_cache_control (
     input  mem_op_width_t            store_unit_data_width_i,
 
     /* Cache interface */
-    input  logic                     cache_port0_idle_i,
+    input  logic                     cache_port0_granted_i,
     input  logic                     cache_hit_i,
     input  logic [WAYS_NUMBER - 1:0] cache_way_hit_i,
     output logic                     cache_write_o,
@@ -73,7 +73,7 @@ module store_unit_cache_control (
     output logic                     store_buffer_push_data_o,
     
     output logic [1:0]               store_address_byte_o,
-    output logic                     controlling_port0_o,
+    output logic                     port0_request_o,
     output logic                     done_o,
     output logic                     idle_o
 );
@@ -117,7 +117,7 @@ module store_unit_cache_control (
             done_o = 1'b0;
             store_buffer_push_data_o = 1'b0;
             processor_acknowledge_o = 1'b0;
-            controlling_port0_o = 1'b0;
+            port0_request_o = 1'b0;
             latch_way_hit = 1'b0;
             
             cache_read_o = 1'b0;
@@ -137,26 +137,26 @@ module store_unit_cache_control (
                  *  send address to cache and read immediately 
                  */
                 IDLE: begin
+                    port0_request_o = external_invalidate_i | store_unit_write_cache_i;
+
                     /* Store request and invalidate request need to read the
                      * cache block first */
-                    if (external_invalidate_i & cache_port0_idle_i) begin
+                    if (external_invalidate_i & cache_port0_granted_i) begin
                         state_NXT = COMPARE_TAG;
 
                         /* Initiate cache read */
                         cache_read_o = 1'b1;
-                        controlling_port0_o = 1'b1;
                         cache_address_o = external_invalidate_address_i;
 
                         cache_enable_o.tag = 4'b1;
                         cache_enable_o.valid = 4'b1;
                         processor_acknowledge_o = 1'b1;
 
-                    end else if (store_unit_write_cache_i & cache_port0_idle_i) begin
+                    end else if (store_unit_write_cache_i & cache_port0_granted_i) begin
                         state_NXT = COMPARE_TAG;
 
                         /* Initiate cache read */
                         cache_read_o = 1'b1;
-                        controlling_port0_o = 1'b1;
 
                         cache_enable_o.tag = 4'b1;
                         cache_enable_o.valid = 4'b1;
@@ -169,29 +169,37 @@ module store_unit_cache_control (
                  */
                 COMPARE_TAG: begin
                     latch_way_hit = 1'b1;
+                    done_o = external_invalidate_i & !cache_hit_i;
 
                     if (external_invalidate_i) begin
                         cache_address_o = external_invalidate_address_i;
+                    end
 
-                        if (cache_hit_i) begin
-                            state_NXT = INVALIDATE;
-                        end else begin
-                            /* If a miss happens the invalid block 
-                             * is not in cache, no further operations
-                             * are needed */
-                            state_NXT = IDLE;
-                            done_o = 1'b1;
-                        end  
-                    end else if (store_unit_write_cache_i) begin 
-                        if (cache_hit_i) begin
-                            /* Write in cache */
-                            state_NXT = WRITE_DATA;
-                        end else begin
-                            /* Send a write request to memory
-                             * unit */
-                            state_NXT = MEMORY_WRITE;
+                    case ({external_invalidate_i, store_unit_write_cache_i})
+                        /* Store unit write request */
+                        2'b00, 2'b01: begin
+                            if (cache_hit_i) begin
+                                /* Write in cache */
+                                state_NXT = WRITE_DATA;
+                            end else begin
+                                /* Send a write request to memory
+                                * unit */
+                                state_NXT = MEMORY_WRITE;
+                            end 
                         end
-                    end 
+
+                        /* External invalidation request (priority over store unit write) */
+                        2'b10, 2'b11: begin
+                            if (cache_hit_i) begin
+                                state_NXT = INVALIDATE;
+                            end else begin
+                                /* If a miss happens the invalid block 
+                                * is not in cache, no further operations
+                                * are needed */
+                                state_NXT = IDLE;
+                            end 
+                        end
+                    endcase
                 end
 
                 /* 
@@ -199,7 +207,9 @@ module store_unit_cache_control (
                  *  memory block and dirty memory block.
                  */
                 WRITE_DATA: begin
-                    if (cache_port0_idle_i) begin
+                    port0_request_o = 1'b1;
+
+                    if (cache_port0_granted_i) begin
                         cache_write_o = 1'b1;
                         
                         cache_dirty_o = 1'b1;
@@ -209,7 +219,6 @@ module store_unit_cache_control (
 
                         state_NXT = IDLE;
                         done_o = 1'b1;
-                        controlling_port0_o = 1'b1;
                     end
 
                     case (store_unit_data_width_i)
@@ -265,11 +274,15 @@ module store_unit_cache_control (
                  *  Invalidate cache entry by writing valid bit
                  */
                 INVALIDATE: begin
-                    if (cache_port0_idle_i) begin
+                    port0_request_o = 1'b1;
+                    
+                    if (cache_port0_granted_i) begin
                         cache_enable_o.valid = 1'b1;
                         cache_valid_o = 1'b0;
 
-                        controlling_port0_o = 1'b1;
+                        cache_address_o = external_invalidate_address_i;
+
+                        cache_write_o = 1'b1;
                     
                         done_o = 1'b1;
                         state_NXT = IDLE;
