@@ -19,7 +19,7 @@ package configuration_pkg;
     `define ASYNC
 
     /* Enable Floating Point Unit */
-    `define FD_EXTENSION
+    `define FPU
 
     /* Enable compressed instructions */
     `define C_EXTENSION
