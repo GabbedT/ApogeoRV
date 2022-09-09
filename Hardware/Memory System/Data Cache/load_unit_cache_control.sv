@@ -73,7 +73,7 @@ module load_unit_cache_control (
     output logic                     data_valid_o,
 
     /* Cache interface */
-    input  logic                     cache_port0_idle_i,
+    input  logic                     cache_port0_granted_i,
     input  logic                     cache_port1_hit_i,
     input  logic                     cache_dirty_i,
     input  logic [PORT_WIDTH - 1:0]  cache_data_i,
@@ -87,7 +87,7 @@ module load_unit_cache_control (
     output data_cache_enable_t       cache_port0_enable_o,
     output data_cache_enable_t       cache_port1_enable_o,
 
-    output logic                     controlling_port0_o,              
+    output logic                     port0_request_o,              
     output logic                     done_o,
     output logic                     idle_o
 );
@@ -221,7 +221,7 @@ module load_unit_cache_control (
       
             processor_request_o = 1'b0;
             store_buffer_push_data_o = 1'b0;
-            controlling_port0_o = 1'b0;
+            port0_request_o = 1'b0;
             stall_pipeline_o = 1'b0;
             data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
@@ -299,7 +299,9 @@ module load_unit_cache_control (
                     stall_pipeline_o = 1'b1;
                     enable_lfsr = 1'b0;
 
-                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, load_unit_address_i.chip_sel}; 
+                    chip_select_NXT = '0;
+
+                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, '0}; 
 
                     if (external_acknowledge_i) begin
                         state_NXT = READ_CACHE;
@@ -393,12 +395,11 @@ module load_unit_cache_control (
                 ALLOCATE: begin
                     enable_lfsr = 1'b0; 
                     stall_pipeline_o = 1'b1;
+                    port0_request_o = 1'b1;
 
                     cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
 
-                    if (cache_port0_idle_i) begin
-                        controlling_port0_o = 1'b1;
-                        
+                    if (cache_port0_granted_i) begin                        
                         if (chip_select_CRT == '0) begin
                             cache_port0_enable_o = '1;
 
@@ -416,6 +417,8 @@ module load_unit_cache_control (
                             
                             cache_port0_write_o = 1'b1;
                             data_o = external_memory_data[allocated_data_cnt_CRT];
+
+                            data_valid_o = (chip_select_CRT == load_unit_address_i.chip_sel);
                         end
 
                         /* End of cache line reached */
