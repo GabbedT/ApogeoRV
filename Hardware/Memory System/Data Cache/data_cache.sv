@@ -341,7 +341,6 @@ module data_cache (
     assign ldu_port0.write_packet.tag = ldu_port0_addr.tag;
     assign ldu_port0.address = cache_port1.address;
     assign ldu_port0.chip_select = cache_port1.chip_select;
-    assign ldu_port0.enable = cache_port1.enable;
 
     assign load_unit_data_o = ldu_port0.write_packet.word;
     assign load_unit_address_o = ldu_port0_addr;
