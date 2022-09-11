@@ -21,7 +21,7 @@
 // SOFTWARE.
 // -------------------------------------------------------------------------------------
 // -------------------------------------------------------------------------------------
-// FILE NAME : data_cache_port1_hit_check.sv
+// FILE NAME : data_cache_port0_hit_check.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -50,19 +50,13 @@ module data_cache_port0_hit_check (
 //------------//
 
     logic [WAYS_NUMBER - 1:0] way_hit;
-    logic [WAY_ADDR    - 1:0] data_select;
 
         always_comb begin : comparison_logic
             /* Default values */
-            data_select = 'b0;
             way_hit = 'b0;
 
             for (int i = 0; i < WAYS_NUMBER; ++i) begin
                 way_hit[i] = (cache_tag_i[i] == address_tag_i) & cache_valid_i[i];
-
-                if (way_hit[i]) begin
-                    data_select = i;
-                end
             end
         end : comparison_logic
 
