@@ -40,29 +40,31 @@
 `ifndef MULTIPLICATION_UNIT_SV
     `define MULTIPLICATION_UNIT_SV
 
-`include "../../../Include/configuration_pkg.sv"
+`include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
 `include "../Arithmetic-Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
 
-module multiplication_unit (
-    input  logic              clk_i,
-    input  logic              clk_en_i,
-    input  logic              rst_n_i,
-    input  logic [XLEN - 1:0] multiplicand_i,
-    input  logic [XLEN - 1:0] multiplier_i,
-    input  logic              data_valid_i,
-    input  mul_operation_t    operation_i,
+module multiplication_unit #(
+    parameter DATA_WIDTH = 32
+) (
+    input  logic                    clk_i,
+    input  logic                    clk_en_i,
+    input  logic                    rst_n_i,
+    input  logic [DATA_WIDTH - 1:0] multiplicand_i,
+    input  logic [DATA_WIDTH - 1:0] multiplier_i,
+    input  logic                    data_valid_i,
+    input  mul_operation_t          operation_i,
 
-    output logic [XLEN - 1:0] product_o,
-    output logic              data_valid_o
+    output logic [DATA_WIDTH - 1:0] product_o,
+    output logic                    data_valid_o
 );
 
 //--------------//
 //  PARAMETERS  //
 //--------------//
 
-    localparam RESULT_WIDTH = 2 * XLEN;
+    localparam RESULT_WIDTH = 2 * DATA_WIDTH;
 
 
 //---------------//
@@ -73,11 +75,11 @@ module multiplication_unit (
      * the operation is on signed number, the operands must be 
      * converted in unsigned form first and the result converted
      * back to signed */
-    logic [XLEN - 1:0] multiplicand, multiplier;
+    logic [DATA_WIDTH - 1:0] multiplicand, multiplier;
     logic              multiplicand_sign, multiplier_sign;
 
-    assign multiplicand_sign = multiplicand_i[XLEN - 1];
-    assign multiplier_sign = multiplier_i[XLEN - 1];
+    assign multiplicand_sign = multiplicand_i[DATA_WIDTH - 1];
+    assign multiplier_sign = multiplier_i[DATA_WIDTH - 1];
 
     /* RS1 is multiplicand, RS2 is multiplier */
     logic is_signed_operation_rs1, is_signed_operation_rs2;
@@ -104,7 +106,7 @@ module multiplication_unit (
 
 
     /* Place registers to lower the delay */
-    logic [XLEN - 1:0] mul_multiplicand, mul_multiplier;
+    logic [DATA_WIDTH - 1:0] mul_multiplicand, mul_multiplier;
     logic              data_valid;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : first_stage_register
@@ -152,7 +154,7 @@ module multiplication_unit (
     logic [RESULT_WIDTH - 1:0] mul_result;
     logic                      mul_data_valid;
 
-    pipelined_array_multiplier #(XLEN, 8) array_multiplier (
+    pipelined_array_multiplier #(DATA_WIDTH, 8) array_multiplier (
         .clk_i          ( clk_i            ),
         .clk_en_i       ( clk_en_i         ),
         .rst_n_i        ( rst_n_i          ),
@@ -187,7 +189,7 @@ module multiplication_unit (
 
         always_comb begin : final_conversion_logic
             case (operation_stage[8]) 
-                MUL: product_o = converted_result[XLEN - 1:0];
+                MUL: product_o = converted_result[DATA_WIDTH - 1:0];
 
                 default: product_o = converted_result[RESULT_WIDTH - 1:XLEN];
             endcase

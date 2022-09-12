@@ -43,24 +43,26 @@
 `ifndef DIVISION_UNIT_SV
     `define DIVISION_UNIT_SV
 
-`include "../../../Include/configuration_pkg.sv"
+`include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
 `include "../Arithmetic-Circuits/Integer/Dividers/non_restoring_divider.sv"
 
-module division_unit (
-    input  logic              clk_i,
-    input  logic              clk_en_i,
-    input  logic              rst_n_i,
-    input  logic [XLEN - 1:0] dividend_i,
-    input  logic [XLEN - 1:0] divisor_i,
-    input  logic              data_valid_i,
-    input  div_operation_t    operation_i,
+module division_unit #(
+    parameter DATA_WIDTH = 32
+) (
+    input  logic                    clk_i,
+    input  logic                    clk_en_i,
+    input  logic                    rst_n_i,
+    input  logic [DATA_WIDTH - 1:0] dividend_i,
+    input  logic [DATA_WIDTH - 1:0] divisor_i,
+    input  logic                    data_valid_i,
+    input  div_operation_t          operation_i,
 
-    output logic [XLEN - 1:0] product_o,
-    output logic              data_valid_o,
-    output logic              divide_by_zero_o,
-    output logic              idle_o
+    output logic [DATA_WIDTH - 1:0] product_o,
+    output logic                    data_valid_o,
+    output logic                    divide_by_zero_o,
+    output logic                    idle_o
 );
 
 //---------------//
@@ -71,11 +73,11 @@ module division_unit (
      * unsigned numbers if the operation is on signed number, 
      * the operands must be converted in unsigned form first and 
      * the result converted back to signed at the end */
-    logic [XLEN - 1:0] dividend, divisor;
+    logic [DATA_WIDTH - 1:0] dividend, divisor;
     logic              dividend_sign, divisor_sign;
 
-    assign dividend_sign = dividend_i[XLEN - 1];
-    assign divisor_sign = divisor_i[XLEN - 1];
+    assign dividend_sign = dividend_i[DATA_WIDTH - 1];
+    assign divisor_sign = divisor_i[DATA_WIDTH - 1];
 
     logic is_signed_operation;
 
@@ -99,7 +101,7 @@ module division_unit (
 
 
     /* Place registers to lower the delay */
-    logic [XLEN - 1:0] div_divisor, div_dividend;
+    logic [DATA_WIDTH - 1:0] div_divisor, div_dividend;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_register
             if (!rst_n_i) begin 
@@ -149,10 +151,10 @@ module division_unit (
 //  DIVISION STAGE  //
 //------------------//
 
-    logic [XLEN - 1:0] quotient, remainder;
+    logic [DATA_WIDTH - 1:0] quotient, remainder;
     logic              div_data_valid, div_zero_divide, div_idle;
 
-    non_restoring_divider #(XLEN) divider (
+    non_restoring_divider #(DATA_WIDTH) divider (
         .clk_i            ( clk_i            ),
         .clk_en_i         ( clk_en_i         ),
         .rst_n_i          ( rst_n_i          ),
@@ -167,7 +169,7 @@ module division_unit (
     );
 
 
-    logic [XLEN - 1:0] last_stage_quotient, last_stage_remainder;
+    logic [DATA_WIDTH - 1:0] last_stage_quotient, last_stage_remainder;
 
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin 
@@ -188,7 +190,7 @@ module division_unit (
 //  LAST STAGE  //
 //--------------//
 
-    logic [XLEN - 1:0] converted_quotient, converted_remainder;
+    logic [DATA_WIDTH - 1:0] converted_quotient, converted_remainder;
 
         always_comb begin : result_logic
             /* Default values */
@@ -201,7 +203,7 @@ module division_unit (
 
             /* Remainder sign is equals to dividend sign, convert remainder if 
              * signs are different */
-            if ((dividend_sign_out ^ converted_remainder[XLEN - 1]) & conversion_enable_out) begin
+            if ((dividend_sign_out ^ converted_remainder[DATA_WIDTH - 1]) & conversion_enable_out) begin
                 converted_remainder = ~(last_stage_remainder) + 1'b1;
             end
 

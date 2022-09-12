@@ -7,8 +7,8 @@
 
 `include "data_cache_port0_hit_check.sv"
 `include "data_cache_port1_hit_check.sv"
-`include "load_unit_cache_control.sv"
-`include "store_unit_cache_control.sv"
+`include "load_unit_cache_controller.sv"
+`include "store_unit_cache_controller.sv"
 
 module data_cache (
     input  logic                     clk_i,
@@ -22,6 +22,7 @@ module data_cache (
     input  data_cache_addr_t         external_invalidate_address_i,
     input  logic                     external_acknowledge_i,
     input  logic [BLOCK_WORDS - 1:0] word_number_i,
+    output data_cache_addr_t         processor_address_o,
     output logic                     processor_request_o,
     output logic                     processor_acknowledge_o,
 
@@ -46,10 +47,8 @@ module data_cache (
     /* Load unit interface */
     input  logic                     load_unit_read_cache_i,
     input  data_cache_full_addr_t    load_unit_address_i,
-    output data_cache_addr_t         load_unit_address_o,
     output logic [PORT_WIDTH - 1:0]  load_unit_data_o,
     output logic                     load_unit_data_valid_o,
-    output logic                     load_unit_done_o,
     output logic                     load_unit_idle_o
 );
 
@@ -285,7 +284,7 @@ module data_cache (
     assign cache_port1_dirty = cache_port1.read_packet[cache_enable_way].dirty;
 
 
-    load_unit_cache_control load_unit_controller (
+    load_unit_cache_controller load_unit_controller (
         .clk_i                      ( clk_i            ),
         .rst_n_i                    ( rst_n_i          ),
         .stall_pipeline_o           ( stall_pipeline_o ),
@@ -331,7 +330,6 @@ module data_cache (
         .cache_port1_enable_o       ( cache_port1.enable           ),
 
         .port0_request_o            ( ldu_port0_request ),
-        .done_o                     ( load_unit_done_o  ),
         .idle_o                     ( load_unit_idle_o  )
     );
 
@@ -343,7 +341,7 @@ module data_cache (
     assign ldu_port0.chip_select = cache_port1.chip_select;
 
     assign load_unit_data_o = ldu_port0.write_packet.word;
-    assign load_unit_address_o = ldu_port0_addr;
+    assign processor_address_o = ldu_port0_addr;
 
 
 //-------------------------//
@@ -354,7 +352,7 @@ module data_cache (
 
     logic [1:0] store_address_byte_sel;
 
-    store_unit_cache_control store_unit_controller (
+    store_unit_cache_controller store_unit_controller (
         .clk_i                         ( clk_i   ),
         .rst_n_i                       ( rst_n_i ),
 
@@ -389,7 +387,6 @@ module data_cache (
 
         .store_address_byte_o          ( store_address_byte_sel ),
         .port0_request_o               ( stu_port0_request      ),
-        .done_o                        ( store_unit_done_o      ),
         .idle_o                        ( store_unit_idle_o      )
     );
 

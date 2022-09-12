@@ -1,7 +1,11 @@
 `ifndef RV32_INSTRUCTION_INCLUDE_SV
     `define RV32_INSTRUCTION_INCLUDE_SV
 
+`include "core_configuration.svh"
+
 package rv32_instructions_pkg;
+
+    localparam XLEN = 32;
 
 //------------------//
 //  ALU OPERATIONS  //
@@ -85,13 +89,15 @@ package rv32_instructions_pkg;
 //  MEMORY UNIT OPERATIONS  //
 //--------------------------//
 
-    typedef enum logic [3:0] {
+    typedef enum logic [2:0] {
         /* Load instructions */
-        LB, LH, LW, LBU, LHU, FLW,
+        LB, LH, LW, LBU, LHU `ifdef FPU , FLW `endif
+    } load_operation_t;
 
+    typedef enum logic [1:0] { 
         /* Store instructions */
-        SB, SH, SW, FSW
-    } mem_operation_t;
+        SB, SH, SW `ifdef FPU , FSW `endif
+    } store_operation_t;
 
 
 //----------------------//
@@ -124,6 +130,10 @@ package rv32_instructions_pkg;
         /* If the instruction has been fetched after 
          * a taken jump or not */
         logic        branch_taken;
+
+        `ifdef FPU 
+            logic    is_float;
+        `endif 
 
         /* Has generated an exception */
         logic        exception;

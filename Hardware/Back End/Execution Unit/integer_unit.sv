@@ -55,7 +55,7 @@
 `include "Integer Submodules/division_unit.sv"
 `include "Integer Submodules/multiplication_unit.sv"
 
-`include "../../Include/configuration_pkg.sv"
+`include "../../Include/core_configuration.svh"
 `include "../../Include/rv32_instructions_pkg.sv"
 
 module integer_unit (
@@ -283,7 +283,7 @@ module integer_unit (
     logic [XLEN - 1:0] result_mul;
     logic              mul_valid_out;
 
-    multiplication_unit mul_unit (
+    multiplication_unit #(XLEN) mul_unit (
         `ifdef ASIC 
             .clk_i           ( mul_gated_clk_i ),
             .clk_en_i        ( clk_en_i  ),
@@ -327,7 +327,7 @@ module integer_unit (
     logic [XLEN - 1:0] result_div;
     logic              div_valid_out, divide_by_zero;
 
-    division_unit div_unit (
+    division_unit #(XLEN) div_unit (
         `ifdef ASIC 
             .clk_i           ( div_gated_clk_i ),
             .clk_en_i        ( clk_en_i  ),

@@ -42,7 +42,7 @@
 `ifndef BIT_MAINPULATION_UNIT_SV 
     `define BIT_MAINPULATION_UNIT_SV
 
-`include "../../../Include/configuration_pkg.sv"
+`include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
 `include "../Arithmetic-Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"

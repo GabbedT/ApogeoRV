@@ -38,7 +38,7 @@
 `ifndef ARITHMETIC_LOGIC_UNIT_SV 
     `define ARITHMETIC_LOGIC_UNIT_SV
 
-`include "../../../Include/configuration_pkg.sv"
+`include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
 module arithmetic_logic_unit (
