@@ -1,6 +1,8 @@
 `ifndef DATA_MEMORY_PKG_SV
     `define DATA_MEMORY_PKG_SV
 
+`include "core_configuration.svh"
+
 package data_memory_pkg;
 
     /* Port width */
@@ -8,24 +10,24 @@ package data_memory_pkg;
     localparam PORT_BYTES = PORT_WIDTH / 8;
 
     /* Block size */
-    localparam BLOCK_WIDTH = 128;
+    localparam BLOCK_WIDTH = `DATA_CACHE_BLOCK_SIZE;
     localparam BLOCK_BYTES = BLOCK_WIDTH / 8;
     localparam BLOCK_WORDS = BLOCK_WIDTH / PORT_WIDTH;
 
     /* Total block number */
-    localparam CACHE_SIZE = 2 ** 14;
+    localparam CACHE_SIZE = `DATA_CACHE_SIZE;
 
     /* Number of ways */
-    localparam WAYS_NUMBER = 4;
+    localparam WAYS_NUMBER = `DATA_CACHE_ASSOCIATIVITY;
     localparam WAY_ADDR = $clog2(WAYS_NUMBER);
 
     /* Cache depth */
     localparam CACHE_DEPTH = CACHE_SIZE / (WAYS_NUMBER * BLOCK_BYTES);
     localparam ADDR_WIDTH = $clog2(CACHE_DEPTH);
 
-    /* Number of SRAM chip used to compose a way, used to lower the power consumption since
+    /* Number of SRAM chip used to compose a cache block, used to lower the power consumption since
      * writes are of 32 bits so there's no need to access the full block */
-    localparam CACHE_CHIP = 4;
+    localparam CACHE_CHIP = BLOCK_WIDTH / PORT_WIDTH;
     localparam CHIP_ADDR = $clog2(CACHE_CHIP);
 
     /* Remaining part of the address */
@@ -90,7 +92,13 @@ package data_memory_pkg;
     } data_cache_enable_t;
 
     /* Load / Store width */
-    typedef enum logic [1:0] {BYTE, HALF_WORD, WORD, DOUBLE_WORD} mem_op_width_t;
+    typedef enum logic [1:0] {BYTE, HALF_WORD, WORD} mem_op_width_t;
+
+
+    /* Checks if address is inside a range */
+    function bit inside_range(logic [31:0] low, logic [31:0] high, logic [31:0] value);
+        return ((value >= low) & (value <= high));
+    endfunction : inside_range
 
 endpackage : data_memory_pkg
 
