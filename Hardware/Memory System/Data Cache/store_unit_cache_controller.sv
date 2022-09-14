@@ -43,15 +43,24 @@
 module store_unit_cache_controller (
     input  logic                     clk_i,
     input  logic                     rst_n_i,
+    input  logic                     kill_speculative_instr_i,
+    input  logic [1:0]               speculative_instr_id_i,
+    input  logic                     speculative_resolved_i,
 
     /* External interface */
     input  logic                     external_invalidate_i,
+    input  logic                     external_acknowledge_i,
     input  data_cache_addr_t         external_invalidate_address_i,
     output logic                     processor_acknowledge_o,
+    output logic                     processor_request_o,
 
     /* Store unit interface */
+    input  logic                     store_unit_data_bufferable_i,
+    input  logic                     store_unit_data_cachable_i,
     input  logic                     store_unit_write_cache_i,
     input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
+    input  logic                     store_unit_speculative_i,
+    input  logic [1:0]               store_unit_speculative_id_i,
     input  data_cache_full_addr_t    store_unit_address_i,
     input  mem_op_width_t            store_unit_data_width_i,
 
@@ -70,8 +79,9 @@ module store_unit_cache_controller (
     output data_cache_enable_t       cache_enable_o,
 
     /* Store buffer interface */
-    input  logic                     store_buffer_port_idle_i,
+    input  logic                     store_buffer_full_i,
     output logic                     store_buffer_push_data_o,
+    output mem_op_width_t            store_buffer_operation_width_o,
     
     output logic [1:0]               store_address_byte_o,
     output logic                     port0_request_o,
@@ -83,7 +93,7 @@ module store_unit_cache_controller (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [2:0] {IDLE, COMPARE_TAG, COMPARE_TAG_INVALIDATE, WRITE_DATA, MEMORY_WRITE, INVALIDATE} store_unit_cache_fsm_t;
+    typedef enum logic [2:0] {IDLE, COMPARE_TAG, COMPARE_TAG_INVALIDATE, WAIT_SPECULATIVE, WRITE_DATA, MEMORY_WRITE, INVALIDATE} store_unit_cache_fsm_t;
 
     store_unit_cache_fsm_t state_CRT, state_NXT;
 
@@ -116,6 +126,7 @@ module store_unit_cache_controller (
 
             store_buffer_push_data_o = 1'b0;
             processor_acknowledge_o = 1'b0;
+            processor_request_o = 1'b0;
             port0_request_o = 1'b0;
             latch_way_hit = 1'b0;
             
@@ -148,20 +159,52 @@ module store_unit_cache_controller (
                             cache_read_o = 1'b1;
                             cache_address_o = external_invalidate_address_i;
 
-                            cache_enable_o.tag = 4'b1;
-                            cache_enable_o.valid = 4'b1;
+                            cache_enable_o.tag = 1'b1;
+                            cache_enable_o.valid = 1'b1;
                             processor_acknowledge_o = 1'b1;
 
                         end else if (store_unit_write_cache_i) begin
+                            if (!store_unit_speculative_i) begin
+                                /* If cachable data is probably in cache, initiate a read
+                                 * operation to check data */
+                                if (store_unit_data_cachable_i) begin
+                                    state_NXT = COMPARE_TAG;
+
+                                    /* Initiate cache read */
+                                    cache_read_o = 1'b1;
+                                end else begin
+                                    state_NXT = MEMORY_WRITE;
+                                end
+                            end else begin
+                                state_NXT = WAIT_SPECULATIVE;
+                            end
+
+                            cache_enable_o.tag = 1'b1;
+                            cache_enable_o.valid = 1'b1;
+                        end 
+                    end
+                end
+
+
+                /* 
+                 *  Wait until the speculative instruction get resolved, if 
+                 *  the prediction was not correct, kill the store and return
+                 *  to the idle state
+                 */
+                WAIT_SPECULATIVE: begin
+                    if (speculative_resolved_i & (speculative_instr_id_i == store_unit_speculative_id_i)) begin
+                        if (kill_speculative_instr_i) begin
+                            state_NXT = IDLE;
+                        end else begin
                             state_NXT = COMPARE_TAG;
 
                             /* Initiate cache read */
-                            cache_read_o = 1'b1;
-
-                            cache_enable_o.tag = 4'b1;
-                            cache_enable_o.valid = 4'b1;
-                        end 
+                            cache_read_o = 1'b1; 
+                        end
                     end
+
+                    cache_enable_o.tag = 1'b1;
+                    cache_enable_o.valid = 1'b1;
                 end
 
 
@@ -255,14 +298,24 @@ module store_unit_cache_controller (
 
 
                 /*
-                 *  Write data into the write buffer 
+                 *  Write data into the write buffer, if data is not
+                 *  bufferable, request a store directly to the 
+                 *  memory controller. 
                  */
                 MEMORY_WRITE: begin
-                    if (store_buffer_port_idle_i) begin 
-                        store_buffer_push_data_o = 1'b1;
+                    if (store_unit_data_bufferable_i) begin
+                        if (store_buffer_full_i) begin
+                            state_NXT = IDLE;
 
-                        state_NXT = IDLE;
-                    end 
+                            store_buffer_push_data_o = 1'b1;
+                        end
+                    end else begin
+                        if (external_acknowledge_i) begin 
+                            state_NXT = IDLE;
+                        end 
+
+                        processor_request_o = !external_acknowledge_i;
+                    end
 
                     cache_data_o = store_unit_data_i;
                 end
@@ -287,6 +340,8 @@ module store_unit_cache_controller (
                 end
             endcase
         end : fsm_logic
+
+    assign store_buffer_operation_width_o = store_unit_data_width_i;
 
 endmodule : store_unit_cache_controller
 
