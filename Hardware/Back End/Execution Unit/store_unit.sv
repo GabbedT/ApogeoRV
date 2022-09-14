@@ -22,16 +22,10 @@ module store_unit (
     output logic              idle_o,
     output logic              done_o,
 
-    /* Store buffer interface */
-    input  logic              store_buffer_port_idle_i,
-    output logic              push_store_buffer_o,
-
-    /* Memory interface */
-    output logic              processor_request_o,
-    input  logic              external_acknowledge_i,
-
     /* Cache interface */
     input  logic              cache_ctrl_store_done_i,
+    output logic              data_bufferable_o,
+    output logic              data_cachable_o,
     output logic              cache_ctrl_write_o
 );
 
@@ -87,20 +81,27 @@ module store_unit (
 
     /* Write cache and memory request signal */
     logic cache_ctrl_write_CRT, cache_ctrl_write_NXT;
-    logic processor_request_CRT, processor_request_NXT;
+    logic data_bufferable_CRT, data_bufferable_NXT; 
+    logic data_cachable_CRT, data_cachable_NXT; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 cache_ctrl_write_CRT <= 1'b0;
-                processor_request_CRT <= 1'b0;
+
+                data_bufferable_CRT <= 1'b1;
+                data_cachable_CRT <= 1'b1;
             end begin 
                 cache_ctrl_write_CRT <= cache_ctrl_write_NXT;
-                processor_request_CRT <= processor_request_NXT;
+
+                data_bufferable_CRT <= data_bufferable_NXT;
+                data_cachable_CRT <= data_cachable_NXT;
             end
         end
 
     assign cache_ctrl_write_o = cache_ctrl_write_CRT;
     assign processor_request_o = processor_request_CRT;
+    assign data_bufferable_o = data_bufferable_CRT;
+    assign data_cachable_o = data_cachable_CRT;
 
 
     /* Sampled when a valid operation is supplied to provide a stable
@@ -127,7 +128,7 @@ module store_unit (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [1:0] {IDLE, WAIT_CACHE, WAIT_MEMORY, PUSH_BUFFER} store_unit_fsm_t;
+    typedef enum logic {IDLE, WAIT_CACHE} store_unit_fsm_t;
 
     store_unit_fsm_t state_CRT, state_NXT;
 
@@ -148,9 +149,10 @@ module store_unit (
             store_data_NXT = store_data_CRT;
             store_width_NXT = store_width_CRT;
             instr_packet_NXT = instr_packet_CRT;
+            data_cachable_NXT = data_cachable_CRT;
             store_address_NXT = store_address_CRT;
+            data_bufferable_NXT = data_bufferable_CRT;
             cache_ctrl_write_NXT = cache_ctrl_write_CRT;
-            processor_request_NXT = processor_request_CRT;
 
             done_o = 1'b0;
             push_store_buffer_o = 1'b0;
@@ -159,44 +161,23 @@ module store_unit (
 
                 IDLE: begin
                     if (valid_operation_i) begin
-                        if (cachable) begin
-                            if (bufferable) begin
-                                /* If bufferable the data can be written
-                                 * into cache */
-                                state_NXT = WAIT_CACHE;
-                                cache_ctrl_write_NXT = 1'b1;
-                            end else begin
-                                /* If not bufferable the data must be 
-                                 * written into memory directly since
-                                 * during writeback in cache it would 
-                                 * be allocated into the store buffer */
-                                state_NXT = WAIT_MEMORY;
-                                processor_request_NXT = 1'b1;
-                            end
-                        end else begin
-                            if (bufferable) begin
-                                /* If bufferable the data can be pushed
-                                 * directly into the store buffer */
-                                state_NXT = PUSH_BUFFER;
-                            end else begin
-                                /* If not bufferable the data must be 
-                                 * written into memory directly because
-                                 * it cannot be allocated in cache and
-                                 * cannot be written back in store buffer */
-                                state_NXT = WAIT_MEMORY;
-                                processor_request_NXT = 1'b1;
-                            end
-                        end
+                        state_NXT = WAIT_CACHE;
+                        cache_ctrl_write_NXT = 1'b1;
 
                         /* Stable signals */
                         store_data_NXT = store_data_i;
                         instr_packet_NXT = instr_packet_i;
                         store_address_NXT = store_address_i;
+                        data_bufferable_NXT = bufferable;
+                        data_cachable_NXT = cachable;
 
                         /* Exception detection */
                         if (!writable) begin
                             instr_packet_NXT.exception = 1'b1;
                             instr_packet_NXT.exception_vector = `ILLEGAL_MEMORY_ACCESS;
+
+                            state_NXT = IDLE;
+                            done_o = 1'b1;
                         end
 
                         case (operation_i)
@@ -216,26 +197,6 @@ module store_unit (
                     if (cache_ctrl_store_done_i) begin
                         state_NXT = IDLE;
                         cache_ctrl_write_NXT = 1'b0;
-
-                        done_o = 1'b1;
-                    end
-                end
-
-
-                WAIT_MEMORY: begin
-                    if (external_acknowledge_i) begin
-                        state_NXT = IDLE;
-                        processor_request_NXT = 1'b10;
-
-                        done_o = 1'b1;
-                    end
-                end
-
-
-                PUSH_BUFFER: begin
-                    if (store_buffer_port_idle_i) begin 
-                        state_NXT = IDLE;
-                        push_store_buffer_o = 1'b1;
 
                         done_o = 1'b1;
                     end
