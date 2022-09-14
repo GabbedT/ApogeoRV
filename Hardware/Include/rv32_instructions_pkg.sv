@@ -127,6 +127,10 @@ package rv32_instructions_pkg;
         /* Is a speculative instruction */
         logic        speculative;
 
+        /* Multiple speculative instruction generated 
+         * by different jump can be in flight  */
+        logic [1:0]  speculative_id;
+
         /* If the instruction has been fetched after 
          * a taken jump or not */
         logic        branch_taken;
