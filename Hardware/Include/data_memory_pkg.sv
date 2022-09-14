@@ -100,6 +100,16 @@ package data_memory_pkg;
         return ((value >= low) & (value <= high));
     endfunction : inside_range
 
+
+    /* Store buffer entry */
+    typedef struct packed {
+        logic [31:0]   data;
+
+        logic [31:0]   address;
+
+        mem_op_width_t operation_width;
+    } store_buffer_entry_t;
+
 endpackage : data_memory_pkg
 
 import data_memory_pkg::*;
