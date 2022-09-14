@@ -26,14 +26,16 @@
     /*
      *  STORE BUFFER
      */
-    `define ST_BUF_DEPTH 8
+
+    /* Total number of entries (A power of 2) */
+    `define ST_BUF_DEPTH 4
 
 
     /* 
      *  REORDER BUFFER 
      */
 
-    /* Total number of entries */
+    /* Total number of entries (A power of 2) */
     `define ROB_DEPTH 64;
 
 
