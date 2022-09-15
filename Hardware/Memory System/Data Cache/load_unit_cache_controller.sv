@@ -222,7 +222,6 @@ module load_unit_cache_controller (
             processor_request_o = 1'b0;
             store_buffer_push_data_o = 1'b0;
             port0_request_o = 1'b0;
-            stall_pipeline_o = 1'b0;
             data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
             data_o = '0;
@@ -294,7 +293,6 @@ module load_unit_cache_controller (
                  */
                 MEMORY_REQUEST: begin
                     processor_request_o = 1'b1;
-                    stall_pipeline_o = 1'b1;
                     enable_lfsr = 1'b0;
 
                     chip_select_NXT = '0;
@@ -313,7 +311,6 @@ module load_unit_cache_controller (
                  */
                 DIRTY_CHECK: begin 
                     enable_lfsr = 1'b0;
-                    stall_pipeline_o = 1'b1;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
                         data_o = cache_data_writeback_i;
@@ -341,7 +338,6 @@ module load_unit_cache_controller (
                     state_NXT = WRITE_BACK;
 
                     enable_lfsr = 1'b0;
-                    stall_pipeline_o = 1'b1;
 
                     cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
                     cache_port1_read_o = 1'b1;
@@ -363,7 +359,6 @@ module load_unit_cache_controller (
                  */
                 WRITE_BACK: begin
                     enable_lfsr = 1'b0;
-                    stall_pipeline_o = 1'b1;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
                         data_o = cache_data_writeback_i;
@@ -392,7 +387,6 @@ module load_unit_cache_controller (
                  */
                 ALLOCATE: begin
                     enable_lfsr = 1'b0; 
-                    stall_pipeline_o = 1'b1;
                     port0_request_o = 1'b1;
 
                     cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};

@@ -52,7 +52,6 @@ module data_cache (
     input  logic                     kill_speculative_instr_i,
     input  logic [1:0]               speculative_instr_id_i,
     input  logic                     speculative_resolved_i,
-    output logic                     stall_pipeline_o,
 
     /* External interface (Load Unit) */
     input  logic [PORT_WIDTH - 1:0]  ldu_external_data_i,
@@ -335,7 +334,6 @@ module data_cache (
     load_unit_cache_controller load_unit_controller (
         .clk_i                      ( clk_i            ),
         .rst_n_i                    ( rst_n_i          ),
-        .stall_pipeline_o           ( stall_pipeline_o ),
 
         /* External interface */
         .word_number_i              ( ldu_word_number_i          ),
