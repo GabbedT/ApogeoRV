@@ -85,7 +85,8 @@ module store_unit_cache_controller (
     
     output logic [1:0]               store_address_byte_o,
     output logic                     port0_request_o,
-    output logic                     idle_o
+    output logic                     idle_o,
+    output logic                     done_o
 );
 
 
@@ -129,6 +130,7 @@ module store_unit_cache_controller (
             processor_request_o = 1'b0;
             port0_request_o = 1'b0;
             latch_way_hit = 1'b0;
+            done_o = 1'b0;
             
             cache_read_o = 1'b0;
             cache_write_o = 1'b0;
@@ -259,6 +261,7 @@ module store_unit_cache_controller (
                         cache_enable_o.dirty = 1'b1;
 
                         state_NXT = IDLE;
+                        done_o = 1'b1;
                     end
 
                     case (store_unit_data_width_i)
@@ -304,14 +307,16 @@ module store_unit_cache_controller (
                  */
                 MEMORY_WRITE: begin
                     if (store_unit_data_bufferable_i) begin
-                        if (store_buffer_full_i) begin
+                        if (!store_buffer_full_i) begin
                             state_NXT = IDLE;
+                            done_o = 1'b1;
 
                             store_buffer_push_data_o = 1'b1;
                         end
                     end else begin
                         if (external_acknowledge_i) begin 
                             state_NXT = IDLE;
+                            done_o = 1'b1;
                         end 
 
                         processor_request_o = !external_acknowledge_i;
@@ -336,6 +341,7 @@ module store_unit_cache_controller (
                         cache_write_o = 1'b1;
 
                         state_NXT = IDLE;
+                        done_o = 1'b1;
                     end
                 end
             endcase
