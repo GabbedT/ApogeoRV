@@ -133,6 +133,34 @@ package control_status_registers_pkg;
     localparam INSTR_PAGE_FAULT      = 12;
     localparam LOAD_PAGE_FAULT       = 13;
     localparam STORE_PAGE_FAULT      = 14;
+    localparam DIVIDE_BY_ZERO        = 16;
+
+    /* Enable CSR */
+    typedef struct packed {
+        logic            misa;
+        logic            mstatus;
+        logic            mtvec;
+        logic            medeleg;
+        logic            mideleg;
+        logic            mip;
+        logic            mie;
+        logic [3:0]      mhpmevent;
+        logic            mcountinhibit;
+        logic            mscratch;
+    } csr_enable_t;
+
+    /* CSR Event */
+    localparam DATA_CACHE_HIT      = 4'd0;
+    localparam DATA_CACHE_MISS     = 4'd1;
+    localparam INST_CACHE_HIT      = 4'd2;
+    localparam INST_CACHE_MISS     = 4'd3;
+    localparam DATA_STORE_EXEC     = 4'd4;
+    localparam DATA_LOAD_EXEC      = 4'd5;
+    localparam INTERRUPT_TAKEN     = 4'd6;
+    localparam EXCEPTION_TAKEN     = 4'd7;
+    localparam WAIT_MEMORY         = 4'd9;
+    localparam BRANCH_COUNTER      = 4'd10;
+    localparam BRANCH_MISPREDICTED = 4'd11;
 
 endpackage : control_status_registers_pkg
 
