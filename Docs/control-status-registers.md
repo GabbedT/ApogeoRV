@@ -62,12 +62,9 @@ MACHINE
 0x303     | mideleg    | M | RW | Machine interrupt delegation register.
 0x304     | mie    | M | RW | Machine interrupt-enable register.
 0x305     | mtvec    | M | RW | Machine trap-handler base address.
-0x306     | mcounteren    | M | RW | Machine counter enable.
-0x310     | mstatush    | M | RW | Additional machine status register.
 0x340     | mscratch    | M | RW | Scratch register for machine trap handlers.
 0x341     | mepc        | M | RW | Machine exception program counter.
 0x342     | mcause    | M | RW | Machine trap cause.
-0x343     | mtval    | M | RW | Machine bad address or instruction.
 0x344     | mip    | M | RW | Machine interrupt pending.
 0xB00     | mcycle      | M | RW | Machine cycle counter.
 0xB02     | minstret    | M | RW | Machine instructions-retired counter.
@@ -76,13 +73,13 @@ MACHINE
 0xB06     | mhpmcounter6| M | RW | Machine performance-monitoring counter.
 0xB80     | mcycleh     | M | RW  | Upper 32 bits of *mcycle*.
 0xB82     | minstreth    | M | RW  | Upper 32 bits of *minstreth*.
-0xB03     | mhpmcounter3h| M | RW | Upper 32 bits of *mhpmcounter3*.
+0xB83     | mhpmcounter3h| M | RW | Upper 32 bits of *mhpmcounter3*.
 ...
-0xB06     | mhpmcounter6h| M | RW | Upper 32 bits of *mhpmcounter6*.
+0xB86     | mhpmcounter6h| M | RW | Upper 32 bits of *mhpmcounter6*.
 0x320     | mcountinhibit| M | RW | Machine counter-inhibit register.
-0x323     | mhpevent3    | M | RW | Machine performance-monitoring event selector.
+0x323     | mhpmevent3    | M | RW | Machine performance-monitoring event selector.
 ...
-0x326     | mhpevent6    | M | RW | Machine performance-monitoring event selector.
+0x326     | mhpmevent6    | M | RW | Machine performance-monitoring event selector.
 
 ---
 
@@ -130,15 +127,15 @@ The machine status register: **mstatus**, keeps track of and controls the hartâ€
 
 Bits    | Name | Access Mode | Description  | Default Value |
 ---     | ---  | ---         | ---          | ---   | 
-[31]    | SD   | RO          | Signal Dirty | 0     | 
-[22]    | TSR  | RW          | Intercept the supervisor return instruction. When TSR = 1 executing SRET instruction while the core is in S-mode will raise an illegal instruction exception. | 0 | 
-[21]    | TW   | RW          | Support intercepting the WFI (Wait For Interrupt) instruction. When TW = 1 if WFI is executed in a less privileged mode than the current one and the instruction doen't complete within the time limit, the WFI cause an illegal instruction exception. | 0 |
+[31]    | SD   | RO          | Not implemented | 0     | 
+[22]    | TSR  | RW          | Not implemented | 0 | 
+[21]    | TW   | RW  | Not implemented | 0 |
 [20]    | TVM  | RO  | Not implemented since virtual memory is not supported | 0 |
 [19]    | MXR  | RO  | Not implemented since virtual memory is not supported | 0 |
 [18]    | SUM  | RO  | Not implemented since virtual memory is not supported | 0 |
 [17]    | MPRV | RO  | Not implemented since virtual memory is not supported | 0 |
 [16:15] | XS   | RO  | Not implemented                                       | 0 |
-[14:13] | FS   | RW  | Tracks the state of Floating Point Unit (FS)          | 0 |
+[14:13] | FS   | RO  | Not implemented                                       | 0 |
 [12:11] | MPP  | RO  | Save the preceeding privilege mode after a trap (M-mode)       | 0 | 
 [10:9]  | VS   | RO  | Not implemented                                       | 0 |
 [8]     | SPP  | RO  | Save the preceeding privilege mode after a trap (S-mode)       | 0 | 
@@ -177,6 +174,21 @@ This happens when the core runs in S-mode or U-mode. Infact *traps never transit
 When the trap is delegated to S-mode code, [scause](#Supervisor-Cause-CSR) register is written with the trap cause code, [sepc](#Supervisor-Exception-Program-Counter-CSR) is written with the PC that took the trap, [stval](#Supervisor-Trap-Value-CSR) is written with the right value. In **mstatus** register: SPP is written with the privilege mode before the trap was taken, SPIE is written with the value of SIE and this one is cleared.
 
 
+### Machine Interrupt Pending and Enable CSR
+
+The **mip** and **mie** registers control the machine interrupt. The **mip** register keeps track of *pending interrupts* while through **mie** register single interrupts can be disabled. On an interrupt cause 'i' correspond the bit 'i' in MIP and MIE set.
+
+Interrupts to M-mode take priority over any interrupts to lower privilege modes.
+Conditions must be evaluated when an interrupt BECOMES or CEASES to be pending, those must be checked also immediately following the execution of an xRET instruction or a write to a CSR (mip, mie, mstatus, mideleg).
+
+* Current privilege mode is M and mstatus.MIE is set, or the current privilege mode is less privileged than M-mode.
+* Bit 'i' is set in both MIE and MIP.
+* Bit 'i' in mideleg is not set.
+
+Interrupts for higher privilege modes must be serviced before lower ones.
+External interrupts are handled before internal ones.
+
+
 ### Hardware Performance Monitor CSRs
 
 Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The **mcycle** CSR simply increment every clock cycle, **minstret** CSR increment itself when an instruction is retired from the *reorder buffer*. 
@@ -188,13 +200,12 @@ The events are:
 
 * Data cache hit
 * Data cache miss
-* Store executed 
-* Load executed
+* Data store executed 
+* Data load executed
 * Instruction cache hit
 * Instruction cache miss
 * Interrupt taken
-* Traps taken
-* Exception handling latency 
+* Exception taken
 * Cycles waiting for memory
 * Branch mispredicted
 * Branch encountered
@@ -232,19 +243,23 @@ Code  | Description |
 
 Trap Codes (Interrupt bit = 0):
 
-Code  | Description |
----   | ---         |
-0     | Instruction address misaligned
-1     | Instruction access fault
-2     | Illegal instruction
-3     | Breakpoint
-4     | Load address misaligned
-5     | Load access fault
-6     | Store/AMO address misaligned
-7     | Store/AMO access fault
-8     | Environment call from U-mode
-9     | Environment call from S-mode
-11    | Environment call from M-mode
-12    | Instruction page fault
-13    | Load page fault
-15    | Store/AMO page fault
+Code  | Description                    | Priority         |
+---   | ---                            | ---              |
+0     | Instruction address misaligned | 2
+1     | Instruction access fault       | 0
+2     | Illegal instruction            | 1
+3     | Breakpoint                     | /
+3     | Environment break              | 4      
+4     | Load address misaligned        | 5
+5     | Load access fault              | 6
+6     | Store/AMO address misaligned   | 5
+7     | Store/AMO access fault         | 6
+8     | Environment call from U-mode   | 3
+9     | Environment call from S-mode   | 3
+11    | Environment call from M-mode   | 3
+12    | Instruction page fault         | /
+13    | Load page fault                | /
+15    | Store/AMO page fault           | /
+16    | Divide by zero                 | 0
+
+*Page faults* are not valid exceptions since no virtual memory is implemented as well as *breakpoint* exceptions (no debug support).

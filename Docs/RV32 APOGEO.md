@@ -492,3 +492,42 @@ Just allocate the address and data into the write buffer and let the memory unit
 ## OPERATIONS ORDERING
 
 Being an out of order processor, operations can overlap. Accessing the cache takes 3 cycles for both load and stores thus they will be in order. When a miss occours stores will write the write buffer, loads will always check both write buffer and store unit addresses.
+
+
+## COPROCESSOR INTERFACE
+
+### To Coprocessor
+
+TCPINSTR [31:0]   Instruction passed from the fetch unit
+TCPINSTRVLD       Instruction valid
+TCPDATA  [63:0]   Data passed
+TCPDATADDR [9:0]  Coprocessor Register index  
+TCPDATAVLD        Data valid
+TCPDATASIZE [1:0] Transfer size
+TCPADDR  [2:0]    Coprocessor ID address (send data and instr)
+TCPDATAREQ        Data request
+TCPREQADDR [4:0]  Data request destination
+
+### From Coprocessor
+
+FCPACKN           Reception acknowledged
+FCPDATA  [63:0]   Data received
+FCPDATASIZE [1:0] Transfer size
+FCPDATAADDR [4:0] Core Register index (6 bits if RV64)
+TCPDATAVLD        Data valid
+
+
+### Custom instructions
+
+CPSTR.B rs1, rd1
+CPSTR.H rs1, rd1
+CPSTR.W rs1, rd1
+CPSTR.D rs1, (rs1 + 1), rd1
+
+CPLDR.B rs1, rd1
+CPLDR.H rs1, rd
+CPLDR.W rs1, rd1
+CPLDR.D rs1, (rs1 + 1), rd1
+
+CPINST.BEGIN
+CPINST.END
