@@ -20,25 +20,17 @@ module load_unit (
     output logic              idle_o,
     output logic              data_valid_o,
 
-    /* Memory interface */
-    input  logic              external_acknowledge_i,
-    input  logic              external_data_valid_i,
-    input  logic [XLEN - 1:0] external_data_i,
-    output logic              processor_request_o,
-
     /* Cache interface */
     input  logic              cache_ctrl_data_valid_i,
     input  logic [XLEN - 1:0] cache_ctrl_data_i,
-    output logic              cache_ctrl_read_o
+    input  logic              cache_ctrl_idle_i,
+    output logic              cache_ctrl_read_o,
+    output logic              cache_ctrl_cachable_o
 );
-
 
 //------------//
 //  DATAPATH  //
 //------------//
-
-    /* Address property */
-    logic cachable;
     
     /* Interrupt table */
     localparam INT_TABLE_REGION_START = `INT_TABLE_REGION_START;
@@ -56,7 +48,7 @@ module load_unit (
     localparam CODE_REGION_START = `CODE_REGION_START;
     localparam CODE_REGION_END   = `CODE_REGION_END;
     
-    assign cachable = inside_range(INT_TABLE_REGION_START, INT_TABLE_REGION_END, load_address_i) | inside_range(EXT_NVM_REGION_START, EXT_NVM_REGION_END, load_address_i) | 
+    assign cache_ctrl_cachable_o = inside_range(INT_TABLE_REGION_START, INT_TABLE_REGION_END, load_address_i) | inside_range(EXT_NVM_REGION_START, EXT_NVM_REGION_END, load_address_i) | 
                       inside_range(INT_NVM_REGION_START, INT_NVM_REGION_END, load_address_i) | inside_range(CODE_REGION_START, CODE_REGION_END, load_address_i);
 
 
@@ -70,19 +62,15 @@ module load_unit (
 
     /* Cache and memory request signals */
     logic cache_read_CRT, cache_read_NXT;
-    logic processor_request_CRT, processor_request_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 cache_read_CRT <= 1'b0;
-                processor_request_CRT <= 1'b0;
             end else begin 
                 cache_read_CRT <= cache_read_NXT;
-                processor_request_CRT <= processor_request_NXT;
             end
         end
 
-    assign processor_request_o = processor_request_CRT;
     assign cache_ctrl_read_o = cache_read_CRT;
 
 
@@ -105,7 +93,7 @@ module load_unit (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [2:0] {IDLE, WAIT_CACHE, WAIT_MEMORY, DATA_VALID} load_unit_fsm_state_t;
+    typedef enum logic [2:0] {IDLE, WAIT_CACHE, DATA_VALID} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
@@ -122,7 +110,6 @@ module load_unit (
 
         always_comb begin : fsm_logic
             /* Default values */
-            processor_request_NXT = processor_request_CRT;
             cache_read_NXT = cache_read_CRT;
             load_data_NXT = load_data_CRT;
             state_NXT = state_CRT;
@@ -139,14 +126,9 @@ module load_unit (
                  *  cache or from the memory.
                  */ 
                 IDLE: begin
-                    if (valid_operation_i) begin
-                        if (cachable) begin
-                            state_NXT = WAIT_CACHE;
-                            cache_read_NXT = 1'b1;
-                        end else begin
-                            state_NXT = WAIT_MEMORY;
-                            processor_request_NXT = 1'b1;
-                        end
+                    if (valid_operation_i & cache_ctrl_idle_i) begin
+                        state_NXT = WAIT_CACHE;
+                        cache_read_NXT = 1'b1;
                     end
                 end
 
@@ -159,21 +141,6 @@ module load_unit (
                         state_NXT = DATA_VALID;
                         load_data_NXT = cache_ctrl_data_i;
                         cache_read_NXT = 1'b0;
-                    end
-                end
-
-
-                /* 
-                 *  Waits for memory to supply data
-                 */
-                WAIT_MEMORY: begin
-                    if (external_acknowledge_i) begin
-                        processor_request_NXT = 1'b0;
-                    end
-
-                    if (external_data_valid_i) begin
-                        state_NXT = DATA_VALID;
-                        load_data_NXT = external_data_i;
                     end
                 end
 
