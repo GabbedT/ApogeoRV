@@ -70,8 +70,9 @@ module load_unit_cache_controller (
     /* Load unit interface */
     input  logic                     load_unit_read_cache_i,
     input  data_cache_full_addr_t    load_unit_address_i,
-    output logic [PORT_WIDTH - 1:0]  data_o,
-    output logic                     data_valid_o,
+    input  logic                     load_unit_data_cachable_i,
+    output logic [PORT_WIDTH - 1:0]  load_unit_data_o,
+    output logic                     load_unit_data_valid_o,
 
     /* Cache interface */
     input  logic                     cache_port0_granted_i,
@@ -190,7 +191,7 @@ module load_unit_cache_controller (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [2:0] {IDLE, COMPARE_TAG, DATA_STABLE, MEMORY_REQUEST, DIRTY_CHECK, READ_CACHE, WRITE_BACK, ALLOCATE} load_unit_cache_fsm_t;
+    typedef enum logic [3:0] {IDLE, COMPARE_TAG, DATA_STABLE, MEMORY_REQUEST, WAIT_MEMORY, DIRTY_CHECK, READ_CACHE, WRITE_BACK, ALLOCATE} load_unit_cache_fsm_t;
 
     load_unit_cache_fsm_t state_CRT, state_NXT;
 
@@ -222,9 +223,9 @@ module load_unit_cache_controller (
             processor_request_o = 1'b0;
             store_buffer_push_data_o = 1'b0;
             port0_request_o = 1'b0;
-            data_valid_o = 1'b0;
+            load_unit_data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
-            data_o = '0;
+            load_unit_data_o = '0;
 
             if (external_data_valid_i) begin
                 memory_data_cnt_NXT = memory_data_cnt_CRT + 1'b1;
@@ -240,13 +241,17 @@ module load_unit_cache_controller (
                  */
                 IDLE: begin
                     if (load_unit_read_cache_i) begin
-                        state_NXT = COMPARE_TAG;
+                        if (load_unit_data_cachable_i) begin 
+                            state_NXT = COMPARE_TAG;
+                        end else begin
+                            state_NXT = MEMORY_REQUEST;
+                        end
 
                         /* Access all the cache */
                         cache_port1_enable_o = '1;
 
                         /* Cache control */
-                        cache_port1_read_o = 1'b1;
+                        cache_port1_read_o = load_unit_data_cachable_i;
                         cache_address_o.index = load_unit_address_i.index;
                         cache_address_o.chip_sel = load_unit_address_i.chip_sel;
 
@@ -282,8 +287,8 @@ module load_unit_cache_controller (
                  *  Data is ready to be used 
                  */
                 DATA_STABLE: begin
-                    data_valid_o = 1'b1;
-                    data_o = cache_data_CRT;
+                    load_unit_data_valid_o = 1'b1;
+                    load_unit_data_o = cache_data_CRT;
                     state_NXT = IDLE;
                 end
 
@@ -300,7 +305,21 @@ module load_unit_cache_controller (
                     cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, '0}; 
 
                     if (external_acknowledge_i) begin
-                        state_NXT = READ_CACHE;
+                        if (load_unit_data_cachable_i) begin 
+                            state_NXT = READ_CACHE;
+                        end else begin
+                            state_NXT = WAIT_MEMORY;
+                        end
+                    end
+                end
+
+
+                /*
+                 *  Wait memory response.
+                 */
+                WAIT_MEMORY: begin
+                    if (external_data_valid_i) begin
+                        state_NXT = DATA_STABLE;
                     end
                 end
 
@@ -313,7 +332,7 @@ module load_unit_cache_controller (
                     enable_lfsr = 1'b0;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
-                        data_o = cache_data_writeback_i;
+                        load_unit_data_o = cache_data_writeback_i;
                         cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT}; 
 
                         if (cache_dirty_i) begin
@@ -361,7 +380,7 @@ module load_unit_cache_controller (
                     enable_lfsr = 1'b0;
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
-                        data_o = cache_data_writeback_i;
+                        load_unit_data_o = cache_data_writeback_i;
                         cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT}; 
 
                         store_buffer_push_data_o = 1'b1;
@@ -408,9 +427,9 @@ module load_unit_cache_controller (
                             allocated_data_cnt_NXT = allocated_data_cnt_CRT + 1'b1;
                             
                             cache_port0_write_o = 1'b1;
-                            data_o = external_memory_data[allocated_data_cnt_CRT];
+                            load_unit_data_o = external_memory_data[allocated_data_cnt_CRT];
 
-                            data_valid_o = (chip_select_CRT == load_unit_address_i.chip_sel);
+                            load_unit_data_valid_o = (chip_select_CRT == load_unit_address_i.chip_sel);
                         end
 
                         /* End of cache line reached */
