@@ -89,6 +89,7 @@ module data_cache (
     input  mem_op_width_t            store_unit_data_width_i,
     input  logic                     store_unit_idle_i,
     output logic                     store_unit_idle_o,
+    output logic                     store_unit_done_o,
 
     /* Load unit interface */
     input  logic                     load_unit_read_cache_i,
@@ -357,8 +358,8 @@ module data_cache (
         /* Load unit interface */
         .load_unit_read_cache_i     ( load_unit_read_cache_i      ),
         .load_unit_address_i        ( load_unit_address_i         ),
-        .data_o                     ( ldu_port0.write_packet.word ),
-        .data_valid_o               ( load_unit_data_valid_o      ),
+        .load_unit_data_o           ( ldu_port0.write_packet.word ),
+        .load_unit_data_valid_o     ( load_unit_data_valid_o      ),
 
         /* Cache interface */
         .cache_port0_granted_i      ( ldu_cache_port0_grant        ),
@@ -449,7 +450,8 @@ module data_cache (
 
         .store_address_byte_o          ( store_address_byte_sel ),
         .port0_request_o               ( stu_port0_request      ),
-        .idle_o                        ( store_unit_idle_o      )
+        .idle_o                        ( store_unit_idle_o      ),
+        .done_o                        ( store_unit_done_o      )
     );
 
     assign stu_port0.address =  stu_port0_addr.index;
