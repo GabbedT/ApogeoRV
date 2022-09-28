@@ -20,10 +20,11 @@ module store_unit (
     output logic [XLEN - 1:0] store_data_o,
     output logic [XLEN - 1:0] store_address_o,
     output logic              idle_o,
-    output logic              done_o,
+    output logic              data_valid_o,
 
     /* Cache interface */
     input  logic              cache_ctrl_store_done_i,
+    input  logic              cache_ctrl_store_idle_i,
     output logic              data_bufferable_o,
     output logic              data_cachable_o,
     output logic              cache_ctrl_write_o
@@ -99,7 +100,6 @@ module store_unit (
         end
 
     assign cache_ctrl_write_o = cache_ctrl_write_CRT;
-    assign processor_request_o = processor_request_CRT;
     assign data_bufferable_o = data_bufferable_CRT;
     assign data_cachable_o = data_cachable_CRT;
 
@@ -154,13 +154,12 @@ module store_unit (
             data_bufferable_NXT = data_bufferable_CRT;
             cache_ctrl_write_NXT = cache_ctrl_write_CRT;
 
-            done_o = 1'b0;
-            push_store_buffer_o = 1'b0;
+            data_valid_o = 1'b0;
 
             case (state_CRT)
 
                 IDLE: begin
-                    if (valid_operation_i) begin
+                    if (valid_operation_i & cache_ctrl_store_idle_i) begin
                         state_NXT = WAIT_CACHE;
                         cache_ctrl_write_NXT = 1'b1;
 
@@ -177,7 +176,7 @@ module store_unit (
                             instr_packet_NXT.exception_vector = `ILLEGAL_MEMORY_ACCESS;
 
                             state_NXT = IDLE;
-                            done_o = 1'b1;
+                            data_valid_o = 1'b1;
                         end
 
                         case (operation_i)
@@ -198,7 +197,7 @@ module store_unit (
                         state_NXT = IDLE;
                         cache_ctrl_write_NXT = 1'b0;
 
-                        done_o = 1'b1;
+                        data_valid_o = 1'b1;
                     end
                 end
             endcase
