@@ -96,7 +96,7 @@ package data_memory_pkg;
 
 
     /* Checks if address is inside a range */
-    function bit inside_range(logic [31:0] low, logic [31:0] high, logic [31:0] value);
+    function bit inside_range(input logic [31:0] low, input logic [31:0] high, input logic [31:0] value);
         return ((value >= low) & (value <= high));
     endfunction : inside_range
 
