@@ -57,6 +57,7 @@
 
 `include "../../Include/core_configuration.svh"
 `include "../../Include/rv32_instructions_pkg.sv"
+`include "../../Include/control_status_registers.sv"
 
 module integer_unit (
     /* Pipeline control */
@@ -106,7 +107,7 @@ module integer_unit (
 
     /* Foward alu result for single cycle operation */
     output logic [XLEN - 1:0]     alu_result_o,
-    output logic [REG_ADDR - 1:0] alu_reg_dest_o,
+    output logic [4:0]            alu_reg_dest_o,
     output logic                  alu_valid_o,
 
     /* Sequential functional units status */
@@ -359,7 +360,7 @@ module integer_unit (
             if (divide_by_zero) begin
                 exc_div_ipacket.exception_vector = DIVIDE_BY_ZERO;
                 exc_div_ipacket.exception = 1'b1;
-                exc_div_ipacket.reg_dest = X0;
+                exc_div_ipacket.reg_dest = 5'b0;
             end
         end : division_exception_logic
 
