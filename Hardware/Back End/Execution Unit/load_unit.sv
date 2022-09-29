@@ -11,7 +11,7 @@ module load_unit (
     input  logic              rst_n_i,
     input  logic              valid_operation_i,
     input  logic [XLEN - 1:0] load_address_i,
-    input  load_operation_t   operation_i,
+    input  ldu_operation_t    operation_i,
     input  instr_packet_t     instr_packet_i,
     
     output instr_packet_t     instr_packet_o,
@@ -74,7 +74,7 @@ module load_unit (
     assign cache_ctrl_read_o = cache_read_CRT;
 
 
-    load_operation_t   operation;
+    ldu_operation_t    operation;
     logic [XLEN - 1:0] load_address;
 
         always_ff @(posedge clk_i) begin
@@ -163,7 +163,7 @@ module load_unit (
 
                                 2'b10: loaded_data_o = $signed(load_data_CRT[23:16]);
 
-                                2'b01: loaded_data_o = $signed(load_data_CRT[31:24]);
+                                2'b11: loaded_data_o = $signed(load_data_CRT[31:24]);
                             endcase
                         end
 
@@ -176,7 +176,7 @@ module load_unit (
 
                                 2'b10: loaded_data_o = $unsigned(load_data_CRT[23:16]);
 
-                                2'b01: loaded_data_o = $unsigned(load_data_CRT[31:24]);
+                                2'b11: loaded_data_o = $unsigned(load_data_CRT[31:24]);
                             endcase
                         end
 

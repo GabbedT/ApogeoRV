@@ -12,7 +12,7 @@ module store_unit (
     input  logic              valid_operation_i,
     input  logic [XLEN - 1:0] store_data_i,
     input  logic [XLEN - 1:0] store_address_i,
-    input  store_operation_t  operation_i,
+    input  stu_operation_t    operation_i,
     input  instr_packet_t     instr_packet_i,
 
     output instr_packet_t     instr_packet_o,
