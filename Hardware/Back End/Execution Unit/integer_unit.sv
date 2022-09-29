@@ -61,10 +61,9 @@
 
 module integer_unit (
     /* Pipeline control */
-    input  logic                  sys_clk_i,
-    input  logic                  sys_rst_n_i,
+    input  logic                  clk_i,
+    input  logic                  rst_n_i,
     input  logic                  clk_en_i,
-    input  logic                  flush_pipe_i,
 
     `ifdef FPGA
         input  logic              mul_clk_en_i,
@@ -120,11 +119,6 @@ module integer_unit (
     output logic [3:0]            functional_unit_valid_o
 );
 
-    /* The system reset is active low, flush signal is active high */
-    logic reset_module;
-
-    assign reset_module = sys_rst_n_i & !flush_pipe_i;
-
     /* Multiplier and divider stall */
     `ifdef FPGA
         logic stall_mul_n, stall_div_n;
@@ -132,38 +126,6 @@ module integer_unit (
         assign stall_mul_n = clk_en_i & mul_clk_en_i;
         assign stall_div_n = clk_en_i & div_clk_en_i;
     `endif
-
-
-    /* Fowarding logic */
-    logic [XLEN - 1:0] operand_A, operand_B;
-
-    localparam DECODE_STAGE = 2'b00;
-    localparam COMMIT_STAGE = 2'b01;
-    localparam ALU_STAGE    = 2'b10;
-
-        always_comb begin : fowarding_logic
-            if (foward_op_A_valid_i == DECODE_STAGE) begin
-                operand_A = operand_A_i;
-            end else if (foward_op_A_valid_i == COMMIT_STAGE) begin
-                operand_A = fowarded_commit_op_A_i;
-            end else if (foward_op_A_valid_i == ALU_STAGE) begin
-                operand_A = fowarded_alu_op_A_i;
-            end else begin 
-                /* Writeback stage */
-                operand_A = fowarded_wrtbck_op_A_i;
-            end
-
-            if (foward_op_B_valid_i == DECODE_STAGE) begin
-                operand_B = operand_B_i;
-            end else if (foward_op_B_valid_i == COMMIT_STAGE) begin
-                operand_B = fowarded_commit_op_B_i;
-            end else if (foward_op_A_valid_i == ALU_STAGE) begin
-                operand_B = fowarded_alu_op_B_i;
-            end else begin
-                /* Writeback stage */
-                operand_B = fowarded_wrtbck_op_B_i;
-            end
-        end : fowarding_logic
 
 
 //-------------------------//
@@ -177,8 +139,8 @@ module integer_unit (
     logic              alu_valid, alu_valid_out;
 
     arithmetic_logic_unit alu (
-        .operand_A_i          ( operand_A                 ),
-        .operand_B_i          ( operand_B                 ),
+        .operand_A_i          ( operand_A_i               ),
+        .operand_B_i          ( operand_B_i               ),
         .instr_addr_i         ( instr_packet_i.instr_addr ),
         .operation_i          ( operation_i.ALU           ),
         .data_valid_i         ( data_valid_i.ALU          ),
@@ -188,7 +150,7 @@ module integer_unit (
         .data_valid_o         ( alu_valid                 )
     );
 
-        always_ff @(posedge sys_clk_i) begin : alu_stage_register
+        always_ff @(posedge clk_i) begin : alu_stage_register
             if (clk_en_i) begin
                 alu_ipacket <= instr_packet_i;
                 alu_valid_out <= alu_valid;
@@ -210,7 +172,7 @@ module integer_unit (
      * pipelined with 1 clock cycle latency delay */
     instr_packet_t bmu_ipacket;
 
-        always_ff @(posedge sys_clk_i) begin : bmu_stage_register
+        always_ff @(posedge clk_i) begin : bmu_stage_register
             if (clk_en_i) begin
                 bmu_ipacket <= instr_packet_i;
             end
@@ -223,7 +185,7 @@ module integer_unit (
     instr_packet_t cpop_ipacket;
     logic          cpop_idle;
 
-        always_ff @(posedge sys_clk_i) begin : cpop_stage_register
+        always_ff @(posedge clk_i) begin : cpop_stage_register
             if (clk_en_i & cpop_idle) begin
                 cpop_ipacket <= instr_packet_i;
             end
@@ -240,19 +202,19 @@ module integer_unit (
     logic              illegal_rot_amt, bmu_valid_out;
 
     bit_manipulation_unit bmu (
-        .clk_i             ( sys_clk_i         ),
-        .clk_en_i          ( clk_en_i    ),
-        .rst_n_i           ( reset_module      ),
-        .operand_A_i       ( operand_A         ),
-        .operand_B_i       ( operand_B         ),
-        .operation_i       ( operation_i.BMU   ),
-        .data_valid_i      ( data_valid_i.BMU  ),
-        .cpop_data_valid_i ( cpop_valid_in     ),
-        .result_o          ( result_bmu        ),
-        .cpop_result_o     ( cpop_result       ),
-        .data_valid_o      ( bmu_valid_out     ),
-        .cpop_data_valid_o ( cpop_valid_out    ),
-        .cpop_idle_o       ( cpop_idle         )
+        .clk_i             ( clk_i            ),
+        .clk_en_i          ( clk_en_i         ),
+        .rst_n_i           ( rst_n_i          ),
+        .operand_A_i       ( operand_A_i      ),
+        .operand_B_i       ( operand_B_i      ),
+        .operation_i       ( operation_i.BMU  ),
+        .data_valid_i      ( data_valid_i.BMU ),
+        .cpop_data_valid_i ( cpop_valid_in    ),
+        .result_o          ( result_bmu       ),
+        .cpop_result_o     ( cpop_result      ),
+        .data_valid_o      ( bmu_valid_out    ),
+        .cpop_data_valid_o ( cpop_valid_out   ),
+        .cpop_idle_o       ( cpop_idle        )
     );
 
     assign cpop_idle_o = cpop_idle;
@@ -267,7 +229,7 @@ module integer_unit (
      * the delivery to the final multiplexer */
     instr_packet_t [8:0] mul_ipacket;
 
-        always_ff @(`ifdef ASIC posedge mul_gated_clk_i `elsif FPGA posedge sys_clk_i `endif) begin : mul_stage_register
+        always_ff @(`ifdef ASIC posedge mul_gated_clk_i `elsif FPGA posedge clk_i `endif) begin : mul_stage_register
             `ifdef ASIC 
                 if (clk_en_i) begin 
                     mul_ipacket <= {mul_ipacket[7:0], instr_packet_i};
@@ -286,15 +248,15 @@ module integer_unit (
 
     multiplication_unit #(XLEN) mul_unit (
         `ifdef ASIC 
-            .clk_i           ( mul_gated_clk_i ),
-            .clk_en_i        ( clk_en_i  ),
+            .clk_i    ( mul_gated_clk_i ),
+            .clk_en_i ( clk_en_i        ),
         `elsif FPGA 
-            .clk_i           ( sys_clk_i   ),
-            .clk_en_i        ( stall_mul_n ),
+            .clk_i    ( clk_i       ),
+            .clk_en_i ( stall_mul_n ),
         `endif 
-        .rst_n_i        ( reset_module     ),
-        .multiplicand_i ( operand_A        ),
-        .multiplier_i   ( operand_B        ),
+        .rst_n_i        ( rst_n_i          ),
+        .multiplicand_i ( operand_A_i      ),
+        .multiplier_i   ( operand_B_i      ),
         .data_valid_i   ( data_valid_i.MUL ),
         .operation_i    ( operation_i.MUL  ),
         .product_o      ( result_mul       ),
@@ -311,7 +273,7 @@ module integer_unit (
     instr_packet_t div_ipacket;
     logic          div_idle;
 
-        always_ff @(`ifdef ASIC posedge div_gated_clk_i `elsif FPGA posedge sys_clk_i `endif) begin : div_stage_register 
+        always_ff @(`ifdef ASIC posedge div_gated_clk_i `elsif FPGA posedge clk_i `endif) begin : div_stage_register 
             `ifdef ASIC 
                 if (clk_en_i & div_idle) begin 
                     div_ipacket <= instr_packet_i;
@@ -330,15 +292,15 @@ module integer_unit (
 
     division_unit #(XLEN) div_unit (
         `ifdef ASIC 
-            .clk_i           ( div_gated_clk_i ),
-            .clk_en_i        ( clk_en_i  ),
+            .clk_i    ( div_gated_clk_i ),
+            .clk_en_i ( clk_en_i  ),
         `elsif FPGA 
-            .clk_i           ( sys_clk_i   ),
-            .clk_en_i        ( stall_div_n ),
+            .clk_i    ( clk_i   ),
+            .clk_en_i ( stall_div_n ),
         `endif 
-        .rst_n_i          ( reset_module     ),
-        .dividend_i       ( operand_A        ),
-        .divisor_i        ( operand_B        ),
+        .rst_n_i          ( rst_n_i          ),
+        .dividend_i       ( operand_A_i      ),
+        .divisor_i        ( operand_B_i      ),
         .data_valid_i     ( data_valid_i.DIV ),
         .operation_i      ( operation_i.DIV  ),
         .product_o        ( result_div       ),
