@@ -19,7 +19,7 @@ module load_store_unit (
     /* Load Unit interface */
     input  logic              ldu_data_valid_i,
     input  logic [XLEN - 1:0] ldu_address_i,
-    input  load_operation_t   ldu_operation_i,
+    input  ldu_operation_t    ldu_operation_i,
     input  instr_packet_t     ldu_instr_packet_i,
     output logic              ldu_idle_o,
     output logic              ldu_data_valid_o,
@@ -30,7 +30,7 @@ module load_store_unit (
     input  logic              stu_data_valid_i,
     input  logic [XLEN - 1:0] stu_data_i,
     input  logic [XLEN - 1:0] stu_address_i,
-    input  store_operation_t  stu_operation_i,
+    input  stu_operation_t    stu_operation_i,
     input  instr_packet_t     stu_instr_packet_i,
     output logic              stu_idle_o,
     output logic              stu_data_valid_o,
@@ -38,17 +38,19 @@ module load_store_unit (
 
     /* Memory interface */
     input  logic                     external_invalidate_i,
-    input  logic [XLEN - 1:0]        external_invalidate_address_i,
+    input  data_cache_addr_t         external_invalidate_address_i,
     input  logic                     external_acknowledge_i,
     input  logic                     external_data_valid_i,
     input  logic [XLEN - 1:0]        external_data_i,
     input  logic [BLOCK_WORDS - 1:0] word_number_i,
-    input  logic                     read_store_buffer_i,
     output logic [XLEN - 1:0]        processor_address_o,
     output logic                     processor_request_o,
     output logic                     processor_acknowledge_o,
-    output logic                     store_buffer_empty_o,
-    output store_buffer_entry_t      store_buffer_packet_o
+
+    /* Store buffer interface */
+    input  logic                read_store_buffer_i,
+    output logic                store_buffer_empty_o,
+    output store_buffer_entry_t store_buffer_packet_o
 );
 
 
@@ -163,7 +165,8 @@ module load_store_unit (
 //  CACHE  //
 //---------//
 
-    logic stu_processor_request, ldu_processor_request;
+    logic              stu_processor_request, ldu_processor_request;
+    logic [XLEN - 1:0] stu_processor_address_o, ldu_processor_address_o;
 
     data_cache dcache (
         .clk_i                    ( clk_i ),
@@ -177,14 +180,14 @@ module load_store_unit (
         .ldu_external_data_valid_i  ( external_data_valid_i  ),
         .ldu_external_acknowledge_i ( external_acknowledge_i ),
         .ldu_word_number_i          ( word_number_i          ),
-        .ldu_processor_address_o    ( processor_address_o ),
+        .ldu_processor_address_o    ( ldu_processor_address_o ),
         .ldu_processor_request_o    ( ldu_processor_request ),
 
         /* External interface (Store Unit) */
         .stu_external_invalidate_i         ( external_invalidate_i ),
         .stu_external_invalidate_address_i ( external_invalidate_address_i ),
         .stu_external_acknowledge_i        ( external_acknowledge_i ),
-        .stu_processor_address_o           ( processor_address_o ),
+        .stu_processor_address_o           ( stu_processor_address_o ),
         .stu_processor_request_o           ( stu_processor_request ),
         .stu_processor_acknowledge_o       ( processor_acknowledge_o ),
 
@@ -219,6 +222,16 @@ module load_store_unit (
     );
 
     assign processor_request_o = ldu_processor_request | stu_processor_request;
+
+        always_comb begin 
+            if (ldu_processor_request) begin
+                processor_address_o = ldu_processor_address_o;
+            end else if (stu_processor_request) begin
+                processor_address_o = stu_processor_address_o;
+            end else begin
+                processor_address_o = ldu_processor_address_o;
+            end
+        end
 
 endmodule : load_store_unit
 
