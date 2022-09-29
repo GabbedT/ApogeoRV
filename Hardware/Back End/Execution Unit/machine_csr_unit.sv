@@ -158,17 +158,6 @@ module machine_csr_unit (
             end
         end
 
-    /* Not implemented bit fields must return a 0 */
-    assign mstatus_csr[31:13] = '0;
-
-    assign mstatus_csr.WPRI0 = 1'b0;
-    assign mstatus_csr.WPRI2 = 1'b0;
-    assign mstatus_csr.WPRI4 = 1'b0;
-    assign mstatus_csr.WPRI5 = '0;
-
-    assign mstatus_csr.VS = 1'b0;
-    assign mstatus_csr.UBE = 1'b0;
-
 
 //-------------//
 //  MTVEC CSR  //
@@ -259,14 +248,6 @@ module machine_csr_unit (
             end
         end
 
-    assign mip_csr[0] = 1'b0;
-    assign mip_csr[4:2] = 3'b0;
-    assign mip_csr[6] = 1'b0;
-    assign mip_csr[8] = 1'b0;
-    assign mip_csr[10] = 1'b0;
-    assign mip_csr[31:12] = '0;
-
-
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin 
                 mie_csr[1] <= 1'b1;
@@ -284,14 +265,6 @@ module machine_csr_unit (
                 mie_csr[11] <= csr_data_write_i[11];
             end
         end
-
-    assign mie_csr[0] = 1'b0;
-    assign mie_csr[2] = 1'b0;
-    assign mie_csr[4] = 1'b0;
-    assign mie_csr[6] = 1'b0;
-    assign mie_csr[8] = 1'b0;
-    assign mie_csr[10] = 1'b0;
-    assign mie_csr[31:12] = '0;
 
 
 //---------------------------------//
@@ -467,6 +440,9 @@ module machine_csr_unit (
 //---------------//
 
         always_comb begin
+            /* Default value */
+            csr_data_read_o = '0;
+
             case (csr_address_i.index)
                 8'h00: begin 
                     if (csr_address_i.access_mode == 2'b11) begin
