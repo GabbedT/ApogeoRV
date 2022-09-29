@@ -221,6 +221,7 @@ module load_unit_cache_controller (
             cache_valid_o = 1'b0; 
       
             processor_request_o = 1'b0;
+            stall_pipeline_o = 1'b0;
             store_buffer_push_data_o = 1'b0;
             port0_request_o = 1'b0;
             load_unit_data_valid_o = 1'b0;
