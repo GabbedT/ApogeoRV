@@ -388,7 +388,7 @@ module data_cache (
     assign ldu_port0.chip_select = cache_port1.chip_select;
 
     assign load_unit_data_o = ldu_port0.write_packet.word;
-    assign ldu_processor_address_o = ldu_port0_addr;
+    assign ldu_processor_address_o = {ldu_port0_addr, 2'b0};
 
     assign store_buffer_ldu_entry_o.address = load_unit_address_i;
     assign store_buffer_ldu_entry_o.data = ldu_port0.write_packet.word;
