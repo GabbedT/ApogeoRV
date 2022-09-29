@@ -91,19 +91,20 @@ package rv32_instructions_pkg;
 
     typedef enum logic [2:0] {
         /* Load instructions */
-        LB, LH, LW, LBU, LHU `ifdef FPU , FLW `endif
-    } load_operation_t;
+        LB, LH, LW, LBU, LHU `ifdef F_EXTENSION , FLW `endif
+    } ldu_operation_t;
 
     typedef enum logic [1:0] { 
         /* Store instructions */
-        SB, SH, SW `ifdef FPU , FSW `endif
-    } store_operation_t;
+        SB, SH, SW `ifdef F_EXTENSION , FSW `endif
+    } stu_operation_t;
 
 
 //----------------------//
 //  INTEGER OPERATIONS  //
 //----------------------//
 
+    /* Integer execution unit */
     typedef struct packed {
         alu_operation_t  ALU;
         bmu_operation_t  BMU;
@@ -118,6 +119,29 @@ package rv32_instructions_pkg;
         logic  DIV; 
     } iexu_valid_operation_t;
 
+
+    /* Execution unit */
+    typedef struct packed {
+        logic  LDU;
+        logic  STU;
+        logic  ALU;
+        logic  BMU;
+        logic  MUL;
+        logic  DIV;
+
+        `ifdef F_EXTENSION
+            logic FPU;
+        `endif  
+    } exu_valid_operation_t; 
+
+    typedef struct packed {
+        stu_operation_t  STU;
+        ldu_operation_t  LDU;
+        alu_operation_t  ALU;
+        bmu_operation_t  BMU;
+        mul_operation_t  MUL;
+        div_operation_t  DIV;
+    } exu_operation_t;
 
 //----------//
 //  BUNDLE  //
@@ -135,7 +159,7 @@ package rv32_instructions_pkg;
          * a taken jump or not */
         logic        branch_taken;
 
-        `ifdef FPU 
+        `ifdef F_EXTENSION 
             logic    is_float;
         `endif 
 
