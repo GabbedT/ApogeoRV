@@ -17,7 +17,7 @@
     `define ASYNC
 
     /* Enable Floating Point Unit */
-    // `define FPU
+    // `define F_EXTENSION
 
     /* Enable compressed instructions */
     `define C_EXTENSION
