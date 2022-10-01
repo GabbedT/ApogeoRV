@@ -168,7 +168,7 @@ module load_unit (
                         end
 
                         /* Load byte unsigned */
-                        LB: begin
+                        LBU: begin
                             case (load_address[1:0])
                                 2'b00: loaded_data_o = $unsigned(load_data_CRT[7:0]);
 
@@ -190,7 +190,7 @@ module load_unit (
                         end
 
                         /* Load half word unsigned */
-                        LH: begin
+                        LHU: begin
                             if (!load_address[1]) begin
                                 loaded_data_o = $unsigned(load_data_CRT[15:0]);
                             end else begin
