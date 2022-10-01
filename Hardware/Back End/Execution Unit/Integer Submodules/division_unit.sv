@@ -46,7 +46,7 @@
 `include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
-`include "../Arithmetic-Circuits/Integer/Dividers/non_restoring_divider.sv"
+`include "../Arithmetic Circuits/Integer/Dividers/non_restoring_divider.sv"
 
 module division_unit #(
     parameter DATA_WIDTH = 32

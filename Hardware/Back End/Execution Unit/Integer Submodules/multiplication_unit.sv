@@ -43,7 +43,7 @@
 `include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
-`include "../Arithmetic-Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
+`include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
 
 module multiplication_unit #(
     parameter DATA_WIDTH = 32
