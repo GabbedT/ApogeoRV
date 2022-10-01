@@ -16,6 +16,9 @@
     /* Enable asyncronous reset */
     `define ASYNC
 
+    /* Enable cache */
+    `define CACHE
+
     /* Enable Floating Point Unit */
     // `define F_EXTENSION
 
