@@ -63,7 +63,7 @@ module data_cache (
 
     /* External interface (Store Unit) */
     input  logic                     stu_external_invalidate_i,
-    input  data_cache_addr_t         stu_external_invalidate_address_i,
+    input  data_cache_addr_t         stu_external_address_i,
     input  logic                     stu_external_acknowledge_i,
     output data_cache_full_addr_t    stu_processor_address_o,
     output logic                     stu_processor_request_o,
@@ -406,52 +406,52 @@ module data_cache (
     assign store_buffer_stu_push_data_o = store_unit_buffer_taken;
 
     store_unit_cache_controller store_unit_controller (
-        .clk_i                         ( clk_i                    ),
-        .rst_n_i                       ( rst_n_i                  ),
-        .kill_speculative_instr_i      ( kill_speculative_instr_i ),
-        .speculative_resolved_i        ( speculative_resolved_i   ),
-        .speculative_instr_id_i        ( speculative_instr_id_i   ),
+        .clk_i                    ( clk_i                    ),
+        .rst_n_i                  ( rst_n_i                  ),
+        .kill_speculative_instr_i ( kill_speculative_instr_i ),
+        .speculative_resolved_i   ( speculative_resolved_i   ),
+        .speculative_instr_id_i   ( speculative_instr_id_i   ),
 
         /* External interface */
-        .external_acknowledge_i        ( stu_external_acknowledge_i        ),    
-        .external_invalidate_i         ( stu_external_invalidate_i         ),
-        .external_invalidate_address_i ( stu_external_invalidate_address_i ),
-        .processor_acknowledge_o       ( stu_processor_acknowledge_o       ),
-        .processor_request_o           ( stu_processor_request_o           ),
+        .external_acknowledge_i  ( stu_external_acknowledge_i  ),    
+        .external_invalidate_i   ( stu_external_invalidate_i   ),
+        .external_address_i      ( stu_external_address_i      ),
+        .processor_acknowledge_o ( stu_processor_acknowledge_o ),
+        .processor_request_o     ( stu_processor_request_o     ),
 
         /* Store unit interface */
-        .store_unit_data_bufferable_i  ( store_unit_data_bufferable_i ),
-        .store_unit_data_cachable_i    ( store_unit_data_cachable_i   ),
-        .store_unit_write_cache_i      ( store_unit_write_cache_i     ),
-        .store_unit_speculative_i      ( store_unit_speculative_i     ),
-        .store_unit_speculative_id_i   ( store_unit_speculative_id_i  ),
-        .store_unit_data_i             ( store_unit_data_i            ),
-        .store_unit_address_i          ( store_unit_address_i         ),
-        .store_unit_data_width_i       ( store_unit_data_width_i      ),
+        .store_unit_data_bufferable_i ( store_unit_data_bufferable_i ),
+        .store_unit_data_cachable_i   ( store_unit_data_cachable_i   ),
+        .store_unit_write_cache_i     ( store_unit_write_cache_i     ),
+        .store_unit_speculative_i     ( store_unit_speculative_i     ),
+        .store_unit_speculative_id_i  ( store_unit_speculative_id_i  ),
+        .store_unit_data_i            ( store_unit_data_i            ),
+        .store_unit_address_i         ( store_unit_address_i         ),
+        .store_unit_data_width_i      ( store_unit_data_width_i      ),
 
         /* Cache interface */
-        .cache_port0_granted_i         ( stu_cache_port0_grant        ),
-        .cache_hit_i                   ( cache_port0_hit              ),
-        .cache_way_hit_i               ( cache_port0_way_hit          ),
-        .cache_write_o                 ( stu_port0.write              ),
-        .cache_read_o                  ( stu_port0.read               ),
-        .cache_address_o               ( stu_port0_addr               ),
-        .cache_byte_write_o            ( stu_port0.byte_write         ), 
-        .cache_data_o                  ( stu_port0.write_packet.word  ),
-        .cache_dirty_o                 ( stu_port0.write_packet.dirty ),
-        .cache_valid_o                 ( stu_port0.write_packet.valid ),
-        .cache_enable_way_o            ( stu_port0.enable_way         ),
-        .cache_enable_o                ( stu_port0.enable             ),
+        .cache_port0_granted_i ( stu_cache_port0_grant        ),
+        .cache_hit_i           ( cache_port0_hit              ),
+        .cache_way_hit_i       ( cache_port0_way_hit          ),
+        .cache_write_o         ( stu_port0.write              ),
+        .cache_read_o          ( stu_port0.read               ),
+        .cache_address_o       ( stu_port0_addr               ),
+        .cache_byte_write_o    ( stu_port0.byte_write         ), 
+        .cache_data_o          ( stu_port0.write_packet.word  ),
+        .cache_dirty_o         ( stu_port0.write_packet.dirty ),
+        .cache_valid_o         ( stu_port0.write_packet.valid ),
+        .cache_enable_way_o    ( stu_port0.enable_way         ),
+        .cache_enable_o        ( stu_port0.enable             ),
 
         /* Store buffer interface */
         .store_buffer_full_i            ( store_buffer_full_i                      ),
         .store_buffer_push_data_o       ( store_unit_buffer_taken                  ),
         .store_buffer_operation_width_o ( store_buffer_stu_entry_o.operation_width ),
 
-        .store_address_byte_o          ( store_address_byte_sel ),
-        .port0_request_o               ( stu_port0_request      ),
-        .idle_o                        ( store_unit_idle_o      ),
-        .done_o                        ( store_unit_done_o      )
+        .store_address_byte_o ( store_address_byte_sel ),
+        .port0_request_o      ( stu_port0_request      ),
+        .idle_o               ( store_unit_idle_o      ),
+        .done_o               ( store_unit_done_o      )
     );
 
     assign stu_port0.address =  stu_port0_addr.index;
