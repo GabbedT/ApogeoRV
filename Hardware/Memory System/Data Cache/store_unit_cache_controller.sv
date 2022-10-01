@@ -41,28 +41,28 @@
 `include "../../Include/core_configuration.svh"
 
 module store_unit_cache_controller (
-    input  logic                     clk_i,
-    input  logic                     rst_n_i,
-    input  logic                     kill_speculative_instr_i,
-    input  logic [1:0]               speculative_instr_id_i,
-    input  logic                     speculative_resolved_i,
+    input  logic       clk_i,
+    input  logic       rst_n_i,
+    input  logic       kill_speculative_instr_i,
+    input  logic [1:0] speculative_instr_id_i,
+    input  logic       speculative_resolved_i,
 
     /* External interface */
-    input  logic                     external_invalidate_i,
-    input  logic                     external_acknowledge_i,
-    input  data_cache_addr_t         external_invalidate_address_i,
-    output logic                     processor_acknowledge_o,
-    output logic                     processor_request_o,
+    input  logic             external_invalidate_i,
+    input  logic             external_acknowledge_i,
+    input  data_cache_addr_t external_address_i,
+    output logic             processor_acknowledge_o,
+    output logic             processor_request_o,
 
     /* Store unit interface */
-    input  logic                     store_unit_data_bufferable_i,
-    input  logic                     store_unit_data_cachable_i,
-    input  logic                     store_unit_write_cache_i,
-    input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
-    input  logic                     store_unit_speculative_i,
-    input  logic [1:0]               store_unit_speculative_id_i,
-    input  data_cache_full_addr_t    store_unit_address_i,
-    input  mem_op_width_t            store_unit_data_width_i,
+    input  logic                    store_unit_data_bufferable_i,
+    input  logic                    store_unit_data_cachable_i,
+    input  logic                    store_unit_write_cache_i,
+    input  logic [PORT_WIDTH - 1:0] store_unit_data_i,
+    input  logic                    store_unit_speculative_i,
+    input  logic [1:0]              store_unit_speculative_id_i,
+    input  data_cache_full_addr_t   store_unit_address_i,
+    input  mem_op_width_t           store_unit_data_width_i,
 
     /* Cache interface */
     input  logic                     cache_port0_granted_i,
@@ -79,14 +79,14 @@ module store_unit_cache_controller (
     output data_cache_enable_t       cache_enable_o,
 
     /* Store buffer interface */
-    input  logic                     store_buffer_full_i,
-    output logic                     store_buffer_push_data_o,
-    output mem_op_width_t            store_buffer_operation_width_o,
+    input  logic          store_buffer_full_i,
+    output logic          store_buffer_push_data_o,
+    output mem_op_width_t store_buffer_operation_width_o,
     
-    output logic [1:0]               store_address_byte_o,
-    output logic                     port0_request_o,
-    output logic                     idle_o,
-    output logic                     done_o
+    output logic [1:0] store_address_byte_o,
+    output logic       port0_request_o,
+    output logic       idle_o,
+    output logic       done_o
 );
 
 
@@ -159,7 +159,7 @@ module store_unit_cache_controller (
 
                             /* Initiate cache read */
                             cache_read_o = 1'b1;
-                            cache_address_o = external_invalidate_address_i;
+                            cache_address_o = external_address_i;
 
                             cache_enable_o.tag = 1'b1;
                             cache_enable_o.valid = 1'b1;
@@ -233,7 +233,7 @@ module store_unit_cache_controller (
                  */
                 COMPARE_TAG_INVALIDATE: begin
                     latch_way_hit = 1'b1;
-                    cache_address_o = external_invalidate_address_i;
+                    cache_address_o = external_address_i;
 
                     if (cache_hit_i) begin
                         state_NXT = INVALIDATE;
@@ -336,7 +336,7 @@ module store_unit_cache_controller (
                         cache_enable_o.valid = 1'b1;
                         cache_valid_o = 1'b0;
 
-                        cache_address_o = external_invalidate_address_i;
+                        cache_address_o = external_address_i;
 
                         cache_write_o = 1'b1;
 

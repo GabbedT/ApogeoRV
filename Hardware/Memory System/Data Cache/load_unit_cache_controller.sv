@@ -44,9 +44,10 @@
 `include "../../Include/rv32_instructions_pkg.sv"
 
 module load_unit_cache_controller (
-    input  logic                     clk_i,
-    input  logic                     rst_n_i,
-    output logic                     stall_pipeline_o,
+    /* Pipeline control */
+    input  logic clk_i,
+    input  logic rst_n_i,
+    output logic stall_pipeline_o,
 
     /* External interface */
     input  logic [BLOCK_WORDS - 1:0] word_number_i,
@@ -56,23 +57,23 @@ module load_unit_cache_controller (
     output logic                     processor_request_o,
 
     /* Store buffer interface */
-    input  logic                     str_buffer_address_match_i,
-    input  logic [PORT_WIDTH - 1:0]  str_buffer_data_i,
-    input  logic                     store_buffer_full_i,
-    input  logic                     store_buffer_port_idle_i,
-    output logic                     store_buffer_push_data_o,
+    input  logic                    str_buffer_address_match_i,
+    input  logic [PORT_WIDTH - 1:0] str_buffer_data_i,
+    input  logic                    store_buffer_full_i,
+    input  logic                    store_buffer_port_idle_i,
+    output logic                    store_buffer_push_data_o,
 
     /* Store unit interface */
-    input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
-    input  logic [XLEN - 1:0]        store_unit_address_i,
-    input  logic                     store_unit_idle_i,
+    input  logic [PORT_WIDTH - 1:0] store_unit_data_i,
+    input  logic [XLEN - 1:0]       store_unit_address_i,
+    input  logic                    store_unit_idle_i,
 
     /* Load unit interface */
-    input  logic                     load_unit_read_cache_i,
-    input  data_cache_full_addr_t    load_unit_address_i,
-    input  logic                     load_unit_data_cachable_i,
-    output logic [PORT_WIDTH - 1:0]  load_unit_data_o,
-    output logic                     load_unit_data_valid_o,
+    input  logic                    load_unit_read_cache_i,
+    input  data_cache_full_addr_t   load_unit_address_i,
+    input  logic                    load_unit_data_cachable_i,
+    output logic [PORT_WIDTH - 1:0] load_unit_data_o,
+    output logic                    load_unit_data_valid_o,
 
     /* Cache interface */
     input  logic                     cache_port0_granted_i,
@@ -89,8 +90,8 @@ module load_unit_cache_controller (
     output data_cache_enable_t       cache_port0_enable_o,
     output data_cache_enable_t       cache_port1_enable_o,
 
-    output logic                     port0_request_o,              
-    output logic                     idle_o
+    output logic port0_request_o,              
+    output logic idle_o
 );
 
 
