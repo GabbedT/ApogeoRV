@@ -16,36 +16,36 @@ module machine_csr_unit (
     output logic         illegal_privilege_access_o,
 
     /* Performance monitor events */
-    input  logic         stalled_i,
-    input  logic         instruction_retired_i,
-    input  logic         data_cache_miss_i,
-    input  logic         data_cache_hit_i,
-    input  logic         instruction_cache_miss_i,
-    input  logic         instruction_cache_hit_i,
-    input  logic         data_store_i,
-    input  logic         data_load_i,
-    input  logic         branch_i,
-    input  logic         branch_mispredicted_i,
-    input  logic         memory_wait_i,
+    input  logic stalled_i,
+    input  logic instruction_retired_i,
+    input  logic data_cache_miss_i,
+    input  logic data_cache_hit_i,
+    input  logic instruction_cache_miss_i,
+    input  logic instruction_cache_hit_i,
+    input  logic data_store_i,
+    input  logic data_load_i,
+    input  logic branch_i,
+    input  logic branch_mispredicted_i,
+    input  logic memory_wait_i,
 
     /* Exception and interrupt */
-    input  logic [31:0]  trap_pc_i,
-    input  logic [6:0]   interrupt_vector_i,
-    input  logic         interrupt_request_i,
-    input  logic         external_interrupt_i,
-    input  logic         timer_interrupt_i,
-    input  logic [3:0]   exception_vector_i,
-    input  logic         exception_i,
-    output logic [29:0]  base_trap_address_o,
-    output logic [1:0]   handling_mode_o,
+    input  logic [31:0] trap_pc_i,
+    input  logic [6:0]  interrupt_vector_i,
+    input  logic        interrupt_request_i,
+    input  logic        external_interrupt_i,
+    input  logic        timer_interrupt_i,
+    input  logic [3:0]  exception_vector_i,
+    input  logic        exception_i,
+    output logic [29:0] base_trap_address_o,
+    output logic [1:0]  handling_mode_o,
 
     /* System control */
-    input  logic [1:0]   current_privilege_lvl_i,
-    input  logic [1:0]   next_privilege_lvl_i,
-    input  logic         M_return_i,
-    input  logic         S_return_i,
-    output logic         M_glb_interrupt_enable_o,
-    output logic         S_glb_interrupt_enable_o
+    input  logic [1:0] current_privilege_lvl_i,
+    input  logic [1:0] next_privilege_lvl_i,
+    input  logic       M_return_i,
+    input  logic       S_return_i,
+    output logic       M_glb_interrupt_enable_o,
+    output logic       S_glb_interrupt_enable_o
 );
 
 
