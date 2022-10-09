@@ -91,12 +91,12 @@ package rv32_instructions_pkg;
 
     typedef enum logic [2:0] {
         /* Load instructions */
-        LB, LH, LW, LBU, LHU `ifdef F_EXTENSION , FLW `endif
+        LB, LH, LW, LBU, LHU 
     } ldu_operation_t;
 
     typedef enum logic [1:0] { 
         /* Store instructions */
-        SB, SH, SW `ifdef F_EXTENSION , FSW `endif
+        SB, SH, SW 
     } stu_operation_t;
 
 
