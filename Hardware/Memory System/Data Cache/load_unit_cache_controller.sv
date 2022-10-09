@@ -192,7 +192,7 @@ module load_unit_cache_controller (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [3:0] {IDLE, COMPARE_TAG, DATA_STABLE, MEMORY_REQUEST, WAIT_MEMORY, DIRTY_CHECK, READ_CACHE, WRITE_BACK, ALLOCATE} load_unit_cache_fsm_t;
+    typedef enum logic [3:0] {IDLE, WAIT_CACHE, COMPARE_TAG, DATA_STABLE, MEMORY_REQUEST, WAIT_MEMORY, DIRTY_CHECK, READ_CACHE, WRITE_BACK, ALLOCATE} load_unit_cache_fsm_t;
 
     load_unit_cache_fsm_t state_CRT, state_NXT;
 
@@ -243,8 +243,12 @@ module load_unit_cache_controller (
                  */
                 IDLE: begin
                     if (load_unit_read_cache_i) begin
-                        if (load_unit_data_cachable_i) begin 
-                            state_NXT = COMPARE_TAG;
+                        /* If data is found in the store buffer or is inside the 
+                         * store unit, there's no need to check for an hit */
+                        if (store_unit_address_match | str_buffer_address_match_i) begin
+                            state_NXT = DATA_STABLE;
+                        end else if (load_unit_data_cachable_i) begin 
+                            state_NXT = WAIT_CACHE;
                         end else begin
                             state_NXT = MEMORY_REQUEST;
                         end
@@ -257,16 +261,22 @@ module load_unit_cache_controller (
                         cache_address_o.index = load_unit_address_i.index;
                         cache_address_o.chip_sel = load_unit_address_i.chip_sel;
 
-                        /* If data is found in the store buffer or is inside the 
-                         * store unit, there's no need to check for an hit */
+                        /* Foward the value from hitting units */
                         if (store_unit_address_match) begin 
-                            state_NXT = DATA_STABLE;
                             cache_data_NXT = store_unit_data_i;
                         end else if (str_buffer_address_match_i) begin
-                            state_NXT = DATA_STABLE;
                             cache_data_NXT = str_buffer_data_i;                            
                         end
                     end
+                end
+
+
+                /* 
+                 *  Cache hit / miss signal will be valid one cycle after the
+                 *  cache read
+                 */
+                WAIT_CACHE: begin
+                    state_NXT = COMPARE_TAG;
                 end
 
 
@@ -303,8 +313,12 @@ module load_unit_cache_controller (
                     enable_lfsr = 1'b0;
 
                     chip_select_NXT = '0;
-
-                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, '0}; 
+                    
+                    if (load_unit_data_cachable_i) begin
+                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, '0}; 
+                    end else begin
+                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, load_unit_address_i.chip_sel};
+                    end
 
                     if (external_acknowledge_i) begin
                         if (load_unit_data_cachable_i) begin 
@@ -335,7 +349,7 @@ module load_unit_cache_controller (
 
                     if (!store_buffer_full_i & store_buffer_port_idle_i) begin
                         load_unit_data_o = cache_data_writeback_i;
-                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT}; 
+                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, 2'b0}; 
 
                         if (cache_dirty_i) begin
                             state_NXT = READ_CACHE;
@@ -356,8 +370,6 @@ module load_unit_cache_controller (
                  *  last one.
                  */
                 READ_CACHE: begin
-                    state_NXT = WRITE_BACK;
-
                     enable_lfsr = 1'b0;
 
                     cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
@@ -368,9 +380,10 @@ module load_unit_cache_controller (
                      * determine if it needs to be written back */
                     if (chip_select_CRT == '0) begin 
                         state_NXT = DIRTY_CHECK;
-
-                        cache_port1_enable_o.data = 1'b1;  
+ 
                         cache_port1_enable_o.dirty = 1'b1;  
+                    end else begin
+                        state_NXT = WRITE_BACK;
                     end
                 end
 

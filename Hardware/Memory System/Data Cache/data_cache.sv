@@ -259,17 +259,29 @@ module data_cache (
 //  PORT 0 HIT LOGIC  //
 //--------------------//
 
-    logic [WAYS_NUMBER - 1:0] cache_port0_way_hit;
-    logic                     cache_port0_hit;
+    logic [WAYS_NUMBER - 1:0] cache_port0_way_hit, cache_port0_way_hit_out;
+    logic                     cache_port0_hit, cache_port0_hit_out;
 
     data_cache_port0_hit_check port0_hit_check (
         .cache_tag_i            ( cache_port0.tag              ),
         .cache_valid_i          ( cache_port0.valid            ),
-        .address_tag_i          ( cache_port0.write_packet.tag ), // POSSIBLE BUG SINCE ADDR IS NOT REGISTRED
+        .address_tag_i          ( cache_port0.write_packet.tag ),
 
         .hit_o                  ( cache_port0_hit              ),
         .way_hit_o              ( cache_port0_way_hit          )
     );
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin 
+                cache_port0_hit_out <= 1'b0;
+            end else begin 
+                cache_port0_hit_out <= cache_port0_hit;
+            end
+        end
+
+        always_ff @(posedge clk_i) begin
+            cache_port0_way_hit_out <= cache_port0_way_hit;
+        end
 
 
 //--------------------//
@@ -289,18 +301,30 @@ module data_cache (
             end
         end
 
-    logic [PORT_WIDTH - 1:0]  cache_port1_data_hit;
-    logic                     cache_port1_hit;
+    logic [PORT_WIDTH - 1:0]  cache_port1_data_hit, cache_port1_data_hit_out;
+    logic                     cache_port1_hit, cache_port1_hit_out;
 
     data_cache_port1_hit_check port1_hit_check (
         .cache_data_i           ( cache_port1_word     ),
         .cache_tag_i            ( cache_port1_tag      ),
         .cache_valid_i          ( cache_port1_valid    ),
-        .address_tag_i          ( cache_tag            ),   // POSSIBLE BUG SINCE ADDR IS NOT REGISTRED
+        .address_tag_i          ( cache_tag            ),  
 
         .hit_o                  ( cache_port1_hit      ),
         .cache_data_o           ( cache_port1_data_hit )
     );
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin 
+                cache_port1_hit_out <= 1'b0;
+            end else begin 
+                cache_port1_hit_out <= cache_port1_hit;
+            end
+        end
+
+        always_ff @(posedge clk_i) begin
+            cache_port1_data_hit_out <= cache_port1_data_hit;
+        end
 
 
 //------------------------//
@@ -363,9 +387,9 @@ module data_cache (
 
         /* Cache interface */
         .cache_port0_granted_i      ( ldu_cache_port0_grant        ),
-        .cache_port1_hit_i          ( cache_port1_hit              ),
+        .cache_port1_hit_i          ( cache_port1_hit_out          ),
         .cache_dirty_i              ( cache_port1_dirty            ),
-        .cache_data_i               ( cache_port1_data_hit         ),
+        .cache_data_i               ( cache_port1_data_hit_out     ),
         .cache_data_writeback_i     ( cache_port1_data_writeback   ),
         .cache_dirty_o              ( ldu_port0.write_packet.dirty ),
         .cache_valid_o              ( ldu_port0.write_packet.valid ),
@@ -431,8 +455,8 @@ module data_cache (
 
         /* Cache interface */
         .cache_port0_granted_i ( stu_cache_port0_grant        ),
-        .cache_hit_i           ( cache_port0_hit              ),
-        .cache_way_hit_i       ( cache_port0_way_hit          ),
+        .cache_hit_i           ( cache_port0_hit_out          ),
+        .cache_way_hit_i       ( cache_port0_way_hit_out      ),
         .cache_write_o         ( stu_port0.write              ),
         .cache_read_o          ( stu_port0.read               ),
         .cache_address_o       ( stu_port0_addr               ),

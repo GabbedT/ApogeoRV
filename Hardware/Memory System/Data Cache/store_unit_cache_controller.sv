@@ -94,7 +94,7 @@ module store_unit_cache_controller (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [2:0] {IDLE, COMPARE_TAG, COMPARE_TAG_INVALIDATE, WAIT_SPECULATIVE, WRITE_DATA, MEMORY_WRITE, INVALIDATE} store_unit_cache_fsm_t;
+    typedef enum logic [2:0] {IDLE, WAIT_CACHE, COMPARE_TAG, COMPARE_TAG_INVALIDATE, WAIT_SPECULATIVE, WRITE_DATA, MEMORY_WRITE, INVALIDATE} store_unit_cache_fsm_t;
 
     store_unit_cache_fsm_t state_CRT, state_NXT;
 
@@ -207,6 +207,15 @@ module store_unit_cache_controller (
 
                     cache_enable_o.tag = 1'b1;
                     cache_enable_o.valid = 1'b1;
+                end
+
+
+                /* 
+                 *  Cache hit / miss signal will be valid one cycle after the
+                 *  cache read
+                 */
+                WAIT_CACHE: begin
+                    state_NXT = COMPARE_TAG;
                 end
 
 
