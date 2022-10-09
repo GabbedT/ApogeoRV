@@ -169,6 +169,14 @@ module store_buffer (
     /* Don't read if the buffer is empty */
     assign pop_enable = !empty;
 
+    `ifdef ASSERTIONS
+        /* Writes are not allowed when the buffer is full */
+        assert property @(posedge clk_i) (full |-> !push_entry_buffer);
+
+        /* Reads are not allowed when the buffer is empty */
+        assert property @(posedge clk_i) (empty |-> !pop_request_i);
+    `endif
+
 
 //-------------------//
 //  REQUEST ARBITER  //

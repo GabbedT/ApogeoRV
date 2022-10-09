@@ -93,6 +93,10 @@ module data_cache_memory_fpga (
         end
     endgenerate
 
+    `ifdef ASSERTIONS 
+        assert property @(posedge clk_i) ($onehot(enable_way_i));
+    `endif 
+
 endmodule : data_cache_memory_fpga
 
 `endif
