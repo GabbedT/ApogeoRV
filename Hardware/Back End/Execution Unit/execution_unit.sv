@@ -41,13 +41,35 @@ module execution_unit (
     input  logic [XLEN - 1:0]    operand_B_i,
 
     /* Result functional unit */
-    output logic [XLEN - 1:0] result_o,
-    output instr_packet_t     instr_packet_o,
-
-    /* Fowarding ALU result */
-    output logic [XLEN - 1:0] alu_result_o,
-    output logic [4:0]        alu_reg_dest_o,
+    output logic [XLEN - 1:0] alu_result_o, 
+    output instr_packet_t     alu_instr_packet_o,
     output logic              alu_valid_o,
+    
+    output logic [XLEN - 1:0] bmu_result_o, 
+    output instr_packet_t     bmu_instr_packet_o,
+    output logic              bmu_valid_o,
+
+    output logic [XLEN - 1:0] cpop_result_o, 
+    output instr_packet_t     cpop_instr_packet_o,
+    output logic              cpop_valid_o,
+
+    output logic [XLEN - 1:0] mul_result_o, 
+    output instr_packet_t     mul_instr_packet_o,
+    output logic              mul_valid_o,
+
+    output logic [XLEN - 1:0] div_result_o, 
+    output instr_packet_t     div_instr_packet_o,
+    output logic              div_valid_o,
+
+    input  logic              stu_accepted_i,
+    output logic [XLEN - 1:0] stu_result_o, 
+    output instr_packet_t     stu_instr_packet_o,
+    output logic              stu_valid_o,
+
+    input  logic              ldu_accepted_i,
+    output logic [XLEN - 1:0] ldu_result_o, 
+    output instr_packet_t     ldu_instr_packet_o,
+    output logic              ldu_valid_o,
 
     /* Sequential functional units status for scheduling */
     output logic div_idle_o,
@@ -57,7 +79,7 @@ module execution_unit (
 
     /* Memory interface */
     input  logic                     external_invalidate_i,
-    input  logic [XLEN - 1:0]        external_address_i,
+    input  data_cache_addr_t         external_address_i,
     input  logic                     external_acknowledge_i,
     input  logic                     external_data_valid_i,
     input  logic [XLEN - 1:0]        external_data_i,
@@ -90,8 +112,6 @@ module execution_unit (
 //  ARITHMETIC LOGIC UNIT  //
 //-------------------------//
 
-    instr_packet_t alu_ipacket;
-
     /* Module instantiation logic */
     logic [XLEN - 1:0] result_alu, result_alu_out;
     logic              alu_valid, alu_valid_out;
@@ -109,54 +129,39 @@ module execution_unit (
 
         .result_o             ( result_alu                ),
         .branch_taken_o       ( branch_taken_o            ),
-        .data_valid_o         ( alu_valid                 )
+        .data_valid_o         ( alu_valid_o               )
     );
 
-        always_ff @(posedge clk_i) begin : alu_stage_register
-            alu_ipacket <= instr_packet_i;
-            alu_valid_out <= alu_valid;
-            result_alu_out <= result_alu;
-        end : alu_stage_register
-
-    assign alu_result_o = result_alu_out;
-    assign alu_reg_dest_o = alu_ipacket.reg_dest;
-    assign alu_valid_o = alu_valid_out;
+    assign alu_result_o = result_alu;
+    assign alu_instr_packet_o = instr_packet_i;
 
 
 //-------------------------//
 //  BIT MANIPULATION UNIT  //
 //-------------------------//
 
-    /* Instruction packet coming from BMU, instruction packet
-     * must pass through a stage register since BMU is fully
-     * pipelined with 1 clock cycle latency delay */
-    instr_packet_t bmu_ipacket;
-
+        /* Instruction packet coming from BMU, instruction packet
+         * must pass through a stage register since BMU is fully
+         * pipelined with 1 clock cycle latency delay. ALU shares
+         * this logic with BMU */
         always_ff @(posedge clk_i) begin : bmu_stage_register
-            bmu_ipacket <= instr_packet_i;
+            bmu_instr_packet_o <= instr_packet_i;
         end : bmu_stage_register
 
 
-    /* In BMU the CPOP operation has its own port and the circuit
-     * that execute this operation can be thought as a different
-     * functional unit */
-    instr_packet_t cpop_ipacket;
-    logic          cpop_idle;
-
+        /* In BMU the CPOP operation has its own port and the circuit
+         * that execute this operation can be thought as a different
+         * functional unit */
         always_ff @(posedge clk_i) begin : cpop_stage_register
-            if (cpop_idle) begin
-                cpop_ipacket <= instr_packet_i;
+            if (data_valid_i.BMU & (operation_i == CPOP)) begin
+                cpop_instr_packet_o <= instr_packet_i;
             end
         end : cpop_stage_register
 
 
-    /* Module instantiation logic */
-    logic [XLEN - 1:0] cpop_result;
-    logic              cpop_valid_in, cpop_valid_out;
+    logic cpop_valid;
 
-    assign cpop_valid_in = data_valid_i.BMU & (operation_i == CPOP);
-
-    logic [XLEN - 1:0] result_bmu;
+    assign cpop_valid = data_valid_i.BMU & (operation_i == CPOP);
 
     bit_manipulation_unit bmu (
         .clk_i             ( clk_i            ),
@@ -166,22 +171,31 @@ module execution_unit (
         .operand_B_i       ( operand_B_i      ),
         .operation_i       ( operation_i.BMU  ),
         .data_valid_i      ( data_valid_i.BMU ),
-        .cpop_data_valid_i ( cpop_valid_in    ),
-        .result_o          ( result_bmu       ),
-        .cpop_result_o     ( cpop_result      ),
-        .data_valid_o      ( bmu_valid_out    ),
-        .cpop_data_valid_o ( cpop_valid_out   ),
-        .cpop_idle_o       ( cpop_idle        )
+        .cpop_data_valid_i ( cpop_valid       ),
+        .result_o          ( bmu_result_o     ),
+        .cpop_result_o     ( cpop_result_o    ),
+        .data_valid_o      ( bmu_valid_o      ),
+        .cpop_data_valid_o ( cpop_valid_o     ),
+        .cpop_idle_o       ( cpop_idle_o      )
     );
 
-    assign cpop_idle_o = cpop_idle;
+
+    `ifdef ASSERTIONS
+        /* New valid data mustn't be supplied to the BMU if it's not idle */
+        assert property @(posedge clk_i) (!cpop_idle |-> !cpop_valid)
+        else $error("Data supplied to BMU while it wasn't idle!");
+
+        /* Valid for only one clock cycle */
+        assert property @(posedge clk_i) ($rose(cpop_valid_o) |=> $fell(cpop_valid_o))
+        else $error("Count population valid signal asserted for more than one cycle!");
+    `endif 
 
 
 //-----------------------//
 //  MULTIPLICATION UNIT  //
 //-----------------------//
 
-    /* Multiplication unit is fully pipelined and has 10 cycles of latency,
+    /* Multiplication unit is fully pipelined and has 9 cycles of latency,
      * instruction packet must be passed through a shift register that delays
      * the delivery to the final multiplexer */
     instr_packet_t [8:0] mul_ipacket;
@@ -198,10 +212,8 @@ module execution_unit (
             `endif
         end : mul_stage_register
 
+    assign mul_instr_packet_o = mul_ipacket[8];
 
-    /* Module instantiation logic */
-    logic [XLEN - 1:0] result_mul;
-    logic              mul_valid_out;
 
     multiplication_unit #(XLEN) mul_unit (
         `ifdef ASIC 
@@ -216,8 +228,8 @@ module execution_unit (
         .multiplier_i   ( operand_B_i      ),
         .data_valid_i   ( data_valid_i.MUL ),
         .operation_i    ( operation_i.MUL  ),
-        .product_o      ( result_mul       ),
-        .data_valid_o   ( mul_valid_out    )
+        .product_o      ( mul_result_o     ),
+        .data_valid_o   ( mul_valid_o      )
     );
 
 
@@ -244,8 +256,7 @@ module execution_unit (
 
 
     /* Module instantiation logic */
-    logic [XLEN - 1:0] result_div;
-    logic              div_valid_out, divide_by_zero;
+    logic              divide_by_zero;
 
     division_unit #(XLEN) div_unit (
         `ifdef ASIC 
@@ -260,13 +271,17 @@ module execution_unit (
         .divisor_i        ( operand_B_i      ),
         .data_valid_i     ( data_valid_i.DIV ),
         .operation_i      ( operation_i.DIV  ),
-        .product_o        ( result_div       ),
-        .data_valid_o     ( div_valid_out    ),
+        .product_o        ( div_result_o     ),
+        .data_valid_o     ( div_valid_o      ),
         .divide_by_zero_o ( divide_by_zero   ),
-        .idle_o           ( div_idle         )
+        .idle_o           ( div_idle_o       )
     );
 
-    assign div_idle_o = div_idle;
+    `ifdef ASSERTIONS
+        /* New valid data mustn't be supplied to the DIV if it's not idle */
+        assert property @(posedge clk_i) (!div_idle |-> !data_valid_i.BMU)
+        else $error("Data supplied to DIV while it wasn't idle!");
+    `endif 
 
 
     /* Exception logic */
@@ -283,14 +298,12 @@ module execution_unit (
             end
         end : division_exception_logic
 
+    assign div_instr_packet_o = exc_div_ipacket;
+
 
 //-------------------//
 //  LOAD STORE UNIT  //
 //-------------------//
-
-    logic              ldu_valid_out, stu_valid_out;
-    instr_packet_t     ldu_ipacket, stu_ipacket;
-    logic [XLEN - 1:0] ldu_data;
 
     load_store_unit lsu (
         .clk_i                    ( clk_i                         ),
@@ -300,24 +313,26 @@ module execution_unit (
         .speculative_instr_id_i   ( instr_packet_i.speculative_id ),
 
         /* Load Unit interface */
-        .ldu_data_valid_i   ( data_valid_i.LDU ),
-        .ldu_address_i      ( operand_B_i      ),
-        .ldu_operation_i    ( operation_i.LDU  ),
-        .ldu_instr_packet_i ( instr_packet_i   ),
-        .ldu_idle_o         ( ldu_idle_o       ),
-        .ldu_data_valid_o   ( ldu_valid_out    ),
-        .ldu_instr_packet_o ( ldu_ipacket      ),
-        .ldu_data_o         ( ldu_data         ),
+        .ldu_data_valid_i    ( data_valid_i.LDU   ),
+        .ldu_address_i       ( operand_B_i        ),
+        .ldu_operation_i     ( operation_i.LDU    ),
+        .ldu_instr_packet_i  ( instr_packet_i     ),
+        .ldu_data_accepted_i ( ldu_accepted_i     ),
+        .ldu_idle_o          ( ldu_idle_o         ),
+        .ldu_data_valid_o    ( ldu_valid_o        ),
+        .ldu_instr_packet_o  ( ldu_instr_packet_o ),
+        .ldu_data_o          ( ldu_result_o       ),
 
         /* Store Unit interface */
-        .stu_data_valid_i   ( data_valid_i.STU ),
-        .stu_data_i         ( operand_A_i      ),
-        .stu_address_i      ( operand_B_i      ),
-        .stu_operation_i    ( operation_i.STU  ),
-        .stu_instr_packet_i ( instr_packet_i   ),
-        .stu_idle_o         ( stu_idle_o       ),
-        .stu_data_valid_o   ( stu_valid_out    ),
-        .stu_instr_packet_o ( stu_ipacket      ),
+        .stu_data_valid_i    ( data_valid_i.STU   ),
+        .stu_data_i          ( operand_A_i        ),
+        .stu_address_i       ( operand_B_i        ),
+        .stu_operation_i     ( operation_i.STU    ),
+        .stu_instr_packet_i  ( instr_packet_i     ),
+        .stu_data_accepted_i ( stu_accepted_i     ),
+        .stu_idle_o          ( stu_idle_o         ),
+        .stu_data_valid_o    ( stu_valid_o        ),
+        .stu_instr_packet_o  ( stu_instr_packet_o ),
 
         /* Memory interface */
         .external_invalidate_i   ( external_invalidate_i   ),
@@ -336,61 +351,24 @@ module execution_unit (
         .store_buffer_packet_o ( store_buffer_packet_o )
     );
 
+    assign stu_result_o = '0;
 
-//--------------------//
-//  RESULT SELECTION  //
-//--------------------//
 
-    /* One hot value */
-    logic [5:0] functional_unit_valid;
+    `ifdef ASSERTIONS
+        /* New valid data mustn't be supplied to the STU and LDU if it's not idle */
+        assert property @(posedge clk_i) (!stu_idle_o |-> !data_valid_i.STU)
+        else $error("Data supplied to STU while it wasn't idle!");
 
-    assign functional_unit_valid = {alu_valid_out, (bmu_valid_out | cpop_valid_out), mul_valid_out, div_valid_out, ldu_valid_out, stu_valid_out};
+        assert property @(posedge clk_i) (!ldu_idle_o |-> !data_valid_i.LDU)
+        else $error("Data supplied to LDU while it wasn't idle!");
 
-    localparam STORE_UNIT        = 6'b000001;
-    localparam LOAD_UNIT         = 6'b000010;
-    localparam DIVIDE_UNIT       = 6'b000100;
-    localparam MULTIPLY_UNIT     = 6'b001000;
-    localparam BIT_MANIP_UNIT    = 6'b010000;
-    localparam ARITHM_LOGIC_UNIT = 6'b100000;
 
-        always_comb begin : output_logic
-            case (functional_unit_valid)
-                STORE_UNIT: begin
-                    result_o = '0;
-                    instr_packet_o = stu_ipacket;
-                end
+        logic [4:0] functional_units_status;
+        assign functional_units_status = {alu_valid_o, bmu_valid_o, cpop_valid_o, mul_valid_o, div_valid_o};
 
-                LOAD_UNIT: begin
-                    result_o = ldu_data;
-                    instr_packet_o = ldu_ipacket;
-                end
-
-                DIVIDE_UNIT: begin
-                    result_o = result_div;
-                    instr_packet_o = exc_div_ipacket;
-                end
-
-                MULTIPLY_UNIT: begin
-                    result_o = result_mul;
-                    instr_packet_o = mul_ipacket[8];
-                end
-
-                BIT_MANIP_UNIT: begin
-                    result_o = (bmu_valid_out) ? result_bmu : cpop_result;
-                    instr_packet_o = (bmu_valid_out) ? bmu_ipacket : cpop_ipacket;
-                end
-
-                ARITHM_LOGIC_UNIT: begin
-                    result_o = result_alu_out;
-                    instr_packet_o = alu_ipacket;
-                end
-
-                default: begin
-                    result_o = 'b0;
-                    instr_packet_o = 'b0;  
-                end
-            endcase
-        end : output_logic
+        assert property @(posedge clk_i) ($onehot(functional_units_status) || (functional_units_status == '0))
+        else $error("Multiple functional unit overlapping!");
+    `endif 
 
 endmodule : execution_unit
 
