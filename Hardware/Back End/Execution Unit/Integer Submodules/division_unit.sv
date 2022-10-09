@@ -32,10 +32,10 @@
 //               operations. The core circuit implements the non restoring division
 //               algorithm, thus numbers must be converted based on the type of
 //               operation. It is sequential thus it can accept only one operation
-//               until it finish computation. The latency is 35 clock cycles and as 
+//               until it finish computation. The latency is 36 clock cycles and as 
 //               soon as the result is valid new operands can be accepted. The 
 //               computation starts when `data_valid_i` is asserted, the next clock 
-//               cycle `idle_o` is deasserted, after 35 clock cycles `data_valid_o`
+//               cycle `idle_o` is deasserted, after 36 clock cycles `data_valid_o`
 //               is asserted with `idle_o`.  
 // ------------------------------------------------------------------------------------
 
