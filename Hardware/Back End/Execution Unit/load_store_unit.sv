@@ -21,6 +21,7 @@ module load_store_unit (
     input  logic [XLEN - 1:0] ldu_address_i,
     input  ldu_operation_t    ldu_operation_i,
     input  instr_packet_t     ldu_instr_packet_i,
+    input  logic              ldu_data_accepted_i,
     output logic              ldu_idle_o,
     output logic              ldu_data_valid_o,
     output instr_packet_t     ldu_instr_packet_o,
@@ -32,6 +33,7 @@ module load_store_unit (
     input  logic [XLEN - 1:0] stu_address_i,
     input  stu_operation_t    stu_operation_i,
     input  instr_packet_t     stu_instr_packet_i,
+    input  logic              stu_data_accepted_i,
     output logic              stu_idle_o,
     output logic              stu_data_valid_o,
     output instr_packet_t     stu_instr_packet_o,
@@ -75,6 +77,7 @@ module load_store_unit (
         .store_address_i         ( stu_address_i           ),
         .operation_i             ( stu_operation_i         ),
         .instr_packet_i          ( stu_instr_packet_i      ),
+        .data_accepted_i         ( stu_data_accepted_i     ),
 
         .instr_packet_o          ( stu_instr_packet_o      ),
         .store_width_o           ( stu2cache_store_width   ),
@@ -110,6 +113,7 @@ module load_store_unit (
         .load_address_i          ( ldu_address_i           ),
         .operation_i             ( ldu_operation_i         ),
         .instr_packet_i          ( ldu_instr_packet_i      ),
+        .data_accepted_i         ( ldu_data_accepted_i     ),
     
         .instr_packet_o          ( ldu_instr_packet_o      ),
         .loaded_data_o           ( ldu_data_o              ),

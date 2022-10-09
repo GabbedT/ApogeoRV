@@ -14,6 +14,7 @@ module store_unit (
     input  logic [XLEN - 1:0] store_address_i,
     input  stu_operation_t    operation_i,
     input  instr_packet_t     instr_packet_i,
+    input  logic              data_accepted_i,
 
     output instr_packet_t     instr_packet_o,
     output mem_op_width_t     store_width_o,
@@ -91,7 +92,7 @@ module store_unit (
 
                 data_bufferable_CRT <= 1'b1;
                 data_cachable_CRT <= 1'b1;
-            end begin 
+            end else begin 
                 cache_ctrl_write_CRT <= cache_ctrl_write_NXT;
 
                 data_bufferable_CRT <= data_bufferable_NXT;
@@ -128,7 +129,7 @@ module store_unit (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic {IDLE, WAIT_CACHE} store_unit_fsm_t;
+    typedef enum logic [1:0] {IDLE, WAIT_CACHE, WAIT_COMMIT} store_unit_fsm_t;
 
     store_unit_fsm_t state_CRT, state_NXT;
 
@@ -194,10 +195,17 @@ module store_unit (
 
                 WAIT_CACHE: begin
                     if (cache_ctrl_store_done_i) begin
-                        state_NXT = IDLE;
+                        state_NXT = WAIT_COMMIT;
                         cache_ctrl_write_NXT = 1'b0;
+                    end
+                end
 
-                        data_valid_o = 1'b1;
+
+                WAIT_COMMIT: begin
+                    data_valid_o = 1'b1;
+
+                    if (data_accepted_i) begin
+                        state_NXT = IDLE;
                     end
                 end
             endcase

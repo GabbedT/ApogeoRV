@@ -13,6 +13,7 @@ module load_unit (
     input  logic [XLEN - 1:0] load_address_i,
     input  ldu_operation_t    operation_i,
     input  instr_packet_t     instr_packet_i,
+    input  logic              data_accepted_i,
     
     output instr_packet_t     instr_packet_o,
     output logic [XLEN - 1:0] loaded_data_o,
@@ -150,7 +151,10 @@ module load_unit (
                  */
                 DATA_VALID: begin
                     data_valid_o = 1'b1;
-                    state_NXT = IDLE;
+
+                    if (data_accepted_i) begin
+                        state_NXT = IDLE;
+                    end
 
                     case (operation)
 
