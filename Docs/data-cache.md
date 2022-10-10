@@ -27,10 +27,11 @@ Range | Name | Description |
 
 The cache is not composed only by the memory block. There are also components that control the cache traffic and memory traffic:
 
-* [Store controller](#stor-controller) 
+* [Store controller](#store-controller) 
 * [Load controller](#load-controller) 
 * Cache hit checker
 * Port 0 arbiter
+* [Store buffer](#store-buffer)
 * [Cache memory block](#memory-design)
 
 The cache is directly connected to the **Load Store Unit** which resides in the *Execution unit* in the main pipeline, to the **store buffer** and the **memory controller**
@@ -184,3 +185,17 @@ If the block is dirty, then keep reading as it pushes the word into the **store 
 Once the memory supplies new data, start allocating it. Request **PORT 0**, once control is granted, *start writing from address 0*, then increment the chip select field in the address until the end of the line.
 
 If the chip select currently used by the controller matches that of the load unit, declare the data that is being written as valid and send it to the unit. 
+
+---
+
+&nbsp;
+
+### Communication between blocks
+
+The cache system communicates with the following components:
+
+* Memory controller (*for memory request (load, store and invalidation)*)
+* Store buffer (*to store data*)
+* Store unit (*Request store in cache*)
+* Load unit (*Request load in cache*)
+* Control unit (*To kill any speculative store operation*)
