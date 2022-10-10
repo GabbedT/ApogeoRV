@@ -104,7 +104,9 @@ package rv32_instructions_pkg;
 //  INTEGER OPERATIONS  //
 //----------------------//
 
-    /* Integer execution unit */
+    /* 
+     * Integer Execution Unit 
+     */
     typedef struct packed {
         alu_operation_t  ALU;
         bmu_operation_t  BMU;
@@ -117,31 +119,21 @@ package rv32_instructions_pkg;
         logic  BMU;
         logic  MUL;
         logic  DIV; 
-    } iexu_valid_operation_t;
+    } iexu_valid_t;
 
 
-    /* Execution unit */
+    /* 
+     * Load Store Unit
+     */
     typedef struct packed {
-        logic  LDU;
-        logic  STU;
-        logic  ALU;
-        logic  BMU;
-        logic  MUL;
-        logic  DIV;
-
-        `ifdef F_EXTENSION
-            logic FPU;
-        `endif  
-    } exu_valid_operation_t; 
+        ldu_operation_t LDU;
+        stu_operation_t STU;
+    } lsu_operation_t;
 
     typedef struct packed {
-        stu_operation_t  STU;
-        ldu_operation_t  LDU;
-        alu_operation_t  ALU;
-        bmu_operation_t  BMU;
-        mul_operation_t  MUL;
-        div_operation_t  DIV;
-    } exu_operation_t;
+        logic LDU;
+        logic STU;
+    } lsu_valid_t;
 
 //----------//
 //  BUNDLE  //

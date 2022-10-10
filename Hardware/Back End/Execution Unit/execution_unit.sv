@@ -2,10 +2,10 @@
     `define EXECUTION_UNIT_SV
 
 `include "load_store_unit.sv"
-`include "Integer Submodules/arithmetic_logic_unit.sv"
-`include "Integer Submodules/bit_manipulation_unit.sv"
-`include "Integer Submodules/division_unit.sv"
-`include "Integer Submodules/multiplication_unit.sv"
+`include "Integer Unit Submodules/arithmetic_logic_unit.sv"
+`include "Integer Unit Submodules/bit_manipulation_unit.sv"
+`include "Integer Unit Submodules/division_unit.sv"
+`include "Integer Unit Submodules/multiplication_unit.sv"
 
 `include "../../Include/core_configuration.svh"
 `include "../../Include/control_status_registers_pkg.sv"
@@ -34,11 +34,11 @@ module execution_unit (
     `endif 
 
     /* Supplied to functional units */
-    input  instr_packet_t        instr_packet_i,
-    input  exu_operation_t       operation_i,
-    input  exu_valid_operation_t data_valid_i,
-    input  logic [XLEN - 1:0]    operand_A_i,
-    input  logic [XLEN - 1:0]    operand_B_i,
+    input  instr_packet_t     instr_packet_i,
+    input  iexu_operation_t   operation_i,
+    input  iexu_valid_t       data_valid_i,
+    input  logic [XLEN - 1:0] operand_A_i,
+    input  logic [XLEN - 1:0] operand_B_i,
 
     /* Result functional unit */
     output logic [XLEN - 1:0] alu_result_o, 
@@ -61,37 +61,9 @@ module execution_unit (
     output instr_packet_t     div_instr_packet_o,
     output logic              div_valid_o,
 
-    input  logic              stu_accepted_i,
-    output logic [XLEN - 1:0] stu_result_o, 
-    output instr_packet_t     stu_instr_packet_o,
-    output logic              stu_valid_o,
-
-    input  logic              ldu_accepted_i,
-    output logic [XLEN - 1:0] ldu_result_o, 
-    output instr_packet_t     ldu_instr_packet_o,
-    output logic              ldu_valid_o,
-
     /* Sequential functional units status for scheduling */
     output logic div_idle_o,
-    output logic cpop_idle_o,
-    output logic ldu_idle_o,
-    output logic stu_idle_o,
-
-    /* Memory interface */
-    input  logic                     external_invalidate_i,
-    input  data_cache_addr_t         external_address_i,
-    input  logic                     external_acknowledge_i,
-    input  logic                     external_data_valid_i,
-    input  logic [XLEN - 1:0]        external_data_i,
-    input  logic [BLOCK_WORDS - 1:0] word_number_i,
-    output logic [XLEN - 1:0]        processor_address_o,
-    output logic                     processor_request_o,
-    output logic                     processor_acknowledge_o,
-
-    /* Store buffer interface */
-    input  logic                read_store_buffer_i,
-    output logic                store_buffer_empty_o,
-    output store_buffer_entry_t store_buffer_packet_o
+    output logic cpop_idle_o
 );
 
 
@@ -301,68 +273,7 @@ module execution_unit (
     assign div_instr_packet_o = exc_div_ipacket;
 
 
-//-------------------//
-//  LOAD STORE UNIT  //
-//-------------------//
-
-    load_store_unit lsu (
-        .clk_i                    ( clk_i                         ),
-        .rst_n_i                  ( rst_n_i                       ),
-        .kill_speculative_instr_i ( kill_speculative_instr_i      ),
-        .speculative_resolved_i   ( speculative_resolved_i        ),
-        .speculative_instr_id_i   ( instr_packet_i.speculative_id ),
-
-        /* Load Unit interface */
-        .ldu_data_valid_i    ( data_valid_i.LDU   ),
-        .ldu_address_i       ( operand_B_i        ),
-        .ldu_operation_i     ( operation_i.LDU    ),
-        .ldu_instr_packet_i  ( instr_packet_i     ),
-        .ldu_data_accepted_i ( ldu_accepted_i     ),
-        .ldu_idle_o          ( ldu_idle_o         ),
-        .ldu_data_valid_o    ( ldu_valid_o        ),
-        .ldu_instr_packet_o  ( ldu_instr_packet_o ),
-        .ldu_data_o          ( ldu_result_o       ),
-
-        /* Store Unit interface */
-        .stu_data_valid_i    ( data_valid_i.STU   ),
-        .stu_data_i          ( operand_A_i        ),
-        .stu_address_i       ( operand_B_i        ),
-        .stu_operation_i     ( operation_i.STU    ),
-        .stu_instr_packet_i  ( instr_packet_i     ),
-        .stu_data_accepted_i ( stu_accepted_i     ),
-        .stu_idle_o          ( stu_idle_o         ),
-        .stu_data_valid_o    ( stu_valid_o        ),
-        .stu_instr_packet_o  ( stu_instr_packet_o ),
-
-        /* Memory interface */
-        .external_invalidate_i   ( external_invalidate_i   ),
-        .external_address_i      ( external_address_i      ),
-        .external_acknowledge_i  ( external_acknowledge_i  ),
-        .external_data_valid_i   ( external_data_valid_i   ),
-        .external_data_i         ( external_data_i         ),
-        .word_number_i           ( word_number_i           ),
-        .processor_address_o     ( processor_address_o     ),
-        .processor_request_o     ( processor_request_o     ),
-        .processor_acknowledge_o ( processor_acknowledge_o ),
-
-        /* Store buffer interface */
-        .read_store_buffer_i   ( read_store_buffer_i   ),
-        .store_buffer_empty_o  ( store_buffer_empty_o  ),
-        .store_buffer_packet_o ( store_buffer_packet_o )
-    );
-
-    assign stu_result_o = '0;
-
-
     `ifdef ASSERTIONS
-        /* New valid data mustn't be supplied to the STU and LDU if it's not idle */
-        assert property @(posedge clk_i) (!stu_idle_o |-> !data_valid_i.STU)
-        else $error("Data supplied to STU while it wasn't idle!");
-
-        assert property @(posedge clk_i) (!ldu_idle_o |-> !data_valid_i.LDU)
-        else $error("Data supplied to LDU while it wasn't idle!");
-
-
         logic [4:0] functional_units_status;
         assign functional_units_status = {alu_valid_o, bmu_valid_o, cpop_valid_o, mul_valid_o, div_valid_o};
 
