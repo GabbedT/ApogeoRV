@@ -15,3 +15,39 @@ LMUL controls the number of registers feeded into the functional units with a si
 
 LMUL(min) = 1 / 4 
 LMUL(max) = 8
+
+VLEN holds the number of elements in a vector: (VLEN / SEW) * LMUL
+
+VSTART is connected to issue unit
+
+MAPPING VECTORS
+
+LMUL = 1: The vector is the entire data at the n-th row of the reg file
+
+LMUL < 1: The vector is only a subsection (low order) of the data at the n-th row.
+          LMUL = 1/2 => Vector Bytes: | / | / | 1 | 0 | (Valid VSEW = 16b or 8b)
+          LMUL = 1/4 => Vector Bytes: | / | / | / | 0 | (Valid VSEW = 8b)
+
+LMUL > 1: The vector is composed of multiple rows of the register file (Vector: => [vn:vn + (LMUL - 1)])
+
+
+MASKING
+
+V0 is used as mask register. Element operations that are masked off (inactive) never generate
+exceptions.
+The destination vector register group for a masked vector instruction cannot overlap the source mask register (v0), unless
+the destination vector register is being written with a mask value (e.g., compares) or the scalar result of a reduction. These
+instruction encodings are reserved. 
+masking is encoded in a single-bit vm eld in the instruction (inst[25]).
+
+When VSEW = 32b -> Will be considered nibble of the V0 register (8 mask bit max (when LMUL = 8))
+When VSEW = 16 -> Will be considered 2 bits of the V0 register (16 mask bit max (when LMUL = 8))
+When VSEW = 8 -> Will be considered a bit of the V0 register (32 mask bit max (when LMUL = 8))
+
+Scalar operands can be: immediates, taken from the x registers, taken from the f registers or element 0 of a vector register
+Scalar results are written to an x or f register or to element 0 of a vector register
+
+Some vector instructions have source and destination vector operands with the same number of elements but different
+widths!
+
+Vector operands or results may occupy one or more vector registers depending on EMUL
