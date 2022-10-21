@@ -38,11 +38,7 @@ package control_status_registers_pkg;
 //---------------------//
 
     /* Machine ISA register */
-    `ifdef F_EXTENSION 
-        localparam MISA_VALUE = 32'b01_0000_00000101000001000100_1_00110;
-    `else
-        localparam MISA_VALUE = 32'b01_0000_00000101000001000100_0_00110;
-    `endif 
+    localparam MISA_VALUE = 32'b01_0000_00001101000001000100_1_00110; 
 
     /* Vendor ID register */
     localparam MVENDORID_VALUE = 32'b0;

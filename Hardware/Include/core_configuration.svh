@@ -16,15 +16,6 @@
     /* Enable asyncronous reset */
     `define ASYNC
 
-    /* Enable cache */
-    `define CACHE
-
-    /* Enable Floating Point Unit */
-    // `define F_EXTENSION
-
-    /* Enable compressed instructions */
-    `define C_EXTENSION
-
 
     /*
      *  STORE BUFFER
@@ -35,17 +26,12 @@
 
 
     /* 
-     *  REORDER BUFFER 
-     */
-
-    /* Total number of entries (A power of 2) */
-    `define ROB_DEPTH 64;
-
-
-    /* 
      *  DATA CACHE
      */
-    
+     
+    /* Enable cache */
+    `define CACHE
+
     /* In bytes */
     `define DATA_CACHE_SIZE 2 ** 14
 

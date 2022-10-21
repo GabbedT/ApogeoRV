@@ -40,6 +40,9 @@ package rv32_instructions_pkg;
         MAX, MAXU, MIN, MINU, SEXTB, SEXTH, 
         ZEXTH, ROL, ROR, RORI, ORCB, REV8,
 
+        /* ZBC instructions */
+        CLMUL, CLMULH, CLMULR,
+
         /* ZBS instructions */
         BCLR, BCLRI, BEXT, BEXTI, BINV, 
         BINVI, BSET, BSETI
@@ -120,7 +123,7 @@ package rv32_instructions_pkg;
         logic  MUL;
         logic  DIV; 
     } iexu_valid_t;
-
+    
 
     /* 
      * Load Store Unit
@@ -147,19 +150,15 @@ package rv32_instructions_pkg;
          * by different jump can be in flight  */
         logic [1:0]  speculative_id;
 
-        /* If the instruction has been fetched after 
-         * a taken jump or not */
-        logic        branch_taken;
-
         `ifdef F_EXTENSION 
             logic    is_float;
         `endif 
 
-        /* Has generated an exception */
-        logic        exception;
+        /* Has generated an trap */
+        logic        trap_generated;
 
         /* Exception vector */
-        logic [3:0]  exception_vector;
+        logic [3:0]  trap_vector;
 
         /* Instruction address */
         logic [31:0] instr_addr;
