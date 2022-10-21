@@ -21,7 +21,7 @@ Privilege modes: M, S, U
 
 # Pipeline Description 
 
-## Instruction Address Supply (IAS)
+## Instruction Address (IA)
 
 ### General functional description
 
@@ -296,3 +296,241 @@ Load bundle I$ | Instruction cache | Fetch buffer | The bundle is loaded in para
 Load bundle MEM | Memory controller | Fetch buffer | The memory interface is 32 bits wide so after memory latency, an instruction per cycle is supplied. Only the head of the buffer is loaded unless the instruction is compressed. 
 |
 Tag speculative | IAS stage | Fetch buffer | All instructions in the bundle are tagged as speculative.
+
+
+## Instruction Decode (ID)
+
+In the decode stage, the instruction goes into a full combinational block and gets decoded. A set of micro-instructions is generated and passed to the next stage. 
+
+The illegal instruction exception is generated here 
+
+### Algorithm
+
+1) Check opccode[6:2]
+2) Check funct7 
+3) Check funct3
+
+SystemVerilog non optimized code: 
+
+```
+case (iw.opcode[6:2])
+    01101: iw = LUI 
+    00101: iw = AUIPC 
+    11011: iw = JAL 
+    11001: iw = JALR 
+
+    /* Cond branch */
+    11000: begin 
+        case (iw.funct3)
+            000: iw = BEQ
+            001: iw = BNE
+            100: iw = BLT
+            101: iw = BGE
+            110: iw = BLTU
+            111: iw = BGEU
+        endcase
+    end 
+
+    /* Load */
+    000000: begin 
+        case (iw.funct3)
+            000: iw = LB
+            001: iw = LH
+            010: iw = LW
+            100: iw = LBU
+            101: iw = LHU
+        endcase 
+    end 
+
+    /* Store */
+    010000: begin 
+        case (iw.funct3)
+            000: iw = SB
+            001: iw = SH
+            010: iw = SW
+        endcase 
+    end 
+
+    /* Immediate arithm */
+    00100: begin 
+        case (iw.funct3)
+            000: iw = ADDI
+            001: begin 
+                case ({iw.funct7[5:4], iw.funct7[2]})
+                    000: iw = SLLI 
+                    011: iw = BSETI
+                    101: iw = BCLRI 
+                    110: begin 
+                        case (iw[22:20])
+                            000: iw = CLZ
+                            001: iw = CTZ
+                            010: iw = CPOP
+                            100: iw = SEXT.B
+                            101: iw = SEXT.H
+                        endcase 
+                    end
+                    111: iw = BINVI
+                endcase  
+            end   // SLLI 0000000  BCLRI 0100100 BINVI 0110100  
+            010: iw = SLTI
+            011: iw = SLTIU
+            100: iw = XORI
+            101:  begin 
+                if ({iw[30:29], iw[27], iw[24:23]} == '1) begin 
+                    iw = REV8
+                end else begin 
+                    case ({iw.funct7[5:4], iw.funct7[2]})
+                        000: iw = SRL 
+                        001: iw = MINU
+                        100: iw = SRA 
+                        101: iw = BEXT
+                        110: iw = RORI
+                    endcase 
+                end
+            end 
+            110: iw = ORI
+            111: iw = ANDI 
+        endcase 
+    end 
+
+    /* Registers arithm */
+    01100: begin 
+        case (iw.funct3)
+            000: iw = funct7[5] ? SUB : ADD
+            001: begin 
+                case ({iw.funct7[5:4], iw.funct7[2]})
+                    000: iw = SLL 
+                    001: iw = CLMUL
+                    011: iw = BSET
+                    101: iw = BCLR
+                    110: iw = ROL 
+                    111: iw = BINV
+                endcase 
+            end 
+            010: iw = iw[29] ? SHA1ADD : SLT
+            011: iw = iw.func7 == 0 ? SLTU : CLMULH
+            100: begin 
+                case ({iw.funct7[5:4], ((iw.funct7[2:0]) == 0)})
+                    000: iw = funct7[0] ? MIN : ZEXT.H
+                    001: iw = XOR
+                    011: iw = SH2ADD
+                    101: iw = XNOR
+                endcase 
+            end iw = (iw.funct7[2:0]) == 0 ? XOR : MIN 
+            101: begin 
+                if ({iw[29], iw[27], iw[22:20]} == '1) begin 
+                    iw = ORC.B
+                end else begin 
+                    case ({iw.funct7[5:4], iw.funct7[2]})
+                        000: iw = SRL 
+                        001: iw = MINU
+                        100: iw = SRA 
+                        101: iw = BEXT
+                        110: iw = ROR
+                    endcase 
+                end 
+            end 
+            110: begin 
+                case ({iw.funct7[4], ((iw.funct7[2:0]) == 0)})
+                    00: iw = MAXU
+                    01: iw = iw.funct7[5] ? ORN : OR 
+                    11: iw = SH3ADD
+                endcase 
+            end  
+            111: begin 
+                case (iw.funct7[2:0]) == 0)
+                    0: iw = iw.funct7[5] ? ANDN : AND 
+                    1: iw = MAXU 
+                endcase 
+            end  
+        endcase 
+    end  
+
+    /* System and CSR */
+    00011: iw = funct3[0] ? FENCE.I : FENCE
+    11100: begin 
+        case (funct3)
+            000: begin 
+                if (iw[20]) begin 
+                    if ({iw[28], iw[22]} == 2'b11) begin 
+                        iw = WFI
+                    end else begin 
+                        iw = EBREAK
+                    end 
+                end else begin 
+                    case ({iw[29:28], iw[21]})
+                        000: iw = ECALL
+                        011: iw = SRET
+                        111: iw = MRET
+                    endcase 
+                end
+            end  
+            001: iw = CSRRW
+            010: iw = CSRRS
+            011: iw = CSRRC
+            101: iw = CSRRWI
+            110: iw = CSRRSI
+            111: iw = CSRRCI
+        endcase
+    end 
+
+    /* Multiply and divide */
+    01100: begin 
+        case (funct3)
+            000: iw = MUL 
+            001: iw = MULH
+            010: iw = MULHSU
+            011: iw = MULHU
+            100: iw = DIV
+            101: iw = DIVU
+            110: iw = REM
+            111: iw = REMU
+        endcase 
+    end 
+
+    /* Floating point */
+    00001: iw = FLW 
+    01001: iw = FSW 
+    10000: iw = FMADD 
+    10001: iw = FMSUB 
+    10010: iw = FNMSUB 
+    10010: iw = FNMADD 
+
+    10100: begin 
+        case (iw.funct7[6:2])
+          00000: iw = FADD
+          00001: iw = FSUB
+          00010: iw = FMUL
+          00011: iw = FDIV
+          01011: iw = FSQRT
+          00100: begin 
+              case (iw.funct3[1:0])
+                  00: iw = FSGNJ
+                  01: iw = FSGNJN
+                  10: iw = FSGNJX
+              endcase 
+          end 
+          00101: iw = funct3[0] ? FMAX : FMIN
+          11000: iw = rs2[0] ? FCVT.WU.S ? FCVT.W.S
+          11100: iw = FMV.X.W
+          10100: begin 
+              case (funct3[1:0])
+                  00: iw = FLE
+                  01: iw = FLT
+                  10: iw = FEQ
+              endcase 
+          end 
+          11100: iw = FCLASS 
+          11010: iw = rs2[0] ? FCVT.S.WU : FCVT.S.W
+          11110: iw = FMV.W.X
+        endcase     
+    end 
+
+endcase 
+```
+
+Illegal instruction values are also decoded in the algorithm. They are usually specified in the instruction encoding (see ECALL that has all 0 apart from the opcode)
+
+Signal are passed to the issue stage: 
+* Instruction packet is created except for the rob tag
+
