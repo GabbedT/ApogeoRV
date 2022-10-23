@@ -8,7 +8,7 @@
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-// 
+//  
 // The above copyright notice and this permission notice shall be included in all
 // copies or substantial portions of the Software.
 //
@@ -39,30 +39,30 @@
 // ------------------------------------------------------------------------------------------
 
 
-`ifndef BIT_MAINPULATION_UNIT_SV 
-    `define BIT_MAINPULATION_UNIT_SV
+`ifndef BIT_MANIPULATION_UNIT_SV 
+    `define BIT_MANIPULATION_UNIT_SV
 
 `include "../../../Include/core_configuration.svh"
 `include "../../../Include/rv32_instructions_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
-`include "../Arithmetic Circuits/Integer/Miscellaneous/CPOP/population_count.sv"
+`include "../Arithmetic Circuits/Integer/Miscellaneous/CPOP/Combinational/population_count_combinational.sv"
+`include "../Arithmetic Circuits/Integer/Multipliers/Carryless/low_carryless_multiplier.sv"
+`include "../Arithmetic Circuits/Integer/Multipliers/Carryless/high_carryless_multiplier.sv"
+`include "../Arithmetic Circuits/Integer/Multipliers/Carryless/reverse_carryless_multiplier.sv"
+
+
+// SUBSTITUTE MUXES WITH FF
 
 module bit_manipulation_unit (
     input  logic              clk_i,
-    input  logic              clk_en_i,
-    input  logic              rst_n_i,
     input  logic [XLEN - 1:0] operand_A_i,
     input  logic [XLEN - 1:0] operand_B_i,
     input  bmu_operation_t    operation_i,
     input  logic              data_valid_i,
-    input  logic              cpop_data_valid_i,
     
     output logic [XLEN - 1:0] result_o,
-    output logic [XLEN - 1:0] cpop_result_o,
-    output logic              data_valid_o,
-    output logic              cpop_data_valid_o,
-    output logic              cpop_idle_o
+    output logic              data_valid_o
 );
 
 
@@ -70,25 +70,21 @@ module bit_manipulation_unit (
 //  SHIFT & ADD OPERATIONS  //
 //--------------------------//
 
-    /*
-     *  SH1ADD, SH2ADD, SH3ADD
-     */
-
-
     logic [XLEN - 1:0] shift_and_add_result_in;
     logic [1:0]        shift_amount;
 
     assign shift_and_add_result_in = operand_B_i + (operand_A_i << shift_amount);
 
         always_comb begin : shift_amount_assignment
-            case (operation_i)
+            /* Default value */
+            shift_amount = '0;
+            
+            case (operation_i.shadd)
                 SH1ADD:  shift_amount = 2'd1;
 
                 SH2ADD:  shift_amount = 2'd2;
 
                 SH3ADD:  shift_amount = 2'd3;
-
-                default: shift_amount = 2'd0;
             endcase
         end : shift_amount_assignment
 
@@ -97,9 +93,7 @@ module bit_manipulation_unit (
     logic [XLEN - 1:0] shift_and_add_result_out;
 
         always_ff @(posedge clk_i) begin : shift_and_add_stage_register
-            if (clk_en_i) begin
-                shift_and_add_result_out <= shift_and_add_result_in;
-            end
+            shift_and_add_result_out <= shift_and_add_result_in;
         end : shift_and_add_stage_register
 
 
@@ -107,100 +101,59 @@ module bit_manipulation_unit (
 //  LOGIC OPERATIONS  //
 //--------------------//
 
-    /*
-     *  ANDN, ORN, XNOR
-     */
-
-
     /* ANDN logic */
-    logic [XLEN - 1:0] andn_result;
+    logic [XLEN - 1:0] andn_result, andn_result_out;
 
     assign andn_result = operand_A_i & (~operand_B_i);
 
 
     /* ORN logic */
-    logic [XLEN - 1:0] orn_result;
+    logic [XLEN - 1:0] orn_result, orn_result_out;
 
     assign orn_result = operand_A_i | (~operand_B_i);
 
 
     /* XNOR logic */
-    logic [XLEN - 1:0] xnor_result;
+    logic [XLEN - 1:0] xnor_result, xnor_result_out;
 
     assign xnor_result = ~(operand_A_i ^ operand_B_i);
 
-
-    /* Stage logic: select the result based on operation and
-     * store it in a register */
-    logic [XLEN - 1:0] logic_result_in, logic_result_out;
-    logic [2:0]        logic_operation_select;
-
-    assign logic_operation_select[0] = (operation_i == XNOR);
-    assign logic_operation_select[1] = (operation_i == ORN);
-    assign logic_operation_select[2] = (operation_i == ANDN);
-
-        always_comb begin : logic_operation_selection
-            case (logic_operation_select)
-                3'b001:  logic_result_in = xnor_result;
-
-                3'b010:  logic_result_in = orn_result;
-
-                3'b100:  logic_result_in = andn_result;
-
-                default: logic_result_in = 'b0;
-            endcase
-        end : logic_operation_selection
-        
-        always_ff @(posedge clk_i) begin : logic_operation_stage_register
-            if (clk_en_i) begin 
-                logic_result_out <= logic_result_in;
-            end
-        end : logic_operation_stage_register
+    /* 
+     *  Stage and selection logics are in the bit
+     *  operations section. 
+     */
 
 
-//------------------------------//
-//  COUNT POPULATION OPERATION  //
-//------------------------------//
+//--------------------//
+//  COUNT OPERATIONS  //
+//--------------------//
+
+    /* CPOP logic */
+    logic [$clog2(XLEN):0] cpop_result;
 
     /* Count the number of setted bits in a word, it is
      * implemented as a sequential operation, so it will
      * not accept any operands until the end of the 
      * previous computation */
-    population_count #(XLEN) cpop (
-        .clk_i        ( clk_i              ),
-        .clk_en_i     ( clk_en_i           ),
-        .rst_n_i      ( rst_n_i            ),
-        .operand_i    ( operand_A_i        ),
-        .data_valid_i ( cpop_data_valid_i  ),
-        .data_valid_o ( cpop_data_valid_o  ),
-        .idle_o       ( cpop_idle_o        ),
-        .pop_count_o  ( cpop_result_o[5:0] )
+    population_count_combinational #(XLEN) cpop (
+        .operand_i ( operand_A_i    ),
+        .count_o   ( cpop_result )
     );
-
-    assign cpop_result_o[XLEN - 1:6] = 'b0;
-
-//------------------------//
-//  BIT COUNT OPERATIONS  //
-//------------------------//
-
-    /*
-     *  CLZ, CTZ
-     */
 
 
     /* CTZ and CLZ logic */
-    logic [XLEN - 1:0]         bit_inverted_operand_A, count_zeros_operand; 
+    logic [XLEN - 1:0]         reeversed_operand_A, count_zeros_operand; 
     logic [$clog2(XLEN) - 1:0] count_zeros_result; 
     logic                      all_zeros;
 
         /* Count trailing zeroes (CTZ) is a CLZ with the inverted bits */
         always_comb begin : ctz_assignment_logic
             for (int i = 0; i < XLEN; ++i) begin
-                bit_inverted_operand_A[(XLEN - 1) - i] = operand_A_i[i];
+                reeversed_operand_A[(XLEN - 1) - i] = operand_A_i[i];
             end
         end : ctz_assignment_logic
 
-    assign count_zeros_operand = (operation_i == CLZ) ? operand_A_i : bit_inverted_operand_A;
+    assign count_zeros_operand = (operation_i.bit_count == CLZ) ? operand_A_i : reeversed_operand_A;
 
     count_leading_zeros #(32) clz32 (
         .operand_i     ( count_zeros_operand ),
@@ -210,30 +163,47 @@ module bit_manipulation_unit (
 
 
     /* Stage logic */
-    logic [$clog2(XLEN) - 1:0] count_zeros_result_out;
-    logic                      all_zeros_out;              
+    logic [$clog2(XLEN):0] bit_count_result_in, bit_count_result_out;       
 
-        always_ff @(posedge clk_i) begin : count_zeros_stage_register
-            if (clk_en_i) begin
-                count_zeros_result_out <= count_zeros_result;
-                all_zeros_out <= all_zeros;
+        always_comb begin : bit_count_selection
+            /* Default value */
+            bit_count_result_in = '0;
+
+            if (operation_i.bit_count == CPOP) begin
+                bit_count_result_in = cpop_result;
+            end else begin
+                bit_count_result_in = {1'b0, count_zeros_result};
             end
-        end : count_zeros_stage_register
+        end : bit_count_selection      
 
-    logic [XLEN - 1:0] count_zeros_final_result;
-    
-    assign count_zeros_final_result[$clog2(XLEN):0] = {all_zeros_out, (all_zeros_out == 1'b1) ? 4'b0 : count_zeros_result_out};
-    assign count_zeros_final_result[XLEN - 1:$clog2(XLEN) + 1] = 'b0;
+    /* Count zeroes output */
+    logic                 all_zeros_out;
+    bmu_count_operation_t bit_count_out;
+
+        always_ff @(posedge clk_i) begin : bit_count_stage_register
+            bit_count_result_out <= bit_count_result_in;
+            bit_count_out <= operation_i.bit_count;
+            all_zeros_out <= all_zeros;
+        end : bit_count_stage_register
+
+
+    /* Final output processing */
+    logic [XLEN - 1:0] bit_count_final_result;
+
+        always_comb begin : bit_count_final_logic
+            /* Append zeroes */
+            if (bit_count_out == CPOP) begin
+                bit_count_final_result = {'0, bit_count_result_out};
+            end else begin
+                bit_count_final_result[$clog2(XLEN):0] = {all_zeros_out, (all_zeros_out == 1'b1) ? 4'b0 : bit_count_result_out};
+                bit_count_final_result[XLEN - 1:$clog2(XLEN) + 1] = '0;
+            end
+        end : bit_count_final_logic
 
 
 //------------------------//
 //  COMPARISON OPERATIONS //
 //------------------------//
-
-    /*
-     *  MAX, MAXU, MIN, MINU
-     */
-
 
     /* MAX operation */
     logic [XLEN - 1:0] max_result, maxu_result;
@@ -248,46 +218,32 @@ module bit_manipulation_unit (
     assign min_result = ($signed(operand_A_i) < $signed(operand_B_i)) ? operand_A_i : operand_B_i;
     assign minu_result = ($unsigned(operand_A_i) < $unsigned(operand_B_i)) ? operand_A_i : operand_B_i;
 
+    /* Stage logic */
+    logic [XLEN - 1:0] compare_operation_in, compare_operation_out;
 
-    /* Stage logic: select the result based on operation and
-     * store it in a register */
-    logic [XLEN - 1:0] comparison_result_in, comparison_result_out;
-    logic [3:0]        comparison_operation_select;
+        always_comb begin : compare_operation_selection
+            /* Default values */
+            compare_operation_in = '0;
 
-    assign comparison_operation_select[0] = (operation_i == MAX);
-    assign comparison_operation_select[1] = (operation_i == MAXU);
-    assign comparison_operation_select[2] = (operation_i == MIN);
-    assign comparison_operation_select[3] = (operation_i == MINU);
+            case (operation_i.compare)
+                MAX:  compare_operation_in = max_result;
 
-        always_comb begin : comparison_selection
-            case (comparison_operation_select)
-                4'b0001: comparison_result_in = max_result;
+                MAXU: compare_operation_in = maxu_result;
 
-                4'b0010: comparison_result_in = maxu_result;
+                MIN:  compare_operation_in = min_result;
 
-                4'b0100: comparison_result_in = min_result;
+                MINU: compare_operation_in = minu_result;
+            endcase 
+        end : compare_operation_selection
 
-                4'b1000: comparison_result_in = minu_result;
-
-                default: comparison_result_in = 'b0;
-            endcase
-        end : comparison_selection
-
-        always_ff @(posedge clk_i) begin : comparison_stage_register
-            if (clk_en_i) begin
-                comparison_result_out <= comparison_result_in;
-            end
-        end : comparison_stage_register
+        always_ff @(posedge clk_i) begin : compare_operation_stage_register
+            compare_operation_out <= compare_operation_in;
+        end : compare_operation_stage_register
 
 
 //--------------------------//
 //  SIGN EXTEND OPERATIONS  //
 //--------------------------//
-
-    /*
-     *  SEXT.B, SEXT.H, ZEXT.H
-     */
-
 
     logic [XLEN - 1:0] sextb_result, sexth_result, zexth_result;
 
@@ -296,41 +252,30 @@ module bit_manipulation_unit (
     assign zexth_result = $unsigned(operand_A_i[15:0]);
 
 
-    /* Stage logic: select the result based on operation and
-     * store it in a register */
+    /* Stage logic */
     logic [XLEN - 1:0] extension_result_in, extension_result_out;
-    logic [1:0]        ext_operation_select;
-
-    assign ext_operation_select[0] = (operation_i == SEXTB);
-    assign ext_operation_select[1] = (operation_i == SEXTH);
 
         always_comb begin : extension_selection
-            case (ext_operation_select)
-                2'b00:   extension_result_in = zexth_result;
+            /* Default value */
+            extension_result_in = '0;
 
-                2'b01:   extension_result_in = sextb_result;
+            case (operation_i.extend_op)
+                ZEXTH:   extension_result_in = zexth_result;
 
-                2'b10:   extension_result_in = sexth_result;
+                SEXTB:   extension_result_in = sextb_result;
 
-                default: extension_result_in = 'b0;
+                SEXTH:   extension_result_in = sexth_result;
             endcase
         end : extension_selection
 
         always_ff @(posedge clk_i) begin : extension_stage_register
-            if (clk_en_i) begin
-                extension_result_out <= extension_result_in;
-            end
+            extension_result_out <= extension_result_in;
         end : extension_stage_register
 
 
 //---------------------//
 //  ROTATE OPERATIONS  //
 //---------------------//
-
-    /*
-     *  ROL, ROR, RORI
-     */
-
 
     logic [XLEN - 1:0] rol_result, ror_result;
 
@@ -339,12 +284,11 @@ module bit_manipulation_unit (
     assign ror_result = (operand_A_i >> operand_B_i[$clog2(XLEN) - 1:0]) | (operand_A_i << (XLEN - operand_B_i[$clog2(XLEN) - 1:0]));
 
 
-    /* Stage logic: select the result based on operation and
-     * store it in a register */
+    /* Stage logic  */
     logic [XLEN - 1:0] rotate_result_in, rotate_result_out;
 
         always_comb begin : rotate_operation_selection
-            if (operation_i == ROL) begin
+            if (operation_i.rotate == ROL) begin
                 rotate_result_in = rol_result;
             end else begin
                 rotate_result_in = ror_result;
@@ -352,20 +296,13 @@ module bit_manipulation_unit (
         end : rotate_operation_selection
 
         always_ff @(posedge clk_i) begin : rotate_operation_stage_register
-            if (clk_en_i) begin
-                rotate_result_out <= rotate_result_in;
-            end
+            rotate_result_out <= rotate_result_in;
         end : rotate_operation_stage_register
 
 
 //-------------------//
 //  BYTE OPERATIONS  //
 //-------------------//
-
-    /*
-     *  ORC.B, REV8
-     */
-
 
     logic [(XLEN / 8) - 1:0][7:0] orcb_result, orcb_operand;
 
@@ -389,12 +326,11 @@ module bit_manipulation_unit (
         end : reverse_byte_logic
 
 
-    /* Stage logic: select the result based on operation and
-     * store it in a register */
+    /* Stage logic */
     logic [XLEN - 1:0] byte_operation_result_in, byte_operation_result_out;
 
         always_comb begin : byte_operation_selection
-            if (operation_i == REV8) begin
+            if (operation_i.byte_op == REV8) begin
                 byte_operation_result_in = rev8_result;
             end else begin
                 byte_operation_result_in = orcb_result;
@@ -402,21 +338,13 @@ module bit_manipulation_unit (
         end : byte_operation_selection
 
         always_ff @(posedge clk_i) begin : byte_operation_stage_register
-            if (clk_en_i) begin
-                byte_operation_result_out <= byte_operation_result_in;
-            end
+            byte_operation_result_out <= byte_operation_result_in;
         end : byte_operation_stage_register
 
 
 //------------------//
 //  BIT OPERATIONS  //
 //------------------//
-
-    /*
-     *  BCLR, BCLRI, BEXT, BEXTI, 
-     *  BINV, BINVI, BSET, BSETI
-     */
-
 
     logic [$clog2(XLEN) - 1:0] index;
 
@@ -433,7 +361,7 @@ module bit_manipulation_unit (
     logic [XLEN - 1:0] bext_result, bit_extract;
 
     assign bit_extract = operand_A_i >> index;
-    assign bext_result = {'b0, bit_extract[0]};
+    assign bext_result = {'0, bit_extract[0]};
 
 
     /* Bit invert logic */
@@ -448,78 +376,127 @@ module bit_manipulation_unit (
     assign bset_result = operand_A_i | (1 << index);
 
 
-    /* Stage logic: select the result based on operation and
-     * store it in a register */
-    logic [XLEN - 1:0] bit_operation_result_in, bit_operation_result_out;
-    logic [3:0]        bit_operation_select;
+    /* Selection logic */
+    logic [XLEN - 1:0] bit_logic_op_result_in, bit_logic_op_result_out;
 
-    assign bit_operation_select[0] = (operation_i == BSET) | (operation_i == BSETI);
-    assign bit_operation_select[1] = (operation_i == BINV) | (operation_i == BINVI);
-    assign bit_operation_select[2] = (operation_i == BEXT) | (operation_i == BEXTI);
-    assign bit_operation_select[3] = (operation_i == BCLR) | (operation_i == BCLRI);
+        always_comb begin : bit_logic_operation_selection
+            /* Default value */
+            bit_logic_op_result_in = '0;
+
+            case (operation_i.logic_op)
+                ANDN:  bit_logic_op_result_in = andn_result;
+
+                ORN:   bit_logic_op_result_in = orn_result;
+
+                XNOR:  bit_logic_op_result_in = xnor_result;
+
+                BCLR, 
+                BCLRI: bit_logic_op_result_in = bclr_result;
+
+                BEXT,
+                BEXTI: bit_logic_op_result_in = bext_result;
+
+                BINV, 
+                BINVI: bit_logic_op_result_in = binv_result;
+
+                BSET,
+                BSETI: bit_logic_op_result_in = bset_result;
+            endcase   
+        end : bit_logic_operation_selection
+
+        always_ff @(posedge clk_i) begin : bit_logic_operation_stage_register
+            bit_logic_op_result_out <= bit_logic_op_result_in;
+        end : bit_logic_operation_stage_register
 
 
-        always_comb begin : bit_operation_selection
-            case (bit_operation_select)
-                4'b0001: bit_operation_result_in = bset_result;
+//----------------------------//
+//  CARRYLESS MULTIPLICATION  //
+//----------------------------//
 
-                4'b0010: bit_operation_result_in = binv_result;
+    /* CLMUL logic */
+    logic [XLEN - 1:0] clmul_result;
 
-                4'b0100: bit_operation_result_in = bext_result;
+    low_carryless_multiplier clmul (
+        .operand_A_i  ( operand_A_i  ),
+        .operand_B_i  ( operand_B_i  ),
+        .result_low_o ( clmul_result )
+    );
 
-                4'b1000: bit_operation_result_in = bclr_result;
 
-                default: bit_operation_result_in = 'b0;
+    /* CLMULH logic */
+    logic [XLEN - 1:0] clmulh_result;
+
+    high_carryless_multiplier clmulh (
+        .operand_A_i  ( operand_A_i   ),
+        .operand_B_i  ( operand_B_i   ),
+        .result_high_o ( clmulh_result )
+    );
+
+
+    /* CLMULR logic */
+    logic [XLEN - 1:0] clmulr_result;
+
+    reverse_carryless_multiplier clmulr (
+        .operand_A_i ( operand_A_i   ),
+        .operand_B_i ( operand_B_i   ),
+        .result_o    ( clmulr_result )
+    );
+
+
+    /* Stage logic */
+    logic [XLEN - 1:0] cless_mul_in, cless_mul_out;
+
+        always_comb begin : cless_multiplication_selection
+            /* Default values */
+            cless_mul_in = '0;
+
+            case (operation_i.cless_mul) 
+                CLMUL:  cless_mul_in = clmul_result;
+
+                CLMULH: cless_mul_in = clmulh_result;
+
+                CLMULR: cless_mul_in = clmulr_result;
             endcase
-        end : bit_operation_selection
+        end : cless_multiplication_selection
 
-        always_ff @(posedge clk_i) begin : bit_operation_stage_register
-            if (clk_en_i) begin
-                bit_operation_result_out <= bit_operation_result_in;
-            end
-        end : bit_operation_stage_register
+        always_ff @(posedge clk_i) begin : cless_multiplication_stage_register
+            cless_mul_out <= cless_mul_in;
+        end : cless_multiplication_stage_register
 
 
 //----------------//
 //  RESULT LOGIC  //
 //----------------//
 
-    bmu_operation_t operation_out;    
+    bmu_valid_operation_t valid_operation_out;    
 
         always_ff @(posedge clk_i) begin : control_stage_register
-            if (clk_en_i) begin
-                operation_out <= operation_i;
-                data_valid_o <= data_valid_i;
-            end
+            valid_operation_out <= operation_i.op_type_valid;
+            data_valid_o <= data_valid_i;
         end : control_stage_register
 
 
         /* Final result selection */
         always_comb begin : output_logic 
-            case (operation_out)
-                SH1ADD, SH2ADD, SH3ADD: result_o = shift_and_add_result_out;
+            /* Default value */
+            result_o = '0; 
 
-                ANDN, ORN, XNOR: result_o = logic_result_out;
+            case (valid_operation_out)
+                SHADD: result_o = shift_and_add_result_out;
 
-                CLZ, CTZ: result_o = count_zeros_final_result;
+                COUNT: result_o = bit_count_final_result;
 
-                MAX, MAXU, MIN, MINU: result_o = comparison_result_out;
+                COMPARE: result_o = compare_operation_out;
 
-                SEXTB, SEXTH, ZEXTH: result_o = extension_result_out;
+                EXTEND: result_o = extension_result_out;
 
-                ROL, ROR, RORI: result_o = rotate_result_out;
+                ROTATE: result_o = rotate_result_out; 
 
-                ORCB, REV8: result_o = byte_operation_result_out;
+                BYTEOP: result_o = byte_operation_result_out; 
 
-                BCLR, BCLRI: result_o = bit_operation_result_out;
+                CLSSMUL: result_o = cless_mul_out;
 
-                BEXT, BEXTI: result_o = bit_operation_result_out;
-
-                BINV, BINVI: result_o = bit_operation_result_out;
-
-                BSET, BSETI: result_o = bit_operation_result_out;
-
-                default: result_o = 'b0;
+                LOGICOP: result_o = bit_logic_op_result_out;
             endcase
         end : output_logic
 
