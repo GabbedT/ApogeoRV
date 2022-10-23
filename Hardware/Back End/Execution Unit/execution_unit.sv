@@ -9,15 +9,12 @@
 
 `include "../../Include/core_configuration.svh"
 `include "../../Include/control_status_registers_pkg.sv"
-
+ 
 module execution_unit (
     /* Pipeline control */
     input  logic       clk_i,
     input  logic       rst_n_i,
     input  logic       clk_en_i,
-    input  logic       kill_speculative_instr_i,
-    input  logic       speculative_resolved_i,
-    output logic       branch_taken_o,
 
     /* Enable / Disable M extension */
     `ifdef FPGA
@@ -32,6 +29,10 @@ module execution_unit (
         /* Instruction jump (JAL, JALR) is compressed */
         input  logic is_compressed_jmp_i,
     `endif 
+
+    /* Branch control */
+    output logic              is_branch_o,
+    output logic              branch_taken_o,
 
     /* Supplied to functional units */
     input  instr_packet_t     instr_packet_i,
@@ -49,10 +50,6 @@ module execution_unit (
     output instr_packet_t     bmu_instr_packet_o,
     output logic              bmu_valid_o,
 
-    output logic [XLEN - 1:0] cpop_result_o, 
-    output instr_packet_t     cpop_instr_packet_o,
-    output logic              cpop_valid_o,
-
     output logic [XLEN - 1:0] mul_result_o, 
     output instr_packet_t     mul_instr_packet_o,
     output logic              mul_valid_o,
@@ -62,8 +59,7 @@ module execution_unit (
     output logic              div_valid_o,
 
     /* Sequential functional units status for scheduling */
-    output logic div_idle_o,
-    output logic cpop_idle_o
+    output logic div_idle_o
 );
 
 
@@ -101,6 +97,7 @@ module execution_unit (
 
         .result_o             ( result_alu                ),
         .branch_taken_o       ( branch_taken_o            ),
+        .is_branch_o          ( is_branch_o               ),
         .data_valid_o         ( alu_valid_o               )
     );
 
@@ -112,6 +109,16 @@ module execution_unit (
 //  BIT MANIPULATION UNIT  //
 //-------------------------//
 
+    bit_manipulation_unit bmu (
+        .clk_i             ( clk_i            ),
+        .operand_A_i       ( operand_A_i      ),
+        .operand_B_i       ( operand_B_i      ),
+        .operation_i       ( operation_i.BMU  ),
+        .data_valid_i      ( data_valid_i.BMU ),
+        .result_o          ( bmu_result_o     ),
+        .data_valid_o      ( bmu_valid_o      )
+    );
+
         /* Instruction packet coming from BMU, instruction packet
          * must pass through a stage register since BMU is fully
          * pipelined with 1 clock cycle latency delay. ALU shares
@@ -119,37 +126,6 @@ module execution_unit (
         always_ff @(posedge clk_i) begin : bmu_stage_register
             bmu_instr_packet_o <= instr_packet_i;
         end : bmu_stage_register
-
-
-        /* In BMU the CPOP operation has its own port and the circuit
-         * that execute this operation can be thought as a different
-         * functional unit */
-        always_ff @(posedge clk_i) begin : cpop_stage_register
-            if (data_valid_i.BMU & (operation_i == CPOP)) begin
-                cpop_instr_packet_o <= instr_packet_i;
-            end
-        end : cpop_stage_register
-
-
-    logic cpop_valid;
-
-    assign cpop_valid = data_valid_i.BMU & (operation_i == CPOP);
-
-    bit_manipulation_unit bmu (
-        .clk_i             ( clk_i            ),
-        .clk_en_i          ( 1'b1             ),
-        .rst_n_i           ( rst_n_i          ),
-        .operand_A_i       ( operand_A_i      ),
-        .operand_B_i       ( operand_B_i      ),
-        .operation_i       ( operation_i.BMU  ),
-        .data_valid_i      ( data_valid_i.BMU ),
-        .cpop_data_valid_i ( cpop_valid       ),
-        .result_o          ( bmu_result_o     ),
-        .cpop_result_o     ( cpop_result_o    ),
-        .data_valid_o      ( bmu_valid_o      ),
-        .cpop_data_valid_o ( cpop_valid_o     ),
-        .cpop_idle_o       ( cpop_idle_o      )
-    );
 
 
     `ifdef ASSERTIONS
@@ -246,8 +222,10 @@ module execution_unit (
         .product_o        ( div_result_o     ),
         .data_valid_o     ( div_valid_o      ),
         .divide_by_zero_o ( divide_by_zero   ),
-        .idle_o           ( div_idle_o       )
+        .idle_o           ( div_idle         )
     );
+    
+    assign div_idle_o = div_idle;
 
     `ifdef ASSERTIONS
         /* New valid data mustn't be supplied to the DIV if it's not idle */
@@ -264,8 +242,8 @@ module execution_unit (
             exc_div_ipacket = div_ipacket;
 
             if (divide_by_zero) begin
-                exc_div_ipacket.exception_vector = DIVIDE_BY_ZERO;
-                exc_div_ipacket.exception = 1'b1;
+                exc_div_ipacket.trap_vector = DIVIDE_BY_ZERO;
+                exc_div_ipacket.trap_generated = 1'b1;
                 exc_div_ipacket.reg_dest = 5'b0;
             end
         end : division_exception_logic
