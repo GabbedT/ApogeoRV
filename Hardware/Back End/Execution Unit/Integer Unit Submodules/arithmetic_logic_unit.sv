@@ -54,6 +54,7 @@ module arithmetic_logic_unit (
     
     output logic [XLEN - 1:0] result_o,
     output logic              branch_taken_o,
+    output logic              is_branch_o,
     output logic              data_valid_o
 );
 
@@ -106,6 +107,10 @@ module arithmetic_logic_unit (
     assign is_equal = (operand_A_i == operand_B_i);
 
         always_comb begin : comparison_outcome
+            /* Default values */
+            is_branch_o = 1'b1;
+            branch_taken_o = 1'b0;
+
             case (operation_i)
                 JAL:  branch_taken_o = 1'b1;
 
@@ -123,7 +128,9 @@ module arithmetic_logic_unit (
 
                 BGEU: branch_taken_o = is_greater_or_equal_u;
 
-                default: branch_taken_o = 1'b0;
+                default: begin
+                    is_branch_o = 1'b0;
+                end
             endcase
         end : comparison_outcome
 
