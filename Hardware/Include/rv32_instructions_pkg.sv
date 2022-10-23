@@ -31,21 +31,72 @@ package rv32_instructions_pkg;
 //  BMU OPERATIONS  //
 //------------------//
 
-    typedef enum logic [4:0] {
-        /* ZBA instructions */
-        SH1ADD, SH2ADD, SH3ADD, 
+    /* Shift and add operations */
+    typedef enum logic [1:0] {
+        SH1ADD, SH2ADD, SH3ADD
+    } bmu_shadd_operation_t;
 
-        /* ZBB instructions */
-        ANDN, ORN, XNOR, CLZ, CTZ, CPOP,
-        MAX, MAXU, MIN, MINU, SEXTB, SEXTH, 
-        ZEXTH, ROL, ROR, RORI, ORCB, REV8,
+    /* Bit count operations */
+    typedef enum logic [1:0] {
+        CLZ, CTZ, CPOP
+    } bmu_count_operation_t;
 
-        /* ZBC instructions */
-        CLMUL, CLMULH, CLMULR,
+    /* Compare operations */
+    typedef enum logic [1:0] {
+        MAX, MAXU, MIN, MINU
+    } bmu_compare_operation_t;
 
-        /* ZBS instructions */
-        BCLR, BCLRI, BEXT, BEXTI, BINV, 
+    /* Sign extend operations */
+    typedef enum logic [1:0] {
+        SEXTB, SEXTH, ZEXTH
+    } bmu_extension_operation_t;
+
+    /* Rotate operations */
+    typedef enum logic [1:0] {
+        ROL, ROR, RORI
+    } bmu_rotate_operation_t; 
+
+    /* Byte operations */
+    typedef enum logic {
+        ORCB, REV8
+    } bmu_byte_operation_t;
+
+    /* Carryless multiplication operations */
+    typedef enum logic [1:0] {
+        CLMUL, CLMULH, CLMULR
+    } bmu_mul_operation_t; 
+
+    /* Bit operations */
+    typedef enum logic [3:0] {
+        ANDN, ORN, XNOR, BCLR, 
+        BCLRI, BEXT, BEXTI, BINV, 
         BINVI, BSET, BSETI
+    } bmu_logic_operation_t; 
+
+    /* Valid BMU operation type */
+    typedef enum logic [2:0] {
+        SHADD, COUNT, COMPARE, EXTEND, 
+        ROTATE, BYTEOP, CLSSMUL, LOGICOP
+    } bmu_valid_operation_t;
+
+    typedef struct packed {
+        bmu_shadd_operation_t     shadd;
+
+        bmu_count_operation_t     bit_count;
+
+        bmu_compare_operation_t   compare;
+
+        bmu_extension_operation_t extend_op;
+
+        bmu_rotate_operation_t    rotate;
+
+        bmu_byte_operation_t      byte_op;
+
+        bmu_mul_operation_t       cless_mul;
+
+        bmu_logic_operation_t     logic_op;
+
+        bmu_valid_operation_t     op_type_valid;
     } bmu_operation_t;
 
 
