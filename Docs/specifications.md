@@ -14,7 +14,7 @@ Target: Middle end embedded systems (Low power, high efficiency, code density)
 
 ISA: RV32 
 
-Extensions: I, C, F, M, B*, V* 
+Extensions: I, C, F, M, B
 
 Privilege modes: M, S, U
 
