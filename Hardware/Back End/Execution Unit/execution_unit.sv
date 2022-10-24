@@ -1,7 +1,6 @@
 `ifndef EXECUTION_UNIT_SV
     `define EXECUTION_UNIT_SV
 
-`include "load_store_unit.sv"
 `include "Integer Unit Submodules/arithmetic_logic_unit.sv"
 `include "Integer Unit Submodules/bit_manipulation_unit.sv"
 `include "Integer Unit Submodules/division_unit.sv"
@@ -81,8 +80,8 @@ module execution_unit (
 //-------------------------//
 
     /* Module instantiation logic */
-    logic [XLEN - 1:0] result_alu, result_alu_out;
-    logic              alu_valid, alu_valid_out;
+    logic [XLEN - 1:0] result_alu;
+    logic              alu_valid;
 
     arithmetic_logic_unit alu (
         .operand_A_i          ( operand_A_i               ),
