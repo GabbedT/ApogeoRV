@@ -14,7 +14,7 @@ Target: Middle end embedded systems (Low power, high efficiency, code density)
 
 ISA: RV32 
 
-Extensions: I, C, F, M, B*, V* 
+Extensions: I, C, F, M, B
 
 Privilege modes: M, S, U
 
@@ -63,9 +63,7 @@ Cache miss | Cache | Memory controller | Request to memory to load 8 words is do
 Invalidate | Memory controller | Cache | Clear to the invalidation address the valid bit.
 | | | | 
 Fetch sequential block | IF stage | Cache | Since the core implement C extension instruction can be aligned to 2 byte instead of the classic 4. That means that it could happen that an uncompressed (32 bits) instruction is located in the last 16 bits of the cache block. Basically half of the instruction is located into the accessed block and the other half in the next sequential block. Only the first word of the block is accessed.
-| 
-|
-
+| | |
 
 
 
@@ -83,7 +81,6 @@ Branch mispredicted | Execute stage | PC | If the prediction is wrong the PC wil
 | | | | 
 Trap | System control | PC | If a trap happens, the PC will load the handler address. | 1 
 | | | 
-|  
 
 ### Branch target buffer description
 
@@ -94,8 +91,7 @@ Function Name | Initializer | Actor | Description |
 Read target address | PC | BTB | When the PC is loaded with a new value, the BTB is accessed with the lower 5 bits of the PC address, the PC is then compared with the tag and valid bit. If hit then make the PC load the value if the predictor has predicted the branch as taken (the predictor should be accessed in parallel to not encounter timing problems). **The next fetched instructions are marked as speculative.**
 | 
 Write target address | Execute stagr | BTB | Every time a branch is resolved the BTB is updated with the corresponding data. 
-| 
-|
+| | | 
 
 ### Branch predictor description 
 
@@ -106,8 +102,7 @@ Function Name | Initializer | Actor | Description |
 Read prediction | PC | Predictor | Read the predictor table using the hashed address, if state is taken and an hit is registred in the BTB, load the PC with the BTB address and mark the next fetched instructions as speculative, else continue the normal flow.
 |
 Write prediction | Execute stage | Predictor | Once the branch is resolved in the execute stage, the PC of the branch is fowarded with the outcome of the branch. The branch history table will be pushed with the new outcome in the next clock cycle. In the same cycle the predictor table is accessed and the bits updated
-|
-|
+| | | 
 
 
 ## Instruction Fetch (IF)
@@ -125,12 +120,11 @@ The decompressor has two two multiplexed inputs. When a bundle is loaded from th
 Function Name | Initializer | Actor | Description | 
 ------------- | ----------- | ----- | ----------- |
 Shift instruction 32 bit | Decompressor | Fetch buffer | Send a signal to shift 32 bits
-|
+| | 
 Shift instruction 16 bit | Decompressor | Fetch buffer | Send a signal to shift 16 bits
-|
+| | 
 Illegal instruction | Decompressor | Control Unit | Send an illegal instruction exception 
-| 
-|
+| | 
 
 CL, CIW, CS, CA and CB instructions can only use up to 8 registers (x8 - x15). The register address encoded is added to 8 (8 + reg_addr) ({01, reg_addr}) (addr is 3 bits) (rsx' and rd' have 3 bits address)
 
@@ -296,7 +290,7 @@ Load bundle I$ | Instruction cache | Fetch buffer | The bundle is loaded in para
 Load bundle MEM | Memory controller | Fetch buffer | The memory interface is 32 bits wide so after memory latency, an instruction per cycle is supplied. Only the head of the buffer is loaded unless the instruction is compressed. 
 |
 Tag speculative | IAS stage | Fetch buffer | All instructions in the bundle are tagged as speculative.
-
+| |
 
 ## Instruction Decode (ID)
 
@@ -583,4 +577,8 @@ The write port has also an enable signal to ensure that the architectural state 
 This is the controller of the IS stage, it determine whether issue or not the instruction. 
 The instruction can't be issued if one of the source registers match a destination register of a currently executing instruction. The information is directly given by the scoreboard. 
 
+<<<<<<< HEAD
 The instruction is issued if the depending instruction in the execute stage is about to be passed to the commit stage or if the writeback stage has the corresponding destination register. These conditions can happen simultaneously 
+=======
+The instruction is issued if the depending instruction in the execute stage is about to be passed to the commit stage or if the writeback stage has the corresponding destination register. These conditions can happen simultaneously 
+>>>>>>> 89ead443697c162857e18733db19eb7d83d97331
