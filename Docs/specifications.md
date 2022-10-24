@@ -528,3 +528,53 @@ Illegal instruction values are also decoded in the algorithm. They are usually s
 Signal are passed to the issue stage: 
 * Instruction packet is created except for the rob tag
 
+## Issue (IS)
+
+The issue stage is where all the dependencies are resolved and the registers are extracted from the register files. The ROB write port dependency (structural hazard) is resolved by the **scoreboard** that ensures that the OoO execution unit produces only one valid result per clock cycle. Then the RAW dependencies are resolved by the **raw hazard resolver** which tells the IS stage when to issue the instruction. 
+
+In the issue stage we can say that there's the read interface of both the reg files and csr reg files
+
+### Register files
+
+RV32-Apogeo implements the base instruction set and also the floating point extension. That means that there are two different 32 entries register files of 32 bits.
+
+There are two implementations possible: 
+
+* An unified register file (64 entries x 32 bits), the two register files are differentiated then buy the high order address bit (address[5] == 0 => SCALAR  address[5] == 1 => FLOATING POINT). Problems: possible timing problem, more power consumption and area. FPGAs can possibly benefit from this approach (needs to be verified) 
+    + Simple
+    + Scalable
+    - Slower
+    - Power hungry
+    - More area (?)
+
+* Two different register file with an operation enable based on the floating point instruction bit. 
+    + Suitable for both FPGA and ASIC
+    - More complex
+
+In all the RISC-V instructions there is always only one destination register. That means that the reg file will have only one write port
+
+For the read port the floating point fused instructions needs 3 different source register. For that there are two approaches: 
+
+* Three different reads port (in FPGA this is not possible). This can be expensive in hardware and the preferred register file implementation is the second since the scalar instructions doesn't need the additional read port 
+
+* The first two source registers are read in the first clock cycle, then after they are passed to the FPU, the third is read. This needs a mechanism to stall al the preceeding stages. This is the preferred approach.
+
+ASIC can choose between two implementation technologies (latches and SRAM) (needs to be verified)
+
+Function Name | Initializer | Actor | Description | 
+------------- | ----------- | ----- | ----------- |
+Read | Decode stage | Register file | Assert the read signal and send the two addresses
+| | 
+Read 3 sources | Decode stage | Register file | Assert the read signal and send the two addresses, after one clock cycle read the third source register
+| | 
+Write | Writeback stage | Register file | Write the destination register
+| | 
+
+The write port has also an enable signal to ensure that the architectural state won't be modified in case of a erroneus speculative instruction or a faulty instruction (trap)
+
+### RAW hazard resolver
+
+This is the controller of the IS stage, it determine whether issue or not the instruction. 
+The instruction can't be issued if one of the source registers match a destination register of a currently executing instruction. The information is directly given by the scoreboard. 
+
+The instruction is issued if the depending instruction in the execute stage is about to be passed to the commit stage or if the writeback stage has the corresponding destination register. These conditions can happen simultaneously 
