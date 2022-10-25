@@ -50,48 +50,48 @@ module load_unit_cache_controller (
     output logic stall_pipeline_o,
 
     /* External interface */
-    input  logic [BLOCK_WORDS - 1:0] word_number_i,
-    input  logic [PORT_WIDTH - 1:0]  external_data_i,
-    input  logic                     external_data_valid_i,
-    input  logic                     external_acknowledge_i,
-    output logic                     processor_request_o,
+    input  data_cache_block_t word_number_i,
+    input  data_cache_data_t  ext_data_i,
+    input  logic              ext_data_valid_i,
+    input  logic              ext_acknowledge_i,
+    output logic              cpu_request_o,
 
     /* Store buffer interface */
-    input  logic                    str_buffer_address_match_i,
-    input  logic [PORT_WIDTH - 1:0] str_buffer_data_i,
-    input  logic                    store_buffer_full_i,
-    input  logic                    store_buffer_port_idle_i,
-    output logic                    store_buffer_push_data_o,
+    input  logic             str_buf_address_match_i,
+    input  data_cache_data_t str_buf_data_i,
+    input  logic             str_buf_full_i,
+    input  logic             str_buf_port_idle_i,
+    output logic             str_buf_push_data_o,
 
     /* Store unit interface */
-    input  logic [PORT_WIDTH - 1:0] store_unit_data_i,
-    input  logic [XLEN - 1:0]       store_unit_address_i,
-    input  logic                    store_unit_idle_i,
+    input  data_cache_port_t  stu_data_i,
+    input  logic [XLEN - 1:0] stu_address_i,
+    input  logic              stu_idle_i,
 
     /* Load unit interface */
-    input  logic                    load_unit_read_cache_i,
-    input  data_cache_full_addr_t   load_unit_address_i,
-    input  logic                    load_unit_data_cachable_i,
-    output logic [PORT_WIDTH - 1:0] load_unit_data_o,
-    output logic                    load_unit_data_valid_o,
+    input  logic                  ldu_read_cache_i,
+    input  data_cache_full_addr_t ldu_address_i,
+    input  logic                  ldu_data_cachable_i,
+    output data_cache_data_t      ldu_data_o,
+    output logic                  ldu_data_valid_o,
 
     /* Cache interface */
-    input  logic                     cache_port0_granted_i,
-    input  logic                     cache_port1_hit_i,
-    input  logic                     cache_dirty_i,
-    input  logic [PORT_WIDTH - 1:0]  cache_data_i,
-    input  logic [PORT_WIDTH - 1:0]  cache_data_writeback_i,
-    output logic                     cache_dirty_o,
-    output logic                     cache_valid_o,
-    output logic                     cache_port1_read_o, 
-    output logic                     cache_port0_write_o,
-    output logic [WAYS_NUMBER - 1:0] cache_random_way_o,
-    output data_cache_addr_t         cache_address_o,
-    output data_cache_enable_t       cache_port0_enable_o,
-    output data_cache_enable_t       cache_port1_enable_o,
+    input  logic               cache_dirty_i,
+    input  data_cache_data_t   cache_data_i,
+    output logic               cache_dirty_o,
+    output logic               cache_valid_o,
+    output logic               cache_port1_read_o, 
+    output logic               cache_port0_write_o,
+    output data_cache_addr_t   cache_address_o,
+    output data_cache_enable_t cache_port0_enable_o,
+    output data_cache_enable_t cache_port1_enable_o,
 
-    output logic port0_request_o,              
-    output logic idle_o
+    input  logic             port0_granted_i,
+    input  logic             port1_hit_i,
+    input  data_cache_data_t data_writeback_i,
+    output data_cache_ways_t random_way_o,
+    output logic             port0_request_o,              
+    output logic             idle_o
 );
 
 
@@ -105,8 +105,8 @@ module load_unit_cache_controller (
 
         always_ff @(posedge clk_i) begin : cache_line_register
             for (int i = 0; i < BLOCK_WORDS; ++i) begin 
-                if (external_data_valid_i & word_number_i[i]) begin 
-                    external_memory_data[i] <= external_data_i;
+                if (ext_data_valid_i & word_number_i[i]) begin 
+                    external_memory_data[i] <= ext_data_i;
                 end 
             end
         end : cache_line_register
@@ -137,7 +137,7 @@ module load_unit_cache_controller (
 
 
     /* Store data from cache */
-    logic [PORT_WIDTH - 1:0] cache_data_CRT, cache_data_NXT;
+    data_cache_data_t cache_data_CRT, cache_data_NXT;
 
         always_ff @(posedge clk_i) begin : cache_data_register
             cache_data_CRT <= cache_data_NXT;
@@ -174,10 +174,10 @@ module load_unit_cache_controller (
         always_comb begin
             for (int i = 0; i < WAYS_NUMBER; ++i) begin
                 if (i == lfsr_data[1:0]) begin
-                    cache_random_way_o[i] = 1'b1;
-                end else begin
-                    cache_random_way_o[i] = 1'b0;
-                end
+                    random_way_o[i] = 1'b1;
+                endelse begin
+                    random_way_o[i] = 1'b0;
+                en
             end
         end
 
@@ -185,7 +185,7 @@ module load_unit_cache_controller (
     /* Check if store unit is writing in the same memory location */
     logic store_unit_address_match;
 
-    assign store_unit_address_match = (store_unit_address_i == load_unit_address_i) & !store_unit_idle_i;
+    assign store_unit_address_match = (stu_address_i == ldu_address_i) & !stu_idle_i;
 
 
 //-------------//
@@ -215,21 +215,21 @@ module load_unit_cache_controller (
 
             cache_port1_read_o = 1'b0; 
             cache_port0_write_o = 1'b0;
-            cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, load_unit_address_i.chip_sel};
+            cache_address_o = {ldu_address_i.tag, ldu_address_i.index, ldu_address_i.chip_sel};
             cache_port0_enable_o = '0; 
             cache_port1_enable_o = '0; 
             cache_dirty_o = 1'b0; 
             cache_valid_o = 1'b0; 
       
-            processor_request_o = 1'b0;
+            cpu_request_o = 1'b0;
             stall_pipeline_o = 1'b0;
-            store_buffer_push_data_o = 1'b0;
+            str_buf_push_data_o = 1'b0;
             port0_request_o = 1'b0;
-            load_unit_data_valid_o = 1'b0;
+            ldu_data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
-            load_unit_data_o = '0;
+            ldu_data_o = '0;
 
-            if (external_data_valid_i) begin
+            if (ext_data_valid_i) begin
                 memory_data_cnt_NXT = memory_data_cnt_CRT + 1'b1;
             end 
 
@@ -242,12 +242,12 @@ module load_unit_cache_controller (
                  *  immediately the data, tag and status.
                  */
                 IDLE: begin
-                    if (load_unit_read_cache_i) begin
+                    if (ldu_read_cache_i) begin
                         /* If data is found in the store buffer or is inside the 
                          * store unit, there's no need to check for an hit */
-                        if (store_unit_address_match | str_buffer_address_match_i) begin
+                        if (store_unit_address_match | str_buf_address_match_i) begin
                             state_NXT = DATA_STABLE;
-                        end else if (load_unit_data_cachable_i) begin 
+                        end else if (ldu_data_cachable_i) begin 
                             state_NXT = WAIT_CACHE;
                         end else begin
                             state_NXT = MEMORY_REQUEST;
@@ -257,15 +257,15 @@ module load_unit_cache_controller (
                         cache_port1_enable_o = '1;
 
                         /* Cache control */
-                        cache_port1_read_o = load_unit_data_cachable_i;
-                        cache_address_o.index = load_unit_address_i.index;
-                        cache_address_o.chip_sel = load_unit_address_i.chip_sel;
+                        cache_port1_read_o = ldu_data_cachable_i;
+                        cache_address_o.index = ldu_address_i.index;
+                        cache_address_o.chip_sel = ldu_address_i.chip_sel;
 
                         /* Foward the value from hitting units */
                         if (store_unit_address_match) begin 
-                            cache_data_NXT = store_unit_data_i;
-                        end else if (str_buffer_address_match_i) begin
-                            cache_data_NXT = str_buffer_data_i;                            
+                            cache_data_NXT = stu_data_i;
+                        end else if (str_buf_address_match_i) begin
+                            cache_data_NXT = str_buf_data_i;                            
                         end
                     end
                 end
@@ -285,7 +285,7 @@ module load_unit_cache_controller (
                  *  to part of the address sended and an hit signal is received
                  */
                 COMPARE_TAG: begin
-                    if (cache_port1_hit_i) begin
+                    if (port1_hit_i) begin
                         state_NXT = DATA_STABLE; 
                         cache_data_NXT = cache_data_i; 
                     end else begin
@@ -299,8 +299,8 @@ module load_unit_cache_controller (
                  *  Data is ready to be used 
                  */
                 DATA_STABLE: begin
-                    load_unit_data_valid_o = 1'b1;
-                    load_unit_data_o = cache_data_CRT;
+                    ldu_data_valid_o = 1'b1;
+                    ldu_data_o = cache_data_CRT;
                     state_NXT = IDLE;
                 end
 
@@ -309,19 +309,19 @@ module load_unit_cache_controller (
                  *  Send a read request to memory unit.
                  */
                 MEMORY_REQUEST: begin
-                    processor_request_o = 1'b1;
+                    cpu_request_o = 1'b1;
                     enable_lfsr = 1'b0;
 
                     chip_select_NXT = '0;
                     
-                    if (load_unit_data_cachable_i) begin
-                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, '0}; 
+                    if (ldu_data_cachable_i) begin
+                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, '0}; 
                     end else begin
-                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, load_unit_address_i.chip_sel};
+                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, ldu_address_i.chip_sel};
                     end
 
-                    if (external_acknowledge_i) begin
-                        if (load_unit_data_cachable_i) begin 
+                    if (ext_acknowledge_i) begin
+                        if (ldu_data_cachable_i) begin 
                             state_NXT = READ_CACHE;
                         end else begin
                             state_NXT = WAIT_MEMORY;
@@ -334,7 +334,7 @@ module load_unit_cache_controller (
                  *  Wait memory response.
                  */
                 WAIT_MEMORY: begin
-                    if (external_data_valid_i) begin
+                    if (ext_data_valid_i) begin
                         state_NXT = DATA_STABLE;
                     end
                 end
@@ -347,13 +347,13 @@ module load_unit_cache_controller (
                 DIRTY_CHECK: begin 
                     enable_lfsr = 1'b0;
 
-                    if (!store_buffer_full_i & store_buffer_port_idle_i) begin
-                        load_unit_data_o = cache_data_writeback_i;
-                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, 2'b0}; 
+                    if (!str_buf_full_i & str_buf_port_idle_i) begin
+                        ldu_data_o = data_writeback_i;
+                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, 2'b0}; 
 
                         if (cache_dirty_i) begin
                             state_NXT = READ_CACHE;
-                            store_buffer_push_data_o = 1'b1;
+                            str_buf_push_data_o = 1'b1;
 
                             chip_select_NXT = chip_select_CRT + 1'b1;
                         end else begin
@@ -372,7 +372,7 @@ module load_unit_cache_controller (
                 READ_CACHE: begin
                     enable_lfsr = 1'b0;
 
-                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
+                    cache_address_o = {ldu_address_i.tag, ldu_address_i.index, chip_select_CRT};
                     cache_port1_read_o = 1'b1;
                     cache_port1_enable_o.data = 1'b1;
 
@@ -394,11 +394,11 @@ module load_unit_cache_controller (
                 WRITE_BACK: begin
                     enable_lfsr = 1'b0;
 
-                    if (!store_buffer_full_i & store_buffer_port_idle_i) begin
-                        load_unit_data_o = cache_data_writeback_i;
-                        cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT}; 
+                    if (!str_buf_full_i & str_buf_port_idle_i) begin
+                        ldu_data_o = data_writeback_i;
+                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, chip_select_CRT}; 
 
-                        store_buffer_push_data_o = 1'b1;
+                        str_buf_push_data_o = 1'b1;
 
                         /* If the end of the block is reached, allocate a new block */
                         if (chip_select_CRT == ((BLOCK_WIDTH / PORT_WIDTH) - 1)) begin
@@ -423,9 +423,9 @@ module load_unit_cache_controller (
                     enable_lfsr = 1'b0; 
                     port0_request_o = 1'b1;
 
-                    cache_address_o = {load_unit_address_i.tag, load_unit_address_i.index, chip_select_CRT};
+                    cache_address_o = {ldu_address_i.tag, ldu_address_i.index, chip_select_CRT};
 
-                    if (cache_port0_granted_i) begin                        
+                    if (port0_granted_i) begin                        
                         if (chip_select_CRT == '0) begin
                             cache_port0_enable_o = '1;
 
@@ -442,9 +442,9 @@ module load_unit_cache_controller (
                             allocated_data_cnt_NXT = allocated_data_cnt_CRT + 1'b1;
                             
                             cache_port0_write_o = 1'b1;
-                            load_unit_data_o = external_memory_data[allocated_data_cnt_CRT];
+                            ldu_data_o = external_memory_data[allocated_data_cnt_CRT];
 
-                            load_unit_data_valid_o = (chip_select_CRT == load_unit_address_i.chip_sel);
+                            ldu_data_valid_o = (chip_select_CRT == ldu_address_i.chip_sel);
                         end
 
                         /* End of cache line reached */
