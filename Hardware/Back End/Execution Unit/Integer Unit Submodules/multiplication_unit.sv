@@ -40,8 +40,8 @@
 `ifndef MULTIPLICATION_UNIT_SV
     `define MULTIPLICATION_UNIT_SV
 
-`include "../../../Include/core_configuration.svh"
-`include "../../../Include/rv32_instructions_pkg.sv"
+`include "../../../Include/Headers/core_configuration.svh"
+`include "../../../Include/Packages/rv32_instructions_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
 

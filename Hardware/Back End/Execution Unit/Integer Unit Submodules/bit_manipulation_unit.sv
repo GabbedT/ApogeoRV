@@ -42,8 +42,8 @@
 `ifndef BIT_MANIPULATION_UNIT_SV 
     `define BIT_MANIPULATION_UNIT_SV
 
-`include "../../../Include/core_configuration.svh"
-`include "../../../Include/rv32_instructions_pkg.sv"
+`include "../../../Include/Headers/core_configuration.svh"
+`include "../../../Include/Packages/rv32_instructions_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CPOP/Combinational/population_count_combinational.sv"

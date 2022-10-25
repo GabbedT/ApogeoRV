@@ -6,8 +6,8 @@
 `include "Integer Unit Submodules/division_unit.sv"
 `include "Integer Unit Submodules/multiplication_unit.sv"
 
-`include "../../Include/core_configuration.svh"
-`include "../../Include/control_status_registers_pkg.sv"
+`include "../../Include/Headers/core_configuration.svh"
+`include "../../Include/Pacakges/control_status_registers_pkg.sv"
  
 module execution_unit (
     /* Pipeline control */
