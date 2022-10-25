@@ -1,9 +1,9 @@
-`ifndef FOWARDING_UNIT_SV
-    `define FOWARDING_UNIT_SV
+`ifndef BYPASS_CONTROLLER_SV
+    `define BYPASS_CONTROLLER_SV
 
-`include "../../Include/rv32_instructions_pkg.sv"
+`include "../../Include/Packages/rv32_instructions_pkg.sv"
 
-module fowarding_unit (
+module bypass_controller (
     /* Register source */
     input  logic [4:0] reg_src_A_i,
     input  logic [4:0] reg_src_B_i,
@@ -111,6 +111,6 @@ module fowarding_unit (
             endcase 
         end : fowarding_A_logic
 
-endmodule : fowarding_unit
+endmodule : bypass_controller
 
 `endif 
