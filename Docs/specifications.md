@@ -577,8 +577,4 @@ The write port has also an enable signal to ensure that the architectural state 
 This is the controller of the IS stage, it determine whether issue or not the instruction. 
 The instruction can't be issued if one of the source registers match a destination register of a currently executing instruction. The information is directly given by the scoreboard. 
 
-<<<<<<< HEAD
 The instruction is issued if the depending instruction in the execute stage is about to be passed to the commit stage or if the writeback stage has the corresponding destination register. These conditions can happen simultaneously 
-=======
-The instruction is issued if the depending instruction in the execute stage is about to be passed to the commit stage or if the writeback stage has the corresponding destination register. These conditions can happen simultaneously 
->>>>>>> 89ead443697c162857e18733db19eb7d83d97331
