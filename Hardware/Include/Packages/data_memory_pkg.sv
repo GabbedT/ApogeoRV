@@ -94,6 +94,15 @@ package data_memory_pkg;
     /* Load / Store width */
     typedef enum logic [1:0] {BYTE, HALF_WORD, WORD} mem_op_width_t;
 
+    /* Number of ways typedef */
+    typedef logic [WAYS_NUMBER - 1:0] data_cache_ways_t;
+
+    /* Cache data port typedef */
+    typedef logic [PORT_WIDTH - 1:0] data_cache_data_t;
+
+    /* Cache block typedef */
+    typedef logic [BLOCK_WIDTH - 1:0] data_cache_block_t;
+
 
     /* Checks if address is inside a range */
     function bit inside_range(input logic [31:0] low, input logic [31:0] high, input logic [31:0] value);

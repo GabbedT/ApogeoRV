@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : data_cache_way_fpga.sv
+// FILE NAME : data_cache_way.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -33,15 +33,15 @@
 //               write operations. 
 // --------------------------------------------------------------------------------------
 
-`ifndef DATA_CACHE_WAY_FPGA_SV
-    `define DATA_CACHE_WAY_FPGA_SV
+`ifndef DATA_CACHE_WAY_SV
+    `define DATA_CACHE_WAY_SV
 
 `include "../../../Include/data_memory_pkg.sv"
-`include "data_cache_block_fpga.sv"
-`include "status_memory_fpga.sv"
-`include "tag_memory_fpga.sv"
+`include "data_cache_block.sv"
+`include "data_status_memory.sv"
+`include "data_tag_memory.sv"
 
-module data_cache_way_fpga (
+module data_cache_way (
     input  logic                    clk_i,
     input  logic                    enable_way_i,                  
 
@@ -88,7 +88,7 @@ module data_cache_way_fpga (
      * of them is accessed every time (per port) */
 
 
-    status_memory_fpga status_bits (
+    data_status_memory status_bits (
         .clk_i               ( clk_i                              ),
 
         /* Port 0 (R / W) interface */
@@ -109,7 +109,7 @@ module data_cache_way_fpga (
     );
 
 
-    tag_memory_fpga tag (
+    data_tag_memory tag (
         .clk_i           ( clk_i                            ),
 
         /* Port 0 (R / W) interface */
@@ -126,7 +126,7 @@ module data_cache_way_fpga (
     );
 
 
-    data_cache_block_fpga cache_block (
+    data_cache_block cache_block (
         .clk_i               ( clk_i                             ),
 
         /* Port 0 (R / W) interface */
@@ -143,6 +143,6 @@ module data_cache_way_fpga (
         .port1_read_i        ( port1_read & port1_enable_i.data  )  
     );
 
-endmodule : data_cache_way_fpga
+endmodule : data_cache_way
 
 `endif 

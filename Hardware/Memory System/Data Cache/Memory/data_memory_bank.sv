@@ -21,7 +21,7 @@
 // SOFTWARE.
 // ------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------
-// FILE NAME : data_memory_bank_fpga.sv
+// FILE NAME : data_memory_bank.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -38,12 +38,12 @@
 //               `data_memory_pkg.sv`
 // ------------------------------------------------------------------------------------
 
-`ifndef DATA_MEMORY_BANK_FPGA_SV
-    `define DATA_MEMORY_BANK_FPGA_SV
+`ifndef DATA_MEMORY_BANK_SV
+    `define DATA_MEMORY_BANK_SV
 
 `include "../../../Include/data_memory_pkg.sv"
 
-module data_memory_bank_fpga (
+module data_memory_bank (
     input  logic                    clk_i,
 
     /* Port 0 (R / W) interface */
@@ -82,6 +82,6 @@ module data_memory_bank_fpga (
             end 
         end : bank_port1
 
-endmodule : data_memory_bank_fpga
+endmodule : data_memory_bank
 
 `endif 

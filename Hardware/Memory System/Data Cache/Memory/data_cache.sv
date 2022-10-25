@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : data_cache_way_fpga.sv
+// FILE NAME : data_cache.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -35,13 +35,13 @@
 //               accessed at once.  
 // --------------------------------------------------------------------------------------
 
-`ifndef DATA_CACHE_MEMORY_SV
-    `define DATA_CACHE_MEMORY_SV
+`ifndef DATA_CACHE_SV
+    `define DATA_CACHE_SV
 
-`include "../../../Include/data_memory_pkg.sv"
-`include "data_cache_way_fpga.sv"
+`include "data_cache_way.sv"
 
-module data_cache_memory_fpga (
+
+module data_cache (
     input  logic                     clk_i,
     input  logic [WAYS_NUMBER - 1:0] enable_way_i,
 
@@ -95,8 +95,9 @@ module data_cache_memory_fpga (
 
     `ifdef ASSERTIONS 
         assert property @(posedge clk_i) ($onehot(enable_way_i));
+        assert property @(posedge clk_i) ({port0_write_i, port0_read_i} != 2'b11);
     `endif 
 
-endmodule : data_cache_memory_fpga
+endmodule : data_cache
 
 `endif

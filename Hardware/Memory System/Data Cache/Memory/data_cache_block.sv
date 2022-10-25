@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : data_cache_block_fpga.sv
+// FILE NAME : data_cache_block.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -36,13 +36,13 @@
 //               bank have byte write
 // --------------------------------------------------------------------------------------
 
-`ifndef DATA_CACHE_BLOCK_FPGA_SV
-    `define DATA_CACHE_BLOCK_FPGA_SV
+`ifndef DATA_CACHE_BLOCK_SV
+    `define DATA_CACHE_BLOCK_SV
 
 `include "../../../Include/data_memory_pkg.sv"
-`include "data_memory_bank_fpga.sv"
+`include "data_memory_bank.sv"
 
-module data_cache_block_fpga (
+module data_cache_block (
     input  logic                    clk_i,
 
     /* Port 0 (R / W) interface */
@@ -94,7 +94,7 @@ module data_cache_block_fpga (
     /* Generate N chip of 32 bit wide to match the block width */
     generate
         for (i = 0; i < CACHE_CHIP; ++i) begin
-            data_memory_bank_fpga data_cache_block_bank (
+            data_memory_bank data_cache_block_bank (
                 .clk_i              ( clk_i                           ),
 
                 /* Port 0 (R / W) interface */
@@ -121,6 +121,6 @@ module data_cache_block_fpga (
     /* Output assignment */
     assign port1_data_o = port1_data_read[port1_read_data_select];
 
-endmodule : data_cache_block_fpga
+endmodule : data_cache_block
 
 `endif 

@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : tag_memory_fpga.sv
+// FILE NAME : tag_memory.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -33,12 +33,12 @@
 //               block has two ports: one read only and the other one both read and write
 // --------------------------------------------------------------------------------------
 
-`ifndef TAG_MEMORY_FPGA_SV
-    `define TAG_MEMORY_FPGA_SV
+`ifndef DATA_TAG_MEMORY_SV
+    `define DATA_TAG_MEMORY_SV
 
 `include "../../../Include/data_memory_pkg.sv"
 
-module tag_memory_fpga (
+module data_tag_memory (
     input  logic                    clk_i,
 
     /* Port 0 (R / W) interface */
@@ -75,6 +75,6 @@ module tag_memory_fpga (
         end : tag_memory_port1
 
 
-endmodule : tag_memory_fpga
+endmodule : data_tag_memory
 
 `endif 

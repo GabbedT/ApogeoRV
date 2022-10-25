@@ -88,19 +88,14 @@ module store_unit (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
-                cache_ctrl_write_CRT <= 1'b0;
-
                 data_bufferable_CRT <= 1'b1;
                 data_cachable_CRT <= 1'b1;
             end else begin 
-                cache_ctrl_write_CRT <= cache_ctrl_write_NXT;
-
                 data_bufferable_CRT <= data_bufferable_NXT;
                 data_cachable_CRT <= data_cachable_NXT;
             end
         end
 
-    assign cache_ctrl_write_o = cache_ctrl_write_CRT;
     assign data_bufferable_o = data_bufferable_CRT;
     assign data_cachable_o = data_cachable_CRT;
 
@@ -155,6 +150,7 @@ module store_unit (
             data_bufferable_NXT = data_bufferable_CRT;
             cache_ctrl_write_NXT = cache_ctrl_write_CRT;
 
+            cache_ctrl_write_o = 1'b0;
             data_valid_o = 1'b0;
 
             case (state_CRT)
@@ -162,7 +158,7 @@ module store_unit (
                 IDLE: begin
                     if (valid_operation_i & cache_ctrl_store_idle_i) begin
                         state_NXT = WAIT_CACHE;
-                        cache_ctrl_write_NXT = 1'b1;
+                        cache_ctrl_write_o = 1'b1;
 
                         /* Stable signals */
                         store_data_NXT = store_data_i;
@@ -194,6 +190,8 @@ module store_unit (
 
 
                 WAIT_CACHE: begin
+                    cache_ctrl_write_o = 1'b1; 
+                    
                     if (cache_ctrl_store_done_i) begin
                         state_NXT = WAIT_COMMIT;
                         cache_ctrl_write_NXT = 1'b0;

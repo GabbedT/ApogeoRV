@@ -34,19 +34,16 @@
 //               store controllers which arbitrate the cache / memory operations. 
 // -------------------------------------------------------------------------------------
 
-`ifndef DATA_CACHE_SV
-    `define DATA_CACHE_SV
+`ifndef DATA_CACHE_SYSTEM_SV
+    `define DATA_CACHE_SYSTEM_SV
 
-`ifdef FPGA
-    `include "Memory/data_cache_memory_fpga.sv"
-`endif 
-
+`include "Memory/data_cache.sv"
 `include "data_cache_port0_hit_check.sv"
 `include "data_cache_port1_hit_check.sv"
 `include "load_unit_cache_controller.sv"
 `include "store_unit_cache_controller.sv"
 
-module data_cache (
+module data_cache_system (
     input  logic                     clk_i,
     input  logic                     rst_n_i,
     input  logic                     kill_speculative_instr_i,
@@ -487,6 +484,6 @@ module data_cache (
     assign store_buffer_stu_entry_o.address = store_unit_address_i;
     assign store_buffer_stu_entry_o.data = stu_port0.write_packet.word;
 
-endmodule : data_cache
+endmodule : data_cache_system
 
 `endif 

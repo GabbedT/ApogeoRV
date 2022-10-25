@@ -61,20 +61,6 @@ module load_unit (
         end
 
 
-    /* Cache and memory request signals */
-    logic cache_read_CRT, cache_read_NXT;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (!rst_n_i) begin 
-                cache_read_CRT <= 1'b0;
-            end else begin 
-                cache_read_CRT <= cache_read_NXT;
-            end
-        end
-
-    assign cache_ctrl_read_o = cache_read_CRT;
-
-
     ldu_operation_t    operation;
     logic [XLEN - 1:0] load_address;
 
@@ -116,7 +102,7 @@ module load_unit (
             state_NXT = state_CRT;
 
             data_valid_o = 1'b0;
-            loaded_data_o = load_data_CRT;
+            loaded_data_o = 1'b0;
 
             case (state_CRT)
 
@@ -129,7 +115,7 @@ module load_unit (
                 IDLE: begin
                     if (valid_operation_i & cache_ctrl_idle_i) begin
                         state_NXT = WAIT_CACHE;
-                        cache_read_NXT = 1'b1;
+                        cache_ctrl_read_o = 1'b1;
                     end
                 end
 
@@ -138,10 +124,11 @@ module load_unit (
                  *  Waits for cache to supply data
                  */
                 WAIT_CACHE: begin
+                    cache_ctrl_read_o = 1'b1;
+                    
                     if (cache_ctrl_data_valid_i) begin
                         state_NXT = DATA_VALID;
                         load_data_NXT = cache_ctrl_data_i;
-                        cache_read_NXT = 1'b0;
                     end
                 end
 
@@ -203,7 +190,7 @@ module load_unit (
                         end
 
                         /* Load word */
-                        LW `ifdef FPU , FLW `endif: begin
+                        LW: begin
                             loaded_data_o = load_data_CRT;
                         end
                     endcase    

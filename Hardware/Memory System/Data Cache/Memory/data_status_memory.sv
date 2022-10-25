@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : status_memory_fpga.sv
+// FILE NAME : data_status_memory.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -33,12 +33,12 @@
 //               Each bank holds a status bits 
 // --------------------------------------------------------------------------------------
 
-`ifndef STATUS_MEMORY_FPGA_SV
-    `define STATUS_MEMORY_FPGA_SV
+`ifndef DATA_STATUS_MEMORY_SV
+    `define DATA_STATUS_MEMORY_SV
 
 `include "../../../Include/data_memory_pkg.sv"
 
-module status_memory_fpga (
+module data_status_memory (
     input  logic                    clk_i,
 
     /* Port 0 (R / W) interface */
@@ -104,6 +104,6 @@ module status_memory_fpga (
             end
         end : dirty_memory_port1
 
-endmodule : status_memory_fpga
+endmodule : data_status_memory
 
 `endif 
