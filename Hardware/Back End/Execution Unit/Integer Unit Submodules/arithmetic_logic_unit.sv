@@ -47,11 +47,7 @@ module arithmetic_logic_unit (
     input  logic [XLEN - 1:0] instr_addr_i,
     input  alu_operation_t    operation_i,
     input  logic              data_valid_i,
-
-    `ifdef C_EXTENSION
-        input  logic          is_compressed_jump_i,
-    `endif
-    
+    input  logic              is_compressed_jump_i,
     output logic [XLEN - 1:0] result_o,
     output logic              branch_taken_o,
     output logic              is_branch_o,
@@ -201,11 +197,7 @@ module arithmetic_logic_unit (
 
                 SRAI, SRA: result_o = arithmetic_sh_right_result;
 
-                `ifdef C_EXTENSION
-                    JAL, JALR: result_o = (is_compressed_jump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
-                `else  
-                    JAL, JALR: result_o = instr_addr_i + 3'd4;
-                `endif 
+                JAL, JALR: result_o = (is_compressed_jump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
 
                 /* Conditional jump operation */
                 default: result_o = 'b0;
