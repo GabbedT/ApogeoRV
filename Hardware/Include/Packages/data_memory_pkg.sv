@@ -1,7 +1,7 @@
 `ifndef DATA_MEMORY_PKG_SV
     `define DATA_MEMORY_PKG_SV
 
-`include "core_configuration.svh"
+`include "../Headers/core_configuration.svh"
 
 package data_memory_pkg;
 
@@ -102,6 +102,9 @@ package data_memory_pkg;
 
     /* Cache block typedef */
     typedef logic [BLOCK_WIDTH - 1:0] data_cache_block_t;
+
+    /* Cache port width */
+    typedef logic [PORT_BYTES - 1:0] data_cache_port_t;
 
 
     /* Checks if address is inside a range */

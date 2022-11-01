@@ -1,10 +1,10 @@
 `ifndef LOAD_UNIT_SV
     `define LOAD_UNIT_SV
 
-`include "../../Include/rv32_instructions_pkg.sv"
-`include "../../Include/core_configuration.svh"
-`include "../../Include/core_memory_map.svh"
-`include "../../Include/data_memory_pkg.sv"
+`include "../../Include/Packages/rv32_instructions_pkg.sv"
+`include "../../Include/Headers/core_configuration.svh"
+`include "../../Include/Headers/core_memory_map.svh"
+`include "../../Include/Packages/data_memory_pkg.sv"
 
 module load_unit (
     input  logic              clk_i,
@@ -103,6 +103,7 @@ module load_unit (
 
             data_valid_o = 1'b0;
             loaded_data_o = 1'b0;
+            cache_ctrl_read_o = 1'b0;
 
             case (state_CRT)
 

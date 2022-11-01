@@ -1,7 +1,7 @@
 `ifndef CONTROL_STATUS_REGISTERS_SV
     `define CONTROL_STATUS_REGISTERS_SV
 
-`include "core_configuration.svh"
+`include "../Headers/core_configuration.svh"
 
 package control_status_registers_pkg;
 
