@@ -1,10 +1,10 @@
 `ifndef LOAD_STORE_UNIT_SV
     `define LOAD_STORE_UNIT_SV
 
-`include "load_unit.sv"
-`include "store_unit.sv"
+`include "Memory Submodules/load_unit.sv"
+`include "Memory Submodules/store_unit.sv"
 `include "../../Memory System/Memory Controller/store_buffer.sv"
-`include "../../Memory System/Data Cache/data_cache.sv"
+`include "../../Memory System/Data Cache/data_cache_system.sv"
 
 `include "../../Include/rv32_instructions_pkg.sv"
 `include "../../Include/data_memory_pkg.sv"
@@ -39,20 +39,20 @@ module load_store_unit (
     output instr_packet_t     stu_instr_packet_o,
 
     /* Memory interface */
-    input  logic                     external_invalidate_i,
-    input  data_cache_addr_t         external_address_i,
-    input  logic                     external_acknowledge_i,
-    input  logic                     external_data_valid_i,
-    input  logic [XLEN - 1:0]        external_data_i,
+    input  logic                     ext_invalidate_i,
+    input  data_cache_addr_t         ext_address_i,
+    input  logic                     ext_acknowledge_i,
+    input  logic                     ext_data_valid_i,
+    input  logic [XLEN - 1:0]        ext_data_i,
     input  logic [BLOCK_WORDS - 1:0] word_number_i,
-    output logic [XLEN - 1:0]        processor_address_o,
-    output logic                     processor_request_o,
-    output logic                     processor_acknowledge_o,
+    output logic [XLEN - 1:0]        cpu_address_o,
+    output logic                     cpu_request_o,
+    output logic                     cpu_acknowledge_o,
 
     /* Store buffer interface */
-    input  logic                read_store_buffer_i,
-    output logic                store_buffer_empty_o,
-    output store_buffer_entry_t store_buffer_packet_o
+    input  logic                read_str_buf_i,
+    output logic                str_buf_empty_o,
+    output store_buffer_entry_t str_buf_packet_o
 );
 
 
@@ -146,11 +146,11 @@ module load_store_unit (
         .clk_i   ( clk_i                ),
         .rst_n_i ( rst_n_i              ),
         .full_o  ( buf2cache_full       ),
-        .empty_o ( store_buffer_empty_o ),
+        .empty_o ( str_buf_empty_o ),
 
         /* Memory controller interface */
-        .pop_request_i  ( read_store_buffer_i   ),
-        .store_packet_o ( store_buffer_packet_o ),
+        .pop_request_i  ( read_str_buf_i   ),
+        .store_packet_o ( str_buf_packet_o ),
 
         /* Load unit cache controller */
         .load_unit_ctrl_packet_i   ( cache2buf_ldu_entry      ),
@@ -170,9 +170,9 @@ module load_store_unit (
 //---------//
 
     logic              stu_processor_request, ldu_processor_request;
-    logic [XLEN - 1:0] stu_processor_address_o, ldu_processor_address_o;
+    logic [XLEN - 1:0] stu_cpu_address_o, ldu_cpu_address_o;
 
-    data_cache dcache (
+    data_cache data_cache_system (
         .clk_i                    ( clk_i                    ),
         .rst_n_i                  ( rst_n_i                  ),
         .kill_speculative_instr_i ( kill_speculative_instr_i ),
@@ -180,60 +180,60 @@ module load_store_unit (
         .speculative_resolved_i   ( speculative_resolved_i   ),
 
         /* External interface (Load Unit) */
-        .ldu_external_data_i        ( external_data_i         ),
-        .ldu_external_data_valid_i  ( external_data_valid_i   ),
-        .ldu_external_acknowledge_i ( external_acknowledge_i  ),
+        .ldu_ext_data_i        ( ext_data_i         ),
+        .ldu_ext_data_valid_i  ( ext_data_valid_i   ),
+        .ldu_ext_acknowledge_i ( ext_acknowledge_i  ),
         .ldu_word_number_i          ( word_number_i           ),
-        .ldu_processor_address_o    ( ldu_processor_address_o ),
-        .ldu_processor_request_o    ( ldu_processor_request   ),
+        .ldu_cpu_address_o    ( ldu_cpu_address_o ),
+        .ldu_cpu_request_o    ( ldu_processor_request   ),
 
         /* External interface (Store Unit) */
-        .stu_external_invalidate_i   ( external_invalidate_i   ),
-        .stu_external_address_i      ( external_address_i      ),
-        .stu_external_acknowledge_i  ( external_acknowledge_i  ),
-        .stu_processor_address_o     ( stu_processor_address_o ),
-        .stu_processor_request_o     ( stu_processor_request   ),
-        .stu_processor_acknowledge_o ( processor_acknowledge_o ),
+        .stu_ext_invalidate_i   ( ext_invalidate_i   ),
+        .stu_ext_address_i      ( ext_address_i      ),
+        .stu_ext_acknowledge_i  ( ext_acknowledge_i  ),
+        .stu_cpu_address_o     ( stu_cpu_address_o ),
+        .stu_cpu_request_o     ( stu_processor_request   ),
+        .stu_cpu_acknowledge_o ( cpu_acknowledge_o ),
 
         /* Store buffer interface */
-        .store_buffer_address_match_i ( buf2cache_ldu_addr_match ),
-        .store_buffer_data_i          ( buf2cache_data_match     ),
-        .store_buffer_full_i          ( buf2cache_full           ),
-        .store_buffer_ldu_entry_o     ( cache2buf_ldu_entry      ),
-        .store_buffer_stu_entry_o     ( cache2buf_stu_entry      ), 
-        .store_buffer_ldu_push_data_o ( cache2buf_ldu_push       ),                    
-        .store_buffer_stu_push_data_o ( cache2buf_stu_push       ),                   
+        .str_buf_address_match_i ( buf2cache_ldu_addr_match ),
+        .str_buf_data_i          ( buf2cache_data_match     ),
+        .str_buf_full_i          ( buf2cache_full           ),
+        .str_buf_ldu_entry_o     ( cache2buf_ldu_entry      ),
+        .str_buf_stu_entry_o     ( cache2buf_stu_entry      ), 
+        .str_buf_ldu_push_data_o ( cache2buf_ldu_push       ),                    
+        .str_buf_stu_push_data_o ( cache2buf_stu_push       ),                   
 
         /* Store unit interface */
-        .store_unit_data_bufferable_i ( stu2cache_bufferable              ),
-        .store_unit_data_cachable_i   ( stu2cache_cachable                ),
-        .store_unit_write_cache_i     ( stu2cache_store                   ),
-        .store_unit_speculative_i     ( stu_instr_packet_i.speculative    ),
-        .store_unit_speculative_id_i  ( stu_instr_packet_i.speculative_id ),
-        .store_unit_data_i            ( stu2cache_store_data              ),
-        .store_unit_address_i         ( stu2cache_store_address           ),
-        .store_unit_data_width_i      ( stu2cache_store_width             ),
-        .store_unit_idle_i            ( stu_idle_o                        ),
-        .store_unit_idle_o            ( cache2stu_ctrl_idle               ),
-        .store_unit_done_o            ( cache2stu_ctrl_done               ),
+        .stu_data_bufferable_i ( stu2cache_bufferable              ),
+        .stu_data_cachable_i   ( stu2cache_cachable                ),
+        .stu_write_cache_i     ( stu2cache_store                   ),
+        .stu_speculative_i     ( stu_instr_packet_i.speculative    ),
+        .stu_speculative_id_i  ( stu_instr_packet_i.speculative_id ),
+        .stu_data_i            ( stu2cache_store_data              ),
+        .stu_address_i         ( stu2cache_store_address           ),
+        .stu_data_width_i      ( stu2cache_store_width             ),
+        .stu_idle_i            ( stu_idle_o                        ),
+        .stu_idle_o            ( cache2stu_ctrl_idle               ),
+        .stu_done_o            ( cache2stu_ctrl_done               ),
 
         /* Load unit interface */
-        .load_unit_read_cache_i  ( ldu2cache_read         ),
-        .load_unit_address_i     ( ldu2cache_load_address ),
-        .load_unit_data_o        ( cache2ldu_data         ),
-        .load_unit_data_valid_o  ( cache2ldu_data_valid   ),
-        .load_unit_idle_o        ( cache2ldu_ctrl_idle    )
+        .ldu_read_cache_i  ( ldu2cache_read         ),
+        .ldu_address_i     ( ldu2cache_load_address ),
+        .ldu_data_o        ( cache2ldu_data         ),
+        .ldu_data_valid_o  ( cache2ldu_data_valid   ),
+        .ldu_idle_o        ( cache2ldu_ctrl_idle    )
     );
 
-    assign processor_request_o = ldu_processor_request | stu_processor_request;
+    assign cpu_request_o = ldu_processor_request | stu_processor_request;
 
         always_comb begin 
             if (ldu_processor_request) begin
-                processor_address_o = ldu_processor_address_o;
+                cpu_address_o = ldu_cpu_address_o;
             end else if (stu_processor_request) begin
-                processor_address_o = stu_processor_address_o;
+                cpu_address_o = stu_cpu_address_o;
             end else begin
-                processor_address_o = ldu_processor_address_o;
+                cpu_address_o = ldu_cpu_address_o;
             end
         end
 
