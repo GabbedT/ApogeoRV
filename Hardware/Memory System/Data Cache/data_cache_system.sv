@@ -51,49 +51,50 @@ module data_cache_system (
     input  logic                     speculative_resolved_i,
 
     /* External interface (Load Unit) */
-    input  logic [PORT_WIDTH - 1:0]  ldu_external_data_i,
-    input  logic                     ldu_external_data_valid_i,
-    input  logic                     ldu_external_acknowledge_i,
+    input  data_cache_port_t         ldu_ext_data_i,
+    input  logic                     ldu_ext_data_valid_i,
+    input  logic                     ldu_ext_acknowledge_i,
     input  logic [BLOCK_WORDS - 1:0] ldu_word_number_i,
-    output data_cache_full_addr_t    ldu_processor_address_o,
-    output logic                     ldu_processor_request_o,
+    output data_cache_full_addr_t    ldu_cpu_address_o,
+    output logic                     ldu_cpu_request_o,
 
     /* External interface (Store Unit) */
-    input  logic                     stu_external_invalidate_i,
-    input  data_cache_addr_t         stu_external_address_i,
-    input  logic                     stu_external_acknowledge_i,
-    output data_cache_full_addr_t    stu_processor_address_o,
-    output logic                     stu_processor_request_o,
-    output logic                     stu_processor_acknowledge_o,
+    input  logic                  stu_ext_invalidate_i,
+    input  data_cache_addr_t      stu_ext_address_i,
+    input  logic                  stu_ext_acknowledge_i,
+    output data_cache_port_t      stu_cpu_data_o, 
+    output data_cache_full_addr_t stu_cpu_address_o,
+    output logic                  stu_cpu_request_o,
+    output logic                  stu_cpu_acknowledge_o,
 
     /* Store buffer interface */
-    input  logic                     store_buffer_address_match_i,
-    input  logic [PORT_WIDTH - 1:0]  store_buffer_data_i,
-    input  logic                     store_buffer_full_i,
-    output store_buffer_entry_t      store_buffer_ldu_entry_o,
-    output store_buffer_entry_t      store_buffer_stu_entry_o, 
-    output logic                     store_buffer_ldu_push_data_o,                   
-    output logic                     store_buffer_stu_push_data_o,                   
+    input  logic                str_buf_address_match_i,
+    input  data_cache_port_t    str_buf_data_i,
+    input  logic                str_buf_full_i,
+    output store_buffer_entry_t str_buf_ldu_entry_o,
+    output store_buffer_entry_t str_buf_stu_entry_o, 
+    output logic                str_buf_ldu_push_data_o,                   
+    output logic                str_buf_stu_push_data_o,                   
 
     /* Store unit interface */
-    input  logic                     store_unit_data_bufferable_i,
-    input  logic                     store_unit_data_cachable_i,
-    input  logic                     store_unit_write_cache_i,
-    input  logic                     store_unit_speculative_i,
-    input  logic [1:0]               store_unit_speculative_id_i,
-    input  logic [PORT_WIDTH - 1:0]  store_unit_data_i,
-    input  data_cache_full_addr_t    store_unit_address_i,
-    input  mem_op_width_t            store_unit_data_width_i,
-    input  logic                     store_unit_idle_i,
-    output logic                     store_unit_idle_o,
-    output logic                     store_unit_done_o,
+    input  logic                  stu_data_bufferable_i,
+    input  logic                  stu_data_cachable_i,
+    input  logic                  stu_write_cache_i,
+    input  logic                  stu_speculative_i,
+    input  logic [1:0]            stu_speculative_id_i,
+    input  data_cache_port_t      stu_data_i,
+    input  data_cache_full_addr_t stu_address_i,
+    input  mem_op_width_t         stu_data_width_i,
+    input  logic                  stu_idle_i,
+    output logic                  stu_idle_o,
+    output logic                  stu_done_o,
 
     /* Load unit interface */
-    input  logic                     load_unit_read_cache_i,
-    input  data_cache_full_addr_t    load_unit_address_i,
-    output logic [PORT_WIDTH - 1:0]  load_unit_data_o,
-    output logic                     load_unit_data_valid_o,
-    output logic                     load_unit_idle_o
+    input  logic                  ldu_read_cache_i,
+    input  data_cache_full_addr_t ldu_address_i,
+    output data_cache_port_t      ldu_data_o,
+    output logic                  ldu_data_valid_o,
+    output logic                  ldu_idle_o
 );
 
 //----------------------//
@@ -227,7 +228,7 @@ module data_cache_system (
 //--------------//
 
     `ifdef FPGA 
-        data_cache_memory_fpga data_cache_memory (
+        data_cache data_cache_memory (
             .clk_i                ( clk_i                    ),
             .enable_way_i         ( cache_port0.enable_way   ),
 
@@ -354,51 +355,52 @@ module data_cache_system (
     logic       store_unit_buffer_taken;
 
     load_unit_cache_controller load_unit_controller (
-        .clk_i                      ( clk_i            ),
-        .rst_n_i                    ( rst_n_i          ),
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
 
         /* External interface */
-        .word_number_i              ( ldu_word_number_i          ),
-        .external_data_i            ( ldu_external_data_i        ),
-        .external_data_valid_i      ( ldu_external_data_valid_i  ),
-        .external_acknowledge_i     ( ldu_external_acknowledge_i ),
-        .processor_request_o        ( ldu_processor_request_o    ),
+        .word_number_i     ( ldu_word_number_i          ),
+        .ext_data_i        ( ldu_ext_data_i        ),
+        .ext_data_valid_i  ( ldu_ext_data_valid_i  ),
+        .ext_acknowledge_i ( ldu_ext_acknowledge_i ),
+        .cpu_request_o     ( ldu_cpu_request_o    ),
 
         /* Store buffer interface */
-        .str_buffer_address_match_i ( store_buffer_address_match_i ),
-        .str_buffer_data_i          ( store_buffer_data_i          ),
-        .store_buffer_full_i        ( store_buffer_full_i          ),
-        .store_buffer_port_idle_i   ( !store_unit_buffer_taken     ),
-        .store_buffer_push_data_o   ( store_buffer_ldu_push_data_o ),
+        .str_buf_address_match_i ( str_buf_address_match_i ),
+        .str_buf_data_i          ( str_buf_data_i          ),
+        .str_buf_full_i          ( str_buf_full_i          ),
+        .str_buf_port_idle_i     ( !store_unit_buffer_taken     ),
+        .str_buf_push_data_o     ( store_buffer_ldu_push_data_o ),
 
         /* Store unit interface */
-        .store_unit_data_i          ( store_unit_data_i    ),
-        .store_unit_address_i       ( store_unit_address_i ),
-        .store_unit_idle_i          ( store_unit_idle_i    ),
+        .stu_data_i    ( stu_data_i    ),
+        .stu_address_i ( stu_address_i ),
+        .stu_idle_i    ( stu_idle_i    ),
 
         /* Load unit interface */
-        .load_unit_read_cache_i     ( load_unit_read_cache_i      ),
-        .load_unit_address_i        ( load_unit_address_i         ),
-        .load_unit_data_o           ( ldu_port0.write_packet.word ),
-        .load_unit_data_valid_o     ( load_unit_data_valid_o      ),
+        .ldu_read_cache_i    ( ldu_read_cache_i      ),
+        .ldu_address_i       ( ldu_address_i         ),
+        .ldu_data_cachable_i ( ldu_port0.write_packet.word ),
+        .ldu_data_o          ( ldu_port0.write_packet.word ),
+        .ldu_data_valid_o    ( ldu_data_valid_o      ),
 
         /* Cache interface */
-        .cache_port0_granted_i      ( ldu_cache_port0_grant        ),
-        .cache_port1_hit_i          ( cache_port1_hit_out          ),
-        .cache_dirty_i              ( cache_port1_dirty            ),
-        .cache_data_i               ( cache_port1_data_hit_out     ),
-        .cache_data_writeback_i     ( cache_port1_data_writeback   ),
-        .cache_dirty_o              ( ldu_port0.write_packet.dirty ),
-        .cache_valid_o              ( ldu_port0.write_packet.valid ),
-        .cache_port1_read_o         ( cache_port1.read             ), 
-        .cache_port0_write_o        ( ldu_port0.write              ),
-        .cache_random_way_o         ( ldu_port0.enable_way         ),
-        .cache_address_o            ( ldu_port0_addr               ),
-        .cache_port0_enable_o       ( ldu_port0.enable             ),
-        .cache_port1_enable_o       ( cache_port1.enable           ),
+        .cache_dirty_i        ( cache_port1_dirty            ),
+        .cache_data_i         ( cache_port1_data_hit_out     ),
+        .cache_dirty_o        ( ldu_port0.write_packet.dirty ),
+        .cache_valid_o        ( ldu_port0.write_packet.valid ),
+        .cache_port1_read_o   ( cache_port1.read             ), 
+        .cache_port0_write_o  ( ldu_port0.write              ),
+        .cache_address_o      ( ldu_port0_addr               ),
+        .cache_port0_enable_o ( ldu_port0.enable             ),
+        .cache_port1_enable_o ( cache_port1.enable           ),
 
-        .port0_request_o            ( ldu_port0_request ),
-        .idle_o                     ( load_unit_idle_o  )
+        .cache_port0_granted_i  ( ldu_cache_port0_grant      ),
+        .cache_port1_hit_i      ( cache_port1_hit_out        ),
+        .cache_data_writeback_i ( cache_port1_data_writeback ),
+        .cache_random_way_o     ( ldu_port0.enable_way       ),
+        .port0_request_o        ( ldu_port0_request          ),
+        .idle_o                 ( ldu_idle_o                 )
     );
 
     assign cache_port1.address = ldu_port0_addr.index;
@@ -408,12 +410,12 @@ module data_cache_system (
     assign ldu_port0.address = cache_port1.address;
     assign ldu_port0.chip_select = cache_port1.chip_select;
 
-    assign load_unit_data_o = ldu_port0.write_packet.word;
-    assign ldu_processor_address_o = {ldu_port0_addr, 2'b0};
+    assign ldu_data_o = ldu_port0.write_packet.word;
+    assign ldu_cpu_address_o = {ldu_port0_addr, 2'b0};
 
-    assign store_buffer_ldu_entry_o.address = load_unit_address_i;
-    assign store_buffer_ldu_entry_o.data = ldu_port0.write_packet.word;
-    assign store_buffer_ldu_entry_o.operation_width = WORD;
+    assign str_buf_ldu_entry_o.address = ldu_address_i;
+    assign str_buf_ldu_entry_o.data = ldu_port0.write_packet.word;
+    assign str_buf_ldu_entry_o.operation_width = WORD;
 
 
 //-------------------------//
@@ -434,26 +436,23 @@ module data_cache_system (
         .speculative_instr_id_i   ( speculative_instr_id_i   ),
 
         /* External interface */
-        .external_acknowledge_i  ( stu_external_acknowledge_i  ),    
-        .external_invalidate_i   ( stu_external_invalidate_i   ),
-        .external_address_i      ( stu_external_address_i      ),
-        .processor_acknowledge_o ( stu_processor_acknowledge_o ),
-        .processor_request_o     ( stu_processor_request_o     ),
+        .ext_invalidate_i  ( stu_ext_acknowledge_i  ),    
+        .ext_acknowledge_i ( stu_ext_invalidate_i   ),
+        .ext_address_i     ( stu_ext_address_i      ),
+        .cpu_acknowledge_o ( stu_cpu_acknowledge_o ),
+        .cpu_request_o     ( stu_cpu_request_o     ),
 
         /* Store unit interface */
-        .store_unit_data_bufferable_i ( store_unit_data_bufferable_i ),
-        .store_unit_data_cachable_i   ( store_unit_data_cachable_i   ),
-        .store_unit_write_cache_i     ( store_unit_write_cache_i     ),
-        .store_unit_speculative_i     ( store_unit_speculative_i     ),
-        .store_unit_speculative_id_i  ( store_unit_speculative_id_i  ),
-        .store_unit_data_i            ( store_unit_data_i            ),
-        .store_unit_address_i         ( store_unit_address_i         ),
-        .store_unit_data_width_i      ( store_unit_data_width_i      ),
+        .stu_data_bufferable_i ( stu_data_bufferable_i ),
+        .stu_data_cachable_i   ( stu_data_cachable_i   ),
+        .stu_write_cache_i     ( stu_write_cache_i     ),
+        .stu_speculative_i     ( stu_speculative_i     ),
+        .stu_speculative_id_i  ( stu_speculative_id_i  ),
+        .stu_data_i            ( stu_data_i            ),
+        .stu_address_i         ( stu_address_i         ),
+        .stu_data_width_i      ( stu_data_width_i      ),
 
         /* Cache interface */
-        .cache_port0_granted_i ( stu_cache_port0_grant        ),
-        .cache_hit_i           ( cache_port0_hit_out          ),
-        .cache_way_hit_i       ( cache_port0_way_hit_out      ),
         .cache_write_o         ( stu_port0.write              ),
         .cache_read_o          ( stu_port0.read               ),
         .cache_address_o       ( stu_port0_addr               ),
@@ -465,23 +464,28 @@ module data_cache_system (
         .cache_enable_o        ( stu_port0.enable             ),
 
         /* Store buffer interface */
-        .store_buffer_full_i            ( store_buffer_full_i                      ),
-        .store_buffer_push_data_o       ( store_unit_buffer_taken                  ),
-        .store_buffer_operation_width_o ( store_buffer_stu_entry_o.operation_width ),
+        .str_buf_full_i            ( str_buf_full_i                           ),
+        .str_buf_push_data_o       ( store_unit_buffer_taken                  ),
+        .str_buf_operation_width_o ( store_buffer_stu_entry_o.operation_width ),
 
-        .store_address_byte_o ( store_address_byte_sel ),
-        .port0_request_o      ( stu_port0_request      ),
-        .idle_o               ( store_unit_idle_o      ),
-        .done_o               ( store_unit_done_o      )
+        .way_hit_i            ( cache_port0_way_hit_out ),
+        .hit_i                ( cache_port0_hit_out     ),
+        .port0_granted_i      ( stu_cache_port0_grant   ),
+        .store_address_byte_o ( store_address_byte_sel  ),
+        .port0_request_o      ( stu_port0_request       ),
+        .idle_o               ( stu_idle_o              ),
+        .done_o               ( stu_done_o              )
     );
+
+    assign stu_cpu_data_o = stu_port0.write_packet.word;
 
     assign stu_port0.address =  stu_port0_addr.index;
     assign stu_port0.write_packet.tag = stu_port0_addr.tag;
     assign stu_port0.chip_select = stu_port0_addr.chip_sel;
 
-    assign stu_processor_address_o = {stu_port0_addr, store_address_byte_sel}; 
+    assign stu_cpu_address_o = {stu_port0_addr, store_address_byte_sel}; 
 
-    assign store_buffer_stu_entry_o.address = store_unit_address_i;
+    assign store_buffer_stu_entry_o.address = stu_address_i;
     assign store_buffer_stu_entry_o.data = stu_port0.write_packet.word;
 
 endmodule : data_cache_system
