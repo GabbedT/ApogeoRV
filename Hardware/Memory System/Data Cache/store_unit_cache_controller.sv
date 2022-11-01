@@ -65,15 +65,15 @@ module store_unit_cache_controller (
     input  mem_op_width_t         stu_data_width_i,
 
     /* Cache interface */
-    output logic                    cache_write_o,
-    output logic                    cache_read_o,
-    output data_cache_addr_t        cache_address_o,
-    output logic [PORT_BYTES - 1:0] cache_byte_write_o, 
-    output data_cache_data_t        cache_data_o,
-    output logic                    cache_dirty_o,
-    output logic                    cache_valid_o,
-    output data_cache_ways_t        cache_enable_way_o,
-    output data_cache_enable_t      cache_enable_o,
+    output logic               cache_write_o,
+    output logic               cache_read_o,
+    output data_cache_addr_t   cache_address_o,
+    output data_cache_port_t   cache_byte_write_o, 
+    output data_cache_data_t   cache_data_o,
+    output logic               cache_dirty_o,
+    output logic               cache_valid_o,
+    output data_cache_ways_t   cache_enable_way_o,
+    output data_cache_enable_t cache_enable_o,
 
     /* Store buffer interface */
     input  logic          str_buf_full_i,
