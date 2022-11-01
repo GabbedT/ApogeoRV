@@ -39,9 +39,9 @@
 `ifndef LOAD_UNIT_CACHE_CONTROLLER_SV
     `define LOAD_UNIT_CACHE_CONTROLLER_SV
 
-`include "../../Include/data_memory_pkg.sv"
-`include "../../Include/core_configuration.svh"
-`include "../../Include/rv32_instructions_pkg.sv"
+`include "../../Include/Packages/data_memory_pkg.sv"
+`include "../../Include/Headers/core_configuration.svh"
+`include "../../Include/Packages/rv32_instructions_pkg.sv"
 
 module load_unit_cache_controller (
     /* Pipeline control */
@@ -175,9 +175,9 @@ module load_unit_cache_controller (
             for (int i = 0; i < WAYS_NUMBER; ++i) begin
                 if (i == lfsr_data[1:0]) begin
                     random_way_o[i] = 1'b1;
-                endelse begin
+                end else begin
                     random_way_o[i] = 1'b0;
-                en
+                end
             end
         end
 
