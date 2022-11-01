@@ -527,6 +527,7 @@ Illegal instruction values are also decoded in the algorithm. They are usually s
 
 Signal are passed to the issue stage: 
 * Instruction packet is created except for the rob tag
+* Latency time of the operation
 
 ## Issue (IS)
 
@@ -578,3 +579,40 @@ This is the controller of the IS stage, it determine whether issue or not the in
 The instruction can't be issued if one of the source registers match a destination register of a currently executing instruction. The information is directly given by the scoreboard. 
 
 The instruction is issued if the depending instruction in the execute stage is about to be passed to the commit stage or if the writeback stage has the corresponding destination register. These conditions can happen simultaneously 
+
+### Scoreboard 
+
+The scoreboard keeps track of the instructions in the execution unit. The informations are: 
+
+* Executing bit
+* Functional unit 
+* Register destination
+* Clock cycles until the unit produces a valid result
+
+Every functional unit is an entry (pipelined FUs have an entry for every pipe stage), for every entry is associated a counter that decrements every cycle the latency counter. The latency number is the number of cycles from the instruction issuing to the moment where the data become valid (ALU is fully combinational thus has latency of 0 cycles). Latency cycles are loaded in the scoreboard as LATENCY + 1, infact a latency of 1 means that the result is valid right now, 0 means that the instruction has been committed. 
+
+Example: 
+
+BMU: 1 latency cycle 
+MUL: 8 latency cycle
+
+Current stage of MUL instruction: 6 cycles in
+
+(SCB: MUL.lat = 3)
+
+Next cycle the BMU is issued and MUL instruction is 7 cycles in 
+
+(SCB: BMU.lat = 2, MUL.lat = 2)
+
+Next cycle both BMU and MUL will produce a valid result 
+
+(SCB: BMU.lat = 1, MUL.lat = 1)
+
+Next cycle both BMU and MUL get committed
+
+(SCB: BMU.lat = 0, MUL.lat = 0)
+
+
+Function Name | Initializer | Actor | Description | 
+------------- | ----------- | ----- | ----------- |
+Issue         | IS stage    | Scoreboard | If no dependencies are found (rd_instr == rd_entry[i]) and the functional units are free, issue the instruction. The current instruction latency is compared against every entry in the scoreboard. If equal to at least 1 entry (crt_instr_latency == entry_latency_next[i]), don't issue the instruction. When issuing the instruction load the scoreboard with a new entry |
