@@ -1,7 +1,7 @@
 `ifndef RV32_INSTRUCTION_INCLUDE_SV
     `define RV32_INSTRUCTION_INCLUDE_SV
 
-`include "core_configuration.svh"
+`include "../Headers/core_configuration.svh"
 
 package rv32_instructions_pkg;
 
@@ -25,6 +25,12 @@ package rv32_instructions_pkg;
         /* Load instructions */
         LUI, AUIPC
     } alu_operation_t;
+
+    /* Wrap to fit in a union */
+    typedef struct packed {
+        alu_operation_t command;
+        logic [14:0]    fill;
+    } alu_wrap_t;
 
     
 //------------------//
@@ -109,6 +115,12 @@ package rv32_instructions_pkg;
         MUL, MULH, MULHSU, MULHU 
     } mul_operation_t;
 
+    /* Wrap to fit in a union */
+    typedef struct packed {
+        mul_operation_t command;
+        logic [17:0]    fill;
+    } mul_wrap_t;
+
 
 //--------------------------//
 //  DIVIDE UNIT OPERATIONS  //
@@ -119,7 +131,13 @@ package rv32_instructions_pkg;
         DIV, DIVU, REM, REMU
     } div_operation_t;
 
+    /* Wrap to fit in a union */
+    typedef struct packed {
+        div_operation_t command;
+        logic [17:0]    fill;
+    } div_wrap_t;
 
+    
 //------------------//
 //  FPU OPERATIONS  //
 //------------------//
@@ -161,11 +179,11 @@ package rv32_instructions_pkg;
     /* 
      * Integer Execution Unit 
      */
-    typedef struct packed {
-        alu_operation_t  ALU;
-        bmu_operation_t  BMU;
-        mul_operation_t  MUL;
-        div_operation_t  DIV;
+    typedef union packed {
+        alu_wrap_t      ALU;
+        bmu_operation_t BMU;
+        mul_wrap_t      MUL;
+        div_wrap_t      DIV;
     } iexu_operation_t;
 
     typedef struct packed {
@@ -200,10 +218,9 @@ package rv32_instructions_pkg;
         /* Multiple speculative instruction generated 
          * by different jump can be in flight  */
         logic [1:0]  speculative_id;
-
-        `ifdef F_EXTENSION 
-            logic    is_float;
-        `endif 
+        
+        /* Is a floating point operation */
+        logic    is_float;
 
         /* Has generated an trap */
         logic        trap_generated;
