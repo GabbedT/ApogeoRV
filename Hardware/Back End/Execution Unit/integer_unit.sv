@@ -1,5 +1,5 @@
-`ifndef EXECUTION_UNIT_SV
-    `define EXECUTION_UNIT_SV
+`ifndef INTEGER_UNIT_SV
+    `define INTEGER_UNIT_SV
 
 `include "Integer Unit Submodules/arithmetic_logic_unit.sv"
 `include "Integer Unit Submodules/bit_manipulation_unit.sv"
@@ -7,9 +7,9 @@
 `include "Integer Unit Submodules/multiplication_unit.sv"
 
 `include "../../Include/Headers/core_configuration.svh"
-`include "../../Include/Pacakges/control_status_registers_pkg.sv"
+`include "../../Include/Packages/control_status_registers_pkg.sv"
  
-module execution_unit (
+module insteger_unit (
     /* Pipeline control */
     input  logic       clk_i,
     input  logic       rst_n_i,
@@ -24,10 +24,8 @@ module execution_unit (
         input  logic div_gated_clk_i,
     `endif
 
-    `ifdef C_EXTENSION 
-        /* Instruction jump (JAL, JALR) is compressed */
-        input  logic is_compressed_jmp_i,
-    `endif 
+    /* Instruction jump (JAL, JALR) is compressed */
+    input  logic is_compressed_jmp_i,
 
     /* Branch control */
     output logic              is_branch_o,
@@ -87,13 +85,9 @@ module execution_unit (
         .operand_A_i          ( operand_A_i               ),
         .operand_B_i          ( operand_B_i               ),
         .instr_addr_i         ( instr_packet_i.instr_addr ),
-        .operation_i          ( operation_i.ALU           ),
+        .operation_i          ( operation_i.ALU.command   ),
         .data_valid_i         ( data_valid_i.ALU          ),
-
-        `ifdef C_EXTENSION 
-            .is_compressed_jump_i ( is_compressed_jmp_i   ),
-        `endif 
-
+        .is_compressed_jump_i ( is_compressed_jmp_i       ),
         .result_o             ( result_alu                ),
         .branch_taken_o       ( branch_taken_o            ),
         .is_branch_o          ( is_branch_o               ),
@@ -170,13 +164,13 @@ module execution_unit (
             .clk_i    ( clk_i         ),
             .clk_en_i ( disable_mul_n ),
         `endif 
-        .rst_n_i        ( rst_n_i          ),
-        .multiplicand_i ( operand_A_i      ),
-        .multiplier_i   ( operand_B_i      ),
-        .data_valid_i   ( data_valid_i.MUL ),
-        .operation_i    ( operation_i.MUL  ),
-        .product_o      ( mul_result_o     ),
-        .data_valid_o   ( mul_valid_o      )
+        .rst_n_i        ( rst_n_i                 ),
+        .multiplicand_i ( operand_A_i             ),
+        .multiplier_i   ( operand_B_i             ),
+        .data_valid_i   ( data_valid_i.MUL        ),
+        .operation_i    ( operation_i.MUL.command ),
+        .product_o      ( mul_result_o            ),
+        .data_valid_o   ( mul_valid_o             )
     );
 
 
@@ -213,15 +207,15 @@ module execution_unit (
             .clk_i    ( clk_i         ),
             .clk_en_i ( disable_div_n ),
         `endif 
-        .rst_n_i          ( rst_n_i          ),
-        .dividend_i       ( operand_A_i      ),
-        .divisor_i        ( operand_B_i      ),
-        .data_valid_i     ( data_valid_i.DIV ),
-        .operation_i      ( operation_i.DIV  ),
-        .product_o        ( div_result_o     ),
-        .data_valid_o     ( div_valid_o      ),
-        .divide_by_zero_o ( divide_by_zero   ),
-        .idle_o           ( div_idle         )
+        .rst_n_i          ( rst_n_i                 ),
+        .dividend_i       ( operand_A_i             ),
+        .divisor_i        ( operand_B_i             ),
+        .data_valid_i     ( data_valid_i.DIV        ),
+        .operation_i      ( operation_i.DIV.command ),
+        .product_o        ( div_result_o            ),
+        .data_valid_o     ( div_valid_o             ),
+        .divide_by_zero_o ( divide_by_zero          ),
+        .idle_o           ( div_idle                )
     );
     
     assign div_idle_o = div_idle;
@@ -258,6 +252,6 @@ module execution_unit (
         else $error("Multiple functional unit overlapping!");
     `endif 
 
-endmodule : execution_unit
+endmodule : integer_unit
 
 `endif 
