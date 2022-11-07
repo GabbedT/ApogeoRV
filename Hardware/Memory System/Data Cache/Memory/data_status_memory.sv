@@ -36,7 +36,7 @@
 `ifndef DATA_STATUS_MEMORY_SV
     `define DATA_STATUS_MEMORY_SV
 
-`include "../../../Include/data_memory_pkg.sv"
+`include "../../../Include/Packages/data_memory_pkg.sv"
 
 module data_status_memory (
     input  logic                    clk_i,
