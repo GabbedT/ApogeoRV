@@ -1,6 +1,6 @@
 # ADDER ARCHITECTURE
 
-The adder will have a simple architecture (no double path etc.). To maximize throughput the module will be pipelined in: 
+PIPELINE: 
 
 * Compare the two exponents of A and B and make sure that X.e >= Y.e by swapping operands (X is major and Y is minor). Perform the subtraction of the exponents and compute the absolute value. Save in the pipeline register:
   * Subtraction result 
@@ -28,3 +28,26 @@ The adder will have a simple architecture (no double path etc.). To maximize thr
     * R.e -= N ((if R.e == e_MIN) then (R.e = R.e and R.m << (R.e - e_MIN)))
 
 * Round the result in the common rounding stage
+
+
+# MULTIPLIER ARCHITECTURE
+
+PIPELINE: 
+
+* Find the result sign: A.s ^ B.s. Find the type of number (inf or NaN). Find the hidden bit (|exp). Find a first stage exponent for the result (A.exp + B.exp - (|A.exp + |B.exp))
+
+* Finish computing the exponent (st1_exp + 2 - BIAS). Compute the product of the mantissa (with carry). Compute the leading zeros of the input mantissas (both) take the greater.
+
+* Normalize: 
+  * Normal case (both operands not denormals)
+    * If the MSB of the mantissa result is 1 shift right and increment the exponent
+      * If the exponent overflow set the result to infinity
+      * If the result underflow set the result to 0
+  * Both operands are denormals
+    * Set underflow flags and the result to 0
+  * One of the operands is denormal
+    * Shift the mantissa result left by N bits (computed by the clz)
+      * If the MSB is still zero take the [MSB - 1:X] 
+      * Else take the [MSB:X]
+    * Subtract the exponent by N
+      * Result can underflow, if exponent is negative set it to 0
