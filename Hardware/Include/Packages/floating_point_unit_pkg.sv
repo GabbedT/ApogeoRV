@@ -6,10 +6,10 @@ package floating_point_unit_pkg;
     /* Bias for exponent */
     localparam BIAS = 127;
 
-    /* Maximum exponent unbiased */
+    /* Maximum exponent unbiased (excluded infinities) */
     localparam MAX_EXP = 127 + BIAS;
 
-    /* Minimum exponent unbiased */
+    /* Minimum exponent unbiased (excluded denormals) */
     localparam MIN_EXP = -126 + BIAS;
 
     /* Canonical NaN in RISCV */
