@@ -8,9 +8,9 @@
 
 
 module floating_point_multiplier #(
-    parameter CORE_STAGES = `FP_MUL_PIPE_STAGES
+    parameter CORE_STAGES = 4
 ) (
-    input  logic     clk_i,
+    input  logic clk_i,
 
     `ifdef FPGA 
         input logic clk_en_i, 
@@ -114,7 +114,7 @@ module floating_point_multiplier #(
 
                 /* An invalid exception is raised if one of the invalid combinations of operands is detected 
                  * or if a denormal number is detected */
-                invalid_operation_stg0 <= invalid_operation | !(multiplicand_hidden_bit & multiplier_hidden_bit);
+                invalid_operation_stg0 <= invalid_operation | !((multiplicand_hidden_bit & !multiplicand_is_zero) & (multiplier_hidden_bit & !multiplier_is_zero));
 
                 result_exp_stg0 <= result_exp;
                 result_sign_stg0 <= result_sign;
