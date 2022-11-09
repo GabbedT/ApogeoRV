@@ -30,10 +30,16 @@
 // VERSION : 1.0 
 // DESCRIPTION : Multiplication unit of RV32 Apogeo can handle both signed and unsigned
 //               operations. It is fully pipelined so it can accept new operands every
-//               cycle. The latency is of 9 clock cycles, the core module implements
-//               the long multiplication algorithm and has 7 clock cycles of latency, 
-//               the 2 clock cycles of overhead is due to operands conversion at the
-//               start and at the end of the computation.
+//               cycle. The functional unit can be configured for ASIC or FPGA through 
+//               a `define (ASIC / FPGA). When ASIC is selected, a custom array long
+//               multiplier is selected, when FPGA is selected a custom vendor's IP 
+//               must be generated and instantiated (in this case is Vivado).
+//               The core multiplier instantiation pipeline stages must match the 
+//               CORE_STAGES parameter (for ASIC the module is automatically generated
+//               for FPGA the module must be generated manually).
+//               The stages parameter refers to the CORE MULTIPLIER not the overall 
+//               stages of the functional unit. 
+//               The minimum stages number is 2. 
 // ------------------------------------------------------------------------------------
 
 
@@ -46,7 +52,8 @@
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
 
 module multiplication_unit #(
-    parameter DATA_WIDTH = 32
+    parameter DATA_WIDTH = 32,
+    parameter CORE_STAGES = `MUL_PIPE_STAGES
 ) (
     input  logic                    clk_i,
     input  logic                    clk_en_i,
@@ -105,66 +112,121 @@ module multiplication_unit #(
         end : conversion_logic
 
 
-    /* Place registers to lower the delay */
-    logic [DATA_WIDTH - 1:0] mul_multiplicand, mul_multiplier;
-    logic              data_valid;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : first_stage_register
-            if (!rst_n_i) begin
-                mul_multiplicand <= 'b0;
-                mul_multiplier <= 'b0;
-                data_valid <= 1'b0;
-            end else if (clk_en_i) begin
-                mul_multiplicand <= multiplicand;
-                mul_multiplier <= multiplier;
-                data_valid <= data_valid_i;
-            end
-        end : first_stage_register
-
-
-    /* The operation must be passed through the pipeline */
-    mul_operation_t [8:0] operation_stage;
-
-        always_ff @(posedge clk_i) begin : operation_shift_register
-            if (clk_en_i) begin
-                operation_stage <= {operation_stage[7:0], operation_i};
-            end
-        end : operation_shift_register
-
-
-    /* Carry signal to know if the result needs a conversion */
-    logic [8:0] convert_output;
-    logic       conversion_enable;
+    /* If the result needs to be converted */
+    logic conversion_enable;
 
     /* If the operands signs are not equal and there's a signed operation */
     assign conversion_enable = (multiplier_sign ^ multiplicand_sign) & (is_signed_operation_rs1 | is_signed_operation_rs2);
 
-        always_ff @(posedge clk_i) begin
-            if (clk_en_i) begin
-                convert_output <= {convert_output[7:0], conversion_enable};
+
+    /* Place registers to lower the delay */
+    logic [DATA_WIDTH - 1:0] multiplicand_stg0, multiplier_stg0;
+    logic                    conversion_enable_stg0;
+    mul_operation_t          operation_stg0;
+    
+
+        always_ff @(posedge clk_i) begin : first_stage_register
+            `ifdef FPGA if (clk_en_i) `endif begin
+                conversion_enable_stg0 <= conversion_enable;
+                multiplicand_stg0 <= multiplicand;
+                multiplier_stg0 <= multiplier;
+                operation_stg0 <= operation_i;
             end
-        end
+        end : first_stage_register
+
+
+    logic data_valid_stg0;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_valid_stage_register
+            if (!rst_n_i) begin 
+                data_valid_stg0 <= 1'b0;
+            end else `ifdef FPGA if (clk_en_i) `endif begin 
+                data_valid_stg0 <= data_valid_i;
+            end
+        end : data_valid_stage_register
+
+
+//--------------------//
+//  SIGNALS PIPELINE  //
+//--------------------//
+
+    /* The operation must be passed through the pipeline */
+    mul_operation_t [CORE_STAGES:0] operation_pipe;
+
+        always_ff @(posedge clk_i) begin : operation_shift_register
+            `ifdef FPGA if (clk_en_i) begin `endif 
+                if (CORE_STAGES == 0) begin 
+                    operation_pipe <= operation_stg0;
+                end else begin 
+                    operation_pipe <= {operation_pipe[CORE_STAGES - 1:0], operation_stg0};
+                end 
+           `ifdef FPGA end `endif 
+        end : operation_shift_register
+
+
+    /* Carry signal to know if the result needs a conversion */
+    logic [CORE_STAGES:0] convert_output_pipe;
+
+        always_ff @(posedge clk_i) begin : convert_signal_shift_register
+            `ifdef FPGA if (clk_en_i) begin `endif 
+                if (CORE_STAGES == 0) begin 
+                    convert_output_pipe <= conversion_enable_stg0;
+                end else begin 
+                    convert_output_pipe <= {convert_output_pipe[CORE_STAGES - 1:0], conversion_enable_stg0};
+                end 
+           `ifdef FPGA end `endif 
+        end : convert_signal_shift_register
 
 
 //------------------------//
 //  MULTIPLICATION STAGE  //
 //------------------------//
 
+`ifdef ASIC 
+
     /* Array multiplier instantiation, XLEN bit and 8 clock cycles of latency */
     logic [RESULT_WIDTH - 1:0] mul_result;
     logic                      mul_data_valid;
 
-    pipelined_array_multiplier #(DATA_WIDTH, 8) array_multiplier (
-        .clk_i          ( clk_i            ),
-        .clk_en_i       ( clk_en_i         ),
-        .rst_n_i        ( rst_n_i          ),
-        .multiplicand_i ( mul_multiplicand ),
-        .multiplier_i   ( mul_multiplier   ),
-        .data_valid_i   ( data_valid       ),
-        .product_o      ( mul_result       ),
-        .data_valid_o   ( mul_data_valid   )
+    pipelined_array_multiplier #(DATA_WIDTH, CORE_STAGES) multiplier_core (
+        .clk_i          ( clk_i             ),
+        .clk_en_i       ( 1'b1              ),
+        .rst_n_i        ( rst_n_i           ),
+        .multiplicand_i ( multiplicand_stg0 ),
+        .multiplier_i   ( multiplier_stg0   ),
+        .data_valid_i   ( data_valid        ),
+        .product_o      ( mul_result        ),
+        .data_valid_o   ( mul_data_valid    )
     );
 
+`elsif FPGA 
+
+    logic [RESULT_WIDTH - 1:0] mul_result;
+
+    /* Vivado IP module instantiation */
+    fpga_integer_multiplier multiplier_core (
+        .CLK ( clk_i             ), 
+        .A   ( multiplicand_stg0 ),      
+        .B   ( multiplier_stg0   ),     
+        .P   ( mul_result        )      
+    );
+
+
+    logic [CORE_STAGES:0]  mul_data_valid_pipe;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin 
+                mul_data_valid_pipe <= '0;
+            end else if `ifdef FPGA (clk_en_i) `endif begin 
+                if (CORE_STAGES == 0) begin 
+                    mul_data_valid_pipe <= data_valid_stg0;
+                end else begin 
+                    mul_data_valid_pipe <= {mul_data_valid_pipe[CORE_STAGES - 1:0], data_valid_stg0};
+                end 
+            end
+        end
+
+`endif 
 
     logic [RESULT_WIDTH - 1:0] last_stage_result;
     logic                      last_stage_data_valid;
@@ -172,11 +234,14 @@ module multiplication_unit #(
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin
                 last_stage_result <= mul_result;
-                last_stage_data_valid <= mul_data_valid;
+
+                `ifdef ASIC 
+                    last_stage_data_valid <= mul_data_valid;
+                `elsif FPGA 
+                    last_stage_data_valid <= mul_data_valid_pipe[CORE_STAGES];
+                `endif 
             end
         end
-
-    assign data_valid_o = last_stage_data_valid;
 
 
 //--------------//
@@ -185,15 +250,17 @@ module multiplication_unit #(
 
     logic [RESULT_WIDTH - 1:0] converted_result;
 
-    assign converted_result = (convert_output[8]) ? (~(last_stage_result) + 1'b1) : last_stage_result;
+    assign converted_result = (convert_output_pipe[CORE_STAGES]) ? (~(last_stage_result) + 1'b1) : last_stage_result;
 
         always_comb begin : final_conversion_logic
-            case (operation_stage[8]) 
+            case (operation_pipe[CORE_STAGES]) 
                 MUL: product_o = converted_result[DATA_WIDTH - 1:0];
 
                 default: product_o = converted_result[RESULT_WIDTH - 1:XLEN];
             endcase
         end : final_conversion_logic
+
+    assign data_valid_o = last_stage_data_valid;
 
 endmodule : multiplication_unit
 
