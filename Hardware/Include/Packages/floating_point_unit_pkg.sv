@@ -34,6 +34,21 @@ package floating_point_unit_pkg;
         ADD, SUB
     } fpadd_operation_t;
 
+    /* Fused multiply add operation */
+    typedef struct packed {
+        /* Specifies if the operation is 
+         * fused */
+        logic is_fused;
+        
+        /* Specifies if the result of the 
+         * multiplier needs to be inverted */
+        logic invert_product;
+
+        /* Specifies the operation on the 
+         * floating point adder */
+        fpadd_operation_t add_operation;
+    } fmadd_operation_t;
+
 endpackage : floating_point_unit_pkg 
 
 import floating_point_unit_pkg::*;
