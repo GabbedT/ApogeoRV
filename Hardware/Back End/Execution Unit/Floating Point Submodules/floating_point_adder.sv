@@ -2,10 +2,11 @@
     `define FLOATING_POINT_ADDER_SV
 
 `include "../../../Include/Packages/floating_point_unit_pkg.sv"
+`include "../../../Include/Headers/core_configuration.svh"
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 
 module floating_point_adder (
-    input  logic             clk_i,
+    input  logic clk_i,
 
     `ifdef FPGA 
         input logic clk_en_i, 
@@ -218,18 +219,11 @@ module floating_point_adder (
     assign result_mantissa_abs = major_mantissa[24] ? -result_mantissa[23:0] : result_mantissa[23:0];
 
 
-    /* Check signs for normalization */
-    logic signs_different;
-
-    assign signs_different = major_addend_stg1.sign ^ minor_addend_sign_stg1;
-
-
     /* Stage register nets */
     float32_t    result_stg2;
     logic [23:0] minor_shifted_mantissa_stg2;
     logic        hidden_bit_result_stg2;
     logic        carry_result_stg2;
-    logic        signs_different_stg2;
     logic        invalid_operation_stg2;
 
         always_ff @(posedge clk_i) begin : stage2_register
@@ -238,8 +232,7 @@ module floating_point_adder (
                 result_stg2 <= {major_addend_stg1.sign, major_addend_stg1.exponent, result_mantissa_abs[22:0]};
 
                 /* Carry is valid only if there was an addition */
-                carry_result_stg2 <= result_mantissa[25] & !signs_different;
-                signs_different_stg2 <= signs_different;
+                carry_result_stg2 <= result_mantissa[24] & ({major_mantissa[24], minor_mantissa[24]} == '0);
                 invalid_operation_stg2 <= invalid_operation_stg1;
                 hidden_bit_result_stg2 <= result_mantissa_abs[23];
                 minor_shifted_mantissa_stg2 <= minor_shifted_mantissa_stg1;
@@ -293,12 +286,12 @@ module floating_point_adder (
             final_overflow = 1'b0; 
             final_underflow = 1'b0;
 
-            case ({(carry_result_stg2 & !signs_different_stg2), ((leading_zeros != 5'b0) & signs_different_stg2)})
+            case ({carry_result_stg2, (leading_zeros != 5'b0)})
 
                 /* If there was a carry and the signs are equals, so mantissas
                  * were added, then normalize the result by shifting the mantissa
                  * by one and incrementing the exponent */
-                2'b10: begin
+                2'b10, 2'b11: begin
                     result_shifted_one = {hidden_bit_result_stg2, result_stg2.mantissa} >> 1;
                     final_result.mantissa = result_shifted_one[22:0];
 
@@ -328,7 +321,7 @@ module floating_point_adder (
                         final_result.exponent = result_stg2.exponent - leading_zeros;
                         full_result_shifted_mantissa = {hidden_bit_result_stg2, result_stg2.mantissa, minor_shifted_mantissa_stg2} << leading_zeros;
 
-                        final_result.mantissa = full_result_shifted_mantissa[45:23];
+                        final_result.mantissa = full_result_shifted_mantissa[46:24];
 
                         final_underflow = 1'b0;
                     end
@@ -360,8 +353,8 @@ module floating_point_adder (
             round_bits.round = 1'b0;
             reversed_shifted_mantissa = '0;
 
-            case ({(carry_result_stg2 & !signs_different_stg2), ((leading_zeros != 5'b0) & signs_different_stg2)})
-                2'b01: begin
+            case ({carry_result_stg2, (leading_zeros != 5'b0)})
+                2'b01, 2'b11: begin
                     round_bits.guard = result_stg2.mantissa[0];
                     round_bits.round = minor_shifted_mantissa_stg2[23];
 
