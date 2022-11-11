@@ -68,6 +68,13 @@ module floating_point_adder (
     assign exp_subtraction = {1'b0, addend_A_i.exponent} - {1'b0, addend_B_i.exponent};
 
 
+    float32_t addend_B;
+
+    assign addend_B.sign = (operation_i == SUB) ? !addend_B_i.sign : addend_B_i.sign;
+    assign addend_B.exponent = addend_B_i.exponent;
+    assign addend_B.mantissa = addend_B_i.mantissa;
+
+
     /* Select the major and the minor number out of the two */
     float32_t major_addend, minor_addend;
 
@@ -78,22 +85,24 @@ module floating_point_adder (
         always_comb begin : exponent_select
             if (exp_subtraction[8]) begin
                 /* If the result is negative (B > A) */
-                major_addend = addend_B_i;
+                major_addend = addend_B;
                 minor_addend = addend_A_i;
-
-                if (operation_i == SUB) begin
-                    major_addend.sign = !addend_B_i.sign;
-                end
 
                 /* Complement the result to obtain absolute value */
                 exp_subtraction_abs = -exp_subtraction;
             end else begin
                 /* If the result is positive (A >= B) */
-                major_addend = addend_A_i;
-                minor_addend = addend_B_i;
-
-                if (operation_i == SUB) begin
-                    minor_addend.sign = !addend_B_i.sign;
+                if (exp_subtraction == '0) begin 
+                    if (addend_A_i.mantissa >= addend_B.mantissa) begin 
+                        major_addend = addend_A_i;
+                        minor_addend = addend_B;
+                    end else begin
+                        major_addend = addend_B;
+                        minor_addend = addend_A_i;
+                    end
+                end else begin
+                    major_addend = addend_A_i;
+                    minor_addend = addend_B;
                 end
 
                 /* No need to complement in this case */
@@ -105,7 +114,7 @@ module floating_point_adder (
     /* When two infinites are subtracted or one of the operands is a NaN */
     logic invalid_operation;
 
-    assign invalid_operation = ((is_infinity_A & is_infinity_B) & (addend_A_i.sign ^ minor_addend.sign)) | (is_nan_A | is_nan_B);
+    assign invalid_operation = ((is_infinity_A & is_infinity_B) & (addend_A_i.sign ^ addend_B.sign)) | (is_nan_A | is_nan_B);
 
 
     /* Hidden it of the minor addend */
@@ -184,39 +193,48 @@ module floating_point_adder (
 
 
     logic [24:0] major_mantissa, minor_mantissa;
+    logic        negate_result;
 
         always_comb begin : sum_logic
             case ({major_addend_stg1.sign, minor_addend_sign_stg1})
                 2'b00: begin
                     major_mantissa =  {1'b0, major_hidden_bit, major_addend_stg1.mantissa};
                     minor_mantissa =  {1'b0, minor_addend_mantissa_stg1};
+
+                    negate_result = 1'b0;
                 end
 
                 2'b01: begin
                     major_mantissa =  {1'b0, major_hidden_bit, major_addend_stg1.mantissa};
                     minor_mantissa = -{1'b0, minor_addend_mantissa_stg1};
+
+                    negate_result = 1'b0;
                 end
 
                 2'b10: begin
                     major_mantissa = -{1'b0, major_hidden_bit, major_addend_stg1.mantissa};
                     minor_mantissa =  {1'b0, minor_addend_mantissa_stg1};
+
+                    negate_result = 1'b1;
                 end
 
                 2'b11: begin
-                    major_mantissa = -{1'b0, major_hidden_bit, major_addend_stg1.mantissa};
-                    minor_mantissa = -{1'b0, minor_addend_mantissa_stg1};
+                    major_mantissa =  {1'b0, major_hidden_bit, major_addend_stg1.mantissa};
+                    minor_mantissa =  {1'b0, minor_addend_mantissa_stg1};
+
+                    negate_result = 1'b0;
                 end
             endcase
         end : sum_logic
 
     /* Result mantissa, consider also carry and hidden bits */
-    logic [25:0] result_mantissa;
+    logic [24:0] result_mantissa;
     logic [23:0] result_mantissa_abs;
 
     assign result_mantissa = major_mantissa + minor_mantissa;
 
     /* Compute the absolute value of the mantissa if the last bit of the result is 1 and the major number is negative */
-    assign result_mantissa_abs = major_mantissa[24] ? -result_mantissa[23:0] : result_mantissa[23:0];
+    assign result_mantissa_abs = negate_result ? -result_mantissa[23:0] : result_mantissa[23:0];
 
 
     /* Stage register nets */
@@ -232,7 +250,7 @@ module floating_point_adder (
                 result_stg2 <= {major_addend_stg1.sign, major_addend_stg1.exponent, result_mantissa_abs[22:0]};
 
                 /* Carry is valid only if there was an addition */
-                carry_result_stg2 <= result_mantissa[24] & ({major_mantissa[24], minor_mantissa[24]} == '0);
+                carry_result_stg2 <= result_mantissa[24] & (major_addend_stg1.sign == minor_addend_sign_stg1);
                 invalid_operation_stg2 <= invalid_operation_stg1;
                 hidden_bit_result_stg2 <= result_mantissa_abs[23];
                 minor_shifted_mantissa_stg2 <= minor_shifted_mantissa_stg1;
@@ -267,9 +285,6 @@ module floating_point_adder (
 
     assign exponent_sub_normalized = {1'b0, result_stg2.exponent} - leading_zeros;
 
-
-    /* Shifted out bit after normalization */
-    logic shifted_out_bit;
 
     /* Don't leave the shifted out bits during the normalization after a subtraction */
     logic [47:0] full_result_shifted_mantissa;
