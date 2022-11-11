@@ -8,7 +8,7 @@
 
 
 module floating_point_multiplier #(
-    parameter CORE_STAGES = 4
+    parameter CORE_STAGES = 1
 ) (
     input  logic clk_i,
 
@@ -162,14 +162,48 @@ module floating_point_multiplier #(
         end
 
 
+    /* Pre-elaboration for denormals normalization */
+    logic [4:0] right_shift_amt;
+    logic [8:0] pre_result_exponent, exponent_stg0_abs;
+    logic       underflow;
+
+        always_comb begin
+            /* Default value */
+            underflow = 1'b0;
+
+            /* If the exponent computed is negative, find the absolute value of it to calculate 
+             * the right shift amount of the result mantissa */
+            if (result_exp_stg0[8] & ({multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0} == 2'b00)) begin
+                exponent_stg0_abs = -result_exp_stg0;
+
+                if (exponent_stg0_abs < 24) begin  
+                    right_shift_amt = exponent_stg0_abs[4:0];
+                end else begin
+                    right_shift_amt = 5'd24;
+                    underflow = 1'b1;
+                end
+
+                pre_result_exponent = '0;
+            end else begin
+                right_shift_amt = '0;
+                pre_result_exponent = result_exp_stg0;
+            end
+        end
+
     logic [CORE_STAGES:0][8:0] result_exp_pipe;
+    logic [CORE_STAGES:0][4:0] right_shift_amt_pipe;
+    logic [CORE_STAGES:0]      underflow_pipe;          
 
         always_ff @(posedge clk_i) begin
             `ifdef FPGA if (clk_en_i) begin `endif
                 if (CORE_STAGES == 0) begin 
-                    result_exp_pipe <= result_exp_stg0;
+                    underflow_pipe <= underflow;
+                    result_exp_pipe <= pre_result_exponent;
+                    right_shift_amt_pipe <= right_shift_amt;
                 end else begin 
-                    result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], result_exp_stg0};
+                    underflow_pipe <= {underflow_pipe[CORE_STAGES - 1:0], underflow};
+                    result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], pre_result_exponent};
+                    right_shift_amt_pipe <= {right_shift_amt_pipe[CORE_STAGES - 1:0], right_shift_amt};
                 end 
             `ifdef FPGA end `endif
         end
@@ -252,7 +286,7 @@ module floating_point_multiplier #(
 //-----------------------//
 
     /* Exceptions */
-    logic overflow, underflow;
+    logic overflow;
 
     /* After normalization float fields */
     logic [47:0] mantissa_product_shifted;
@@ -270,6 +304,9 @@ module floating_point_multiplier #(
 
     /* Used for rounding */
     round_bits_t round_bits;
+
+    assign round_bits.guard = mantissa_product_stg1[22];
+    assign round_bits.round = mantissa_product_stg1[21];
 
         always_comb begin : reverse_bits
             /* Guard and sticky bits doesn't count */
@@ -293,12 +330,23 @@ module floating_point_multiplier #(
     );
 
     assign round_bits.sticky = (trailing_zeros != '0);
-        
 
-    /* Normalized exponent after shifting */
-    logic [8:0] exponent_normalized;
 
-    assign exponent_normalized = result_exp_pipe[CORE_STAGES] + 1'b1;
+    /* Mantissa shifted right */
+    logic [22:0] mantissa_normalized;
+
+        always_comb begin
+            if (mantissa_product_stg1[47] | (!mantissa_product_stg1[47] & (right_shift_amt_pipe[CORE_STAGES] != '0))) begin
+                mantissa_normalized = mantissa_product_shifted[47:23] >> right_shift_amt_pipe[CORE_STAGES];
+            end else begin
+                mantissa_normalized = mantissa_product_stg1[47:23] >> right_shift_amt_pipe[CORE_STAGES];
+            end
+        end 
+
+
+    logic [8:0] exponent_incremented;
+
+    assign exponent_incremented = result_exp_pipe[CORE_STAGES] + 1'b1;
 
 
     /* Both exponent inputs are negative (unbiased) */
@@ -315,39 +363,40 @@ module floating_point_multiplier #(
         always_comb begin : normalization_logic 
             /* Default values */
             final_result.exponent = result_exp_pipe[CORE_STAGES]; 
-            final_result.mantissa = mantissa_product_stg1[45:23];
-            underflow = 1'b0;
+            final_result.mantissa = mantissa_normalized[22:0];
             overflow = 1'b0;
-
-            round_bits.guard = mantissa_product_stg1[22];
-            round_bits.round = mantissa_product_stg1[21];
 
             /* If the result has a bit set in the MSB of the result mantissa, that
              * means that the result is bigger than "1,...", normalize by shifting
              * right and incrementing the exponent */
             if (mantissa_product_stg1[47]) begin 
-                final_result.mantissa = mantissa_product_shifted[45:23];
-                final_result.exponent = exponent_normalized[7:0];
+                final_result.mantissa = mantissa_normalized[22:0];
 
-                /* If the MSB of the exponent is set it can be an overflow or that
-                 * the exponent is negative */
-                if (exponent_normalized[8]) begin
-                    if (exp_both_negative) begin 
-                        /* The only case where the multiplication can underflow is
-                         * when both exponents inputs are negative. Set the final 
-                         * result to 0 */
-                        final_result.exponent = '0;
-                        final_result.mantissa = '0;
+                if (result_exp_pipe[CORE_STAGES] == '0) begin 
+                    final_result.exponent = result_exp_pipe[CORE_STAGES];
+                end else begin 
+                    final_result.exponent = exponent_incremented;
+                end 
 
-                        underflow = 1'b1;
-                    end else begin 
-                        /* If that's not the case then it's an overflow. Set
-                         * the final result to infinity */
-                        final_result.exponent = '1;
-                        final_result.mantissa = '0;
+                /* If the MSB of the exponent is set it's an overflow */
+                if (exponent_incremented[8]) begin 
+                    /* Set the final result to infinity */
+                    final_result.exponent = '1;
+                    final_result.mantissa = '0;
 
-                        overflow = 1'b1;
-                    end 
+                    overflow = 1'b1;
+                end
+            end else begin
+                final_result.mantissa = mantissa_normalized[22:0];
+                final_result.exponent = result_exp_pipe[CORE_STAGES]; 
+
+                /* If the MSB of the exponent is set it's an overflow */
+                if (result_exp_pipe[CORE_STAGES][8]) begin
+                    /* Set the final result to infinity */
+                    final_result.exponent = '1;
+                    final_result.mantissa = '0;
+
+                    overflow = 1'b1;
                 end
             end
         end : normalization_logic
@@ -372,7 +421,7 @@ module floating_point_multiplier #(
                 result_stg2 <= final_result;
 
                 overflow_stg2 <= overflow;
-                underflow_stg2 <= underflow;
+                underflow_stg2 <= underflow_pipe[CORE_STAGES];
                 invalid_operation_stg2 <= invalid_operation_pipe[CORE_STAGES];  
 
                 round_bits_stg2 <= round_bits;
