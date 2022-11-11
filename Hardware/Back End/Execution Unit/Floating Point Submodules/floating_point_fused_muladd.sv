@@ -128,7 +128,7 @@ module floating_point_fused_muladd (
 
         always_ff @(posedge clk_i) begin
             `ifdef FPGA if (clk_en_i) begin `endif 
-                mul_invalid_operation_pipe <= {mul_invalid_operation_pipe[FPMUL_PIPE_STAGES - 1:0], mul_invalid_operation};
+                mul_invalid_operation_pipe <= {mul_invalid_operation_pipe[FPMUL_PIPE_STAGES - 1:0], mul_invalid_op};
                 mul_overflow_pipe <= {mul_overflow_pipe[FPMUL_PIPE_STAGES - 1:0], mul_overflow};
                 mul_underflow_pipe <= {mul_underflow_pipe[FPMUL_PIPE_STAGES - 1:0], mul_underflow};
             `ifdef FPGA end `endif 
