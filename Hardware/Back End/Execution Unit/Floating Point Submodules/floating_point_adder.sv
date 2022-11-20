@@ -3,6 +3,7 @@
 
 `include "../../../Include/Packages/floating_point_unit_pkg.sv"
 `include "../../../Include/Headers/core_configuration.svh"
+
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 
 module floating_point_adder (
@@ -358,62 +359,31 @@ module floating_point_adder (
     /* Compute rounding bits (Guard, Round, Sticky) */
     round_bits_t round_bits;
 
-    /* Counting the trailing zeros of a number is counting the leading zeroes of that
-     * number with reversed bits */
-    logic [21:0] reversed_shifted_mantissa;
-
         always_comb begin
             /* Default values */
             round_bits.guard = 1'b0;
             round_bits.round = 1'b0;
-            reversed_shifted_mantissa = '0;
 
             case ({carry_result_stg2, (leading_zeros != 5'b0)})
                 2'b01, 2'b11: begin
                     round_bits.guard = result_stg2.mantissa[0];
                     round_bits.round = minor_shifted_mantissa_stg2[23];
-
-                    /* Reverse bits to count trailing zeros */
-                    for (int i = 0; i < 22; ++i) begin
-                        /* Last bit is shifted out */
-                        reversed_shifted_mantissa[i] = minor_shifted_mantissa_stg2[22 - i];
-                    end
+                    round_bits.sticky = minor_shifted_mantissa_stg2[22:0] != '0;        
                 end
 
                 2'b10: begin
                     round_bits.guard = full_result_shifted_mantissa[23];
                     round_bits.round = full_result_shifted_mantissa[22];
-
-                    /* Reverse bits to count trailing zeros */
-                    for (int i = 0; i < 22; ++i) begin
-                        reversed_shifted_mantissa[i] = full_result_shifted_mantissa[21 - i];
-                    end
+                    round_bits.sticky = full_result_shifted_mantissa[21:0] != '0;
                 end
 
                 default: begin
                     round_bits.guard = minor_shifted_mantissa_stg2[23];
                     round_bits.round = minor_shifted_mantissa_stg2[22];  
-
-                    /* Reverse bits to count trailing zeros */
-                    for (int i = 0; i < 22; ++i) begin
-                        reversed_shifted_mantissa[i] = minor_shifted_mantissa_stg2[21 - i];
-                    end
+                    round_bits.sticky = minor_shifted_mantissa_stg2[21:0] != '0;
                 end
             endcase 
         end
-
-    /* Compute the sticky bit by counting the number of trailing zeroes
-     * in the shifted out bits of mantissa (don't consider guard and round) */
-    logic [4:0] trailing_zeros;
-
-    count_leading_zeros #(24) ctz_mantissa (
-        .operand_i     ( {reversed_shifted_mantissa, 2'b11} ),
-        .lz_count_o    ( trailing_zeros                     ),
-        .is_all_zero_o (    /* NOT CONNECTED */             )
-    );
-
-    /* Sticky bit is set if there are less than 22 trailing zeroes */
-    assign round_bits.sticky = (trailing_zeros != 5'd22);
 
 
     /* Stage register nets */
