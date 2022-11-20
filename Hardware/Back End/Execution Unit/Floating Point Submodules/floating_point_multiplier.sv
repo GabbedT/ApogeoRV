@@ -3,6 +3,7 @@
 
 `include "../../../Include/Packages/floating_point_unit_pkg.sv"
 `include "../../../Include/Headers/core_configuration.svh"
+
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
 
@@ -294,54 +295,24 @@ module floating_point_multiplier #(
     assign mantissa_product_shifted = mantissa_product_stg1 >> 1;
 
 
-    /* Compute the sticky bit by counting the number of trailing zeroes
-     * in the shifted out bits of mantissa (don't consider guard and round) */
-    logic [4:0] trailing_zeros;
-
-    /* Counting the trailing zeros of a number is counting the leading zeroes of that
-     * number with reversed bits */
-    logic [23:0] reversed_mantissa;
+    /* Mantissa shifted right */
+    logic [22:0] mantissa_normalized;
+    logic [23:0] shifted_out_bits;
+ 
+        always_comb begin
+            if (mantissa_product_stg1[47] | (!mantissa_product_stg1[47] & (right_shift_amt_pipe[CORE_STAGES] != '0))) begin
+                {mantissa_normalized, shifted_out_bits} = mantissa_product_shifted[47:23] >> right_shift_amt_pipe[CORE_STAGES];
+            end else begin
+                {mantissa_normalized, shifted_out_bits} = mantissa_product_stg1[47:23] >> right_shift_amt_pipe[CORE_STAGES];
+            end
+        end 
 
     /* Used for rounding */
     round_bits_t round_bits;
 
-    assign round_bits.guard = mantissa_product_stg1[22];
-    assign round_bits.round = mantissa_product_stg1[21];
-
-        always_comb begin : reverse_bits
-            /* Guard and sticky bits doesn't count */
-            reversed_mantissa[1:0] = '1;
-
-            if (mantissa_product_stg1[47]) begin
-                for (int i = 2; i < 24; ++i) begin 
-                    reversed_mantissa[i] = mantissa_product_shifted[23 - i];
-                end
-            end else begin
-                for (int i = 2; i < 24; ++i) begin 
-                    reversed_mantissa[i] = mantissa_product_stg1[23 - i];
-                end
-            end
-        end : reverse_bits
-
-    count_leading_zeros #(24) ctz_mantissa (
-        .operand_i     ( reversed_mantissa   ),
-        .lz_count_o    ( trailing_zeros      ),
-        .is_all_zero_o ( /* NOT CONNECTED */ )
-    );
-
-    assign round_bits.sticky = (trailing_zeros != '0);
-
-
-    /* Mantissa shifted right */
-    logic [22:0] mantissa_normalized;
-
-        always_comb begin
-            if (mantissa_product_stg1[47] | (!mantissa_product_stg1[47] & (right_shift_amt_pipe[CORE_STAGES] != '0))) begin
-                mantissa_normalized = mantissa_product_shifted[47:23] >> right_shift_amt_pipe[CORE_STAGES];
-            end else begin
-                mantissa_normalized = mantissa_product_stg1[47:23] >> right_shift_amt_pipe[CORE_STAGES];
-            end
-        end 
+    assign round_bits.guard = shifted_out_bits[22];
+    assign round_bits.round = shifted_out_bits[21];
+    assign round_bits.sticky = shifted_out_bits[20:0] != '0;
 
 
     logic [8:0] exponent_incremented;
