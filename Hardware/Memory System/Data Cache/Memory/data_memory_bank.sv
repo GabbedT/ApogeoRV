@@ -41,7 +41,7 @@
 `ifndef DATA_MEMORY_BANK_SV
     `define DATA_MEMORY_BANK_SV
 
-`include "../../../Include/data_memory_pkg.sv"
+`include "../../../Include/Packages/data_memory_pkg.sv"
 
 module data_memory_bank (
     input  logic                    clk_i,

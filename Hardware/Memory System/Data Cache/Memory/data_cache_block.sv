@@ -39,7 +39,7 @@
 `ifndef DATA_CACHE_BLOCK_SV
     `define DATA_CACHE_BLOCK_SV
 
-`include "../../../Include/data_memory_pkg.sv"
+`include "../../../Include/Packages/data_memory_pkg.sv"
 `include "data_memory_bank.sv"
 
 module data_cache_block (
