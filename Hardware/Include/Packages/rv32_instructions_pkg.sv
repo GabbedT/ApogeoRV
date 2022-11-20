@@ -16,7 +16,6 @@ package rv32_instructions_pkg;
         JAL, JALR, BEQ, BNE, BGE, 
         BLT, BLTU, BGEU,
 
-        /* Arithmetic and logic instructions */
         ADD, SUB, ADDI,
         SLL, SLLI, SRL, SRLI, SRA, SRAI,
         AND, ANDI, OR, ORI, XOR, XORI,

@@ -63,11 +63,9 @@ module arithmetic_logic_unit (
      *  ADDI, ADD, SUB, LUI, AUIPC, JAL, JALR
      */
 
-    logic [XLEN - 1:0] adder_result, operand_B;
+    logic [XLEN - 1:0] adder_result;
 
-    assign operand_B = (operation_i == SUB) ? (~operand_B_i + 1'b1) : operand_B_i;
-
-    assign adder_result = operand_A_i + operand_B;
+    assign adder_result = operand_A_i + operand_B_i;
 
 
 //-------------------//
@@ -165,10 +163,6 @@ module arithmetic_logic_unit (
 //----------------//
 //  RESULT LOGIC  //
 //----------------//
-
-    /*
-     *  AND, OR, XOR
-     */
 
     assign data_valid_o = data_valid_i;
 
