@@ -11,9 +11,20 @@ package vector_unit_pkg;
         logic [1:0][15:0] vect2;
     } vector_t;
 
+
+    /* Result vector */
+    typedef union packed {
+        /* 16 bits result */
+        logic [1:0][31:0] vect2;
+
+        /* 8 bits result */
+        logic [3:0][15:0] vect4;
+    } vmul_vector_t;
+
+
     typedef enum logic {
         BIT8, BIT16
-    } vec_len_t;
+    } esize_t;
 
 
 //-----------------------//
@@ -86,6 +97,22 @@ package vector_unit_pkg;
 //  MULTIPLICATION UNIT OPERATIONS  //
 //----------------------------------//
 
+    typedef enum logic { 
+        /* Simple multiplication */
+        VMUL, 
+        
+        /* Multiply accumulate and saturate */
+        VMAC
+    } vmul_operation_t;
+
+    typedef enum logic {
+        /* Accumulate */
+        ACC, 
+
+        /* Saturate */
+        SAT
+    } vacc_operation_t;
+
     /* Saaturation operation in multiply instructions */
     typedef enum logic [1:0] {
         SAT7, SAT15, SAT31
@@ -96,13 +123,16 @@ package vector_unit_pkg;
         RND_32X32, RND_32X16
     } round_operation_t;
 
-    /* Shift before operation */
+    /* Shift before operation (round or saturate) */
     typedef enum logic [1:0] {
         /* Arithmetic shift right */
         ASR15, ASR7, 
         
         /* Logical shift left */
-        LSL1
+        LSL1,
+
+        /* No shift */
+        NONE
     } shift_operation_t;
 
     /* In ADD operation one operand is always 
@@ -121,8 +151,8 @@ package vector_unit_pkg;
         /* Simple multiplication */
         ML,
 
-        /* Multipliy Shift and Saturate */
-        ML_SH_ST, 
+        /* Multipliy and Saturate */
+        ML_ST, 
         
         /* Multiply and Round */
         ML_RD, 
@@ -133,8 +163,8 @@ package vector_unit_pkg;
         /* Multiply Round Add and Saturate */
         ML_RD_AD_ST, 
 
-        /* Multiply Shift Round and Saturate */
-        ML_SH_RD_ST
+        /* Multiply Round and Saturate */
+        ML_RD_ST
     } sequence_operation_t;
 
     /* Operation packet */
