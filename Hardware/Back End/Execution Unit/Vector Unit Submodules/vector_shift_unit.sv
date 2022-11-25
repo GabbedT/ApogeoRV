@@ -36,17 +36,35 @@
     `define VECTOR_SHIFT_UNIT_SV
 
 `include "../../../Include/Packages/vector_unit_pkg.sv"
+`include "../../../Include/Headers/core_configuration.svh" 
 
 module vector_shift_unit (
-    input logic              clk_i,
-    input logic              data_valid_i,
-    input vector_t           operand_i,
-    input logic [4:0]        shift_amt_i,
-    input vec_len_t          vector_length_i,
+    /* Registers control */
+    input logic clk_i,
+    input logic clk_en_i,
+
+    /* The inputs are valid */
+    input logic data_valid_i,
+
+    /* Operand */
+    input vector_t operand_i,
+
+    /* Shift amount */
+    input logic [4:0] shift_amt_i,
+
+    /* Specify how to divide the 32 bits 
+     * operands and how to operate on them */
+    input esize_t vector_length_i,
+
+    /* Specify the operation to execute */
     input vshift_operation_t operation_i,
 
+
+    /* Result */
     output vector_t result_o,
     output logic    data_valid_o,
+
+    /* If the addition has overflowed */
     output logic    overflow_flag_o
 );
 
@@ -218,13 +236,15 @@ module vector_shift_unit (
     logic [1:0] operation_select;
 
         always_ff @(posedge clk_i) begin
-            shift_result <= shift_select;
-            msb_shifted <= msb_shifted_select;
-            vector_length <= vector_length_i;
-            operation_select <= operation_sel;
-            shifted_out_left <= sll_out;
-            element_negative <= element_sign;
-            data_valid_o <= data_valid_i;
+            `ifdef FPGA if (clk_en_i) begin `endif 
+                shift_result <= shift_select;
+                msb_shifted <= msb_shifted_select;
+                vector_length <= vector_length_i;
+                operation_select <= operation_sel;
+                shifted_out_left <= sll_out;
+                element_negative <= element_sign;
+                data_valid_o <= data_valid_i;
+            `ifdef FPGA end `endif 
         end
 
 

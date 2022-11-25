@@ -39,13 +39,23 @@
 `include "../../../Include/Packages/vector_unit_pkg.sv"
 
 module vector_comparison_unit (
+    /* Operands */
     input vector_t          operand_A_i,
     input vector_t          operand_B_i,
-    input vec_len_t         vector_length_i,
+
+    /* Specify how to divide the 32 bits 
+     * operands and how to operate on them */  
+    input esize_t element_size_i,
+
+    /* Specify the operation to execute */
     input vcomp_operation_t operation_i,
     input logic             signed_operation_i,
-    input logic             data_valid_i,
 
+    /* Inputs valid */
+    input logic data_valid_i,
+
+
+    /* Result */
     output vector_t result_o,
     output logic    data_valid_o
 );
