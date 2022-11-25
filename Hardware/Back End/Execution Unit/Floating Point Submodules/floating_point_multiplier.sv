@@ -223,11 +223,7 @@ module floating_point_multiplier #(
 
         pipelined_array_multiplier #(24, CORE_STAGES) mantissa_core_multiplier (
             .clk_i          ( clk_i                              ),
-            `ifdef FPGA 
-                .clk_en_i   ( clk_en_i                           ),
-            `elsif ASIC 
-                .clk_en_i   ( 1'b1                               ),
-            `endif
+            .clk_en_i       ( 1'b1                               ),
             .rst_n_i        ( rst_n_i                            ),
             .multiplicand_i ( {1'b1, multiplicand_mantissa_stg0} ),
             .multiplier_i   ( {1'b1, multiplier_mantissa_stg0}   ),
