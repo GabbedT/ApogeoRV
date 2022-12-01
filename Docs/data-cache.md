@@ -19,7 +19,7 @@ Range | Name | Description |
 [3:2]   | Chip select | Used to access one of the N data banks
 [1:0]   | Byte select | Used to access a byte (in byte operations)
 
----
+--- 
 
 &nbsp;
 
@@ -39,7 +39,7 @@ The cache is directly connected to the **Load Store Unit** which resides in the 
 ![Cache Diagram](../Images/DataCacheDiagram.png)
 
 &nbsp;
-
+ 
 ### Memory design 
 
 As said, the cache configuration is 4-way, 16KB with a 128 bit (16 bytes) wide data block. 
