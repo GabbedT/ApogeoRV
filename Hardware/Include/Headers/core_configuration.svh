@@ -54,15 +54,15 @@
      */
      
     /* Enable cache */
-    `define CACHE
+    `define CACHE_ENABLE
 
     /* In bytes */
-    `define DATA_CACHE_SIZE 2 ** 14
+    `define DATA_CACHE_SIZE 2 ** 16
 
     /* In bits */
-    `define DATA_CACHE_BLOCK_SIZE 128
+    `define DATA_CACHE_BLOCK_SIZE 128 
 
-    `define DATA_CACHE_ASSOCIATIVITY 4
+    `define DATA_CACHE_ASSOCIATIVITY 2
 
 
     /* 
