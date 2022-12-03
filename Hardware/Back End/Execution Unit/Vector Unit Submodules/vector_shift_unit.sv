@@ -156,43 +156,43 @@ module vector_shift_unit (
             operation_sel = SIMPLE; 
 
             case (operation_i) 
-                SRA: begin
+                VSRA: begin
                     shift_select = sra_result;
                     msb_shifted_select = sra_msb_out;
                     operation_sel = SIMPLE; 
                 end
                 
-                RND_SRA: begin
+                RND_VSRA: begin
                     shift_select = sra_result;
                     msb_shifted_select = sra_msb_out;
                     operation_sel = ROUNDING;
                 end
 
-                SRL: begin
+                VSRL: begin
                     shift_select = srl_result;
                     msb_shifted_select = srl_msb_out;
                     operation_sel = SIMPLE; 
                 end
                 
-                RND_SRL: begin
+                RND_VSRL: begin
                     shift_select = srl_result;
                     msb_shifted_select = srl_msb_out;
                     operation_sel = ROUNDING;
                 end
 
-                SLL: begin
+                VSLL: begin
                     shift_select = sll_result;
                     msb_shifted_select = '0;
                     operation_sel = SIMPLE; 
                 end 
                 
-                SAT_SLL: begin
+                SAT_VSLL: begin
                     shift_select = sll_result;
                     msb_shifted_select = '0;
                     operation_sel = SATURATION; 
                 end   
 
-                SATL_SMPR: begin
+                VSATL_SMPR: begin
                     if (shift_amt_i[4]) begin
                         /* If the shift amount is negative perform 
                          * a simple shift right arithmetic */
@@ -209,7 +209,7 @@ module vector_shift_unit (
                     end
                 end 
 
-                SATL_RNDR: begin
+                VSATL_RNDR: begin
                     if (shift_amt_i[4]) begin
                         /* If the shift amount is negative perform 
                          * a shift right arithmetic and round */
