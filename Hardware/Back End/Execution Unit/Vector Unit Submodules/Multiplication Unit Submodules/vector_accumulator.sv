@@ -28,8 +28,8 @@
 // -------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : This module performs an accumulation after the multiplication or a 
-//               Q7 or Q15 saturation.
+// DESCRIPTION : This module performs an accumulation after the vector multiplication 
+//               or a Q7 or Q15 saturation.
 // -------------------------------------------------------------------------------------
 
 `ifndef VECTOR_ACCUMULATOR_SV
@@ -39,7 +39,7 @@
 
 module vector_accumulator (
     /* Register destination used as accumulator */
-    input logic [31:0] reg_destination_i,
+    input logic [31:0] reg_accumulator_i,
 
     /* Result from the multiplier */
     input vmul_vector_t vmul_result_i,
@@ -164,7 +164,7 @@ module vector_accumulator (
             case (operation_i)
                 ACCUMULATE: begin
                     /* Accumulation logic */
-                    result_o = reg_destination_i + accumulator;
+                    result_o = reg_accumulator_i + accumulator;
                     overflow_flag_o = 1'b0;
                 end
 
