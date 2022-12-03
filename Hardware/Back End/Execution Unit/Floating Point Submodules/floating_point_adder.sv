@@ -71,7 +71,7 @@ module floating_point_adder (
 
     float32_t addend_B;
 
-    assign addend_B.sign = (operation_i == SUB) ? !addend_B_i.sign : addend_B_i.sign;
+    assign addend_B.sign = (operation_i == FSUB) ? !addend_B_i.sign : addend_B_i.sign;
     assign addend_B.exponent = addend_B_i.exponent;
     assign addend_B.mantissa = addend_B_i.mantissa;
 
