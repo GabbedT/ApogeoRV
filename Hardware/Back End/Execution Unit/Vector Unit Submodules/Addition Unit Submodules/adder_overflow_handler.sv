@@ -35,7 +35,7 @@
 `ifndef ADDER_OVERFLOW_HANDLER_SV
     `define ADDER_OVERFLOW_HANDLER_SV
 
-`include "../../../Include/Packages/vector_unit_pkg.sv"
+`include "../../../../Include/Packages/vector_unit_pkg.sv"
 
 `include "vector_adder.sv"
 
@@ -71,7 +71,7 @@ module adder_overflow_handler (
                 if (signed_operation_i) begin 
                     for (int i = 0; i < 2; ++i) begin
                         /* Shift signed right by 1 */
-                        halving_result.vect2[i] = {carry_out[(i * 2) + 1], vadd_result_i.vect2[i][15:1]};
+                        halving_result.vect2[i] = {carry_i[(i * 2) + 1], vadd_result_i.vect2[i][15:1]};
                     end
                 end else begin
                     for (int i = 0; i < 2; ++i) begin
@@ -83,7 +83,7 @@ module adder_overflow_handler (
                 if (signed_operation_i) begin 
                     for (int i = 0; i < 4; ++i) begin
                         /* Shift signed right by 1 */
-                        halving_result.vect4[i] = {carry_out[i], vadd_result_i.vect4[i][7:1]};
+                        halving_result.vect4[i] = {carry_i[i], vadd_result_i.vect4[i][7:1]};
                     end
                 end else begin
                     for (int i = 0; i < 4; ++i) begin
@@ -110,8 +110,8 @@ module adder_overflow_handler (
                          * then the number is bigger than 2^15 - 1. If the result is
                          * negative (carry == 1) and the MSB is not set, then the number
                          * is smaller than -2^15 */
-                        if (carry_out[(i * 2) + 1] ^ vadd_result_i.vect2[i][15]) begin
-                            if (carry_out[(i * 2) + 1]) begin
+                        if (carry_i[(i * 2) + 1] ^ vadd_result_i.vect2[i][15]) begin
+                            if (carry_i[(i * 2) + 1]) begin
                                 /* If the adder result is negative, set the result to 0x8000 */
                                 saturated_result.vect2[i] = 16'h8000;
                             end else begin
@@ -130,7 +130,7 @@ module adder_overflow_handler (
                     for (int i = 0; i < 2; ++i) begin
                         /* If the result has overflowed (carry == 1) then the number is 
                         * bigger than 2^16 - 1 */
-                        if (carry_out[(i * 2) + 1]) begin
+                        if (carry_i[(i * 2) + 1]) begin
                             saturated_result.vect2[i] = '1;
 
                             overflow_flag = 1'b1;
@@ -148,8 +148,8 @@ module adder_overflow_handler (
                          * then the number is bigger than 2^7 - 1. If the result is
                          * negative (carry == 1) and the MSB is not set, then the number
                          * is smaller than -2^7 */
-                        if (carry_out[i] ^ vadd_result_i.vect4[i][7]) begin
-                            if (carry_out[i]) begin
+                        if (carry_i[i] ^ vadd_result_i.vect4[i][7]) begin
+                            if (carry_i[i]) begin
                                 /* If the adder result is negative, set the result to 0x80 */
                                 saturated_result.vect2[i] = 8'h80;
                             end else begin
@@ -169,7 +169,7 @@ module adder_overflow_handler (
                     for (int i = 0; i < 4; ++i) begin 
                         /* If the result has overflowed (carry == 1), then the number is 
                         * bigger than 2^8 - 1 */
-                        if (carry_out[i]) begin
+                        if (carry_i[i]) begin
                             saturated_result.vect4[i] = '1;
 
                             overflow_flag = 1'b1;
