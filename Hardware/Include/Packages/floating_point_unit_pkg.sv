@@ -31,7 +31,7 @@ package floating_point_unit_pkg;
 
     /* FPADD unit operations */
     typedef enum logic {
-        ADD, SUB
+        FADD, FSUB
     } fpadd_operation_t;
 
     /* Fused multiply add operation */
