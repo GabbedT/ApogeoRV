@@ -68,11 +68,11 @@ module data_memory_bank (
 
         always_ff @(posedge clk_i) begin : bank_port0
             if (port0_write_i) begin 
-                for (int i = 0; i < PORT_BYTES; ++i) begin : byte_write
+                for (int i = 0; i < PORT_BYTES; ++i) begin : byte_write_logic
                     if (port0_byte_write_i[i]) begin
                         data_cache[port0_address_i][i * BYTE_WIDTH +: BYTE_WIDTH] <= port0_data_i[i * BYTE_WIDTH +: BYTE_WIDTH];
                     end
-                end : byte_write
+                end : byte_write_logic
             end
         end : bank_port0
 

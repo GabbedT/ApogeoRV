@@ -68,7 +68,7 @@ module data_cache (
 
     generate 
         for (i = 0; i < WAYS_NUMBER; ++i) begin
-            data_cache_way_fpga cache_way (
+            data_cache_way cache_way (
                 .clk_i                ( clk_i                   ),
                 .enable_way_i         ( enable_way_i[i]         ),
 

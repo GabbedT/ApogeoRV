@@ -36,7 +36,7 @@
 `ifndef DATA_CACHE_WAY_SV
     `define DATA_CACHE_WAY_SV
 
-`include "../../../Include/data_memory_pkg.sv"
+`include "../../../Include/Packages/data_memory_pkg.sv"
 `include "data_cache_block.sv"
 `include "data_status_memory.sv"
 `include "data_tag_memory.sv"

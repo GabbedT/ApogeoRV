@@ -37,8 +37,8 @@
 `ifndef STORE_UNIT_CACHE_CONTROLLER_SV
     `define STORE_UNIT_CACHE_CONTROLLER_SV
 
-`include "../../Include/data_memory_pkg.sv"
-`include "../../Include/core_configuration.svh"
+`include "../../Include/Packages/data_memory_pkg.sv"
+`include "../../Include/Headers/core_configuration.svh"
 
 module store_unit_cache_controller (
     input  logic       clk_i,
