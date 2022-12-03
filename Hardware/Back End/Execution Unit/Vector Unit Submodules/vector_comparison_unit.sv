@@ -67,11 +67,11 @@ module vector_comparison_unit (
     vector_t equal_result;
 
         always_comb begin : compare_equal_logic
-            if (vector_length_i == BIT16) begin
+            if (element_size_i == BIT16) begin
                 for (int i = 0; i < 2; ++i) begin
                     equal_result.vect2[i] = (operand_A_i.vect2[i] == operand_B_i.vect2[i]) ? '1 : '0;
                 end
-            end else if (vector_length_i == BIT8) begin
+            end else if (element_size_i == BIT8) begin
                 for (int i = 0; i < 4; ++i) begin
                     equal_result.vect4[i] = (operand_A_i.vect4[i] == operand_B_i.vect4[i]) ? '1 : '0;
                 end
@@ -82,7 +82,7 @@ module vector_comparison_unit (
     vector_t less_than_result;
 
         always_comb begin : compare_less_logic
-            if (vector_length_i == BIT16) begin
+            if (element_size_i == BIT16) begin
                 for (int i = 0; i < 2; ++i) begin
                     if (signed_operation_i) begin
                         less_than_result.vect2[i] = ($signed(operand_A_i.vect2[i]) < $signed(operand_B_i.vect2[i])) ? '1 : '0;
@@ -90,7 +90,7 @@ module vector_comparison_unit (
                         less_than_result.vect2[i] = (operand_A_i.vect2[i] < operand_B_i.vect2[i]) ? '1 : '0;
                     end
                 end
-            end else if (vector_length_i == BIT8) begin
+            end else if (element_size_i == BIT8) begin
                 for (int i = 0; i < 4; ++i) begin
                     if (signed_operation_i) begin
                         less_than_result.vect4[i] = ($signed(operand_A_i.vect4[i]) < $signed(operand_B_i.vect4[i])) ? '1 : '0;
@@ -105,7 +105,7 @@ module vector_comparison_unit (
     vector_t greater_than_result;
 
         always_comb begin : compare_greater_logic
-            if (vector_length_i == BIT16) begin
+            if (element_size_i == BIT16) begin
                 for (int i = 0; i < 2; ++i) begin
                     if (signed_operation_i) begin
                         greater_than_result.vect2[i] = ($signed(operand_A_i.vect2[i]) > $signed(operand_B_i.vect2[i])) ? '1 : '0;
@@ -113,7 +113,7 @@ module vector_comparison_unit (
                         greater_than_result.vect2[i] = (operand_A_i.vect2[i] > operand_B_i.vect2[i]) ? '1 : '0;
                     end
                 end
-            end else if (vector_length_i == BIT8) begin
+            end else if (element_size_i == BIT8) begin
                 for (int i = 0; i < 4; ++i) begin
                     if (signed_operation_i) begin
                         greater_than_result.vect4[i] = ($signed(operand_A_i.vect4[i]) > $signed(operand_B_i.vect4[i])) ? '1 : '0;
@@ -137,20 +137,20 @@ module vector_comparison_unit (
             
             case (operation_i) 
 
-                EQL: begin
+                VEQ: begin
                     result_o = equal_result;
                 end
 
-                LST: begin
+                VLS: begin
                     result_o = less_than_result;
                 end
 
-                LST_EQL: begin
+                VLS_VEQ: begin
                     result_o = less_than_result | equal_result;
                 end
 
-                MIN: begin
-                    if (vector_length_i == BIT16) begin
+                VMIN: begin
+                    if (element_size_i == BIT16) begin
                         for (int i = 0; i < 2; ++i) begin
                             if (less_than_result.vect2[i] == '1) begin
                                 result_o.vect2[i] = operand_A_i.vect2[i];
@@ -158,7 +158,7 @@ module vector_comparison_unit (
                                 result_o.vect2[i] = operand_B_i.vect2[i];
                             end
                         end
-                    end else if (vector_length_i == BIT8) begin
+                    end else if (element_size_i == BIT8) begin
                         for (int i = 0; i < 4; ++i) begin
                             if (less_than_result.vect4[i] == '1) begin
                                 result_o.vect4[i] = operand_A_i.vect4[i];
@@ -169,8 +169,8 @@ module vector_comparison_unit (
                     end
                 end
 
-                MAX: begin
-                    if (vector_length_i == BIT16) begin
+                VMAX: begin
+                    if (element_size_i == BIT16) begin
                         for (int i = 0; i < 2; ++i) begin
                             if (greater_than_result.vect2[i] == '1) begin
                                 result_o.vect2[i] = operand_A_i.vect2[i];
@@ -178,7 +178,7 @@ module vector_comparison_unit (
                                 result_o.vect2[i] = operand_B_i.vect2[i];
                             end
                         end
-                    end else if (vector_length_i == BIT8) begin
+                    end else if (element_size_i == BIT8) begin
                         for (int i = 0; i < 4; ++i) begin
                             if (greater_than_result.vect4[i] == '1) begin
                                 result_o.vect4[i] = operand_A_i.vect4[i];
