@@ -57,8 +57,8 @@ package rv32_instructions_pkg;
     } bmu_extension_operation_t;
 
     /* Rotate operations */
-    typedef enum logic [1:0] {
-        ROL, ROR, RORI
+    typedef enum logic {
+        ROL, ROR
     } bmu_rotate_operation_t; 
 
     /* Byte operations */
@@ -66,22 +66,16 @@ package rv32_instructions_pkg;
         ORCB, REV8
     } bmu_byte_operation_t;
 
-    /* Carryless multiplication operations */
-    typedef enum logic [1:0] {
-        CLMUL, CLMULH, CLMULR
-    } bmu_mul_operation_t; 
-
     /* Bit operations */
-    typedef enum logic [3:0] {
+    typedef enum logic [2:0] {
         ANDN, ORN, XNOR, BCLR, 
-        BCLRI, BEXT, BEXTI, BINV, 
-        BINVI, BSET, BSETI
+        BEXT, BINV, BSET
     } bmu_logic_operation_t; 
 
     /* Valid BMU operation type */
     typedef enum logic [2:0] {
         SHADD, COUNT, COMPARE, EXTEND, 
-        ROTATE, BYTEOP, CLSSMUL, LOGICOP
+        ROTATE, BYTEOP, LOGICOP
     } bmu_valid_operation_t;
 
     typedef struct packed {
@@ -96,8 +90,6 @@ package rv32_instructions_pkg;
         bmu_rotate_operation_t    rotate;
 
         bmu_byte_operation_t      byte_op;
-
-        bmu_mul_operation_t       cless_mul;
 
         bmu_logic_operation_t     logic_op;
 
@@ -136,24 +128,6 @@ package rv32_instructions_pkg;
         logic [17:0]    fill;
     } div_wrap_t;
 
-    
-//------------------//
-//  FPU OPERATIONS  //
-//------------------//
-
-    typedef enum logic [4:0] {
-        /* Arithmetic instructions */
-        FMADD, FMSUB, FNMSUB, FNMADD,
-        FADD, FSUB, FMUL, FDIV, FSQRT,
-
-        /* Miscellaneous instructions */
-        FSGNJ, FSGNJN, FSGNJX, FCLASS,
-        FCVTSW, FCVTSWU, FCVTWS, FCVTWUS,
-        FMVWX, FMVXW,
-
-        /* Comparison instructions */
-        FMIN, FMAX, FEQ, FLT, FLE 
-    } fpu_operation_t;
 
 
 //--------------------------//
