@@ -34,7 +34,7 @@
 `ifndef VECTOR_ADDER_SV
     `define VECTOR_ADDER_SV
 
-`include "../../../Include/Packages/vector_unit_pkg.sv"
+`include "../../../../Include/Packages/vector_unit_pkg.sv"
 
 module vector_adder (
     /* Operands */
