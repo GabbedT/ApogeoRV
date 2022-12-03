@@ -288,11 +288,11 @@ module bit_manipulation_unit (
     logic [XLEN - 1:0] rotate_result_in, rotate_result_out;
 
         always_comb begin : rotate_operation_selection
-            if (operation_i.rotate == ROL) begin
-                rotate_result_in = rol_result;
-            end else begin
-                rotate_result_in = ror_result;
-            end
+            case (operation_i.rotate)
+                ROL: rotate_result_in = rol_result;
+
+                ROR: rotate_result_in = ror_result;
+            endcase
         end : rotate_operation_selection
 
         always_ff @(posedge clk_i) begin : rotate_operation_stage_register
@@ -390,78 +390,19 @@ module bit_manipulation_unit (
 
                 XNOR:  bit_logic_op_result_in = xnor_result;
 
-                BCLR, 
-                BCLRI: bit_logic_op_result_in = bclr_result;
+                BCLR: bit_logic_op_result_in = bclr_result;
 
-                BEXT,
-                BEXTI: bit_logic_op_result_in = bext_result;
+                BEXT: bit_logic_op_result_in = bext_result;
 
-                BINV, 
-                BINVI: bit_logic_op_result_in = binv_result;
+                BINV: bit_logic_op_result_in = binv_result;
 
-                BSET,
-                BSETI: bit_logic_op_result_in = bset_result;
+                BSET: bit_logic_op_result_in = bset_result;
             endcase   
         end : bit_logic_operation_selection
 
         always_ff @(posedge clk_i) begin : bit_logic_operation_stage_register
             bit_logic_op_result_out <= bit_logic_op_result_in;
         end : bit_logic_operation_stage_register
-
-
-//----------------------------//
-//  CARRYLESS MULTIPLICATION  //
-//----------------------------//
-
-    /* CLMUL logic */
-    logic [XLEN - 1:0] clmul_result;
-
-    low_carryless_multiplier clmul (
-        .operand_A_i  ( operand_A_i  ),
-        .operand_B_i  ( operand_B_i  ),
-        .result_low_o ( clmul_result )
-    );
-
-
-    /* CLMULH logic */
-    logic [XLEN - 1:0] clmulh_result;
-
-    high_carryless_multiplier clmulh (
-        .operand_A_i  ( operand_A_i   ),
-        .operand_B_i  ( operand_B_i   ),
-        .result_high_o ( clmulh_result )
-    );
-
-
-    /* CLMULR logic */
-    logic [XLEN - 1:0] clmulr_result;
-
-    reverse_carryless_multiplier clmulr (
-        .operand_A_i ( operand_A_i   ),
-        .operand_B_i ( operand_B_i   ),
-        .result_o    ( clmulr_result )
-    );
-
-
-    /* Stage logic */
-    logic [XLEN - 1:0] cless_mul_in, cless_mul_out;
-
-        always_comb begin : cless_multiplication_selection
-            /* Default values */
-            cless_mul_in = '0;
-
-            case (operation_i.cless_mul) 
-                CLMUL:  cless_mul_in = clmul_result;
-
-                CLMULH: cless_mul_in = clmulh_result;
-
-                CLMULR: cless_mul_in = clmulr_result;
-            endcase
-        end : cless_multiplication_selection
-
-        always_ff @(posedge clk_i) begin : cless_multiplication_stage_register
-            cless_mul_out <= cless_mul_in;
-        end : cless_multiplication_stage_register
 
 
 //----------------//
@@ -493,8 +434,6 @@ module bit_manipulation_unit (
                 ROTATE: result_o = rotate_result_out; 
 
                 BYTEOP: result_o = byte_operation_result_out; 
-
-                CLSSMUL: result_o = cless_mul_out;
 
                 LOGICOP: result_o = bit_logic_op_result_out;
             endcase
