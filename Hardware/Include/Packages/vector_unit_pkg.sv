@@ -33,13 +33,13 @@ package vector_unit_pkg;
 
     typedef enum logic [1:0] {
         /* Simple addition */
-        ADD, 
+        VADD, 
         
         /* Halving addition */
-        HV_ADD, 
+        HV_VADD, 
         
         /* Saturating addition */
-        SAT_ADD
+        SAT_VADD
     } vadd_operation_t;
 
 
@@ -49,28 +49,28 @@ package vector_unit_pkg;
 
     typedef enum logic [2:0] {
         /* Simple Shift Right Arithmetic */
-        SRA, 
+        VSRA, 
 
         /* Rounding Shift Right Arithmetic */
-        RND_SRA,
+        RND_VSRA,
 
         /* Simple Shift Right Logical */
-        SRL, 
+        VSRL, 
 
         /* Rounding Shift Right Logical */
-        RND_SRL,
+        RND_VSRL,
 
         /* Simple Shift Left Logical */
-        SLL,
+        VSLL,
 
         /* Saturating Shift Left Logical */
-        SAT_SLL,
+        SAT_VSLL,
 
         /* Shift Left with saturation or Simple Shift Right Arithmetic */
-        SATL_SMPR,
+        VSATL_SMPR,
 
         /* Shift Left with Saturation or Shift Right Arithmetic with Rounding */
-        SATL_RNDR
+        VSATL_RNDR
     } vshift_operation_t;
 
 
@@ -80,16 +80,16 @@ package vector_unit_pkg;
 
     typedef enum logic [2:0] {
         /* Equal */
-        EQL, 
+        VEQ, 
 
         /* Less Than */
-        LST, MIN,
+        VLS, VMIN,
 
         /* Less Than or Equal */
-        LST_EQL, 
+        VLS_VEQ, 
 
         /* Greater Than */
-        MAX
+        VMAX
     } vcomp_operation_t;
 
 
@@ -97,84 +97,19 @@ package vector_unit_pkg;
 //  MULTIPLICATION UNIT OPERATIONS  //
 //----------------------------------//
 
-    typedef enum logic { 
-        /* Simple multiplication */
-        VMUL, 
-        
-        /* Multiply accumulate and saturate */
-        VMAC
-    } vmul_operation_t;
-
-    typedef enum logic {
-        /* Accumulate */
-        ACC, 
-
-        /* Saturate */
-        SAT
-    } vacc_operation_t;
-
-    /* Saaturation operation in multiply instructions */
     typedef enum logic [1:0] {
-        SAT7, SAT15, SAT31
-    } sat_operation_t;
+        /* Vector multiplication */
+        VMUL16, 
 
-    /* Rounding in MSW instruction type */
-    typedef enum logic { 
-        RND_32X32, RND_32X16
-    } round_operation_t;
-
-    /* Shift before operation (round or saturate) */
-    typedef enum logic [1:0] {
-        /* Arithmetic shift right */
-        ASR15, ASR7, 
+        /* Integer multiplication 32 x 32 */
+        MUL32X32,
         
-        /* Logical shift left */
-        LSL1,
+        /* Integer multiplication 32 x 16 */
+        MUL32X16,
 
-        /* No shift */
-        NONE
-    } shift_operation_t;
-
-    /* In ADD operation one operand is always 
-     * the register destination and it's always 
-     * positive */
-    typedef enum logic [2:0] {
-        ADD2_P, ADD2_N,
-        
-        ADD3_PP, ADD3_PN, ADD3_NN,
-
-        ADD5
-    } add_operation_t;
-
-    /* Sequence of operations */
-    typedef enum logic [3:0] {
-        /* Simple multiplication */
-        ML,
-
-        /* Multipliy and Saturate */
-        ML_ST, 
-        
-        /* Multiply and Round */
-        ML_RD, 
-        
-        /* Multiply Add and Saturate */
-        ML_AD_ST, 
-
-        /* Multiply Round Add and Saturate */
-        ML_RD_AD_ST, 
-
-        /* Multiply Round and Saturate */
-        ML_RD_ST
-    } sequence_operation_t;
-
-    /* Operation packet */
-    typedef struct packed {
-        sat_operation_t      sat_type;
-        round_operation_t    rnd_type;
-        shift_operation_t    sht_type;
-        add_operation_t      add_type;
-        sequence_operation_t op_sequence;
-    } operation_pkt_t;
+        /* 64 bit signed saturation */
+        SAT63
+    } iacc_operation_t;
 
 endpackage : vector_unit_pkg
 
