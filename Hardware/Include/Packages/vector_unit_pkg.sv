@@ -5,7 +5,7 @@ package vector_unit_pkg;
 
     typedef union packed {
         /* Vector composed of 4 elements of 8 bits */
-        logic [3:0][7:0] vect4;
+        logic [3:0][7:0]  vect4;
 
         /* Vector composed of 2 elements of 16 bits */
         logic [1:0][15:0] vect2;
@@ -40,7 +40,7 @@ package vector_unit_pkg;
         
         /* Saturating addition */
         SAT_VADD
-    } vadd_operation_t;
+    } vadd_uops_t;
 
 
 //-------------------------//
@@ -71,7 +71,7 @@ package vector_unit_pkg;
 
         /* Shift Left with Saturation or Shift Right Arithmetic with Rounding */
         VSATL_RNDR
-    } vshift_operation_t;
+    } vshift_uops_t;
 
 
 //------------------------------//
@@ -90,13 +90,40 @@ package vector_unit_pkg;
 
         /* Greater Than */
         VMAX
-    } vcomp_operation_t;
+    } vcomp_uops_t;
 
 
 //----------------------------------//
 //  MULTIPLICATION UNIT OPERATIONS  //
 //----------------------------------//
 
+    /* Select the result */
+    typedef enum logic { 
+        /* Vector multiplication */
+        VMUL, 
+
+        /* Integer multiplication */
+        IMUL
+    } mul_type_t;
+
+
+    /* Operation sequence after multiplication */
+    typedef enum logic [1:0] {
+        /* No operations */
+        MUL, 
+
+        /* Acccumulate */
+        ACC,
+
+        /* Round */ 
+        RND, 
+
+        /* Round and Accumulate */
+        RND_ACC
+    } mul_unit_sequence_t;
+
+
+    /* Integer accumulator micro operations */
     typedef enum logic [1:0] {
         /* Vector multiplication */
         VMUL16, 
@@ -109,7 +136,52 @@ package vector_unit_pkg;
 
         /* 64 bit signed saturation */
         SAT63
-    } iacc_operation_t;
+    } iacc_uops_t;
+
+
+    /* Rounder micro operations */
+    typedef enum logic {
+        RND64, RND48
+    } rnd_uops_t;
+
+
+    /* Submodule operations for IMUL type */
+    typedef struct packed {
+        iacc_uops_t accumulator;
+        rnd_uops_t  rounder;
+    } imul_subm_uop_t;
+
+
+    /* Vector accumulator micro operations */
+    typedef enum logic [2:0] {
+        VACC, 
+        
+        VSAT, 
+        
+        /* Simple Fused Accumulate and Saturate */
+        FAS, 
+
+        /* Fused Accumulate and Saturate 
+         * with register destination */
+        FAS_RD
+    } vacc_uops_t;
+
+
+
+    /* Submodules micro operations */
+    typedef union packed {
+        imul_subm_uop_t imul;
+        vacc_uops_t     vmul;
+    } submod_uops_t;
+
+
+    /* Multiplication unit micro operations */
+    typedef struct packed {
+        mul_type_t          op_type;
+        mul_unit_sequence_t op_order;
+        logic               shift;
+        submod_uops_t       submodule;
+    } vmul_unit_uops_t;
 
 endpackage : vector_unit_pkg
 
