@@ -16,19 +16,19 @@ package rv32_instructions_pkg;
         JAL, JALR, BEQ, BNE, BGE, 
         BLT, BLTU, BGEU,
 
-        ADD, SUB, ADDI,
-        SLL, SLLI, SRL, SRLI, SRA, SRAI,
-        AND, ANDI, OR, ORI, XOR, XORI,
-        SLT, SLTI, SLTU, SLTIU,
+        ADD,
+        SLL, SRL, SRA,
+        AND, OR, XOR,
+        SLT, SLTU,
 
         /* Load instructions */
         LUI, AUIPC
-    } alu_operation_t;
+    } alu_uops_t;
 
     /* Wrap to fit in a union */
     typedef struct packed {
-        alu_operation_t command;
-        logic [14:0]    fill;
+        alu_uops_t   command;
+        logic [14:0] fill;
     } alu_wrap_t;
 
     
@@ -39,62 +39,62 @@ package rv32_instructions_pkg;
     /* Shift and add operations */
     typedef enum logic [1:0] {
         SH1ADD, SH2ADD, SH3ADD
-    } bmu_shadd_operation_t;
+    } bmu_shadd_uops_t;
 
     /* Bit count operations */
     typedef enum logic [1:0] {
         CLZ, CTZ, CPOP
-    } bmu_count_operation_t;
+    } bmu_count_uops_t;
 
     /* Compare operations */
     typedef enum logic [1:0] {
         MAX, MAXU, MIN, MINU
-    } bmu_compare_operation_t;
+    } bmu_compare_uops_t;
 
     /* Sign extend operations */
     typedef enum logic [1:0] {
         SEXTB, SEXTH, ZEXTH
-    } bmu_extension_operation_t;
+    } bmu_extension_uops_t;
 
     /* Rotate operations */
     typedef enum logic {
         ROL, ROR
-    } bmu_rotate_operation_t; 
+    } bmu_rotate_uops_t; 
 
     /* Byte operations */
     typedef enum logic {
         ORCB, REV8
-    } bmu_byte_operation_t;
+    } bmu_byte_uops_t;
 
     /* Bit operations */
     typedef enum logic [2:0] {
         ANDN, ORN, XNOR, BCLR, 
         BEXT, BINV, BSET
-    } bmu_logic_operation_t; 
+    } bmu_logic_uops_t; 
 
     /* Valid BMU operation type */
     typedef enum logic [2:0] {
         SHADD, COUNT, COMPARE, EXTEND, 
         ROTATE, BYTEOP, LOGICOP
-    } bmu_valid_operation_t;
+    } bmu_valid_uops_t;
 
     typedef struct packed {
-        bmu_shadd_operation_t     shadd;
+        bmu_shadd_uops_t     shadd;
 
-        bmu_count_operation_t     bit_count;
+        bmu_count_uops_t     bit_count;
 
-        bmu_compare_operation_t   compare;
+        bmu_compare_uops_t   compare;
 
-        bmu_extension_operation_t extend_op;
+        bmu_extension_uops_t extend_op;
 
-        bmu_rotate_operation_t    rotate;
+        bmu_rotate_uops_t    rotate;
 
-        bmu_byte_operation_t      byte_op;
+        bmu_byte_uops_t      byte_op;
 
-        bmu_logic_operation_t     logic_op;
+        bmu_logic_uops_t     logic_op;
 
-        bmu_valid_operation_t     op_type_valid;
-    } bmu_operation_t;
+        bmu_valid_uops_t     op_type_valid;
+    } bmu_uops_t;
 
 
 //----------------------------//
@@ -104,12 +104,12 @@ package rv32_instructions_pkg;
     typedef enum logic [1:0] {  
         /* Multiplication instructions */
         MUL, MULH, MULHSU, MULHU 
-    } mul_operation_t;
+    } mul_uops_t;
 
     /* Wrap to fit in a union */
     typedef struct packed {
-        mul_operation_t command;
-        logic [17:0]    fill;
+        mul_uops_t   command;
+        logic [17:0] fill;
     } mul_wrap_t;
 
 
@@ -120,12 +120,12 @@ package rv32_instructions_pkg;
     typedef enum logic [1:0] {  
         /* Division instructions */
         DIV, DIVU, REM, REMU
-    } div_operation_t;
+    } div_uops_t;
 
     /* Wrap to fit in a union */
     typedef struct packed {
-        div_operation_t command;
-        logic [17:0]    fill;
+        div_uops_t   command;
+        logic [17:0] fill;
     } div_wrap_t;
 
 
@@ -137,12 +137,12 @@ package rv32_instructions_pkg;
     typedef enum logic [2:0] {
         /* Load instructions */
         LB, LH, LW, LBU, LHU 
-    } ldu_operation_t;
+    } ldu_uops_t;
 
     typedef enum logic [1:0] { 
         /* Store instructions */
         SB, SH, SW 
-    } stu_operation_t;
+    } stu_uops_t;
 
 
 //----------------------//
@@ -154,10 +154,10 @@ package rv32_instructions_pkg;
      */
     typedef union packed {
         alu_wrap_t      ALU;
-        bmu_operation_t BMU;
+        bmu_uops_t BMU;
         mul_wrap_t      MUL;
         div_wrap_t      DIV;
-    } iexu_operation_t;
+    } iexu_uops_t;
 
     typedef struct packed {
         logic  ALU;
@@ -171,9 +171,9 @@ package rv32_instructions_pkg;
      * Load Store Unit
      */
     typedef struct packed {
-        ldu_operation_t LDU;
-        stu_operation_t STU;
-    } lsu_operation_t;
+        ldu_uops_t LDU;
+        stu_uops_t STU;
+    } lsu_uops_t;
 
     typedef struct packed {
         logic LDU;
@@ -193,7 +193,7 @@ package rv32_instructions_pkg;
         logic [1:0]  speculative_id;
         
         /* Is a floating point operation */
-        logic    is_float;
+        logic        is_float;
 
         /* Has generated an trap */
         logic        trap_generated;
