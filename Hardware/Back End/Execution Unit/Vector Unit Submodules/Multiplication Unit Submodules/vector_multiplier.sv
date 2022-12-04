@@ -1,10 +1,10 @@
-`ifndef VECTOR_MULTIPLICATION_UNIT_SV
-    `define VECTOR_MULTIPLICATION_UNIT_SV
+`ifndef VECTOR_MULTIPLIER_SV
+    `define VECTOR_MULTIPLIER_SV
 
 `include "../../../../Include/Packages/vector_unit_pkg.sv"
 `include "../../../../Include/Headers/core_configuration.svh" 
 
-module vector_multiplication_unit (
+module vector_multiplier (
     /* Registers control */
     input logic clk_i,
     input logic clk_en_i,
@@ -28,8 +28,8 @@ module vector_multiplication_unit (
 
 
     /* Result */
-    output logic         data_valid_o,
-    output vmul_vector_t result_o
+    output vmul_vector_t result_o,
+    output logic         data_valid_o
 );
 
 //----------------------//
@@ -226,6 +226,6 @@ module vector_multiplication_unit (
             end
         end : result_conversion_logic
         
-endmodule : vector_multiplication_unit
+endmodule : vector_multiplier
 
 `endif 
