@@ -19,25 +19,31 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-// -------------------------------------------------------------------------------------
-// -------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------
 // FILE NAME : vector_accumulator.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
-// -------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : This module performs an accumulation after the vector multiplication 
-//               or a Q7 or Q15 saturation.
-// -------------------------------------------------------------------------------------
+// DESCRIPTION : This module performs an 8 bit accumulation after the vector multiplication 
+//               or a Q7 / Q15 saturation. For 16 bit multiplication with 32 bit addition
+//               an accumulation followed by Q31 saturation is computed. 
+// -----------------------------------------------------------------------------------------
 
 `ifndef VECTOR_ACCUMULATOR_SV
     `define VECTOR_ACCUMULATOR_SV
 
-`include "../../../../Include/Packages/vector_unit_pkg.sv" 
+`include "../../../../Include/Packages/vector_unit_pkg.sv"
 
 module vector_accumulator (
+    /* Registers control */
+    input logic clk_i,
+    input logic clk_en_i,
+    input logic rst_n_i,
+    
     /* Register destination used as accumulator */
     input logic [31:0] reg_accumulator_i,
 
@@ -45,7 +51,10 @@ module vector_accumulator (
     input vmul_vector_t vmul_result_i,
 
     /* Specify the operation to execute */
-    input logic operation_i,
+    input vacc_uops_t operation_i,
+
+    /* The inputs are valid */
+    input logic data_valid_i,
 
     /* Specify how to divide the 32 bits 
      * operands and how to operate on them */
@@ -54,15 +63,62 @@ module vector_accumulator (
 
     /* Result */
     output logic [31:0] result_o,
+    output logic        data_valid_o,
 
     /* If the addition has overflowed */
     output logic overflow_flag_o
 );
 
+
+//----------------------//
+//  ACCUMULATION LOGIC  //
+//----------------------//
+
+    /* Accumulator for 8 bit multiplication */
+    logic [1:0][16:0] partial_8bit_accumulator;
+
+    /* Two parallel sums */
+    assign partial_8bit_accumulator[0] = vmul_result_i.vect4[0] + vmul_result_i.vect4[1];
+    assign partial_8bit_accumulator[1] = vmul_result_i.vect4[2] + vmul_result_i.vect4[3];
+
+    logic [17:0] accumulator_8bit;
+
+    assign accumulator_8bit = partial_8bit_accumulator[0] + partial_8bit_accumulator[1];
+
+
+    /* Accumulation with register destination */
+    logic [31:0] reg_dest_accumulator;
+
+    assign reg_dest_accumulator = reg_accumulator_i + accumulator_8bit;
+
+    /* Register net */
+    logic [31:0] reg_dest_accumulator_stg0;
+
+        always_ff @(posedge clk_i) begin
+            if (clk_en_i) begin
+                reg_dest_accumulator_stg0 <= reg_dest_accumulator;
+            end
+        end
+
+
+    /* Accumulator for 16 bit multiplication */
+    logic [31:0] accumulator_16bit;
+    logic        accumulator_sign_bit;
+
+        always_comb begin 
+            if (operation_i == FAS) begin 
+                {accumulator_sign_bit, accumulator_16bit} = vmul_result_i.vect2[0] + vmul_result_i.vect2[1];
+            end else begin
+                {accumulator_sign_bit, accumulator_16bit} = reg_accumulator_i + vmul_result_i.vect2[0] + vmul_result_i.vect2[1];
+            end
+        end
+
+
 //--------------------//
 //  SATURATION LOGIC  //
 //--------------------//
 
+    /* Saturation logic for simple multiplication */
     vector_t    vmul_shifted, saturated_result;
     logic [3:0] sign_bit;
     logic       overflow_flag;
@@ -122,7 +178,6 @@ module vector_accumulator (
                             saturated_result.vect4[i] = 8'h7F;
                         end
 
-
                         overflow_flag = 1'b1;
                     end else begin
                         saturated_result.vect4[i] = vmul_shifted.vect4[i];
@@ -133,47 +188,101 @@ module vector_accumulator (
             end
         end : saturation_logic
 
+    /* Register nets */ 
+    vector_t saturated_result_stg0;
+    logic    overflow_flag_stg0;
 
-//----------------------//
-//  ACCUMULATION LOGIC  //
-//----------------------//
+        always_ff @(posedge clk_i) begin
+            if (clk_en_i) begin
+                saturated_result_stg0 <= saturated_result;
+                overflow_flag_stg0 <= overflow_flag;
+            end
+        end
 
-    /* Produce two partial accumulation result (in parallel) */
-    logic [1:0][8:0] partial_accumulator;
 
-    assign partial_accumulator[0] = vmul_result_i.vect4[0] + vmul_result_i.vect4[1];
-    assign partial_accumulator[1] = vmul_result_i.vect4[2] + vmul_result_i.vect4[3];
+    /* Saturation logic for multiplication with accumulation */
+    logic [31:0] acc_sat_result;
+    logic        acc_sat_overflow_flag;
 
-    /* Two 8-bit addition produce a 10-bit result */
-    logic [9:0] accumulator;
+        always_comb begin : accumulator_saturation_logic
+            /* If the result is positive (carry == 0) and the MSB is set, 
+             * then the number is bigger than 2^31 - 1. If the result is
+             * negative (carry == 1) and the MSB is not set, then the number
+             * is smaller than -2^31 */
+            if (accumulator_sign_bit ^ accumulator_16bit[31]) begin 
+                if (accumulator_sign_bit) begin
+                    /* If the adder result is negative, set the result to 0x80000000 */
+                    acc_sat_result = 32'h80000000;
+                end else begin
+                    /* If the adder result is positive, set the result to 0x7FFFFFFF */
+                    acc_sat_result = 32'h7FFFFFFF;
+                end
 
-    assign accumulator = partial_accumulator[0] + partial_accumulator[1];
+                /* Set overflow flag */
+                acc_sat_overflow_flag = 1'b1;
+            end else begin
+                acc_sat_result = accumulator_16bit;
 
+                acc_sat_overflow_flag = 1'b0;
+            end
+        end : accumulator_saturation_logic
+
+    /* Register nets */ 
+    vector_t acc_sat_result_stg0;
+    logic    acc_sat_overflow_flag_stg0;
+
+        always_ff @(posedge clk_i) begin
+            if (clk_en_i) begin
+                acc_sat_result_stg0 <= acc_sat_result;
+                acc_sat_overflow_flag_stg0 <= acc_sat_overflow_flag;
+            end
+        end
 
 //----------------//
 //  OUTPUT LOGIC  //
 //----------------//
 
-    /* Accumulate the result */
-    localparam ACCUMULATE = 0;
+    /* Register nets */
+    vacc_uops_t operation_stg0;
 
-    /* Saturate the result */
-    localparam SATURATE = 1;
+    always_ff @(posedge clk_i) begin
+        if (clk_en_i) begin
+            operation_stg0 <= operation_i;
+        end
+    end
 
         always_comb begin
-            case (operation_i)
-                ACCUMULATE: begin
+            /* Default values */
+            result_o = '0;
+            overflow_flag_o = 1'b0;
+
+            case (operation_stg0)
+                VACC: begin
                     /* Accumulation logic */
-                    result_o = reg_accumulator_i + accumulator;
+                    result_o = reg_dest_accumulator_stg0;
                     overflow_flag_o = 1'b0;
                 end
 
-                SATURATE: begin
-                    result_o = saturated_result;
-                    overflow_flag_o = overflow_flag;
+                VSAT: begin
+                    result_o = acc_sat_result_stg0;
+                    overflow_flag_o = overflow_flag_stg0;
+                end
+
+                FAS, FAS_RD: begin
+                    result_o = acc_sat_result_stg0;
+                    overflow_flag_o = acc_sat_overflow_flag_stg0;
                 end
             endcase
         end
+
+    
+    always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+        if (!rst_n_i) begin
+            data_valid_o <= 1'b0;
+        end else begin
+            data_valid_o <= data_valid_i;
+        end
+    end
 
 endmodule : vector_accumulator
 
