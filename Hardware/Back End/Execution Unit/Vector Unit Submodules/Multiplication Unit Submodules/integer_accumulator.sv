@@ -32,8 +32,8 @@
 //               and a Q31 or Q64 saturation. 
 // -------------------------------------------------------------------------------------
 
-`ifndef VECTOR_ACCUMULATOR_SV
-    `define VECTOR_ACCUMULATOR_SV
+`ifndef INTEGER_ACCUMULATOR_SV
+    `define INTEGER_ACCUMULATOR_SV
 
 `include "../../../../Include/Packages/vector_unit_pkg.sv" 
 
@@ -44,16 +44,8 @@ module integer_accumulator (
     /* Integer multiplier result (64 shifted by 1) */
     input logic [64:16] imul_result_i,
 
-    /* Result from the multiplier */
-    input vmul_vector_t vmul_result_i,
-
-    /* Negate the result to subtract, the second
-     * bit is valid only in the 16 bit vector 
-     * multiplication */
-    input logic [1:0] negate_result_i,
-
     /* Specify the operation to execute */
-    input logic [1:0] operation_i,
+    input iacc_uops_t operation_i,
 
 
     /* Result */
@@ -71,20 +63,19 @@ module integer_accumulator (
     logic [31:0] operand_A, operand_B;
 
         always_comb begin : operands_logic
-            case (operation_i)
-                VMUL16: begin
-                    operand_A = negate_result_i[1] ? -vmul_result_i.vect2[1] : vmul_result_i.vect2[1];
-                    operand_B = negate_result_i[0] ? -vmul_result_i.vect2[0] : vmul_result_i.vect2[0];
-                end
+            /* Default values */
+            operand_A = '0;
+            operand_B = '0;
 
+            case (operation_i)
                 MUL32X32: begin
                     operand_A = reg_accumulator_i;
-                    operand_B = negate_result_i[0] ? -imul_result_i[63:32] : imul_result_i[63:32];
+                    operand_B = imul_result_i[63:32];
                 end 
 
                 MUL32X16: begin
                     operand_A = reg_accumulator_i;
-                    operand_B = negate_result_i[0] ? -imul_result_i[47:16] : imul_result_i[47:16];
+                    operand_B = imul_result_i[47:16];
                 end
 
                 SAT63: begin
