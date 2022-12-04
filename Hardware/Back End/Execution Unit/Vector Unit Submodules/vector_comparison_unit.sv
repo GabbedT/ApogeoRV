@@ -48,8 +48,8 @@ module vector_comparison_unit (
     input esize_t element_size_i,
 
     /* Specify the operation to execute */
-    input vcomp_operation_t operation_i,
-    input logic             signed_operation_i,
+    input vcomp_uops_t operation_i,
+    input logic        signed_operation_i,
 
     /* Inputs valid */
     input logic data_valid_i,

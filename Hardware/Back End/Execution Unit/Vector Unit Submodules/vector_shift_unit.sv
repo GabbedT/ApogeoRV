@@ -57,7 +57,7 @@ module vector_shift_unit (
     input esize_t vector_length_i,
 
     /* Specify the operation to execute */
-    input vshift_operation_t operation_i,
+    input vshift_uops_t operation_i,
 
 
     /* Result */
@@ -284,8 +284,6 @@ module vector_shift_unit (
                      * element is set (in that case the result needs to be saturated 
                      * because it's greater in magnitude than [-2^15, 2^15 - 1]) */
                     if ({shifted_out_left.vect2[i], shift_result.vect2[i][15]} != '0) begin
-                        overflow_flag = 1'b1;
-
                         if (element_negative[(i * 2) + 1]) begin
                             /* If the initial vector element was negative set the result 
                              * to 0x8000 */
@@ -295,6 +293,8 @@ module vector_shift_unit (
                              * to 0x7FFF */
                             saturated_result.vect2[i] = 16'h7FFF;
                         end
+
+                        overflow_flag = 1'b1;
                     end else begin
                         overflow_flag = 1'b0;
 
@@ -307,8 +307,6 @@ module vector_shift_unit (
                      * element is set (in that case the result needs to be saturated 
                      * because it's greater in magnitude than [-2^7, 2^7 - 1]) */
                     if ({shifted_out_left.vect4[i], shift_result.vect4[i][7]} != '0) begin
-                        overflow_flag = 1'b1;
-
                         if (element_negative[i]) begin
                             /* If the initial vector element was negative set the result 
                              * to 0x80 */
@@ -318,6 +316,8 @@ module vector_shift_unit (
                              * to 0x7F */
                             saturated_result.vect4[i] = 8'h7F;
                         end
+
+                        overflow_flag = 1'b1;
                     end else begin
                         overflow_flag = 1'b0;
 
