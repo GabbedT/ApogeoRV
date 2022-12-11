@@ -6,10 +6,11 @@
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
+`include "../Arithmetic Circuits/Integer/Multipliers/Combinational/array_multiplier.sv"
 
 
 module floating_point_multiplier #(
-    parameter CORE_STAGES = 1
+    parameter CORE_STAGES = 0
 ) (
     input  logic clk_i,
 
@@ -103,10 +104,9 @@ module floating_point_multiplier #(
     logic        multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0;
     logic        invalid_operation_stg0;
     logic        result_sign_stg0;
-    logic        data_valid_stg0;
 
         always_ff @(posedge clk_i) begin : stage0_register
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin 
                 multiplicand_mantissa_stg0 <= multiplicand_i.mantissa;
                 multiplicand_exponent_sign_stg0 <= multiplicand_i.exponent[7];
 
@@ -119,10 +119,19 @@ module floating_point_multiplier #(
 
                 result_exp_stg0 <= result_exp;
                 result_sign_stg0 <= result_sign;
-
-                data_valid_stg0 <= data_valid_i;
-            `ifdef FPGA end `endif
+            end  
         end : stage0_register
+        
+        
+    logic data_valid_stg0;
+    
+        always_ff @(posedge clk_i `ifndef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                data_valid_stg0 <= 1'b0;
+            end else begin
+                data_valid_stg0 <= data_valid_i;
+            end 
+        end 
 
 
 //--------------------//
@@ -131,12 +140,13 @@ module floating_point_multiplier #(
 
     /* Signals are simply pipelined in a shift register to wait until the multiplier 
      * produces a valid result. Note that if the multiplier is completely combinational
-     * (CORE_STAGES == 0), the shift register will simply be registers */
-
+     * (CORE_STAGES == 0), the shift register will simply be a flip flop */
+    
+    /* Register nets */
     logic [CORE_STAGES:0] invalid_operation_pipe, result_sign_pipe;
 
         always_ff @(posedge clk_i) begin
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin  
                 if (CORE_STAGES == 0) begin 
                     invalid_operation_pipe <= invalid_operation_stg0;
                     result_sign_pipe <= result_sign_stg0;
@@ -144,59 +154,45 @@ module floating_point_multiplier #(
                     invalid_operation_pipe <= {invalid_operation_pipe[CORE_STAGES - 1:0], invalid_operation_stg0};
                     result_sign_pipe <= {result_sign_pipe[CORE_STAGES - 1:0], result_sign_stg0};
                 end 
-            `ifdef FPGA end `endif
-        end
-
-
-    logic [CORE_STAGES:0] multiplicand_exponent_sign_pipe, multiplier_exponent_sign_pipe;
-
-        always_ff @(posedge clk_i) begin
-            `ifdef FPGA if (clk_en_i) begin `endif
-                if (CORE_STAGES == 0) begin 
-                    multiplicand_exponent_sign_pipe <= multiplicand_exponent_sign_stg0;
-                    multiplier_exponent_sign_pipe <= multiplier_exponent_sign_stg0;
-                end else begin 
-                    multiplicand_exponent_sign_pipe <= {multiplicand_exponent_sign_pipe[CORE_STAGES - 1:0], multiplicand_exponent_sign_stg0};
-                    multiplier_exponent_sign_pipe <= {multiplier_exponent_sign_pipe[CORE_STAGES - 1:0], multiplier_exponent_sign_stg0};
-                end 
-            `ifdef FPGA end `endif
+            end  
         end
 
 
     /* Pre-elaboration for denormals normalization */
     logic [4:0] right_shift_amt;
-    logic [8:0] pre_result_exponent, exponent_stg0_abs;
+    logic [8:0] pre_result_exponent;
     logic       underflow;
+
+    assign exponent_stg0_abs = -result_exp_stg0;
 
         always_comb begin
             /* Default value */
             underflow = 1'b0;
+            right_shift_amt = '0;
+            pre_result_exponent = result_exp_stg0;
 
             /* If the exponent computed is negative, find the absolute value of it to calculate 
              * the right shift amount of the result mantissa */
             if (result_exp_stg0[8] & ({multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0} == 2'b00)) begin
-                exponent_stg0_abs = -result_exp_stg0;
-
                 if (exponent_stg0_abs < 24) begin  
-                    right_shift_amt = exponent_stg0_abs[4:0];
+                    right_shift_amt = exponent_stg0_abs;
                 end else begin
                     right_shift_amt = 5'd24;
                     underflow = 1'b1;
                 end
 
                 pre_result_exponent = '0;
-            end else begin
-                right_shift_amt = '0;
-                pre_result_exponent = result_exp_stg0;
-            end
+            end 
         end
-
+    
+    
+    /* Register nets */
     logic [CORE_STAGES:0][8:0] result_exp_pipe;
     logic [CORE_STAGES:0][4:0] right_shift_amt_pipe;
     logic [CORE_STAGES:0]      underflow_pipe;          
 
         always_ff @(posedge clk_i) begin
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin 
                 if (CORE_STAGES == 0) begin 
                     underflow_pipe <= underflow;
                     result_exp_pipe <= pre_result_exponent;
@@ -206,7 +202,7 @@ module floating_point_multiplier #(
                     result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], pre_result_exponent};
                     right_shift_amt_pipe <= {right_shift_amt_pipe[CORE_STAGES - 1:0], right_shift_amt};
                 end 
-            `ifdef FPGA end `endif
+            end  
         end
 
 
@@ -219,62 +215,81 @@ module floating_point_multiplier #(
 
     `ifdef ASIC 
 
-        logic data_valid_out;
-
-        pipelined_array_multiplier #(24, CORE_STAGES) mantissa_core_multiplier (
-            .clk_i          ( clk_i                              ),
-            .clk_en_i       ( 1'b1                               ),
-            .rst_n_i        ( rst_n_i                            ),
-            .multiplicand_i ( {1'b1, multiplicand_mantissa_stg0} ),
-            .multiplier_i   ( {1'b1, multiplier_mantissa_stg0}   ),
-            .data_valid_i   ( data_valid_stg0                    ),
-            .product_o      ( mantissa_product                   ),
-            .data_valid_o   ( data_valid_out                     )
-        );
+        logic mul_data_valid_pipe;
+        
+        if (CORE_STAGES != 0) begin
+            pipelined_array_multiplier #(24, CORE_STAGES) mantissa_core_multiplier (
+                .clk_i          ( clk_i                              ),
+                .clk_en_i       ( 1'b1                               ),
+                .rst_n_i        ( rst_n_i                            ),
+                .multiplicand_i ( {1'b1, multiplicand_mantissa_stg0} ),
+                .multiplier_i   ( {1'b1, multiplier_mantissa_stg0}   ),
+                .data_valid_i   ( data_valid_stg0                    ),
+                .product_o      ( mantissa_product                   ),
+                .data_valid_o   ( mul_data_valid_pipe                )
+            );
+        end else begin 
+            array_multiplier #(24) mantissa_core_multiplier (
+                .multiplicand_i ( {1'b1, multiplicand_mantissa_stg0} ),
+                .multiplier_i   ( {1'b1, multiplier_mantissa_stg0}   ),
+                .product_o      ( mantissa_product                   )
+            );
+            
+            assign mul_data_valid_pipe = data_valid_stg0;
+        end 
 
     `elsif FPGA 
-
-        fpga_mantissa_multiplier mantissa_core_multiplier (
-            .CLK ( clk_i                              ),
-            .A   ( {1'b1, multiplicand_mantissa_stg0} ),
-            .B   ( {1'b1, multiplier_mantissa_stg0}   ),
-            .CE  ( clk_en_i                           ),
-            .P   ( mantissa_product                   )
-        );
-
+    
         logic [CORE_STAGES:0] mul_data_valid_pipe;
+        
+        if (CORE_STAGES != 0) begin 
+            mantissa_multiplier mantissa_core_multiplier (
+                .CLK ( clk_i                              ),
+                .A   ( {1'b1, multiplicand_mantissa_stg0} ),
+                .B   ( {1'b1, multiplier_mantissa_stg0}   ),
+                .CE  ( clk_en_i                           ),
+                .P   ( mantissa_product                   )
+            );
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (!rst_n_i) begin 
-                mul_data_valid_pipe <= '0;
-            end else begin 
-                if (CORE_STAGES == 0) begin 
-                    mul_data_valid_pipe <= data_valid_stg0;
+            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+                if (!rst_n_i) begin 
+                    mul_data_valid_pipe <= '0;
                 end else begin 
-                    mul_data_valid_pipe <= {mul_data_valid_pipe[CORE_STAGES - 1:0], data_valid_stg0};
-                end 
-            end
-        end
+                    if (CORE_STAGES == 1) begin
+                        mul_data_valid_pipe <= data_valid_stg0;
+                    end else begin
+                        mul_data_valid_pipe <= {mul_data_valid_pipe[CORE_STAGES - 1:0], data_valid_stg0};
+                    end
+                end
+            end 
+        end else begin
+            mantissa_multiplier mantissa_core_multiplier (
+                .A( {1'b1, multiplicand_mantissa_stg0} ), 
+                .B( {1'b1, multiplier_mantissa_stg0}   ),  
+                .P( mantissa_product                   )  
+            );
+            
+            assign mul_data_valid_pipe = data_valid_stg0;
+        end 
+          
 
     `endif 
 
 
     /* Stage net */
     logic [47:0] mantissa_product_stg1;
-
-    `ifdef ASIC 
-        logic        data_valid_stg1;
-    `endif 
+    logic        data_valid_stg1;
 
         always_ff @(posedge clk_i) begin
-            `ifdef FPGA 
-                if (clk_en_i) begin 
-                    mantissa_product_stg1 <= mantissa_product;
-                end 
-            `elsif ASIC 
+            if (clk_en_i) begin 
                 mantissa_product_stg1 <= mantissa_product;
-                data_valid_stg1 <= data_valid_out;
-            `endif 
+                
+                `ifdef ASIC 
+                    data_valid_stg1 <= mul_data_valid_pipe;
+                `elsif FPGA 
+                    data_valid_stg1 <= mul_data_valid_pipe[0];
+                `endif
+            end
         end
 
 
@@ -293,13 +308,13 @@ module floating_point_multiplier #(
 
     /* Mantissa shifted right */
     logic [22:0] mantissa_normalized;
-    logic [23:0] shifted_out_bits;
+    logic [22:0] shifted_out_bits;
  
         always_comb begin
             if (mantissa_product_stg1[47] | (!mantissa_product_stg1[47] & (right_shift_amt_pipe[CORE_STAGES] != '0))) begin
-                {mantissa_normalized, shifted_out_bits} = mantissa_product_shifted[47:23] >> right_shift_amt_pipe[CORE_STAGES];
+                {mantissa_normalized, shifted_out_bits} = mantissa_product_shifted >> right_shift_amt_pipe[CORE_STAGES];
             end else begin
-                {mantissa_normalized, shifted_out_bits} = mantissa_product_stg1[47:23] >> right_shift_amt_pipe[CORE_STAGES];
+                {mantissa_normalized, shifted_out_bits} = mantissa_product_stg1 >> right_shift_amt_pipe[CORE_STAGES];
             end
         end 
 
@@ -314,12 +329,6 @@ module floating_point_multiplier #(
     logic [8:0] exponent_incremented;
 
     assign exponent_incremented = result_exp_pipe[CORE_STAGES] + 1'b1;
-
-
-    /* Both exponent inputs are negative (unbiased) */
-    logic exp_both_negative;
-
-    assign exp_both_negative = ({multiplier_exponent_sign_pipe[CORE_STAGES], multiplicand_exponent_sign_pipe[CORE_STAGES]} == 2'b00);
 
 
     /* Result */
@@ -368,49 +377,22 @@ module floating_point_multiplier #(
             end
         end : normalization_logic
 
-
-    /* Stage register nets */
-    float32_t    result_stg2;
-    round_bits_t round_bits_stg2;
-    logic        overflow_stg2, underflow_stg2;
-    logic        invalid_operation_stg2;
-    logic        data_valid_stg2;
-
-        always_ff @(posedge clk_i) begin : stage3_register
-            `ifdef FPGA if (clk_en_i) begin `endif 
-
-                `ifdef ASIC 
-                    data_valid_stg2 <= data_valid_stg1;
-                `elsif FPGA 
-                    data_valid_stg2 <= mul_data_valid_pipe[CORE_STAGES];
-                `endif 
-
-                result_stg2 <= final_result;
-
-                overflow_stg2 <= overflow;
-                underflow_stg2 <= underflow_pipe[CORE_STAGES];
-                invalid_operation_stg2 <= invalid_operation_pipe[CORE_STAGES];  
-
-                round_bits_stg2 <= round_bits;
-            `ifdef FPGA end `endif 
-        end : stage3_register
-
-
+ 
 //----------------//
 //  OUTPUT STAGE  //
 //----------------//
 
-    assign data_valid_o = data_valid_stg2;
+    assign data_valid_o = data_valid_stg1;
 
-    assign result_o = result_stg2;
+    assign result_o = final_result;
 
-    assign overflow_o = overflow_stg2;
+    assign overflow_o = overflow;
 
-    assign underflow_o = underflow_stg2;
+    assign underflow_o = underflow_pipe[CORE_STAGES];
 
-    assign invalid_operation_o = invalid_operation_stg2;
+    assign invalid_operation_o = invalid_operation_pipe[CORE_STAGES];
 
-    assign round_bits_o = round_bits_stg2;
+    assign round_bits_o = round_bits;
 
 endmodule : floating_point_multiplier
 
