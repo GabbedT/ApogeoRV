@@ -7,24 +7,33 @@
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 
 module floating_point_adder (
-    input  logic clk_i,
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i, 
+    input logic rst_n_i,
 
-    `ifdef FPGA 
-        input logic clk_en_i, 
-    `endif 
+    /* Operands */
+    input float32_t addend_A_i,
+    input float32_t addend_B_i,
 
-    input  logic             rst_n_i,
-    input  float32_t         addend_A_i,
-    input  float32_t         addend_B_i,
-    input  fpadd_operation_t operation_i,
-    input  logic             data_valid_i,
+    /* Specify the operation to execute (ADD or SUB) */
+    input fpadd_operation_t operation_i,
 
-    output logic        data_valid_o,
-    output logic        invalid_operation_o,
-    output logic        overflow_o,
-    output logic        underflow_o,
-    output round_bits_t round_bits_o,
-    output float32_t    result_o
+    /* Inputs are valid */
+    input logic data_valid_i,
+
+
+    /* Result and valid bit */
+    output float32_t result_o,
+    output logic     data_valid_o,
+
+    /* Exceptions */
+    output logic invalid_operation_o,
+    output logic overflow_o,
+    output logic underflow_o,
+
+    /* Round bits for later rounding */
+    output round_bits_t round_bits_o
 );
 
 //-----------------------//
@@ -36,7 +45,7 @@ module floating_point_adder (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : shift_register
             if (!rst_n_i) begin 
                 valid_bit_pipe <= '0;
-            end else `ifdef FPGA if (clk_en_i) `endif begin 
+            end else if (clk_en_i) begin 
                 valid_bit_pipe <= {valid_bit_pipe[2:0], data_valid_i}; 
             end
         end : shift_register
@@ -133,7 +142,7 @@ module floating_point_adder (
     logic [22:0] minor_addend_mantissa_stg0;
 
         always_ff @(posedge clk_i) begin : stage0_register
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin
                 major_addend_stg0 <= major_addend;
 
                 minor_addend_sign_stg0 <= minor_addend.sign;
@@ -143,7 +152,7 @@ module floating_point_adder (
                 exp_subtraction_stg0 <= exp_subtraction_abs[7:0];
 
                 invalid_operation_stg0 <= invalid_operation;
-            `ifdef FPGA end `endif 
+            end 
         end : stage0_register
     
 
@@ -171,7 +180,7 @@ module floating_point_adder (
     float32_t    major_addend_stg1;
 
         always_ff @(posedge clk_i) begin : stage1_register
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin
                 minor_addend_sign_stg1 <= minor_addend_sign_stg0;
                 minor_addend_mantissa_stg1 <= mantissa_aligned;
                 minor_shifted_mantissa_stg1 <= mantissa_shifted[23:0];
@@ -179,7 +188,7 @@ module floating_point_adder (
                 invalid_operation_stg1 <= invalid_operation_stg0;
 
                 major_addend_stg1 <= major_addend_stg0;
-            `ifdef FPGA end `endif 
+            end 
         end : stage1_register
 
 
@@ -246,7 +255,7 @@ module floating_point_adder (
     logic        invalid_operation_stg2;
 
         always_ff @(posedge clk_i) begin : stage2_register
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin
                 /* The last bit of the mantissa addition rapresent the sign of the result */
                 result_stg2 <= {major_addend_stg1.sign, major_addend_stg1.exponent, result_mantissa_abs[22:0]};
 
@@ -255,7 +264,7 @@ module floating_point_adder (
                 invalid_operation_stg2 <= invalid_operation_stg1;
                 hidden_bit_result_stg2 <= result_mantissa_abs[23];
                 minor_shifted_mantissa_stg2 <= minor_shifted_mantissa_stg1;
-            `ifdef FPGA end `endif 
+            end 
         end : stage2_register
 
 
@@ -393,13 +402,13 @@ module floating_point_adder (
     logic        invalid_operation_stg3;
         
         always_ff @(posedge clk_i) begin : stage3_register
-            `ifdef FPGA if (clk_en_i) begin `endif
+            if (clk_en_i) begin
                 result_stg3 <= final_result;
                 overflow_stg3 <= final_overflow;
                 underflow_stg3 <= final_underflow;
                 round_bits_stg3 <= round_bits;
                 invalid_operation_stg3 <= invalid_operation_stg2;
-            `ifdef FPGA end `endif 
+            end 
         end : stage3_register
 
 
