@@ -15,12 +15,14 @@ package floating_point_unit_pkg;
     /* Canonical NaN in RISCV */
     localparam CANONICAL_NAN = 32'h7FC00000;
 
+
     /* Floating point (32 bits) format */ 
     typedef struct packed {
         logic        sign;
         logic [7:0]  exponent;
         logic [22:0] mantissa;
     } float32_t;
+
 
     /* Rounding bits */
     typedef struct packed {
@@ -29,10 +31,12 @@ package floating_point_unit_pkg;
         logic sticky;
     } round_bits_t;
 
+
     /* FPADD unit operations */
     typedef enum logic {
         FADD, FSUB
     } fpadd_operation_t;
+
 
     /* Fused multiply add operation */
     typedef struct packed {
@@ -44,9 +48,12 @@ package floating_point_unit_pkg;
          * multiplier needs to be inverted */
         logic invert_product;
 
+        /* Which operation to execute */
+        enum logic {FPADD, FPMUL} operation;
+
         /* Specifies the operation on the 
          * floating point adder */
-        fpadd_operation_t add_operation;
+        fpadd_operation_t fpadd_operation;
     } fmadd_operation_t;
 
 endpackage : floating_point_unit_pkg 

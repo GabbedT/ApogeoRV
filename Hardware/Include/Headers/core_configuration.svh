@@ -33,12 +33,12 @@
      * right module */
 
     /* Number of pipeline stages in the core integer multiplier, so 
-     * if (MUL_PIPE_STAGES == 1) the multiplier will be combinational */
+     * if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */
     `define MUL_PIPE_STAGES 2
 
     /* Number of pipeline stages in the core floating point multiplier,
      * so if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */ 
-    `define MANTISSA_MUL_PIPE_STAGES 1
+    `define MANTISSA_MUL_PIPE_STAGES 0
 
 
     /*
