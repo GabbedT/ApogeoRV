@@ -8,23 +8,30 @@
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 
 module floating_point_divider (
-    input  logic clk_i,
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i, 
+    input logic rst_n_i,
 
-    `ifdef FPGA 
-        input logic clk_en_i, 
-    `endif 
+    /* Operands */
+    input float32_t dividend_i,
+    input float32_t divisor_i,
 
-    input  logic     rst_n_i,
-    input  float32_t dividend_i,
-    input  float32_t divisor_i,
-    input  logic     data_valid_i,
+    /* Inputs are valid */
+    input  logic data_valid_i,
 
-    output logic        data_valid_o,
-    output logic        invalid_operation_o,
-    output logic        overflow_o,
-    output logic        underflow_o,
-    output round_bits_t round_bits_o,
-    output float32_t    result_o
+    /* Result and valid bit */
+    output float32_t result_o,
+    output logic     data_valid_o,
+
+    /* Exceptions */
+    output logic invalid_operation_o,
+    output logic inexact_o,
+    output logic overflow_o,
+    output logic underflow_o,
+
+    /* Round bits for later rounding */
+    output round_bits_t round_bits_o
 );
 
 
@@ -32,25 +39,29 @@ module floating_point_divider (
 //  DATAPATH  //
 //------------//
 
-    logic dividend_is_infty_CRT, dividend_is_infty_NXT, dividend_is_zero_CRT, dividend_is_zero_NXT, dividend_is_nan_CRT, dividend_is_nan_NXT;
+    logic dividend_is_infty_CRT, dividend_is_infty_NXT;
+    logic dividend_is_zero_CRT, dividend_is_zero_NXT;
+    logic dividend_is_nan_CRT, dividend_is_nan_NXT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin
                 dividend_is_infty_CRT <= dividend_is_infty_NXT;
                 dividend_is_zero_CRT <= dividend_is_zero_NXT;
                 dividend_is_nan_CRT <= dividend_is_nan_NXT;
-            `ifdef FPGA end `endif 
+            end
         end
 
 
-    logic divisor_is_infty_CRT, divisor_is_infty_NXT, divisor_is_zero_CRT, divisor_is_zero_NXT, divisor_is_nan_CRT, divisor_is_nan_NXT;
+    logic divisor_is_infty_CRT, divisor_is_infty_NXT;
+    logic divisor_is_zero_CRT, divisor_is_zero_NXT;
+    logic divisor_is_nan_CRT, divisor_is_nan_NXT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin
                 divisor_is_infty_CRT <= divisor_is_infty_NXT;
                 divisor_is_zero_CRT <= divisor_is_zero_NXT;
                 divisor_is_nan_CRT <= divisor_is_nan_NXT;
-            `ifdef FPGA end `endif 
+            end
         end
 
 
@@ -64,9 +75,9 @@ module floating_point_divider (
     logic result_sign_CRT, result_sign_NXT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin
                 result_sign_CRT <= result_sign_NXT;
-            `ifdef FPGA end `endif 
+            end
         end
 
 
@@ -74,9 +85,9 @@ module floating_point_divider (
     logic [9:0] result_exponent_CRT, result_exponent_NXT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin
                 result_exponent_CRT <= result_exponent_NXT;
-            `ifdef FPGA end `endif 
+            end
         end
 
 
@@ -84,19 +95,19 @@ module floating_point_divider (
     logic [23:0] result_mantissa_CRT, result_mantissa_NXT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin
                 result_mantissa_CRT <= result_mantissa_NXT;
-            `ifdef FPGA end `endif 
+            end
         end
 
     
-    /* Divide by zero register */
-    logic divide_by_zero_CRT, divide_by_zero_NXT;
+    /* Hold the value of the inexact exception */
+    logic inexact_CRT, inexact_NXT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
-                divide_by_zero_CRT <= divide_by_zero_NXT;
-            `ifdef FPGA end `endif 
+            if (clk_en_i) begin
+                inexact_CRT <= inexact_NXT;
+            end
         end
 
 
@@ -109,21 +120,20 @@ module floating_point_divider (
 
     /* Mantissa divider instantiation */
     logic        divider_data_valid, divide_by_zero;
-    logic [23:0] result_division;
+    logic [23:0] result_division, remainder_division;
 
     non_restoring_divider #(24, 1) mantissa_core_divider (
-        .clk_i        ( clk_i                                             ),
-        .clk_en_i     ( clk_en_i                                          ),
-        .rst_n_i      ( rst_n_i                                           ),
-        .dividend_i   ( {dividend_hidden_bit, dividend_i.mantissa}    ),
-        .divisor_i    ( {divisor_hidden_bit, divisor_i.mantissa}   ),
-        .data_valid_i ( data_valid_i                                      ),
-
-        .quotient_o       ( result_division     ),
-        .remainder_o      ( /* NOT CONNECTED */ ),
-        .divide_by_zero_o ( divide_by_zero      ),
-        .data_valid_o     ( divider_data_valid  ),
-        .idle_o           ( /* NOT CONNECTED */ )
+        .clk_i            ( clk_i                                      ),
+        .clk_en_i         ( clk_en_i                                   ),
+        .rst_n_i          ( rst_n_i                                    ),
+        .dividend_i       ( {dividend_hidden_bit, dividend_i.mantissa} ),
+        .divisor_i        ( {divisor_hidden_bit, divisor_i.mantissa}   ),
+        .data_valid_i     ( data_valid_i                               ),
+        .quotient_o       ( result_division                            ),
+        .remainder_o      ( remainder_division                         ),
+        .divide_by_zero_o ( divide_by_zero                             ),
+        .data_valid_o     ( divider_data_valid                         ),
+        .idle_o           (             /* NOT CONNECTED */            )
     );
 
 
@@ -131,9 +141,9 @@ module floating_point_divider (
     logic [4:0] clz_result_mantissa_NXT, clz_result_mantissa_CRT;
 
         always_ff @(posedge clk_i) begin 
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin
                 clz_result_mantissa_CRT <= clz_result_mantissa_NXT;
-            `ifdef FPGA end `endif 
+            end
         end
 
 
@@ -166,7 +176,7 @@ module floating_point_divider (
 
     logic [23:0] shifted_out;
 
-        always_comb begin
+        always_comb begin : fsm_logic
             /* Default values */
             clz_result_mantissa_NXT = clz_result_mantissa_CRT;
             dividend_is_infty_NXT = dividend_is_infty_CRT;
@@ -177,8 +187,8 @@ module floating_point_divider (
             result_mantissa_NXT = result_mantissa_CRT;
             dividend_is_nan_NXT = dividend_is_nan_CRT;
             divisor_is_nan_NXT = divisor_is_nan_CRT;
-            divide_by_zero_NXT = divide_by_zero_CRT;
             result_sign_NXT = result_sign_CRT;
+            inexact_NXT = inexact_CRT;
             state_NXT = state_CRT;
 
             invalid_operation_o = 1'b0;
@@ -222,11 +232,12 @@ module floating_point_divider (
                         end else begin
                             state_NXT = NORMALIZE;
                         end
+
+                        inexact_NXT = remainder_division != '0;
                     end
 
                     clz_result_mantissa_NXT = clz_result_mantissa;
-                    result_mantissa_NXT = result_division; 
-                    divide_by_zero_NXT = divide_by_zero;
+                    result_mantissa_NXT = result_division;
                 end
 
                 NORMALIZE: begin
@@ -279,7 +290,7 @@ module floating_point_divider (
                     end
                 end
             endcase
-        end
+        end : fsm_logic
 
 
 //----------------//
@@ -289,6 +300,8 @@ module floating_point_divider (
     assign round_bits_o.guard = shifted_out[23];
     assign round_bits_o.round = shifted_out[22];
     assign round_bits_o.sticky = shifted_out[21:0] != '0;
+
+    assign inexact_o = inexact_CRT;
 
 endmodule 
 
