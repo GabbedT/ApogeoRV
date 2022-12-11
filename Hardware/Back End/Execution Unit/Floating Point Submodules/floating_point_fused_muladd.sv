@@ -8,38 +8,35 @@
 `include "floating_point_multiplier.sv"
 
 module floating_point_fused_muladd (
+    /* Register control */
     input logic clk_i,
+    input logic clk_en_i, 
+    input logic rst_n_i,
 
-    `ifdef FPGA 
-        input logic clk_en_i,
-    `endif 
+    /* Operands */
+    input float32_t operand_1_i,
+    input float32_t operand_2_i,
+    input float32_t operand_3_i,
 
-    input logic             rst_n_i,
-    input float32_t         operand_1_i,
-    input float32_t         operand_2_i,
-    input float32_t         operand_3_i,
+    /* Specify the operation to execute */
     input fmadd_operation_t operation_i,
-    input logic             add_data_valid_i,
-    input logic             mul_data_valid_i,
 
-    /* Floating point adder output interface */
-    output float32_t    add_result_o,
-    output logic        add_data_valid_o,
-    output logic        add_invalid_operation_o,
-    output logic        add_overflow_o,
-    output logic        add_underflow_o,
-    output round_bits_t add_round_bits_o,
+    /* Inputs are valid */
+    input logic data_valid_i,
 
-    /* Floating point multiplier output interface */
-    output float32_t    mul_result_o,
-    output logic        mul_data_valid_o,
-    output logic        mul_invalid_operation_o,
-    output logic        mul_overflow_o,
-    output logic        mul_underflow_o,
-    output round_bits_t mul_round_bits_o,
-    
-    output logic is_fused_o
-);
+
+    /* Result and valid bit */
+    output float32_t result_o,
+    output logic     data_valid_o,
+
+    /* Exceptions */
+    output logic invalid_operation_o,
+    output logic overflow_o,
+    output logic underflow_o,
+
+    /* Round bits for later rounding */
+    output round_bits_t round_bits_o
+); 
 
 //-----------------//
 //  CONTROL LOGIC  //
@@ -56,10 +53,10 @@ module floating_point_fused_muladd (
     fmadd_operation_t [FPMUL_PIPE_STAGES:0] operation_pipe; 
 
         always_ff @(posedge clk_i) begin
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin 
                 operand_3_pipe <= {operand_3_pipe[FPMUL_PIPE_STAGES - 1:0], operand_3_i};
                 operation_pipe <= {operation_pipe[FPMUL_PIPE_STAGES - 1:0], operation_i};
-            `ifdef FPGA end `endif 
+            end 
         end
 
 
@@ -67,137 +64,142 @@ module floating_point_fused_muladd (
 //  FP MULTIPLIER LOGIC  //
 //-----------------------//
 
-    float32_t    mul_result;
-    logic        mul_data_valid;
-    logic        mul_invalid_operation;
-    logic        mul_overflow;
-    logic        mul_underflow;
-    round_bits_t mul_round_bits;
+    logic fpmul_valid_in;
+
+    assign fpmul_valid_in = (operation_i.operation == FPMUL) & data_valid_i;
+
+    float32_t    fpmul_result;
+    logic        fpmul_data_valid;
+    logic        fpmul_invalid_operation, fpmul_overflow, fpmul_underflow;
+    round_bits_t fpmul_round_bits;
     
     floating_point_multiplier #(`MANTISSA_MUL_PIPE_STAGES) fpmul_unit (
-        .clk_i ( clk_i ),
-
+        .clk_i               ( clk_i                   ),
         `ifdef FPGA 
-            .clk_en_i ( clk_en_i ), 
+            .clk_en_i        ( clk_en_i                ), 
+        `elsif ASIC 
+            .clk_en_i        ( 1'b1                    ), 
         `endif 
-
-        .rst_n_i        ( rst_n_i          ),
-        .multiplicand_i ( operand_1_i      ),
-        .multiplier_i   ( operand_2_i      ),
-        .data_valid_i   ( mul_data_valid_i ),
-
-        .data_valid_o        ( mul_data_valid   ),
-        .invalid_operation_o ( mul_invalid_op   ),
-        .overflow_o          ( mul_overflow     ),
-        .underflow_o         ( mul_underflow    ),
-        .round_bits_o        ( mul_round_bits   ),
-        .result_o            ( mul_result       )
+        .rst_n_i             ( rst_n_i                 ),
+        .multiplicand_i      ( operand_1_i             ),
+        .multiplier_i        ( operand_2_i             ),
+        .data_valid_i        ( fpmul_valid_in          ),
+        .data_valid_o        ( fpmul_data_valid        ),
+        .invalid_operation_o ( fpmul_invalid_operation ),
+        .overflow_o          ( fpmul_overflow          ),
+        .underflow_o         ( fpmul_underflow         ),
+        .round_bits_o        ( fpmul_round_bits        ),
+        .result_o            ( fpmul_result            )
     );
 
-    assign mul_result_o = mul_result;
 
-    /* If the operation is fused the output is still not valid */
-    assign mul_data_valid_o = operation_pipe[FPMUL_PIPE_STAGES].is_fused ? 1'b0 : mul_data_valid;
+    logic     fpmul_data_valid_out;
+    float32_t fpmul_result_out;
 
-    assign mul_overflow_o = mul_overflow;
-    assign mul_underflow_o = mul_underflow;
-    assign mul_round_bits_o = mul_round_bits;
-    assign mul_invalid_operation_o = mul_invalid_op;
+    /* The output of the multiplier is valid from outside only if the operation was not fused */
+    assign fpmul_data_valid_out = !operation_pipe[FPMUL_PIPE_STAGES].is_fused & fpmul_data_valid;
 
-    assign is_fused_o = operation_pipe[FPMUL_PIPE_STAGES].is_fused;
+    assign fpmul_result_out = fpmul_data_valid_out ? fpmul_result : '0;
     
     
 //------------------//
 //  FP ADDER LOGIC  //
 //------------------//
 
-    /* Total number of pipeline registers minus 1 */
-    localparam FPADD_PIPE_STAGES = (4) - 1;
+    /* Addend selection */
+    float32_t fpadd_operand_A, fpadd_operand_B;
 
-    round_bits_t [FPADD_PIPE_STAGES:0] mul_round_bits_pipe;
-
-        always_ff @(posedge clk_i) begin
-            `ifdef FPGA if (clk_en_i) begin `endif 
-                mul_round_bits_pipe <= {mul_round_bits_pipe[FPMUL_PIPE_STAGES - 1:0], mul_round_bits};
-            `ifdef FPGA end `endif 
-        end
-
-
-    logic [FPADD_PIPE_STAGES:0] mul_invalid_operation_pipe;
-    logic [FPADD_PIPE_STAGES:0] mul_overflow_pipe;
-    logic [FPADD_PIPE_STAGES:0] mul_underflow_pipe;
-
-        always_ff @(posedge clk_i) begin
-            `ifdef FPGA if (clk_en_i) begin `endif 
-                mul_invalid_operation_pipe <= {mul_invalid_operation_pipe[FPMUL_PIPE_STAGES - 1:0], mul_invalid_op};
-                mul_overflow_pipe <= {mul_overflow_pipe[FPMUL_PIPE_STAGES - 1:0], mul_overflow};
-                mul_underflow_pipe <= {mul_underflow_pipe[FPMUL_PIPE_STAGES - 1:0], mul_underflow};
-            `ifdef FPGA end `endif 
-        end
-
-
-    float32_t addend_A, addend_B;
-
-        always_comb begin : adder_input_assignment
+        always_comb begin : adder_selection_logic
             /* If is a fused operation take the first addend from 
              * the result of the multiplier */
             if (operation_pipe[FPMUL_PIPE_STAGES].is_fused) begin
-                addend_A.sign = operation_pipe[FPMUL_PIPE_STAGES].invert_product ? !mul_result.sign : mul_result.sign;
-                addend_A.exponent = mul_result.exponent;
-                addend_A.mantissa = mul_result.mantissa;
+                fpadd_operand_A.sign = operation_pipe[FPMUL_PIPE_STAGES].invert_product ? !fpmul_result.sign :fpmul_result.sign;
+                fpadd_operand_A.exponent = fpmul_result.exponent;
+                fpadd_operand_A.mantissa = fpmul_result.mantissa;
 
-                addend_B = operand_3_pipe[FPMUL_PIPE_STAGES];
+                fpadd_operand_B = operand_3_pipe[FPMUL_PIPE_STAGES];
             end else begin
-                addend_A = operand_1_i;
-                addend_B = operand_2_i;
+                fpadd_operand_A = operand_1_i;
+                fpadd_operand_B = operand_2_i;
             end
-        end : adder_input_assignment
+        end : adder_selection_logic
+
 
     /* Valid data input if specifed from the outside of the module or if the multiplier
      * has produced a valid result and the operation is fused */
-    logic adder_data_valid;
+    logic fpadd_data_valid_in;
 
-    assign adder_data_valid = add_data_valid_i | (mul_data_valid & operation_pipe[FPMUL_PIPE_STAGES].is_fused);
+    assign fpadd_data_valid_in = (data_valid_i & operation_i.operation == FPADD) | (fpmul_data_valid & operation_pipe[FPMUL_PIPE_STAGES].is_fused);
 
     `ifdef ASSERTIONS 
         assert property @(posedge clk_i) ({add_data_valid_i, mul_data_valid} != 2'b11);
     `endif 
 
 
-    logic        add_invalid_operation;
-    logic        add_overflow;
-    logic        add_underflow;
-    round_bits_t add_round_bits;
-    fpadd_operation_t operation;
+    /* Select the right operation */
+    fpadd_operation_t fpadd_operation;
 
-    assign operation = operation_pipe[FPMUL_PIPE_STAGES].add_operation;
+        always_comb begin : operation_selection_logic
+            /* If is a fused operation take the operation
+             * from the pipeline */
+            if (operation_pipe[FPMUL_PIPE_STAGES].is_fused) begin
+                fpadd_operation = operation_pipe[FPMUL_PIPE_STAGES].fpadd_operation;
+            end else begin
+                fpadd_operation = operation_i.fpadd_operation;
+            end
+        end : operation_selection_logic
+
+
+    logic        fpadd_invalid_operation, fpadd_overflow, fpadd_underflow;
+    logic        fpadd_data_valid_out;
+    round_bits_t fpadd_round_bits;
+    float32_t    fpadd_result;
 
     floating_point_adder fpadd_unit (
-        .clk_i ( clk_i ),
-
+        .clk_i               ( clk_i                   ),
         `ifdef FPGA 
-            .clk_en_i ( clk_en_i ), 
+            .clk_en_i        ( clk_en_i                ), 
+        `elsif ASIC 
+            .clk_en_i        ( 1'b1                    ),
         `endif 
-
-        .rst_n_i      ( rst_n_i          ),
-        .addend_A_i   ( addend_A         ),
-        .addend_B_i   ( addend_B         ),
-        .operation_i  ( operation        ),
-        .data_valid_i ( adder_data_valid ),
-
-        .data_valid_o        ( add_data_valid_o      ),
-        .invalid_operation_o ( add_invalid_operation ),
-        .overflow_o          ( add_overflow          ),
-        .underflow_o         ( add_underflow         ),
-        .round_bits_o        ( add_round_bits        ),
-        .result_o            ( add_result_o          )
+        .rst_n_i             ( rst_n_i                 ),
+        .addend_A_i          ( fpadd_operand_A         ),
+        .addend_B_i          ( fpadd_operand_B         ),
+        .operation_i         ( fpadd_operation         ),
+        .data_valid_i        ( fpadd_data_valid_in     ),
+        .data_valid_o        ( fpadd_data_valid_out    ),
+        .invalid_operation_o ( fpadd_invalid_operation ),
+        .overflow_o          ( fpadd_overflow          ),
+        .underflow_o         ( fpadd_underflow         ),
+        .round_bits_o        ( fpadd_round_bits        ),
+        .result_o            ( fpadd_result            )
     );
 
-    assign add_round_bits_o = (mul_round_bits_pipe[FPADD_PIPE_STAGES] & operation_pipe[FPMUL_PIPE_STAGES].is_fused) | add_round_bits;
+ 
+    float32_t fpadd_result_out;
 
-    assign add_invalid_operation_o = (mul_invalid_operation_pipe[FPADD_PIPE_STAGES] & operation_pipe[FPMUL_PIPE_STAGES].is_fused) | add_invalid_operation;
-    assign add_overflow_o = (mul_overflow_pipe[FPADD_PIPE_STAGES] & operation_pipe[FPMUL_PIPE_STAGES].is_fused) | add_overflow;
-    assign add_underflow_o = (mul_underflow_pipe[FPADD_PIPE_STAGES] & operation_pipe[FPMUL_PIPE_STAGES].is_fused) | add_underflow;
+    assign fpadd_result_out = fpadd_data_valid_out ? fpadd_result : '0;
+
+
+//----------------//
+//  OUTPUT LOGIC  //
+//----------------//
+
+    /* If at least 1 operand is not 0 then the result is invalid */
+    assign result_o = fpadd_result_out | fpmul_result_out;
+
+    `ifdef ASSERTIONS 
+        assert property @(posedge clk_i) ((fpadd_result_out == '0) || (fpmul_result_out == '0));
+    `endif 
+
+
+    assign data_valid_o = fpadd_data_valid_out | fpmul_data_valid_out;
+
+    assign invalid_operation_o = (fpadd_invalid_operation & fpadd_data_valid_out) | (fpmul_invalid_operation & fpmul_data_valid_out);
+    assign overflow_o = (fpadd_overflow & fpadd_data_valid_out) | (fpmul_overflow & fpmul_data_valid_out);
+    assign underflow_o = (fpadd_underflow & fpadd_data_valid_out) | (fpmul_underflow & fpmul_data_valid_out);
+
+    assign round_bits_o = (fpadd_round_bits & fpadd_data_valid_out) | (fpmul_round_bits & fpmul_data_valid_out);
 
 endmodule : floating_point_fused_muladd
 
