@@ -78,7 +78,8 @@ module floating_point_multiplier #(
     assign multiplier_hidden_bit = (multiplier_i.exponent != '0);
 
 
-    /* Invalid operations (|x| * |y|):
+    /* 
+     * Invalid operations (|x| * |y|):
      *   - NaN * 0
      *   - NaN * subn
      *   - NaN * infty
