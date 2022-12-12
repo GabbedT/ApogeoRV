@@ -20,7 +20,7 @@ package floating_point_unit_pkg;
     typedef struct packed {
         logic        sign;
         logic [7:0]  exponent;
-        logic [22:0] mantissa;
+        logic [22:0] significand;
     } float32_t;
 
 
