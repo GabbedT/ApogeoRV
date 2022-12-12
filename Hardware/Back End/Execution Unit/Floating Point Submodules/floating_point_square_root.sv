@@ -1,7 +1,10 @@
 `ifndef FLOATING_POINT_SQUARE_ROOT_SV
     `define FLOATING_POINT_SQUARE_ROOT_SV
 
+`include "../../../Include/Packages/floating_point_unit_pkg.sv"
+
 `include "../Arithmetic Circuits/Integer/Square Root/non_restoring_square_root.sv"
+`include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 
 module floating_point_square_root (
     /* Register control */
@@ -22,6 +25,7 @@ module floating_point_square_root (
 
     /* Exceptions */
     output logic invalid_operation_o,
+    output logic overflow_o,
     output logic inexact_o,
 
     /* Round bits for later rounding */
@@ -37,7 +41,8 @@ module floating_point_square_root (
      * is the same as the input */
     logic operand_is_special;
 
-    assign operand_is_special = ((operand_i.exponent == '0) & (operand_i.mantissa == '0)) | ((operand_i.exponent == '1) & (operand_i.mantissa == '0));
+    assign operand_is_special = ((radicand_i.exponent == '0) & (radicand_i.mantissa == '0)) | 
+                                ((radicand_i.exponent == '1) & (radicand_i.mantissa == '0));
 
     logic operand_is_special_CRT, operand_is_special_NXT;
 
@@ -72,12 +77,16 @@ module floating_point_square_root (
         end
         
 
-    /* Hold the value of the inexact exception */
-    logic inexact_CRT, inexact_NXT;
+    /* Hold the value for rounding and inexact exception */
+    logic guard_CRT, guard_NXT;
+    logic round_CRT, round_NXT;
+    logic sticky_CRT, sticky_NXT;
 
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin
-                inexact_CRT <= inexact_NXT;
+                guard_CRT <= guard_NXT;
+                round_CRT <= round_NXT;
+                sticky_CRT <= sticky_NXT;
             end
         end
         
@@ -96,15 +105,24 @@ module floating_point_square_root (
     /* Integer square root module instantiation 
      * for mantissa square root */
     non_restoring_square_root #(48) mantissa_core_sqrt (
-        .clk_i        ( clk_i                             ),    
-        .clk_en_i     ( clk_en_i                          ),
-        .rst_n_i      ( rst_n_i                           ),    
-        .data_valid_i ( data_valid_i                      ),
-        .radicand_i   ( {hidden_bit, result_NXT.mantissa} ),
-        .root_o       ( result_sqrt                       ),     
-        .remainder_o  ( remainder_sqrt                    ),  
-        .data_valid_o ( sqrt_valid                        ),
-        .idle_o       (        /* NOT CONNECTED */        )
+        .clk_i        ( clk_i                                 ),    
+        .clk_en_i     ( clk_en_i                              ),
+        .data_valid_i ( data_valid_i                          ),
+        .rst_n_i      ( rst_n_i                               ),    
+        .radicand_i   ( {hidden_bit, result_NXT.mantissa, '0} ),
+        .root_o       ( result_sqrt                           ),     
+        .remainder_o  ( remainder_sqrt                        ),  
+        .data_valid_o ( sqrt_valid                            ),
+        .idle_o       (          /* NOT CONNECTED */          )
+    );
+
+
+    logic [4:0] clz_number;
+
+    count_leading_zeros #(24) clz (
+        .operand_i     ( {hidden_bit, radicand_i.mantissa} ),
+        .lz_count_o    ( clz_number                        ),
+        .is_all_zero_o (        /* NOT CONNECTED */        )
     );
 
 
@@ -125,8 +143,23 @@ module floating_point_square_root (
         end
 
 
+    logic [23:0] normalized_mantissa;
+    logic [8:0]  normalized_exponent;
+
         always_comb begin : fsm_logic
             /* Default values */
+            operand_is_special_NXT = operand_is_special_CRT;
+            operand_is_nan_NXT = operand_is_nan_CRT;
+            radicand_NXT = radicand_CRT;
+            result_NXT = result_CRT;
+            sticky_NXT = sticky_CRT;
+            round_NXT = round_CRT;
+            guard_NXT = guard_CRT;
+            state_NXT = state_CRT;
+            
+
+            result_o = '0;
+            invalid_operation_o = 1'b0;
 
             case (state_CRT)
 
@@ -138,9 +171,13 @@ module floating_point_square_root (
                 IDLE: begin
                     result_NXT.sign = radicand_i.sign;
 
+                    /* Normalize first the mantissa, increment the exponent accordingly */
+                    normalized_mantissa = {hidden_bit, radicand_i.mantissa} << clz_number;
+                    normalized_exponent = radicand_i.exponent - clz_number;
+
                     /* Make the exponent even and divide it by two, shift the mantissa accordingly */
-                    result_NXT.exponent = (radicand_i.exponent - radicand_i.exponent[0]) >> 1;
-                    result_NXT.mantissa = radicand_i.mantissa << radicand_i.exponent[0];
+                    result_NXT.exponent = (normalized_exponent - normalized_exponent[0]) >> 1;
+                    result_NXT.mantissa = normalized_mantissa << normalized_exponent[0];
 
                     /* Check if the input is a NaN or a special number */
                     operand_is_nan_NXT = (radicand_i.exponent == '0) & (radicand_i.mantissa != '0);
@@ -163,7 +200,11 @@ module floating_point_square_root (
                         state_NXT = VALID;
 
                         result_NXT.mantissa = result_sqrt;
-                        inexact_NXT = remainder_sqrt != '0;
+
+                        /* Rounding bits */
+                        guard_NXT = remainder_sqrt[23];
+                        round_NXT = remainder_sqrt[22];
+                        sticky_NXT = remainder_sqrt[21:0] != '0; 
                     end
                 end
 
@@ -195,7 +236,14 @@ module floating_point_square_root (
         end : fsm_logic
 
 
-    assign inexact_o = inexact_CRT;
+    assign inexact_o = guard_CRT | round_CRT | sticky_CRT;
+
+    /* Square root result overflows only if the input is +infinity */
+    assign overflow_o = (radicand_CRT.sign) & (radicand_CRT.exponent == '1) & (radicand_CRT.mantissa == '0);
+
+    assign round_bits_o.guard = guard_CRT;
+    assign round_bits_o.round = round_CRT;
+    assign round_bits_o.sticky = sticky_CRT;
 
 endmodule : floating_point_square_root
 
