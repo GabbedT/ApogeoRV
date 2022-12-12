@@ -1,6 +1,3 @@
 [submodule "Hardware/Back End/Execution Unit/Arithmetic Circuits"]
 	path = Hardware/Back End/Execution Unit/Arithmetic Circuits
 	url = https://github.com/GabbedT/Arithmetic-Circuits.git
-[submodule "Arithmetic-Circuits"]
-	path = Arithmetic-Circuits
-	url = https://github.com/GabbedT/Arithmetic-Circuits.git
