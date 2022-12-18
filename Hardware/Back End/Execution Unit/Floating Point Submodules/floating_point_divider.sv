@@ -1,3 +1,38 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : floating_point_divider.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module perform a floating point division. It is a sequential 
+//               unit so it cannot accept new valid input until the result become 
+//               valid.
+// ------------------------------------------------------------------------------------
+
 `ifndef FLOATING_POINT_DIVIDER_SV
     `define FLOATING_POINT_DIVIDER_SV
 
@@ -15,17 +50,18 @@ module floating_point_divider (
 
     /* Operands */
     input float32_t dividend_i,
-    input float32_t divisor_i,
+    input float32_t divisor_i, 
 
     /* Inputs are valid */
-    input  logic data_valid_i,
+    input logic data_valid_i,
 
     /* Result and valid bit */
     output float32_t result_o,
     output logic     data_valid_o,
 
-    /* Exceptions */
+    /* Exceptions */ 
     output logic invalid_operation_o,
+    output logic divide_by_zero_o,
     output logic inexact_o,
     output logic overflow_o,
     output logic underflow_o,
@@ -39,6 +75,7 @@ module floating_point_divider (
 //  DATAPATH  //
 //------------//
 
+    /* Dividend special values */
     logic dividend_is_infty_CRT, dividend_is_infty_NXT;
     logic dividend_is_zero_CRT, dividend_is_zero_NXT;
     logic dividend_is_nan_CRT, dividend_is_nan_NXT;
@@ -52,6 +89,7 @@ module floating_point_divider (
         end
 
 
+    /* Divisor special values */
     logic divisor_is_infty_CRT, divisor_is_infty_NXT;
     logic divisor_is_zero_CRT, divisor_is_zero_NXT;
     logic divisor_is_nan_CRT, divisor_is_nan_NXT;
@@ -92,11 +130,11 @@ module floating_point_divider (
 
 
     /* Divider result */
-    logic [23:0] result_mantissa_CRT, result_mantissa_NXT;
+    logic [23:0] result_significand_CRT, result_significand_NXT;
 
         always_ff @(posedge clk_i) begin 
             if (clk_en_i) begin
-                result_mantissa_CRT <= result_mantissa_NXT;
+                result_significand_CRT <= result_significand_NXT;
             end
         end
 
@@ -118,41 +156,69 @@ module floating_point_divider (
     assign divisor_hidden_bit = divisor_i.exponent == '0;
 
 
-    /* Mantissa divider instantiation */
-    logic        divider_data_valid, divide_by_zero;
+    /* Count the leading zeros of the significand */
+    logic [4:0] dividend_clz;
+
+    count_leading_zeros dividend_significand_clz (
+        .operand_i     ( {dividend_hidden_bit, dividend_i.significand} ),
+        .lz_count_o    ( dividend_clz                                  ),
+        .is_all_zero_o (              /* NOT CONNECTED */              )
+    );
+
+    logic [23:0] dividend_normalized;
+
+    assign dividend_normalized = {dividend_hidden_bit, dividend_i.significand} << dividend_clz;
+
+
+    /* Count the leading zeros of the significand */
+    logic [4:0] divisor_clz;
+
+    count_leading_zeros divisor_significand_clz (
+        .operand_i     ( {divisor_hidden_bit, divisor_i.significand} ),
+        .lz_count_o    ( divisor_clz                                 ),
+        .is_all_zero_o (             /* NOT CONNECTED */             )
+    );
+
+    logic [23:0] divisor_normalized;
+
+    assign divisor_normalized = {divisor_hidden_bit, divisor_i.significand} << divisor_clz;
+
+
+    /* significand divider instantiation */
+    logic        divider_data_valid;
     logic [23:0] result_division, remainder_division;
 
-    non_restoring_divider #(24, 1) mantissa_core_divider (
-        .clk_i            ( clk_i                                      ),
-        .clk_en_i         ( clk_en_i                                   ),
-        .rst_n_i          ( rst_n_i                                    ),
-        .dividend_i       ( {dividend_hidden_bit, dividend_i.mantissa} ),
-        .divisor_i        ( {divisor_hidden_bit, divisor_i.mantissa}   ),
-        .data_valid_i     ( data_valid_i                               ),
-        .quotient_o       ( result_division                            ),
-        .remainder_o      ( remainder_division                         ),
-        .divide_by_zero_o ( divide_by_zero                             ),
-        .data_valid_o     ( divider_data_valid                         ),
-        .idle_o           (             /* NOT CONNECTED */            )
+    non_restoring_divider #(24, 1) significand_core_divider (
+        .clk_i            ( clk_i               ),
+        .clk_en_i         ( clk_en_i            ),
+        .rst_n_i          ( rst_n_i             ),
+        .dividend_i       ( dividend_normalized ),
+        .divisor_i        ( divisor_normalized  ),
+        .data_valid_i     ( data_valid_i        ),
+        .quotient_o       ( result_division     ),
+        .remainder_o      ( remainder_division  ),
+        .divide_by_zero_o ( /* NOT CONNECTED */ ),
+        .data_valid_o     ( divider_data_valid  ),
+        .idle_o           ( /* NOT CONNECTED */ )
     );
 
 
     /* Count leading zero register */
-    logic [4:0] clz_result_mantissa_NXT, clz_result_mantissa_CRT;
+    logic [4:0] clz_result_significand_NXT, clz_result_significand_CRT;
 
         always_ff @(posedge clk_i) begin 
             if (clk_en_i) begin
-                clz_result_mantissa_CRT <= clz_result_mantissa_NXT;
+                clz_result_significand_CRT <= clz_result_significand_NXT;
             end
         end
 
 
     /* Count leading zero instantiation */
-    logic [4:0]  clz_result_mantissa;
+    logic [4:0]  clz_result_significand;
 
     count_leading_zeros #(24) clz_result (
         .operand_i     ( result_division     ),
-        .lz_count_o    ( clz_result_mantissa ),
+        .lz_count_o    ( clz_result_significand ),
         .is_all_zero_o ( /* NOT CONNECTED */ )
     );
 
@@ -161,7 +227,7 @@ module floating_point_divider (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [1:0] {IDLE, DIVIDE_MANTISSA, NORMALIZE, SPECIAL_VALUES} fsm_states_t;
+    typedef enum logic [1:0] {IDLE, DIVIDE_SIGNIFICAND, NORMALIZE, SPECIAL_VALUES} fsm_states_t;
 
     fsm_states_t state_CRT, state_NXT;
 
@@ -178,13 +244,13 @@ module floating_point_divider (
 
         always_comb begin : fsm_logic
             /* Default values */
-            clz_result_mantissa_NXT = clz_result_mantissa_CRT;
+            clz_result_significand_NXT = clz_result_significand_CRT;
+            result_significand_NXT = result_significand_CRT;
             dividend_is_infty_NXT = dividend_is_infty_CRT;
             divisor_is_infty_NXT = divisor_is_infty_CRT;
             dividend_is_zero_NXT = dividend_is_zero_CRT;
             divisor_is_zero_NXT = divisor_is_zero_CRT;
             result_exponent_NXT = result_exponent_CRT;
-            result_mantissa_NXT = result_mantissa_CRT;
             dividend_is_nan_NXT = dividend_is_nan_CRT;
             divisor_is_nan_NXT = divisor_is_nan_CRT;
             result_sign_NXT = result_sign_CRT;
@@ -203,29 +269,29 @@ module floating_point_divider (
 
                 IDLE: begin
                     /* Calculate the result exponent */
-                    result_exponent_NXT = (dividend_i.exponent - divisor_i.exponent) + BIAS;
+                    result_exponent_NXT = ((dividend_i.exponent - dividend_clz) - (divisor_i.exponent - divisor_clz)) + BIAS;
 
                     /* The result is positive if both signs are equals */
                     result_sign_NXT = dividend_i.sign ^ divisor_i.sign;
 
                     /* Infinity check */
-                    divisor_is_infty_NXT = (divisor_i.exponent == '1) & (divisor_i.mantissa == '0);
-                    dividend_is_infty_NXT = (dividend_i.exponent == '1) & (dividend_i.mantissa == '0);
+                    divisor_is_infty_NXT = (divisor_i.exponent == '1) & (divisor_i.significand == '0);
+                    dividend_is_infty_NXT = (dividend_i.exponent == '1) & (dividend_i.significand == '0);
 
                     /* Zero check */
-                    divisor_is_zero_NXT = (divisor_i.exponent == '0) & (divisor_i.mantissa == '0);
-                    dividend_is_zero_NXT = (dividend_i.exponent == '0) & (dividend_i.mantissa == '0);
+                    divisor_is_zero_NXT = (divisor_i.exponent == '0) & (divisor_i.significand == '0);
+                    dividend_is_zero_NXT = (dividend_i.exponent == '0) & (dividend_i.significand == '0);
 
                     /* NaN check */
-                    divisor_is_nan_NXT = (divisor_i.exponent == '1) & (divisor_i.mantissa != '0);
-                    dividend_is_nan_NXT = (dividend_i.exponent == '1) & (dividend_i.mantissa != '0);
+                    divisor_is_nan_NXT = (divisor_i.exponent == '1) & (divisor_i.significand != '0);
+                    dividend_is_nan_NXT = (dividend_i.exponent == '1) & (dividend_i.significand != '0);
 
                     if (data_valid_i) begin
-                        state_NXT = DIVIDE_MANTISSA;
+                        state_NXT = DIVIDE_SIGNIFICAND;
                     end
                 end
 
-                DIVIDE_MANTISSA: begin
+                DIVIDE_SIGNIFICAND: begin
                     if (divider_data_valid) begin
                         if (special_values) begin
                             state_NXT = SPECIAL_VALUES;
@@ -236,8 +302,8 @@ module floating_point_divider (
                         inexact_NXT = remainder_division != '0;
                     end
 
-                    clz_result_mantissa_NXT = clz_result_mantissa;
-                    result_mantissa_NXT = result_division;
+                    clz_result_significand_NXT = clz_result_significand;
+                    result_significand_NXT = result_division;
                 end
 
                 NORMALIZE: begin
@@ -251,19 +317,19 @@ module floating_point_divider (
                     if (result_exponent_CRT[8]) begin
                         /* If the 9-th is set too then the exponent is negative */
                         if (result_exponent_CRT[9]) begin
-                            {result_o.mantissa, shifted_out} = result_mantissa_CRT >> (-(result_exponent_CRT - clz_result_mantissa_CRT));
+                            {result_o.significand, shifted_out} = result_significand_CRT >> (-(result_exponent_CRT - clz_result_significand_CRT));
                             result_o.exponent = '0;
 
                             underflow_o = 1'b1;
                         end else begin
-                            result_o.mantissa = '0;
+                            result_o.significand = '0;
                             result_o.exponent = '1;
 
                             overflow_o = 1'b1;
                         end
                     end else begin
-                        result_o.mantissa = result_mantissa_CRT << clz_result_mantissa_CRT;
-                        result_o.exponent = result_exponent_CRT - clz_result_mantissa_CRT;
+                        result_o.significand = result_significand_CRT << clz_result_significand_CRT;
+                        result_o.exponent = result_exponent_CRT - clz_result_significand_CRT;
                     end
                 end
 
@@ -272,6 +338,10 @@ module floating_point_divider (
 
                     data_valid_o = 1'b1;
                     invalid_operation_o = 1'b1;
+
+                    /* When the divisor is zero and the dividend is a finite non-zero number raise a divide
+                     * by zero exception */
+                    divide_by_zero_o = divisor_is_zero_CRT & !(dividend_is_infty_CRT | dividend_is_zero_CRT);
 
                     if (divisor_is_nan_CRT | dividend_is_nan_CRT) begin 
                         result_o = CANONICAL_NAN;
