@@ -1,3 +1,43 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : floating_point_fused_muladd.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module can perform two different operations: a multiplication 
+//               and an addition. It's possible to perform only one of those two per
+//               cycle or fusing them into a single operation. The module is pipeline
+//               so it can accept one valid operation per cycle. Structural hazard can
+//               rise if the multiplier produces a valid result when from the inputs
+//               comes a valid operation for the adder. If the operations are not 
+//               fused the third operand is not considered, else it will be considered
+//               for the addition after the multiplication. 
+// ------------------------------------------------------------------------------------
+
 `ifndef FLOATING_POINT_FUSED_MULADD_SV
     `define FLOATING_POINT_FUSED_MULADD_SV
 
@@ -31,6 +71,7 @@ module floating_point_fused_muladd (
 
     /* Exceptions */
     output logic invalid_operation_o,
+    output logic inexact_o,
     output logic overflow_o,
     output logic underflow_o,
 
@@ -43,7 +84,7 @@ module floating_point_fused_muladd (
 //-----------------//
 
     /* Total number of pipeline registers minus 1 */
-    localparam FPMUL_PIPE_STAGES = (`MANTISSA_MUL_PIPE_STAGES + 3) - 1;
+    localparam FPMUL_PIPE_STAGES = (`SIGNIFICAND_MUL_PIPE_STAGES + 3) - 1;
 
 
     /* Third input source of the fused operation needs to be 
@@ -66,14 +107,14 @@ module floating_point_fused_muladd (
 
     logic fpmul_valid_in;
 
-    assign fpmul_valid_in = (operation_i.operation == FPMUL) & data_valid_i;
+    assign fpmul_valid_in = (operation_i.operation == FP_MUL) & data_valid_i;
 
     float32_t    fpmul_result;
     logic        fpmul_data_valid;
-    logic        fpmul_invalid_operation, fpmul_overflow, fpmul_underflow;
+    logic        fpmul_invalid_operation, fpmul_overflow, fpmul_underflow, fpmul_inexact;
     round_bits_t fpmul_round_bits;
     
-    floating_point_multiplier #(`MANTISSA_MUL_PIPE_STAGES) fpmul_unit (
+    floating_point_multiplier #(`SIGNIFICAND_MUL_PIPE_STAGES) fpmul_unit (
         .clk_i               ( clk_i                   ),
         `ifdef FPGA 
             .clk_en_i        ( clk_en_i                ), 
@@ -86,6 +127,7 @@ module floating_point_fused_muladd (
         .data_valid_i        ( fpmul_valid_in          ),
         .data_valid_o        ( fpmul_data_valid        ),
         .invalid_operation_o ( fpmul_invalid_operation ),
+        .inexact_o           ( fpmul_inexact           ),
         .overflow_o          ( fpmul_overflow          ),
         .underflow_o         ( fpmul_underflow         ),
         .round_bits_o        ( fpmul_round_bits        ),
@@ -115,7 +157,7 @@ module floating_point_fused_muladd (
             if (operation_pipe[FPMUL_PIPE_STAGES].is_fused) begin
                 fpadd_operand_A.sign = operation_pipe[FPMUL_PIPE_STAGES].invert_product ? !fpmul_result.sign :fpmul_result.sign;
                 fpadd_operand_A.exponent = fpmul_result.exponent;
-                fpadd_operand_A.mantissa = fpmul_result.mantissa;
+                fpadd_operand_A.significand = fpmul_result.significand;
 
                 fpadd_operand_B = operand_3_pipe[FPMUL_PIPE_STAGES];
             end else begin
@@ -129,7 +171,7 @@ module floating_point_fused_muladd (
      * has produced a valid result and the operation is fused */
     logic fpadd_data_valid_in;
 
-    assign fpadd_data_valid_in = (data_valid_i & operation_i.operation == FPADD) | (fpmul_data_valid & operation_pipe[FPMUL_PIPE_STAGES].is_fused);
+    assign fpadd_data_valid_in = (data_valid_i & operation_i.operation == FP_ADD) | (fpmul_data_valid & operation_pipe[FPMUL_PIPE_STAGES].is_fused);
 
     `ifdef ASSERTIONS 
         assert property @(posedge clk_i) ({add_data_valid_i, mul_data_valid} != 2'b11);
@@ -150,7 +192,7 @@ module floating_point_fused_muladd (
         end : operation_selection_logic
 
 
-    logic        fpadd_invalid_operation, fpadd_overflow, fpadd_underflow;
+    logic        fpadd_invalid_operation, fpadd_overflow, fpadd_underflow, fpadd_inexact;
     logic        fpadd_data_valid_out;
     round_bits_t fpadd_round_bits;
     float32_t    fpadd_result;
@@ -169,6 +211,7 @@ module floating_point_fused_muladd (
         .data_valid_i        ( fpadd_data_valid_in     ),
         .data_valid_o        ( fpadd_data_valid_out    ),
         .invalid_operation_o ( fpadd_invalid_operation ),
+        .inexact_o           ( fpadd_inexact           ),
         .overflow_o          ( fpadd_overflow          ),
         .underflow_o         ( fpadd_underflow         ),
         .round_bits_o        ( fpadd_round_bits        ),
@@ -196,8 +239,9 @@ module floating_point_fused_muladd (
     assign data_valid_o = fpadd_data_valid_out | fpmul_data_valid_out;
 
     assign invalid_operation_o = (fpadd_invalid_operation & fpadd_data_valid_out) | (fpmul_invalid_operation & fpmul_data_valid_out);
-    assign overflow_o = (fpadd_overflow & fpadd_data_valid_out) | (fpmul_overflow & fpmul_data_valid_out);
     assign underflow_o = (fpadd_underflow & fpadd_data_valid_out) | (fpmul_underflow & fpmul_data_valid_out);
+    assign overflow_o = (fpadd_overflow & fpadd_data_valid_out) | (fpmul_overflow & fpmul_data_valid_out);
+    assign inexact_o = (fpadd_inexact & fpadd_data_valid_out) | (fpmul_inexact & fpmul_data_valid_out);
 
     assign round_bits_o = (fpadd_round_bits & fpadd_data_valid_out) | (fpmul_round_bits & fpmul_data_valid_out);
 
