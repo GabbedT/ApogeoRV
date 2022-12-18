@@ -38,7 +38,7 @@
 
     /* Number of pipeline stages in the core floating point multiplier,
      * so if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */ 
-    `define MANTISSA_MUL_PIPE_STAGES 0
+    `define SIGNIFICAND_MUL_PIPE_STAGES 0
 
 
     /*
