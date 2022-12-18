@@ -1,3 +1,39 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : floating_point_adder.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module perform a floating point addition or subtraction. The 
+//               "operation_i" input specify if the second operands needs it's sign
+//               bit flipped. The adder can take new valid input every cycle since 
+//               it's pipelined. 
+// ------------------------------------------------------------------------------------
+
 `ifndef FLOATING_POINT_ADDER_SV
     `define FLOATING_POINT_ADDER_SV
 
@@ -29,6 +65,7 @@ module floating_point_adder (
 
     /* Exceptions */
     output logic invalid_operation_o,
+    output logic inexact_o,
     output logic overflow_o,
     output logic underflow_o,
 
@@ -45,17 +82,17 @@ module floating_point_adder (
      *  until the result is valid through a shift register.
      */ 
 
-    logic [3:0] valid_bit_pipe;
+    logic [2:0] valid_bit_pipe;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : shift_register
             if (!rst_n_i) begin 
                 valid_bit_pipe <= '0;
             end else if (clk_en_i) begin 
-                valid_bit_pipe <= {valid_bit_pipe[2:0], data_valid_i}; 
+                valid_bit_pipe <= {valid_bit_pipe[1:0], data_valid_i}; 
             end
         end : shift_register
 
-    assign data_valid_o = valid_bit_pipe[3];
+    assign data_valid_o = valid_bit_pipe[2];
 
 
 //--------------------------//
@@ -89,7 +126,7 @@ module floating_point_adder (
      * to normalize the minor number significand */
     logic signed [8:0] exp_subtraction, exp_subtraction_abs;
 
-    assign exp_subtraction = {1'b0, addend_A_i.exponent} - {1'b0, addend_B_i.exponent};
+    assign exp_subtraction = addend_A_i.exponent - (addend_A_i.exponent != '0) - addend_B_i.exponent + (addend_B_i.exponent != '0);
 
 
     float32_t addend_B;
@@ -147,7 +184,7 @@ module floating_point_adder (
     assign minor_hidden_bit = (minor_addend.exponent != '0);
 
 
-    /* Stage register nets */
+    /* Stage register nets coming from 0-th stage */
     float32_t    major_addend_stg0;
     logic        invalid_operation_stg0;
     logic [7:0]  exp_subtraction_stg0;
@@ -186,7 +223,7 @@ module floating_point_adder (
      * bit is considered */
     logic [47:0] significand_shifted;
 
-    assign significand_shifted = (exp_subtraction_stg0 >= 8'd24) ? '0 : ({minor_hidden_bit_stg0, minor_addend_significand_stg0, 24'b0} >> exp_subtraction_stg0[4:0]);
+    assign significand_shifted = (exp_subtraction_stg0 >= 8'd48) ? '0 : ({minor_hidden_bit_stg0, minor_addend_significand_stg0, 24'b0} >> exp_subtraction_stg0[5:0]);
 
 
     /* Significand aligned with hidden bit */
@@ -195,7 +232,7 @@ module floating_point_adder (
     assign significand_aligned = significand_shifted[47:24];
 
 
-    /* Stage register nets */
+    /* Stage register nets coming from 1-th stage */
     logic        minor_addend_sign_stg1;
     logic        invalid_operation_stg1;
     logic [23:0] minor_addend_significand_stg1, minor_shifted_significand_stg1;
@@ -274,7 +311,7 @@ module floating_point_adder (
     assign result_significand_abs = negate_result ? -result_significand[23:0] : result_significand[23:0];
 
 
-    /* Stage register nets */
+    /* Stage register nets coming from 2-th stage */
     float32_t    result_stg2;
     logic [23:0] minor_shifted_significand_stg2;
     logic        hidden_bit_result_stg2;
@@ -340,6 +377,7 @@ module floating_point_adder (
             final_result.sign = result_stg2.sign;
             final_result.exponent = result_stg2.exponent;
             final_result.significand = result_stg2.significand;
+
             full_result_shifted_significand = '0;
             final_overflow = 1'b0; 
             final_underflow = 1'b0;
@@ -428,15 +466,32 @@ module floating_point_adder (
         end
 
 
-    assign result_o = invalid_operation_stg2 ? CANONICAL_NAN : final_result;
+    /* Register nets coming from 3-th stage */
+    float32_t    result_stg3;
+    logic        invalid_operation_stg3, overflow_stg3, underflow_stg3;
+    round_bits_t round_bits_stg3;
 
-    assign invalid_operation_o = invalid_operation_stg2;
+        always_ff @(posedge clk_i) begin
+            if (clk_en_i) begin
+                result_stg3 <= final_result;
 
-    assign overflow_o = final_overflow;
+                invalid_operation_stg3 <= invalid_operation_stg2;
+                underflow_stg3 <= final_underflow;
+                overflow_stg3 <= final_overflow;
 
-    assign underflow_o = final_underflow;
+                round_bits_stg3 <= round_bits;
+            end
+        end
 
-    assign round_bits_o = round_bits;
+    assign result_o = invalid_operation_stg3 ? CANONICAL_NAN : result_stg3;
+
+    /* Exceptions */
+    assign invalid_operation_o = invalid_operation_stg3;
+    assign inexact_o = |round_bits_stg3;
+    assign overflow_o = overflow_stg3;
+    assign underflow_o = underflow_stg3;
+
+    assign round_bits_o = round_bits_stg3;
 
 endmodule : floating_point_adder
 
