@@ -1,8 +1,41 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : floating_point_multiplier.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module perform a floating point multiplication. The multiplier 
+//               can take new valid input every cycle since it's pipelined. 
+// ------------------------------------------------------------------------------------
+
 `ifndef FLOATING_POINT_MULTIPLIER_SV
     `define FLOATING_POINT_MULTIPLIER_SV
 
 `include "../../../Include/Packages/floating_point_unit_pkg.sv"
-`include "../../../Include/Headers/core_configuration.svh"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
@@ -12,23 +45,30 @@
 module floating_point_multiplier #(
     parameter CORE_STAGES = 0
 ) (
-    input  logic clk_i,
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i, 
+    input logic rst_n_i,
+    
+    /* Operands */
+    input float32_t multiplicand_i,
+    input float32_t multiplier_i,
 
-    `ifdef FPGA 
-        input logic clk_en_i, 
-    `endif 
+    /* Inputs are valid */
+    input logic     data_valid_i,
 
-    input  logic     rst_n_i,
-    input  float32_t multiplicand_i,
-    input  float32_t multiplier_i,
-    input  logic     data_valid_i,
+    /* Result and valid bit */
+    output float32_t result_o,
+    output logic     data_valid_o,
 
-    output logic        data_valid_o,
-    output logic        invalid_operation_o,
-    output logic        overflow_o,
-    output logic        underflow_o,
-    output round_bits_t round_bits_o,
-    output float32_t    result_o
+    /* Exceptions */
+    output logic invalid_operation_o,
+    output logic inexact_o,
+    output logic overflow_o,
+    output logic underflow_o,
+
+    /* Round bits for later rounding */
+    output round_bits_t round_bits_o
 );
 
 //---------------------------//
@@ -53,29 +93,29 @@ module floating_point_multiplier #(
     /* NaN detection */
     logic multiplicand_is_nan, multiplier_is_nan;
 
-    assign multiplicand_is_nan = (multiplicand_i.exponent == '1) & (multiplicand_i.mantissa != '0);
-    assign multiplier_is_nan = (multiplier_i.exponent == '1) & (multiplier_i.mantissa != '0);
+    assign multiplicand_is_nan = (multiplicand_i.exponent == '1) & (multiplicand_i.significand != '0);
+    assign multiplier_is_nan = (multiplier_i.exponent == '1) & (multiplier_i.significand != '0);
 
 
     /* Infinity detection */
     logic multiplicand_is_infty, multiplier_is_infty;
 
-    assign multiplicand_is_infty = (multiplicand_i.exponent == '1) & (multiplicand_i.mantissa == '0);
-    assign multiplier_is_infty = (multiplier_i.exponent == '1) & (multiplier_i.mantissa == '0);
+    assign multiplicand_is_infty = (multiplicand_i.exponent == '1) & (multiplicand_i.significand == '0);
+    assign multiplier_is_infty = (multiplier_i.exponent == '1) & (multiplier_i.significand == '0);
 
 
     /* Zero detection */
     logic multiplicand_is_zero, multiplier_is_zero;
 
-    assign multiplicand_is_zero = (multiplicand_i.exponent == '0) & (multiplicand_i.mantissa == '0);
-    assign multiplier_is_zero = (multiplier_i.exponent == '0) & (multiplier_i.mantissa == '0);
+    assign multiplicand_is_zero = (multiplicand_i.exponent == '0) & (multiplicand_i.significand == '0);
+    assign multiplier_is_zero = (multiplier_i.exponent == '0) & (multiplier_i.significand == '0);
 
 
     /* Hidden bit */
-    logic multiplicand_hidden_bit, multiplier_hidden_bit;
+    logic multiplicand_subnormal, multiplier_subnormal;
 
-    assign multiplicand_hidden_bit = (multiplicand_i.exponent != '0);
-    assign multiplier_hidden_bit = (multiplier_i.exponent != '0);
+    assign multiplicand_subnormal = (multiplicand_i.exponent == '0);
+    assign multiplier_subnormal = (multiplier_i.exponent == '0);
 
 
     /* 
@@ -93,32 +133,65 @@ module floating_point_multiplier #(
                                (multiplicand_is_zero | multiplier_is_infty); 
 
 
+    /* Count the leading zeros in the multiplicand significand */
+    logic [4:0] multiplicand_clz;
+
+    count_leading_zeros #(24) multiplicand_significand_clz (
+        .operand_i     ( {!multiplicand_subnormal, multiplicand_i.significand} ),
+        .lz_count_o    ( multiplicand_clz                                      ),
+        .is_all_zero_o (                /* NOT CONNECTED */                    )
+    );
+    
+    /* Normalize the input shifting the significand by the number of leading zeros */
+    logic multiplicand_normalized;
+
+    assign multiplicand_normalized = {!multiplicand_subnormal, multiplicand_i.significand} << multiplicand_clz;
+
+
+    /* Count the leading zeros in the multiplier significand */
+    logic [4:0] multiplier_clz;
+
+    count_leading_zeros #(24) multiplier_significand_clz (
+        .operand_i     ( {!multiplier_subnormal, multiplier_i.significand} ),
+        .lz_count_o    ( multiplier_clz                                    ),
+        .is_all_zero_o (              /* NOT CONNECTED */                  )
+    );
+
+    /* Normalize the input shifting the significand by the number of leading zeros */
+    logic multiplier_normalized;
+
+    assign multiplier_normalized = {!multiplier_subnormal, multiplier_i.significand} << multiplier_clz;
+
+
     /* First stage of exponent computation */
-    logic [8:0] result_exp;
+    logic [8:0] pre_result_exponent;
 
-    assign result_exp = (multiplicand_i.exponent + multiplier_i.exponent) - BIAS;
+    assign pre_result_exponent = ((multiplicand_i.exponent + multiplicand_subnormal) + (multiplier_i.exponent + multiplier_subnormal)) - BIAS;
 
 
-    /* Stage register nets */
-    logic [8:0]  result_exp_stg0;
-    logic [22:0] multiplicand_mantissa_stg0, multiplier_mantissa_stg0;
+    /* Stage register nets coming from 0-th stage */
+    logic [8:0]  result_exponent_stg0;
+    logic [4:0]  multiplicand_clz_stg0, multiplier_clz_stg0;
+    logic [23:0] multiplicand_significand_stg0, multiplier_significand_stg0;
     logic        multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0;
     logic        invalid_operation_stg0;
     logic        result_sign_stg0;
 
         always_ff @(posedge clk_i) begin : stage0_register
             if (clk_en_i) begin 
-                multiplicand_mantissa_stg0 <= multiplicand_i.mantissa;
+                multiplicand_significand_stg0 <= multiplicand_normalized;
                 multiplicand_exponent_sign_stg0 <= multiplicand_i.exponent[7];
+                multiplicand_clz_stg0 <= multiplicand_clz;
 
-                multiplier_mantissa_stg0 <= multiplier_i.mantissa;
+                multiplier_significand_stg0 <= multiplier_normalized; 
                 multiplier_exponent_sign_stg0 <= multiplier_i.exponent[7];
+                multiplier_clz_stg0 <= multiplier_clz;
 
                 /* An invalid exception is raised if one of the invalid combinations of operands is detected 
                  * or if a denormal number is detected */
-                invalid_operation_stg0 <= invalid_operation | !((multiplicand_hidden_bit & !multiplicand_is_zero) & (multiplier_hidden_bit & !multiplier_is_zero));
+                invalid_operation_stg0 <= invalid_operation | !((!multiplicand_subnormal & !multiplicand_is_zero) & (!multiplier_subnormal & !multiplier_is_zero));
 
-                result_exp_stg0 <= result_exp;
+                result_exponent_stg0 <= pre_result_exponent;
                 result_sign_stg0 <= result_sign;
             end  
         end : stage0_register
@@ -158,31 +231,37 @@ module floating_point_multiplier #(
             end  
         end
 
+    /* Decrement the exponent by the number of left shift done in the 
+     * previous stage */
+    logic [8:0] result_exponent_sub;
+
+    assign result_exponent_sub = result_exponent_stg0 - (multiplicand_clz_stg0 + multiplier_clz_stg0);
+
 
     /* Pre-elaboration for denormals normalization */
     logic [4:0] right_shift_amt;
-    logic [8:0] pre_result_exponent;
+    logic [8:0] result_exponent, result_exponent_abs;
     logic       underflow;
 
-    assign exponent_stg0_abs = -result_exp_stg0;
+    assign result_exponent_abs = -result_exponent_sub;
 
         always_comb begin
             /* Default value */
             underflow = 1'b0;
             right_shift_amt = '0;
-            pre_result_exponent = result_exp_stg0;
+            result_exponent = result_exponent_stg0;
 
             /* If the exponent computed is negative, find the absolute value of it to calculate 
-             * the right shift amount of the result mantissa */
-            if (result_exp_stg0[8] & ({multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0} == 2'b00)) begin
-                if (exponent_stg0_abs < 24) begin  
-                    right_shift_amt = exponent_stg0_abs;
+             * the right shift amount of the result significand */
+            if (result_exponent_sub[8] & ({multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0} == 2'b00)) begin
+                if (result_exponent_abs < 24) begin  
+                    right_shift_amt = result_exponent_abs;
                 end else begin
                     right_shift_amt = 5'd24;
                     underflow = 1'b1;
                 end
 
-                pre_result_exponent = '0;
+                result_exponent = '0;
             end 
         end
     
@@ -196,44 +275,44 @@ module floating_point_multiplier #(
             if (clk_en_i) begin 
                 if (CORE_STAGES == 0) begin 
                     underflow_pipe <= underflow;
-                    result_exp_pipe <= pre_result_exponent;
+                    result_exp_pipe <= result_exponent;
                     right_shift_amt_pipe <= right_shift_amt;
                 end else begin 
                     underflow_pipe <= {underflow_pipe[CORE_STAGES - 1:0], underflow};
-                    result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], pre_result_exponent};
+                    result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], result_exponent};
                     right_shift_amt_pipe <= {right_shift_amt_pipe[CORE_STAGES - 1:0], right_shift_amt};
                 end 
             end  
         end
 
 
-//--------------------------//
-//  MANTISSA PRODUCT STAGE  //
-//--------------------------//
+//-----------------------------//
+//  SIGNIFICAND PRODUCT STAGE  //
+//-----------------------------//
 
-    /* Mantissa multiplier product */
-    logic [47:0] mantissa_product;
+    /* Significand multiplier product */
+    logic [47:0] significand_product;
 
     `ifdef ASIC 
 
         logic mul_data_valid_pipe;
         
         if (CORE_STAGES != 0) begin
-            pipelined_array_multiplier #(24, CORE_STAGES) mantissa_core_multiplier (
-                .clk_i          ( clk_i                              ),
-                .clk_en_i       ( 1'b1                               ),
-                .rst_n_i        ( rst_n_i                            ),
-                .multiplicand_i ( {1'b1, multiplicand_mantissa_stg0} ),
-                .multiplier_i   ( {1'b1, multiplier_mantissa_stg0}   ),
-                .data_valid_i   ( data_valid_stg0                    ),
-                .product_o      ( mantissa_product                   ),
-                .data_valid_o   ( mul_data_valid_pipe                )
+            pipelined_array_multiplier #(24, CORE_STAGES) significand_core_multiplier (
+                .clk_i          ( clk_i                         ),
+                .clk_en_i       ( 1'b1                          ),
+                .rst_n_i        ( rst_n_i                       ),
+                .multiplicand_i ( multiplicand_significand_stg0 ),
+                .multiplier_i   ( multiplier_significand_stg0   ),
+                .data_valid_i   ( data_valid_stg0               ),
+                .product_o      ( significand_product           ),
+                .data_valid_o   ( mul_data_valid_pipe           )
             );
         end else begin 
-            array_multiplier #(24) mantissa_core_multiplier (
-                .multiplicand_i ( {1'b1, multiplicand_mantissa_stg0} ),
-                .multiplier_i   ( {1'b1, multiplier_mantissa_stg0}   ),
-                .product_o      ( mantissa_product                   )
+            array_multiplier #(24) significand_core_multiplier (
+                .multiplicand_i ( multiplicand_significand_stg0 ),
+                .multiplier_i   ( multiplier_significand_stg0   ),
+                .product_o      ( significand_product           )
             );
             
             assign mul_data_valid_pipe = data_valid_stg0;
@@ -244,12 +323,12 @@ module floating_point_multiplier #(
         logic [CORE_STAGES:0] mul_data_valid_pipe;
         
         if (CORE_STAGES != 0) begin 
-            mantissa_multiplier mantissa_core_multiplier (
-                .CLK ( clk_i                              ),
-                .A   ( {1'b1, multiplicand_mantissa_stg0} ),
-                .B   ( {1'b1, multiplier_mantissa_stg0}   ),
-                .CE  ( clk_en_i                           ),
-                .P   ( mantissa_product                   )
+            significand_multiplier significand_core_multiplier (
+                .CLK ( clk_i                         ),
+                .A   ( multiplicand_significand_stg0 ), 
+                .B   ( multiplier_significand_stg0   ),
+                .CE  ( clk_en_i                      ),
+                .P   ( significand_product           )
             );
 
             always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
@@ -264,10 +343,10 @@ module floating_point_multiplier #(
                 end
             end 
         end else begin
-            mantissa_multiplier mantissa_core_multiplier (
-                .A( {1'b1, multiplicand_mantissa_stg0} ), 
-                .B( {1'b1, multiplier_mantissa_stg0}   ),  
-                .P( mantissa_product                   )  
+            significand_multiplier significand_core_multiplier (
+                .A( multiplicand_significand_stg0 ), 
+                .B( multiplier_significand_stg0   ),  
+                .P( significand_product           )  
             );
             
             assign mul_data_valid_pipe = data_valid_stg0;
@@ -278,12 +357,12 @@ module floating_point_multiplier #(
 
 
     /* Stage net */
-    logic [47:0] mantissa_product_stg1;
+    logic [47:0] significand_product_stg1;
     logic        data_valid_stg1;
 
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin 
-                mantissa_product_stg1 <= mantissa_product;
+                significand_product_stg1 <= significand_product;
                 
                 `ifdef ASIC 
                     data_valid_stg1 <= mul_data_valid_pipe;
@@ -302,20 +381,20 @@ module floating_point_multiplier #(
     logic overflow;
 
     /* After normalization float fields */
-    logic [47:0] mantissa_product_shifted;
+    logic [47:0] significand_product_shifted;
 
-    assign mantissa_product_shifted = mantissa_product_stg1 >> 1;
+    assign significand_product_shifted = significand_product_stg1 >> 1;
 
 
-    /* Mantissa shifted right */
-    logic [22:0] mantissa_normalized;
+    /* Significand shifted right */
+    logic [22:0] significand_normalized;
     logic [22:0] shifted_out_bits;
  
         always_comb begin
-            if (mantissa_product_stg1[47] | (!mantissa_product_stg1[47] & (right_shift_amt_pipe[CORE_STAGES] != '0))) begin
-                {mantissa_normalized, shifted_out_bits} = mantissa_product_shifted >> right_shift_amt_pipe[CORE_STAGES];
+            if (significand_product_stg1[47] | (!significand_product_stg1[47] & (right_shift_amt_pipe[CORE_STAGES] != '0))) begin
+                {significand_normalized, shifted_out_bits} = significand_product_shifted >> right_shift_amt_pipe[CORE_STAGES];
             end else begin
-                {mantissa_normalized, shifted_out_bits} = mantissa_product_stg1 >> right_shift_amt_pipe[CORE_STAGES];
+                {significand_normalized, shifted_out_bits} = significand_product_stg1 >> right_shift_amt_pipe[CORE_STAGES];
             end
         end 
 
@@ -332,46 +411,43 @@ module floating_point_multiplier #(
     assign exponent_incremented = result_exp_pipe[CORE_STAGES] + 1'b1;
 
 
-    /* Result */
-    float32_t final_result;
-
-    assign final_result.sign = result_sign_pipe[CORE_STAGES];
+    assign result_o.sign = result_sign_pipe[CORE_STAGES];
 
         always_comb begin : normalization_logic 
             /* Default values */
-            final_result.exponent = result_exp_pipe[CORE_STAGES]; 
-            final_result.mantissa = mantissa_normalized[22:0];
+            result_o.exponent = result_exp_pipe[CORE_STAGES]; 
+            result_o.significand = significand_normalized[22:0];
             overflow = 1'b0;
 
-            /* If the result has a bit set in the MSB of the result mantissa, that
+            /* If the result has a bit set in the MSB of the result significand, that
              * means that the result is bigger than "1,...", normalize by shifting
              * right and incrementing the exponent */
-            if (mantissa_product_stg1[47]) begin 
-                final_result.mantissa = mantissa_normalized[22:0];
+            if (significand_product_stg1[47]) begin 
+                result_o.significand = significand_normalized[22:0];
 
                 if (result_exp_pipe[CORE_STAGES] == '0) begin 
-                    final_result.exponent = result_exp_pipe[CORE_STAGES];
+                    result_o.exponent = result_exp_pipe[CORE_STAGES];
                 end else begin 
-                    final_result.exponent = exponent_incremented;
+                    result_o.exponent = exponent_incremented;
                 end 
 
                 /* If the MSB of the exponent is set it's an overflow */
                 if (exponent_incremented[8]) begin 
                     /* Set the final result to infinity */
-                    final_result.exponent = '1;
-                    final_result.mantissa = '0;
+                    result_o.exponent = '1;
+                    result_o.significand = '0;
 
                     overflow = 1'b1;
                 end
             end else begin
-                final_result.mantissa = mantissa_normalized[22:0];
-                final_result.exponent = result_exp_pipe[CORE_STAGES]; 
+                result_o.significand = significand_normalized[22:0];
+                result_o.exponent = result_exp_pipe[CORE_STAGES]; 
 
                 /* If the MSB of the exponent is set it's an overflow */
                 if (result_exp_pipe[CORE_STAGES][8]) begin
                     /* Set the final result to infinity */
-                    final_result.exponent = '1;
-                    final_result.mantissa = '0;
+                    result_o.exponent = '1;
+                    result_o.significand = '0;
 
                     overflow = 1'b1;
                 end
@@ -385,12 +461,9 @@ module floating_point_multiplier #(
 
     assign data_valid_o = data_valid_stg1;
 
-    assign result_o = final_result;
-
+    assign inexact_o = |round_bits;
     assign overflow_o = overflow;
-
     assign underflow_o = underflow_pipe[CORE_STAGES];
-
     assign invalid_operation_o = invalid_operation_pipe[CORE_STAGES];
 
     assign round_bits_o = round_bits;
