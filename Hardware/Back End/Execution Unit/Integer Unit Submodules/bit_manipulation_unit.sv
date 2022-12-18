@@ -51,16 +51,24 @@
 `include "../Arithmetic Circuits/Integer/Multipliers/Carryless/high_carryless_multiplier.sv"
 `include "../Arithmetic Circuits/Integer/Multipliers/Carryless/reverse_carryless_multiplier.sv"
 
-
-// SUBSTITUTE MUXES WITH FF
-
 module bit_manipulation_unit (
-    input  logic              clk_i,
-    input  logic [XLEN - 1:0] operand_A_i,
-    input  logic [XLEN - 1:0] operand_B_i,
-    input  bmu_operation_t    operation_i,
-    input  logic              data_valid_i,
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i, 
+    input logic rst_n_i,
+
+    /* Operands */
+    input logic [XLEN - 1:0] operand_A_i,
+    input logic [XLEN - 1:0] operand_B_i,
+
+    /* Specify the operation to execute */
+    input bmu_operation_t operation_i,
+
+    /* Inputs are valid */
+    input logic data_valid_i,
     
+
+    /* Result and valid bit */
     output logic [XLEN - 1:0] result_o,
     output logic              data_valid_o
 );
@@ -79,7 +87,7 @@ module bit_manipulation_unit (
             /* Default value */
             shift_amount = '0;
             
-            case (operation_i.shadd)
+            case (operation_i.select.shadd.opcode)
                 SH1ADD:  shift_amount = 2'd1;
 
                 SH2ADD:  shift_amount = 2'd2;
@@ -153,7 +161,7 @@ module bit_manipulation_unit (
             end
         end : ctz_assignment_logic
 
-    assign count_zeros_operand = (operation_i.bit_count == CLZ) ? operand_A_i : reeversed_operand_A;
+    assign count_zeros_operand = (operation_i.select.bit_count.opcode == CLZ) ? operand_A_i : reeversed_operand_A;
 
     count_leading_zeros #(32) clz32 (
         .operand_i     ( count_zeros_operand ),
@@ -192,7 +200,7 @@ module bit_manipulation_unit (
 
         always_comb begin : bit_count_final_logic
             /* Append zeroes */
-            if (bit_count_out == CPOP) begin
+            if (operation_i.select.bit_count.opcode == CPOP) begin
                 bit_count_final_result = {'0, bit_count_result_out};
             end else begin
                 bit_count_final_result[$clog2(XLEN):0] = {all_zeros_out, (all_zeros_out == 1'b1) ? 4'b0 : bit_count_result_out};
@@ -225,7 +233,7 @@ module bit_manipulation_unit (
             /* Default values */
             compare_operation_in = '0;
 
-            case (operation_i.compare)
+            case (operation_i.select.compare.opcode)
                 MAX:  compare_operation_in = max_result;
 
                 MAXU: compare_operation_in = maxu_result;
@@ -259,7 +267,7 @@ module bit_manipulation_unit (
             /* Default value */
             extension_result_in = '0;
 
-            case (operation_i.extend_op)
+            case (operation_i.select.extension.opcode)
                 ZEXTH:   extension_result_in = zexth_result;
 
                 SEXTB:   extension_result_in = sextb_result;
@@ -288,7 +296,7 @@ module bit_manipulation_unit (
     logic [XLEN - 1:0] rotate_result_in, rotate_result_out;
 
         always_comb begin : rotate_operation_selection
-            case (operation_i.rotate)
+            case (operation_i.select.rotate.opcode)
                 ROL: rotate_result_in = rol_result;
 
                 ROR: rotate_result_in = ror_result;
@@ -330,7 +338,7 @@ module bit_manipulation_unit (
     logic [XLEN - 1:0] byte_operation_result_in, byte_operation_result_out;
 
         always_comb begin : byte_operation_selection
-            if (operation_i.byte_op == REV8) begin
+            if (operation_i.select.opbyte.opcode == REV8) begin
                 byte_operation_result_in = rev8_result;
             end else begin
                 byte_operation_result_in = orcb_result;
@@ -383,7 +391,7 @@ module bit_manipulation_unit (
             /* Default value */
             bit_logic_op_result_in = '0;
 
-            case (operation_i.logic_op)
+            case (operation_i.select.oplogic.opcode)
                 ANDN:  bit_logic_op_result_in = andn_result;
 
                 ORN:   bit_logic_op_result_in = orn_result;
@@ -409,10 +417,10 @@ module bit_manipulation_unit (
 //  RESULT LOGIC  //
 //----------------//
 
-    bmu_valid_operation_t valid_operation_out;    
+    bmu_valid_uops_t valid_operation_out;    
 
         always_ff @(posedge clk_i) begin : control_stage_register
-            valid_operation_out <= operation_i.op_type_valid;
+            valid_operation_out <= operation_i.op_type;
             data_valid_o <= data_valid_i;
         end : control_stage_register
 

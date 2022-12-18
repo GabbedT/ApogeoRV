@@ -79,21 +79,45 @@ package rv32_instructions_pkg;
     } bmu_valid_uops_t;
 
     typedef struct packed {
-        bmu_shadd_uops_t     shadd;
+        union packed {
 
-        bmu_count_uops_t     bit_count;
+            struct packed {
+                bmu_shadd_uops_t opcode;
+                logic            fill;
+            } shadd;
 
-        bmu_compare_uops_t   compare;
+            struct packed {
+                bmu_count_uops_t opcode;
+                logic            fill;
+            } bit_count;
 
-        bmu_extension_uops_t extend_op;
+            struct packed {
+                bmu_compare_uops_t opcode;
+                logic              fill;
+            } compare;
 
-        bmu_rotate_uops_t    rotate;
+            struct packed {
+                bmu_extension_uops_t opcode;
+                logic                fill;
+            } extension;
+ 
+             struct packed {
+                bmu_rotate_uops_t opcode;
+                logic [1:0]       fill;
+            } rotate;
 
-        bmu_byte_uops_t      byte_op;
+            struct packed {
+                bmu_byte_uops_t opcode;
+                logic [1:0]     fill;
+            } opbyte;
 
-        bmu_logic_uops_t     logic_op;
+            struct packed {
+                bmu_byte_uops_t opcode;
+            } oplogic;
 
-        bmu_valid_uops_t     op_type_valid;
+        } select;
+
+        bmu_valid_uops_t op_type;
     } bmu_uops_t;
 
 
