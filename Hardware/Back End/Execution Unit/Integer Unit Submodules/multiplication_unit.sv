@@ -154,13 +154,13 @@ module multiplication_unit #(
     mul_operation_t [CORE_STAGES:0] operation_pipe;
 
         always_ff @(posedge clk_i) begin : operation_shift_register
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin 
                 if (CORE_STAGES == 0) begin 
                     operation_pipe <= operation_stg0;
                 end else begin 
                     operation_pipe <= {operation_pipe[CORE_STAGES - 1:0], operation_stg0};
                 end 
-           `ifdef FPGA end `endif 
+            end 
         end : operation_shift_register
 
 
@@ -168,13 +168,13 @@ module multiplication_unit #(
     logic [CORE_STAGES:0] convert_output_pipe;
 
         always_ff @(posedge clk_i) begin : convert_signal_shift_register
-            `ifdef FPGA if (clk_en_i) begin `endif 
+            if (clk_en_i) begin 
                 if (CORE_STAGES == 0) begin 
                     convert_output_pipe <= conversion_enable_stg0;
                 end else begin 
                     convert_output_pipe <= {convert_output_pipe[CORE_STAGES - 1:0], conversion_enable_stg0};
                 end 
-           `ifdef FPGA end `endif 
+            end 
         end : convert_signal_shift_register
 
 
