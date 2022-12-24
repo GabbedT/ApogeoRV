@@ -60,14 +60,17 @@ module floating_point_divider (
     output logic     data_valid_o,
 
     /* Exceptions */ 
-    output logic invalid_operation_o,
+    output logic invalid_op_o,
     output logic divide_by_zero_o,
     output logic inexact_o,
     output logic overflow_o,
     output logic underflow_o,
 
     /* Round bits for later rounding */
-    output round_bits_t round_bits_o
+    output round_bits_t round_bits_o,
+
+    /* Functional unit status */
+    output logic idle_o
 );
 
 
@@ -159,7 +162,7 @@ module floating_point_divider (
     /* Count the leading zeros of the significand */
     logic [4:0] dividend_clz;
 
-    count_leading_zeros dividend_significand_clz (
+    count_leading_zeros #(24) dividend_significand_clz (
         .operand_i     ( {dividend_hidden_bit, dividend_i.significand} ),
         .lz_count_o    ( dividend_clz                                  ),
         .is_all_zero_o (              /* NOT CONNECTED */              )
@@ -173,7 +176,7 @@ module floating_point_divider (
     /* Count the leading zeros of the significand */
     logic [4:0] divisor_clz;
 
-    count_leading_zeros divisor_significand_clz (
+    count_leading_zeros #(24) divisor_significand_clz (
         .operand_i     ( {divisor_hidden_bit, divisor_i.significand} ),
         .lz_count_o    ( divisor_clz                                 ),
         .is_all_zero_o (             /* NOT CONNECTED */             )
@@ -188,7 +191,7 @@ module floating_point_divider (
     logic        divider_data_valid;
     logic [23:0] result_division, remainder_division;
 
-    non_restoring_divider #(24, 1) significand_core_divider (
+    non_restoring_divider #(24, 0) significand_core_divider (
         .clk_i            ( clk_i               ),
         .clk_en_i         ( clk_en_i            ),
         .rst_n_i          ( rst_n_i             ),
@@ -257,10 +260,12 @@ module floating_point_divider (
             inexact_NXT = inexact_CRT;
             state_NXT = state_CRT;
 
-            invalid_operation_o = 1'b0;
+            divide_by_zero_o = 1'b0;
+            invalid_op_o = 1'b0;
             data_valid_o = 1'b0;
             underflow_o = 1'b0;
             overflow_o = 1'b0;
+            idle_o = 1'b0;
 
             shifted_out = '0;
             result_o = '0;
@@ -286,12 +291,17 @@ module floating_point_divider (
                     divisor_is_nan_NXT = (divisor_i.exponent == '1) & (divisor_i.significand != '0);
                     dividend_is_nan_NXT = (dividend_i.exponent == '1) & (dividend_i.significand != '0);
 
+                    idle_o = 1'b1;
+
                     if (data_valid_i) begin
                         state_NXT = DIVIDE_SIGNIFICAND;
                     end
                 end
 
                 DIVIDE_SIGNIFICAND: begin
+                    clz_result_significand_NXT = clz_result_significand;
+                    result_significand_NXT = result_division;
+
                     if (divider_data_valid) begin
                         if (special_values) begin
                             state_NXT = SPECIAL_VALUES;
@@ -301,15 +311,9 @@ module floating_point_divider (
 
                         inexact_NXT = remainder_division != '0;
                     end
-
-                    clz_result_significand_NXT = clz_result_significand;
-                    result_significand_NXT = result_division;
                 end
 
                 NORMALIZE: begin
-                    state_NXT = IDLE;
-
-                    data_valid_o = 1'b1;
                     result_o.sign = result_sign_CRT;
 
                     /* If the 8-th bit is set the exponent result can be
@@ -331,14 +335,18 @@ module floating_point_divider (
                         result_o.significand = result_significand_CRT << clz_result_significand_CRT;
                         result_o.exponent = result_exponent_CRT - clz_result_significand_CRT;
                     end
+
+                    /* Result is valid for 1 clock cycle then go IDLE */
+                    data_valid_o = 1'b1;
+
+                    /* Idle signal asserted one clock cycle before 
+                     * to not waste a clock cycle if multiple 
+                     * operations are issued */
+                    idle_o = 1'b1;
+                    state_NXT = IDLE;
                 end
 
                 SPECIAL_VALUES: begin
-                    state_NXT = IDLE;
-
-                    data_valid_o = 1'b1;
-                    invalid_operation_o = 1'b1;
-
                     /* When the divisor is zero and the dividend is a finite non-zero number raise a divide
                      * by zero exception */
                     divide_by_zero_o = divisor_is_zero_CRT & !(dividend_is_infty_CRT | dividend_is_zero_CRT);
@@ -358,6 +366,17 @@ module floating_point_divider (
                             4'b0100, 4'b0110, 4'b0010: result_o = {result_sign_CRT, '0, '0};
                         endcase   
                     end
+
+                    invalid_op_o = 1'b1;
+
+                    /* Result is valid for 1 clock cycle then go IDLE */
+                    data_valid_o = 1'b1;
+
+                    /* Idle signal asserted one clock cycle before 
+                     * to not waste a clock cycle if multiple 
+                     * operations are issued */
+                    idle_o = 1'b1;
+                    state_NXT = IDLE;
                 end
             endcase
         end : fsm_logic

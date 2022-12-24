@@ -31,7 +31,7 @@
 // DESCRIPTION : This module perform a floating point addition or subtraction. The 
 //               "operation_i" input specify if the second operands needs it's sign
 //               bit flipped. The adder can take new valid input every cycle since 
-//               it's pipelined. 
+//               it's pipelined. The result will be valid after 4 clock cycles 
 // ------------------------------------------------------------------------------------
 
 `ifndef FLOATING_POINT_ADDER_SV
@@ -53,7 +53,7 @@ module floating_point_adder (
     input float32_t addend_B_i,
 
     /* Specify the operation to execute (ADD or SUB) */
-    input fpadd_operation_t operation_i,
+    input fpadd_uop_t operation_i,
 
     /* Inputs are valid */
     input logic data_valid_i,
@@ -64,7 +64,7 @@ module floating_point_adder (
     output logic     data_valid_o,
 
     /* Exceptions */
-    output logic invalid_operation_o,
+    output logic invalid_op_o,
     output logic inexact_o,
     output logic overflow_o,
     output logic underflow_o,
@@ -82,17 +82,17 @@ module floating_point_adder (
      *  until the result is valid through a shift register.
      */ 
 
-    logic [2:0] valid_bit_pipe;
+    logic [3:0] valid_bit_pipe;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : shift_register
             if (!rst_n_i) begin 
                 valid_bit_pipe <= '0;
             end else if (clk_en_i) begin 
-                valid_bit_pipe <= {valid_bit_pipe[1:0], data_valid_i}; 
+                valid_bit_pipe <= {valid_bit_pipe[2:0], data_valid_i}; 
             end
         end : shift_register
 
-    assign data_valid_o = valid_bit_pipe[2];
+    assign data_valid_o = valid_bit_pipe[3];
 
 
 //--------------------------//
@@ -471,7 +471,7 @@ module floating_point_adder (
     logic        invalid_operation_stg3, overflow_stg3, underflow_stg3;
     round_bits_t round_bits_stg3;
 
-        always_ff @(posedge clk_i) begin
+        always_ff @(posedge clk_i) begin : stage3_register
             if (clk_en_i) begin
                 result_stg3 <= final_result;
 
@@ -481,12 +481,12 @@ module floating_point_adder (
 
                 round_bits_stg3 <= round_bits;
             end
-        end
+        end : stage3_register
 
     assign result_o = invalid_operation_stg3 ? CANONICAL_NAN : result_stg3;
 
     /* Exceptions */
-    assign invalid_operation_o = invalid_operation_stg3;
+    assign invalid_op_o = invalid_operation_stg3;
     assign inexact_o = |round_bits_stg3;
     assign overflow_o = overflow_stg3;
     assign underflow_o = underflow_stg3;

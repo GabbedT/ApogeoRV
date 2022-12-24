@@ -50,9 +50,9 @@ module floating_point_comparator (
      * or nothing equals specifies if the
      * == comparison is done, flag specifies
      * if the result is a set flag or not */
-    input fcmp_operation_t operation_i,
-    input logic            equals_i,
-    input logic            flag_i,
+    input fcmp_uop_t operation_i,
+    input logic      equals_i,
+    input logic      flag_i,
 
     /* Inputs are valid */
     input logic data_valid_i,
@@ -62,7 +62,7 @@ module floating_point_comparator (
     output logic     data_valid_o,
 
     /* Exceptions */
-    output logic invalid_operation_o
+    output logic invalid_op_o
 );
 
 //------------//
@@ -163,7 +163,7 @@ module floating_point_comparator (
 
                 /* In this case the invalid operation flag is set if the operation is an equal comparison and one input is a signaling NaN or 
                  * if the operation is diferent and the an input is a NaN */
-                invalid_operation_o = ((equals_i & operation_i == FP_EQ) & (A_is_nan & signaling_A) | (A_is_nan & signaling_B)) | (A_is_nan | B_is_nan);
+                invalid_op_o = ((equals_i & operation_i == FP_EQ) & (A_is_nan & signaling_A) | (A_is_nan & signaling_B)) | (A_is_nan | B_is_nan);
             end else begin
                 case ({A_is_nan, B_is_nan})
                     2'b00: special_result = '0;
@@ -176,7 +176,7 @@ module floating_point_comparator (
                 endcase
 
                 /* In this case the invalid operation flag is set when any input is a signaling NaN */
-                invalid_operation_o = (A_is_nan & signaling_A) | (A_is_nan & signaling_B);
+                invalid_op_o = (A_is_nan & signaling_A) | (A_is_nan & signaling_B);
             end
         end : special_value_logic
 

@@ -54,8 +54,8 @@ module floating_point_converter (
      * "signed_i" specify if the integer
      * must be considered as signed or
      * unsigned */
-    input fcvt_operation_t operation_i,
-    input logic            signed_i,
+    input fcvt_uop_t operation_i,
+    input logic      signed_i,
 
     /* Inputs are valid */
     input logic data_valid_i,
@@ -63,6 +63,9 @@ module floating_point_converter (
     /* Result and valid bit */
     output float32_t result_o,
     output logic     data_valid_o,
+
+    /* Round result enable */
+    output logic round_enable_o,
 
     /* Exceptions */
     output logic inexact_o,
@@ -244,13 +247,13 @@ module floating_point_converter (
     /* Final converted floating point number */
     float32_t converted_float; 
 
-    assign converted_float = {sign_bit_stg0, converted_exponent, converted_significand[31:7]};
+    assign converted_float = {sign_bit_stg0, converted_exponent, converted_significand[31:9]};
 
 
 //----------------//
 //  OUTPUT LOGIC  //
 //----------------//
-
+ 
         always_ff @(posedge clk_i `ifndef ASYNC or negedge rst_n_i `endif) begin  
             if (!rst_n_i) begin 
                 data_valid_o <= 1'b0;
@@ -260,7 +263,7 @@ module floating_point_converter (
         end  
 
 
-    fcvt_operation_t operation_stg0;
+    fcvt_uop_t operation_stg0;
 
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin
@@ -270,18 +273,22 @@ module floating_point_converter (
 
         always_comb begin : output_logic
             case (operation_stg0)
-                INT_TO_FLOAT: begin
+                INT2FLOAT: begin
                     result_o = converted_float;
                     round_bits_o = round_itf;
+
+                    round_enable_o = 1'b0;
 
                     inexact_o = round_itf != '0;
                     underflow_o = 1'b0;
                     overflow_o = 1'b0;
                 end
 
-                FLOAT_TO_INT: begin
+                FLOAT2INT: begin
                     result_o = converted_integer;
                     round_bits_o = round_fti;
+
+                    round_enable_o = 1'b1;
 
                     inexact_o = round_fti != '0;
                     underflow_o = underflow;
