@@ -45,7 +45,7 @@ module arithmetic_logic_unit (
     input  logic [XLEN - 1:0] operand_A_i,
     input  logic [XLEN - 1:0] operand_B_i,
     input  logic [XLEN - 1:0] instr_addr_i,
-    input  alu_operation_t    operation_i,
+    input  alu_uops_t    operation_i,
     input  logic              data_valid_i,
     input  logic              is_compressed_jump_i,
     output logic [XLEN - 1:0] result_o,

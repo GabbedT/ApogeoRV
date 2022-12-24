@@ -1,6 +1,10 @@
 `ifndef CONFIGURATION_INCLUDE_SV
     `define CONFIGURATION_INCLUDE_SV
 
+//--------------------//
+//  SYNTHESIS CONFIG  //
+//--------------------//
+
     /* Target ASIC synthesis:
      *
      * - Clock gating
@@ -17,9 +21,20 @@
     `define ASYNC
 
 
-    /*
-     *  MULTIPLIER CONFIG
-     */
+//---------------//
+//  CORE CONFIG  //
+//---------------//
+
+    /* Enable floating point unit and F extension */
+    `define FLOATING_POINT_UNIT 
+
+    /* Enable or disable cache */
+    `define CACHE_SYSTEM
+
+
+//----------------------//
+//  MULTIPLIERS CONFIG  //
+//----------------------//
 
     /* If "ASIC" is defined then the multiplier will automatically be generated 
      * with the appropriate number of pipeline stages.
@@ -41,20 +56,9 @@
     `define SIGNIFICAND_MUL_PIPE_STAGES 0
 
 
-    /*
-     *  STORE BUFFER
-     */
-
-    /* Total number of entries (A power of 2) */
-    `define ST_BUF_DEPTH 4
-
-
-    /* 
-     *  DATA CACHE
-     */
-     
-    /* Enable cache */
-    `define CACHE_ENABLE
+//--------------// 
+//  DATA CACHE  //
+//--------------//
 
     /* In bytes */
     `define DATA_CACHE_SIZE 2 ** 16
@@ -62,12 +66,17 @@
     /* In bits */
     `define DATA_CACHE_BLOCK_SIZE 128 
 
+    /* Number of cache ways */
     `define DATA_CACHE_ASSOCIATIVITY 2
 
+    /* Total number of entries in the store buffer (A power of 2) */
+    `define ST_BUF_DEPTH 4
 
-    /* 
-     *  EXCEPTIONS VECTORS
-     */
+
+//---------------------//
+//  EXCEPTIONS VECTOR  //
+//---------------------//
+
     `define DIVIDE_BY_ZERO        4'b0000;
     `define ILLEGAL_MEMORY_ACCESS 4'b0001;
 

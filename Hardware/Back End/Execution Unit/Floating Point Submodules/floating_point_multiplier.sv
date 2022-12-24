@@ -29,7 +29,8 @@
 // RELEASE HISTORY
 // VERSION : 1.0 
 // DESCRIPTION : This module perform a floating point multiplication. The multiplier 
-//               can take new valid input every cycle since it's pipelined. 
+//               can take new valid input every cycle since it's pipelined. The result
+//               will be valid after 2 + MULTIPLIER_LATENCY cycles
 // ------------------------------------------------------------------------------------
 
 `ifndef FLOATING_POINT_MULTIPLIER_SV
@@ -62,7 +63,7 @@ module floating_point_multiplier #(
     output logic     data_valid_o,
 
     /* Exceptions */
-    output logic invalid_operation_o,
+    output logic invalid_op_o,
     output logic inexact_o,
     output logic overflow_o,
     output logic underflow_o,
@@ -356,11 +357,11 @@ module floating_point_multiplier #(
     `endif 
 
 
-    /* Stage net */
+    /* Stage register nets coming from 1-th stage */
     logic [47:0] significand_product_stg1;
     logic        data_valid_stg1;
 
-        always_ff @(posedge clk_i) begin
+        always_ff @(posedge clk_i) begin : stage1_register
             if (clk_en_i) begin 
                 significand_product_stg1 <= significand_product;
                 
@@ -370,7 +371,7 @@ module floating_point_multiplier #(
                     data_valid_stg1 <= mul_data_valid_pipe[0];
                 `endif
             end
-        end
+        end : stage1_register
 
 
 //-----------------------//
@@ -464,7 +465,7 @@ module floating_point_multiplier #(
     assign inexact_o = |round_bits;
     assign overflow_o = overflow;
     assign underflow_o = underflow_pipe[CORE_STAGES];
-    assign invalid_operation_o = invalid_operation_pipe[CORE_STAGES];
+    assign invalid_op_o = invalid_operation_pipe[CORE_STAGES];
 
     assign round_bits_o = round_bits;
 

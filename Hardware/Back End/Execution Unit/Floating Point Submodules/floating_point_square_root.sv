@@ -59,12 +59,15 @@ module floating_point_square_root (
     output logic     data_valid_o,
 
     /* Exceptions */
-    output logic invalid_operation_o,
+    output logic invalid_op_o,
     output logic overflow_o,
     output logic inexact_o,
 
     /* Round bits for later rounding */
-    output round_bits_t round_bits_o
+    output round_bits_t round_bits_o,
+
+    /* Functional unit status */
+    output logic idle_o
 );
 
 
@@ -115,8 +118,6 @@ module floating_point_square_root (
     float32_t radicand_CRT, radicand_NXT;
     logic     hidden_bit_CRT, hidden_bit_NXT;
 
-    assign hidden_bit = result_NXT.exponent != '0;
-
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin
                 result_CRT <= result_NXT;
@@ -149,26 +150,36 @@ module floating_point_square_root (
         end
 
     /* Module nets */
-    logic [23:0] result_sqrt;
-    logic [24:0] remainder_sqrt;
+    logic [24:0] result_sqrt;
+    logic [25:0] remainder_sqrt;
     logic        sqrt_valid_out;
+    logic [49:0] radicand_in;
+    
+    /* Shifted out hidden bit for making the 
+     * number even */
+    logic shifted_hidden_bit; 
 
-    /* Integer square root module instantiation 
-     * for significand square root */
-    non_restoring_square_root #(48) significand_core_sqrt (
-        .clk_i        ( clk_i                                        ),    
-        .clk_en_i     ( clk_en_i                                     ),
-        .data_valid_i ( sqrt_valid_in                                ),
-        .rst_n_i      ( rst_n_i                                      ),    
-        .radicand_i   ( {hidden_bit_CRT, result_CRT.significand, '0} ),
-        .root_o       ( result_sqrt                                  ),     
-        .remainder_o  ( remainder_sqrt                               ),  
-        .data_valid_o ( sqrt_valid_out                               ),
-        .idle_o       (          /* NOT CONNECTED */                 )
+    /* Pad the lower 25 bits with 0 to make the number integer (1.1100 -> 11100.0000) */
+    assign radicand_in = {shifted_hidden_bit, hidden_bit_NXT, result_NXT.significand, '0};
+
+    /* Integer square root module instantiation for significand square root */
+    non_restoring_square_root #(50) significand_core_sqrt (
+        .clk_i        ( clk_i               ),    
+        .clk_en_i     ( clk_en_i            ),
+        .data_valid_i ( sqrt_valid_in       ),
+        .rst_n_i      ( rst_n_i             ),    
+        .radicand_i   ( radicand_in         ),
+        .root_o       ( result_sqrt         ),     
+        .remainder_o  ( remainder_sqrt      ),  
+        .data_valid_o ( sqrt_valid_out      ),
+        .idle_o       ( /* NOT CONNECTED */ )
     );
 
 
     logic [4:0] clz_number;
+    logic       hidden_bit;
+
+    assign hidden_bit = radicand_i.exponent != '0;
 
     count_leading_zeros #(24) clz (
         .operand_i     ( {hidden_bit, radicand_i.significand} ),
@@ -181,7 +192,7 @@ module floating_point_square_root (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [1:0] {IDLE, SQRT, VALID} fsm_states_t;
+    typedef enum logic [1:0] {IDLE, SQRT, VALID, SPECIAL_VALUES} fsm_states_t;
 
     fsm_states_t state_CRT, state_NXT;
 
@@ -198,8 +209,8 @@ module floating_point_square_root (
     logic [23:0] normalized_significand;
     logic [8:0]  normalized_exponent;
 
-    /* Result exponent absolute value */
-    logic [4:0]  exponent_abs;  
+    /* Result exponent sign extended */
+    logic exponent_sign; 
 
         always_comb begin : fsm_logic
             /* Default values */
@@ -214,9 +225,14 @@ module floating_point_square_root (
             guard_NXT = guard_CRT;
             state_NXT = state_CRT;
             
+            invalid_op_o = 1'b0;
+            shifted_hidden_bit = 1'b1;
             data_valid_o = 1'b0;
+            idle_o = 1'b0;
+
+            normalized_significand = '0;
+            normalized_exponent = '0;
             result_o = '0;
-            invalid_operation_o = 1'b0;
 
             case (state_CRT)
 
@@ -228,26 +244,19 @@ module floating_point_square_root (
                 IDLE: begin
                     result_NXT.sign = radicand_i.sign;
 
-                    /* Normalize first the significand, subtracting the exponent accordingly to the
-                     * number of shifts. We can optimize it by adding the leading zero number and 
-                     * setting a bit to recognize when the exponent is negative. That will save an
-                     * adder in the later normalization stage. This won't affect the normal number
-                     * because in that case the number of leading zeros will be 0 */
-                    normalized_significand = {hidden_bit, radicand_i.significand} << clz_number;
-                    normalized_exponent = radicand_i.exponent + clz_number;
-                    radicand_is_subnormal_NXT = normalized_exponent[8];
-
-                    /* Make the exponent even shift the significand accordingly */
-                    result_NXT.exponent = normalized_exponent - normalized_exponent[0];
-                    result_NXT.significand = normalized_significand << normalized_exponent[0];
+                    /* Normalize first the significand if the number is subnormal, subtracting the exponent 
+                     * accordingly to the number of shifts (0.0011 -> 1.1000)  */
+                    {hidden_bit_NXT, result_NXT.significand} = {hidden_bit, radicand_i.significand} << clz_number;
+                    {radicand_is_subnormal_NXT, result_NXT.exponent} = radicand_i.exponent - clz_number;
 
                     /* Check if the input is a NaN or a special number */
                     operand_is_nan_NXT = (radicand_i.exponent == '0) & (radicand_i.significand != '0);
                     operand_is_special_NXT = operand_is_special;
-                    hidden_bit_NXT = radicand_i.exponent != '0;
 
                     /* Store the input */
                     radicand_NXT = radicand_i;
+
+                    idle_o = 1'b1;
 
                     if (data_valid_i) begin
                         state_NXT = SQRT;
@@ -256,56 +265,89 @@ module floating_point_square_root (
 
                 /* 
                  *  Wait until the square root module produces
-                 *  a valid result 
+                 *  a valid result, make the exponent of the number
+                 *  even 
                  */
                 SQRT: begin
-                    if (sqrt_valid_out) begin
-                        state_NXT = VALID;
+                    /* Make the exponent even shift the significand accordingly, the hidden bit might get shifted out
+                     * so it needs to be stored (01.1000 -> 11.0000) */
+                    result_NXT.exponent = result_CRT.exponent - result_CRT.exponent[0];
+                    {shifted_hidden_bit, hidden_bit_NXT, result_NXT.significand} = {hidden_bit_CRT, result_CRT.significand} << result_CRT.exponent[0];
 
-                        result_NXT.significand = result_sqrt;
+                    if (sqrt_valid_out) begin
+                        /* Normalize back */
+                        if (result_sqrt[24]) begin 
+                            /* Example: sqrt(1...0.00000) = 10.1...0 => 1.01...0 */
+                            {hidden_bit_NXT, result_NXT.significand} = result_sqrt >> 1; 
+                        end else begin 
+                            {hidden_bit_NXT, result_NXT.significand} = result_sqrt;
+                        end
 
                         /* Rounding bits */
-                        guard_NXT = remainder_sqrt[23];
-                        round_NXT = remainder_sqrt[22];
-                        sticky_NXT = remainder_sqrt[21:0] != '0; 
+                        guard_NXT = remainder_sqrt[25];
+                        round_NXT = remainder_sqrt[24];
+                        sticky_NXT = remainder_sqrt[23:0] != '0; 
+                        
+                        if (operand_is_special_CRT | operand_is_nan_CRT | result_CRT.sign) begin
+                            state_NXT = SPECIAL_VALUES;
+                        end else begin
+                            state_NXT = VALID;
+                        end
                     end
                 end
 
                 /* 
-                 *  The result is valid, based on previous checks
-                 *  determine if the result has to be taken from
-                 *  the square root module or if it's a special
-                 *  value 
+                 *  The result is valid, make final operations 
+                 *  and checks
                  */
                 VALID: begin
-                    if (operand_is_special_CRT) begin
-                        /* If the radicand is a special value the result
-                         * is the input operand */
-                        result_o = radicand_CRT;
-                        invalid_operation_o = 1'b1;
-                    end else if (operand_is_nan_CRT | result_CRT.sign) begin
-                        /* If the radicand is negative or is NaN */
-                        result_o = CANONICAL_NAN;
-                        invalid_operation_o = 1'b1;
+                    /* If the result exponent is negative normalize it 
+                     * back */
+                    if (radicand_is_subnormal_CRT) begin
+                        /* The effect is bringing back the exponent to 0 by shifting 
+                         * the significand by a number equals to the absolute value 
+                         * of the exponent */
+                        result_o.significand = result_CRT.significand >> result_CRT.exponent;
+                        result_o.exponent = '0;
                     end else begin
-                        /* If the result exponent is negative normalize it 
-                         * back */
-                        if (radicand_is_subnormal_CRT) begin
-                            /* The effect is bringing back the exponent to 0 by shifting 
-                             * the significand by a number equals to the absolute value 
-                             * of the exponent */
-                            result_o.significand = result_CRT.significand >> result_CRT.exponent;
-                            result_o.exponent = '0;
-                        end else begin
-                            result_o.significand = result_CRT.significand;
+                        result_o.significand = result_CRT.significand;
 
-                            /* The exponent must be divided by 2 */
-                            result_o.exponent = result_CRT.exponent >> 1;
-                        end
+                        /* The exponent must be divided by 2 */
+                        result_o.exponent = result_CRT.exponent >> 1;
                     end
 
                     /* Result is valid for 1 clock cycle then go IDLE */
                     data_valid_o = 1'b1;
+
+                    /* Idle signal asserted one clock cycle before 
+                     * to not waste a clock cycle if multiple 
+                     * operations are issued */
+                    idle_o = 1'b1;
+                    state_NXT = IDLE;
+                end
+
+                /* 
+                 *  Input value was a special or an illegal value 
+                 */
+                SPECIAL_VALUES: begin
+                    if (operand_is_special_CRT) begin
+                        /* If the radicand is a special value the result
+                         * is the input operand */
+                        result_o = radicand_CRT;
+                        invalid_op_o = 1'b1;
+                    end else if (operand_is_nan_CRT | result_CRT.sign) begin
+                        /* If the radicand is negative or is NaN */
+                        result_o = CANONICAL_NAN;
+                        invalid_op_o = 1'b1;
+                    end
+
+                    /* Result is valid for 1 clock cycle then go IDLE */
+                    data_valid_o = 1'b1;
+
+                    /* Idle signal asserted one clock cycle before 
+                     * to not waste a clock cycle if multiple 
+                     * operations are issued */
+                    idle_o = 1'b1;
                     state_NXT = IDLE;
                 end
             endcase
