@@ -1,9 +1,9 @@
 `ifndef FLOATING_POINT_UNIT_SV 
     `define FLOATING_POINT_UNIT_SV 
 
+`include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Packages/floating_point_unit_pkg.sv"
-`include "../../Include/Packages/rv32_instructions_pkg.sv"
-`include "../../Include/Headers/core_configuration.svh"
+`include "../../Include/Headers/apogeo_configuration.svh"
 
 `include "Floating Point Submodules/floating_point_fused_muladd.sv"
 `include "Floating Point Submodules/floating_point_divider.sv"
@@ -27,16 +27,15 @@ module floating_point_unit (
     /* Operation to execute */
     input fpu_uop_t operation_i,
 
-    /* Which units get valid operands */
+    /* Which units gets valid operands */
     input fpu_valid_t data_valid_i,
 
-    /* Instruction packet */
+    /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
 
 
-    /* FMA result and valid bit */
+    /* FMA result */
     output float32_t fpfma_result_o,
-    output logic     fpfma_data_valid_o,
 
     /* FMA exceptions generated */
     output logic fpfma_invalid_op_o,
@@ -44,9 +43,8 @@ module floating_point_unit (
     output logic fpfma_overflow_o,
     output logic fpfma_underflow_o,
 
-    /* DIV result and valid bit */
+    /* DIV result */
     output float32_t fpdiv_result_o,
-    output logic     fpdiv_data_valid_o,
 
     /* DIV exceptions generated */
     output logic fpdiv_invalid_op_o,
@@ -55,33 +53,33 @@ module floating_point_unit (
     output logic fpdiv_underflow_o,
     output logic fpdiv_divide_by_zero_o,
 
-    /* SQRT result and valid bit */
+    /* SQRT result */
     output float32_t fpsqrt_result_o,
-    output logic     fpsqrt_data_valid_o,
 
     /* SQRT exceptions generated */
     output logic fpsqrt_invalid_op_o,
     output logic fpsqrt_inexact_o,
     output logic fpsqrt_overflow_o,
 
-    /* CVT result and valid bit */
+    /* CVT result */
     output float32_t fpcvt_result_o,
-    output logic     fpcvt_data_valid_o,
 
     /* CVT exceptions generated */
     output logic fpcvt_inexact_o,
     output logic fpcvt_overflow_o,
     output logic fpcvt_underflow_o,
 
-    /* Units that needs no rounding result and valid bit */
+    /* Result from units that needs no rounding */
     output float32_t noround_result_o,
-    output logic     noround_data_valid_o,
 
     /* Units that needs no rounding exceptions generated */
-    output logic     noround_invalid_op_o,
+    output logic noround_invalid_op_o,
 
     /* Instruction packet */
     output instr_packet_t ipacket_o,
+
+    /* Data valid */
+    output logic data_valid_o,
 
     /* Sequential functional units status */
     output logic fpdiv_idle_o,
@@ -246,6 +244,8 @@ module floating_point_unit (
         end : fpfma_valid_stage_register
 
 
+    logic fpfma_round_valid;
+
     floating_point_rounder fpfma_round_unit (
         .operand_i      ( fpfma_result_stg0     ),
         .round_bits_i   ( fpfma_round_stg0      ),
@@ -254,7 +254,7 @@ module floating_point_unit (
         .overflow_i     ( fpfma_overflow_stg0   ),
         .underflow_i    ( fpfma_underflow_stg0  ),
         .result_o       ( fpfma_result_o        ),
-        .data_valid_o   ( fpfma_data_valid_o    ),
+        .data_valid_o   ( fpfma_round_valid     ),
         .overflow_o     ( fpfma_overflow_o      ),
         .underflow_o    ( fpfma_underflow_o     )
     );
@@ -291,6 +291,11 @@ module floating_point_unit (
         .idle_o           ( fpdiv_idle_o         )
     );
 
+    `ifdef ASSERTIONS
+        /* New valid data mustn't be supplied to the DIV if it's not idle */
+        assert property @(posedge clk_i) (!fpdiv_idle_o |-> !data_valid_i.DIV)
+        else $error("Data supplied to FDIV unit while it wasn't idle!");
+    `endif 
 
     /* Pass signals useful for later processing through register 
      * until the unit produces a valid result */    
@@ -298,7 +303,7 @@ module floating_point_unit (
     rnd_uop_t      fpdiv_round_mode;
 
         always_ff @(posedge clk_i) begin : fpdiv_latency_register
-            if (clk_en_i & data_valid_i.DIV) begin
+            if (clk_en_i & fpdiv_idle_o) begin
                 fpdiv_ipacket <= ipacket_i;
                 fpdiv_round_mode <= operation_i.round_uop;
             end
@@ -354,6 +359,8 @@ module floating_point_unit (
         end : fpdiv_valid_stage_register
   
 
+    logic fpdiv_round_valid;
+
     floating_point_rounder fpdiv_round_unit (
         .operand_i      ( fpdiv_result_stg0     ),
         .round_bits_i   ( fpdiv_round_stg0      ),
@@ -362,7 +369,7 @@ module floating_point_unit (
         .overflow_i     ( fpdiv_overflow_stg0   ),
         .underflow_i    ( fpdiv_underflow_stg0  ),
         .result_o       ( fpdiv_result_o        ),
-        .data_valid_o   ( fpdiv_data_valid_o    ),
+        .data_valid_o   ( fpdiv_round_valid     ),
         .overflow_o     ( fpdiv_overflow_o      ),
         .underflow_o    ( fpdiv_underflow_o     )
     );
@@ -453,6 +460,8 @@ module floating_point_unit (
         end : fpsqrt_valid_stage_register
 
 
+    logic fpsqrt_round_valid;
+
     floating_point_rounder fpsqrt_round_unit (
         .operand_i      ( fpsqrt_result_stg0     ),
         .round_bits_i   ( fpsqrt_round_stg0      ),
@@ -461,7 +470,7 @@ module floating_point_unit (
         .overflow_i     ( fpsqrt_overflow_stg0   ),
         .underflow_i    (   /* NOT CONNECTED */  ),
         .result_o       ( fpsqrt_result_o        ),
-        .data_valid_o   ( fpsqrt_data_valid_o    ),
+        .data_valid_o   ( fpsqrt_round_valid     ),
         .overflow_o     ( fpsqrt_overflow_o      ),
         .underflow_o    (   /* NOT CONNECTED */  )
     );
@@ -616,6 +625,7 @@ module floating_point_unit (
     
     `define ROUND_ENABLE_SIGNAL
 
+    logic fpcvt_round_valid;
 
     floating_point_rounder fpcvt_round_unit (
         .operand_i      ( fpcvt_result_stg0       ),
@@ -626,7 +636,7 @@ module floating_point_unit (
         .overflow_i     ( fpcvt_overflow_stg0     ),
         .underflow_i    ( fpcvt_underflow_stg0    ),
         .result_o       ( fpcvt_result_o          ),
-        .data_valid_o   ( fpcvt_data_valid_o      ),
+        .data_valid_o   ( fpcvt_round_valid       ),
         .overflow_o     ( fpcvt_overflow_o        ),
         .underflow_o    ( fpcvt_underflow_o       )
     );
@@ -700,10 +710,9 @@ module floating_point_unit (
 
     assign noround_invalid_op_o = fpcmp_invalid_op_stg0;
 
-    assign noround_data_valid_o = fpcmp_data_valid_stg0 | fpmisc_data_valid_stg0;
-
     assign ipacket_o = fpmisc_ipacket | fpcvt_ipacket_stg0 | fpcmp_ipacket_stg0 | fpsqrt_ipacket_stg0 | fpdiv_ipacket_stg0 | fpfma_ipacket_stg0;
 
+    assign data_valid_o = fpcmp_data_valid_stg0 | fpmisc_data_valid_stg0 | fpfma_round_valid | fpdiv_round_valid | fpsqrt_round_valid | fpcvt_round_valid;
 
 endmodule : floating_point_unit
 
