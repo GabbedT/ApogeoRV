@@ -43,27 +43,50 @@
 `ifndef DIVISION_UNIT_SV
     `define DIVISION_UNIT_SV
 
-`include "../../../Include/Headers/core_configuration.svh"
-`include "../../../Include/Packages/rv32_instructions_pkg.sv"
+`include "../../../Include/Headers/apogeo_configuration.svh"
+`include "../../../Include/Packages/integer_unit_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Dividers/non_restoring_divider.sv"
 
-module division_unit #(
-    parameter DATA_WIDTH = 32
-) (
-    input  logic                    clk_i,
-    input  logic                    clk_en_i,
-    input  logic                    rst_n_i,
-    input  logic [DATA_WIDTH - 1:0] dividend_i,
-    input  logic [DATA_WIDTH - 1:0] divisor_i,
-    input  logic                    data_valid_i,
-    input  div_operation_t          operation_i,
+module division_unit (
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i,
+    input logic rst_n_i,
 
-    output logic [DATA_WIDTH - 1:0] product_o,
-    output logic                    data_valid_o,
-    output logic                    divide_by_zero_o,
-    output logic                    idle_o
+    /* Operands */
+    input data_word_t dividend_i,
+    input data_word_t divisor_i,
+
+    /* Inputs are valid */
+    input logic data_valid_i,
+
+    /* Operation to execute */
+    input div_uop_t operation_i,
+
+
+    /* Result and valid bit */
+    output data_word_t product_o,
+    output logic       data_valid_o,
+
+    /* Exception */
+    output logic divide_by_zero_o,
+
+    /* Functional unit status */
+    output logic idle_o
 );
+
+    `ifdef ASSERTIONS
+        assert property (DIV_DataValidWhenIdle);
+        else $error("[Division Unit] Valid inputs when the functional unit is not idle!");
+    `endif 
+
+//--------------//
+//  PARAMETERS  //
+//--------------//
+
+    localparam DATA_WIDTH = $bits(dividend_i);
+
 
 //---------------//
 //  FIRST STAGE  //
@@ -73,8 +96,8 @@ module division_unit #(
      * unsigned numbers if the operation is on signed number, 
      * the operands must be converted in unsigned form first and 
      * the result converted back to signed at the end */
-    logic [DATA_WIDTH - 1:0] dividend, divisor;
-    logic              dividend_sign, divisor_sign;
+    data_word_t dividend, divisor;
+    logic       dividend_sign, divisor_sign;
 
     assign dividend_sign = dividend_i[DATA_WIDTH - 1];
     assign divisor_sign = divisor_i[DATA_WIDTH - 1];
@@ -101,7 +124,7 @@ module division_unit #(
 
 
     /* Place registers to lower the delay */
-    logic [DATA_WIDTH - 1:0] div_divisor, div_dividend;
+    data_word_t div_divisor, div_dividend;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_register
             if (!rst_n_i) begin 
@@ -125,7 +148,7 @@ module division_unit #(
         end : valid_register
 
 
-    div_operation_t operation;
+    div_uop_t operation;
 
         always_ff @(posedge clk_i) begin : operation_register
             if (clk_en_i & data_valid_i) begin
@@ -151,8 +174,8 @@ module division_unit #(
 //  DIVISION STAGE  //
 //------------------//
 
-    logic [DATA_WIDTH - 1:0] quotient, remainder;
-    logic              div_data_valid, div_zero_divide, div_idle;
+    data_word_t quotient, remainder;
+    logic       div_data_valid, div_zero_divide, div_idle;
 
     non_restoring_divider #(DATA_WIDTH) divider (
         .clk_i            ( clk_i            ),
@@ -169,7 +192,7 @@ module division_unit #(
     );
 
 
-    logic [DATA_WIDTH - 1:0] last_stage_quotient, last_stage_remainder;
+    data_word_t last_stage_quotient, last_stage_remainder;
 
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin 
@@ -190,7 +213,7 @@ module division_unit #(
 //  LAST STAGE  //
 //--------------//
 
-    logic [DATA_WIDTH - 1:0] converted_quotient, converted_remainder;
+    data_word_t converted_quotient, converted_remainder;
 
         always_comb begin : result_logic
             /* Default values */

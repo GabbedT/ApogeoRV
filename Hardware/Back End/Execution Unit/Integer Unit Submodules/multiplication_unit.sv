@@ -46,30 +46,41 @@
 `ifndef MULTIPLICATION_UNIT_SV
     `define MULTIPLICATION_UNIT_SV
 
-`include "../../../Include/Headers/core_configuration.svh"
-`include "../../../Include/Packages/rv32_instructions_pkg.sv"
+`include "../../../Include/Headers/apogeo_configuration.svh"
+`include "../../../Include/Packages/integer_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
 
 module multiplication_unit #(
-    parameter DATA_WIDTH = 32,
     parameter CORE_STAGES = `MUL_PIPE_STAGES
 ) (
-    input  logic                    clk_i,
-    input  logic                    clk_en_i,
-    input  logic                    rst_n_i,
-    input  logic [DATA_WIDTH - 1:0] multiplicand_i,
-    input  logic [DATA_WIDTH - 1:0] multiplier_i,
-    input  logic                    data_valid_i,
-    input  mul_operation_t          operation_i,
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i,
+    input logic rst_n_i,
 
-    output logic [DATA_WIDTH - 1:0] product_o,
-    output logic                    data_valid_o
+    /* Operands */
+    input data_word_t multiplicand_i,
+    input data_word_t multiplier_i,
+
+    /* Inputs are valid */
+    input logic data_valid_i,
+
+    /* Specify the operation to execute */
+    input mul_uop_t operation_i,
+
+
+    /* Result and valid bit */
+    output data_word_t product_o,
+    output logic       data_valid_o
 );
 
 //--------------//
 //  PARAMETERS  //
 //--------------//
+
+    localparam DATA_WIDTH = $bits(multiplicand_i);
 
     localparam RESULT_WIDTH = 2 * DATA_WIDTH;
 
@@ -82,8 +93,8 @@ module multiplication_unit #(
      * the operation is on signed number, the operands must be 
      * converted in unsigned form first and the result converted
      * back to signed */
-    logic [DATA_WIDTH - 1:0] multiplicand, multiplier;
-    logic              multiplicand_sign, multiplier_sign;
+    data_word_t multiplicand, multiplier;
+    logic       multiplicand_sign, multiplier_sign;
 
     assign multiplicand_sign = multiplicand_i[DATA_WIDTH - 1];
     assign multiplier_sign = multiplier_i[DATA_WIDTH - 1];
@@ -120,13 +131,12 @@ module multiplication_unit #(
 
 
     /* Place registers to lower the delay */
-    logic [DATA_WIDTH - 1:0] multiplicand_stg0, multiplier_stg0;
-    logic                    conversion_enable_stg0;
-    mul_operation_t          operation_stg0;
+    data_word_t multiplicand_stg0, multiplier_stg0;
+    logic       conversion_enable_stg0;
+    mul_uop_t   operation_stg0;
     
-
         always_ff @(posedge clk_i) begin : first_stage_register
-            `ifdef FPGA if (clk_en_i) `endif begin
+            if (clk_en_i)begin
                 conversion_enable_stg0 <= conversion_enable;
                 multiplicand_stg0 <= multiplicand;
                 multiplier_stg0 <= multiplier;
@@ -140,7 +150,7 @@ module multiplication_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_valid_stage_register
             if (!rst_n_i) begin 
                 data_valid_stg0 <= 1'b0;
-            end else `ifdef FPGA if (clk_en_i) `endif begin 
+            end else if (clk_en_i) begin 
                 data_valid_stg0 <= data_valid_i;
             end
         end : data_valid_stage_register
@@ -151,7 +161,7 @@ module multiplication_unit #(
 //--------------------//
 
     /* The operation must be passed through the pipeline */
-    mul_operation_t [CORE_STAGES:0] operation_pipe;
+    mul_uop_t [CORE_STAGES:0] operation_pipe;
 
         always_ff @(posedge clk_i) begin : operation_shift_register
             if (clk_en_i) begin 
@@ -204,8 +214,9 @@ module multiplication_unit #(
     logic [RESULT_WIDTH - 1:0] mul_result;
 
     /* Vivado IP module instantiation */
-    fpga_integer_multiplier multiplier_core (
+    integer_multiplier multiplier_core (
         .CLK ( clk_i             ), 
+        .CE  ( clk_en_i          ),
         .A   ( multiplicand_stg0 ),      
         .B   ( multiplier_stg0   ),     
         .P   ( mul_result        )      
