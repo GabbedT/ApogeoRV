@@ -1,75 +1,91 @@
 `ifndef LOAD_UNIT_SV
     `define LOAD_UNIT_SV
 
-`include "../../Include/Packages/rv32_instructions_pkg.sv"
-`include "../../Include/Headers/core_configuration.svh"
-`include "../../Include/Headers/core_memory_map.svh"
+`include "../../Include/Packages/apogeo_pkg.sv"
+`include "../../Include/Headers/apogeo_configuration.svh"
+`include "../../Include/Headers/apogeo_memory_map.svh"
 `include "../../Include/Packages/data_memory_pkg.sv"
 
 module load_unit (
-    input  logic              clk_i,
-    input  logic              rst_n_i,
-    input  logic              valid_operation_i,
-    input  logic [XLEN - 1:0] load_address_i,
-    input  ldu_operation_t    operation_i,
-    input  instr_packet_t     instr_packet_i,
-    input  logic              data_accepted_i,
-    
-    output instr_packet_t     instr_packet_o,
-    output logic [XLEN - 1:0] loaded_data_o,
-    output logic [XLEN - 1:0] load_address_o,
-    output logic              idle_o,
-    output logic              data_valid_o,
+    /* Register control */
+    input logic clk_i,
+    input logic clk_en_i,
+    input logic rst_n_i,
 
-    /* Cache interface */
-    input  logic              cache_ctrl_data_valid_i,
-    input  logic [XLEN - 1:0] cache_ctrl_data_i,
-    input  logic              cache_ctrl_idle_i,
-    output logic              cache_ctrl_read_o,
-    output logic              cache_ctrl_cachable_o
+    /* Inputs are valid */
+    input logic valid_operation_i,
+
+    /* Load data request address */
+    input data_word_t load_address_i,
+
+    /* Operation to execute */
+    input ldu_uop_t operation_i,
+
+    /* Data loaded is accepted and the 
+     * LDU can now transition in IDLE state */
+    input logic data_accepted_i,
+
+    /* Data retrieved from cache an valid bit */
+    input data_word_t data_loaded_i,
+    input logic       data_loaded_valid_i,
+
+    `ifdef CACHE_SYSTEM
+        /* Cache controller idle */
+        input logic cache_ctrl_idle_i,
+
+
+        /* Cache controller load request */
+        output logic cache_ctrl_load_o,
+
+        /* Data property */
+        output logic cache_ctrl_cachable_o,
+    `else 
+        /* Memory controller read operation */
+        output logic memory_ctrl_load_o,
+    `endif  
+    
+    /* Data loaded from memory / cache */   
+    output data_word_t loaded_data_o,
+
+    /* Load data request address to cache 
+     * controller / memory controller */ 
+    output data_word_t load_address_o,
+
+    /* Functional unit status */
+    output logic idle_o,
+
+    /* Data is valid */
+    output logic data_valid_o
 );
 
 //------------//
 //  DATAPATH  //
 //------------//
     
-    /* Interrupt table */
-    localparam INT_TABLE_REGION_START = `INT_TABLE_REGION_START;
-    localparam INT_TABLE_REGION_END   = `INT_TABLE_REGION_END;
-    
-    /* External Non Volatile Memory */
-    localparam EXT_NVM_REGION_START = `EXT_NVM_REGION_START;
-    localparam EXT_NVM_REGION_END   = `EXT_NVM_REGION_END;
-    
-    /* Internal Non Volatile Memory */
-    localparam INT_NVM_REGION_START = `INT_NVM_REGION_START;
-    localparam INT_NVM_REGION_END   = `INT_NVM_REGION_END;
-    
-    /* Code region */
-    localparam CODE_REGION_START = `CODE_REGION_START;
-    localparam CODE_REGION_END   = `CODE_REGION_END;
-    
-    assign cache_ctrl_cachable_o = inside_range(INT_TABLE_REGION_START, INT_TABLE_REGION_END, load_address_i) | inside_range(EXT_NVM_REGION_START, EXT_NVM_REGION_END, load_address_i) | 
-                      inside_range(INT_NVM_REGION_START, INT_NVM_REGION_END, load_address_i) | inside_range(CODE_REGION_START, CODE_REGION_END, load_address_i);
+    `ifdef CACHE_SYSTEM
+        assign cache_ctrl_cachable_o = (load_address_i > (`CODE_START - 1)) | (load_address_i < (`CODE_END + 1));
+    `endif 
 
 
     /* Load data from cache or memory */
-    logic [XLEN - 1:0] load_data_CRT, load_data_NXT;
+    data_word_t load_data_CRT, load_data_NXT;
 
         always_ff @(posedge clk_i) begin
-            load_data_CRT <= load_data_NXT;
+            if (clk_en_i) begin
+                load_data_CRT <= load_data_NXT;
+            end
         end
 
 
-    ldu_operation_t    operation;
-    logic [XLEN - 1:0] load_address;
+    ldu_uop_t   operation;
+    data_word_t load_address;
 
+        /* Load the register as soon as the inputs 
+         * become available */
         always_ff @(posedge clk_i) begin
-            if (valid_operation_i) begin
+            if (valid_operation_i & clk_en_i) begin
                 load_address <= load_address_i;
                 operation <= operation_i;
-
-                instr_packet_o <= instr_packet_i;
             end
         end
 
@@ -80,30 +96,34 @@ module load_unit (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [2:0] {IDLE, WAIT_CACHE, DATA_VALID} load_unit_fsm_state_t;
+    typedef enum logic [2:0] {IDLE, WAIT, DATA_VALID} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin 
                 state_CRT <= IDLE;
-            end else begin 
+            end else if (clk_en_i) begin 
                 state_CRT <= state_NXT;
             end
         end : state_register
 
 
-    assign idle_o = (state_NXT == IDLE); 
-
         always_comb begin : fsm_logic
             /* Default values */
-            cache_read_NXT = cache_read_CRT;
             load_data_NXT = load_data_CRT;
             state_NXT = state_CRT;
+            
+            loaded_data_o = '0;
 
+            idle_o = 1'b0;
             data_valid_o = 1'b0;
-            loaded_data_o = 1'b0;
-            cache_ctrl_read_o = 1'b0;
+
+            `ifdef CACHE_SYSTEM
+                cache_ctrl_load_o = 1'b0;
+            `else  
+                memory_ctrl_load_o = 1'b0;
+            `endif 
 
             case (state_CRT)
 
@@ -114,22 +134,29 @@ module load_unit (
                  *  cache or from the memory.
                  */ 
                 IDLE: begin
-                    if (valid_operation_i & cache_ctrl_idle_i) begin
-                        state_NXT = WAIT_CACHE;
-                        cache_ctrl_read_o = 1'b1;
-                    end
+                    `ifdef CACHE_SYSTEM
+                        if (valid_operation_i & cache_ctrl_idle_i) begin
+                            state_NXT = WAIT;
+                            cache_ctrl_load_o = 1'b1;
+                        end
+                    `else 
+                        if (valid_operation_i) begin
+                            state_NXT = WAIT; 
+                            memory_ctrl_load_o = 1'b1;
+                        end
+                    `endif 
+
+                    idle_o = 1'b1;
                 end
 
 
                 /* 
                  *  Waits for cache to supply data
                  */
-                WAIT_CACHE: begin
-                    cache_ctrl_read_o = 1'b1;
-                    
-                    if (cache_ctrl_data_valid_i) begin
+                WAIT: begin
+                    if (data_loaded_valid_i) begin
                         state_NXT = DATA_VALID;
-                        load_data_NXT = cache_ctrl_data_i;
+                        load_data_NXT = data_loaded_i;
                     end
                 end
 
@@ -142,61 +169,34 @@ module load_unit (
 
                     if (data_accepted_i) begin
                         state_NXT = IDLE;
+                        idle_o = 1'b1;
                     end
 
-                    case (operation)
-
-                        /* Load byte signed */
-                        LB: begin
-                            case (load_address[1:0])
-                                2'b00: loaded_data_o = $signed(load_data_CRT[7:0]);
-
-                                2'b01: loaded_data_o = $signed(load_data_CRT[15:8]);
-
-                                2'b10: loaded_data_o = $signed(load_data_CRT[23:16]);
-
-                                2'b11: loaded_data_o = $signed(load_data_CRT[31:24]);
-                            endcase
-                        end
-
-                        /* Load byte unsigned */
-                        LBU: begin
-                            case (load_address[1:0])
-                                2'b00: loaded_data_o = $unsigned(load_data_CRT[7:0]);
-
-                                2'b01: loaded_data_o = $unsigned(load_data_CRT[15:8]);
-
-                                2'b10: loaded_data_o = $unsigned(load_data_CRT[23:16]);
-
-                                2'b11: loaded_data_o = $unsigned(load_data_CRT[31:24]);
-                            endcase
-                        end
-
-                        /* Load half word signed */
-                        LH: begin
-                            if (!load_address[1]) begin
-                                loaded_data_o = $signed(load_data_CRT[15:0]);
+                    case (operation.opcode)
+                        /* Load byte */
+                        LDB: begin 
+                            if (operation.signed_load) begin
+                                loaded_data_o = $signed(load_data_CRT.word8[load_address[1:0]]);
                             end else begin
-                                loaded_data_o = $signed(load_data_CRT[31:16]);
+                                loaded_data_o = $unsigned(load_data_CRT.word8[load_address[1:0]]);
                             end
                         end
 
-                        /* Load half word unsigned */
-                        LHU: begin
-                            if (!load_address[1]) begin
-                                loaded_data_o = $unsigned(load_data_CRT[15:0]);
+                        /* Load half word signed */
+                        LDH: begin 
+                            if (operation.signed_load) begin 
+                                loaded_data_o = $signed(load_data_CRT.word16[load_address[1]]);
                             end else begin
-                                loaded_data_o = $unsigned(load_data_CRT[31:16]);
+                                loaded_data_o = $unsigned(load_data_CRT.word16[load_address[1]]);
                             end
                         end
 
                         /* Load word */
-                        LW: begin
+                        LDW: begin 
                             loaded_data_o = load_data_CRT;
                         end
                     endcase    
-                end
-                
+                end    
             endcase
         end : fsm_logic
 
