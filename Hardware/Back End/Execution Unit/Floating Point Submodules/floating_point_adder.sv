@@ -38,7 +38,7 @@
     `define FLOATING_POINT_ADDER_SV
 
 `include "../../../Include/Packages/floating_point_unit_pkg.sv"
-`include "../../../Include/Headers/core_configuration.svh"
+`include "../../../Include/Headers/apogeo_configuration.svh"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 
