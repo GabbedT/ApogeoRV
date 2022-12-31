@@ -1,7 +1,7 @@
 `ifndef DATA_MEMORY_PKG_SV
     `define DATA_MEMORY_PKG_SV
 
-`include "../Headers/core_configuration.svh"
+`include "../Headers/apogeo_configuration.svh"
 
 package data_memory_pkg;
 
@@ -92,7 +92,7 @@ package data_memory_pkg;
     } data_cache_enable_t;
 
     /* Load / Store width */
-    typedef enum logic [1:0] {BYTE, HALF_WORD, WORD} mem_op_width_t;
+    typedef enum logic [1:0] {BYTE, HALF_WORD, WORD} store_width_t;
 
     /* Number of ways typedef */
     typedef logic [WAYS_NUMBER - 1:0] data_cache_ways_t;
@@ -107,20 +107,44 @@ package data_memory_pkg;
     typedef logic [PORT_BYTES - 1:0] data_cache_port_t;
 
 
-    /* Checks if address is inside a range */
-    function bit inside_range(input logic [31:0] low, input logic [31:0] high, input logic [31:0] value);
-        return ((value >= low) & (value <= high));
-    endfunction : inside_range
-
-
     /* Store buffer entry */
     typedef struct packed {
         logic [31:0]   data;
 
         logic [31:0]   address;
 
-        mem_op_width_t operation_width;
+        store_width_t operation_width;
     } store_buffer_entry_t;
+
+
+    /* Load unit operations */
+    typedef struct packed {
+        enum logic [1:0] {
+            /* Load byte */
+            LDB,
+            
+            /* Load half word */
+            LDH, 
+            
+            /* Load word */
+            LDW
+        } opcode;
+
+        logic signed_load;
+    } ldu_uop_t;
+
+
+    /* Store unit operations */
+    typedef enum logic [1:0] {
+        /* Store byte */
+        STB,
+
+        /* Store half word */
+        STH,
+
+        /* Store word */
+        STW
+    } stu_uop_t;
 
 endpackage : data_memory_pkg
 
