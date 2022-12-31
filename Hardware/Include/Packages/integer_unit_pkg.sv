@@ -21,7 +21,7 @@ package integer_unit_pkg;
 
         /* Load instructions */
         LUI, AUIPC
-    } alu_uops_t;
+    } alu_uop_t;
 
 
 //------------------//
@@ -31,44 +31,44 @@ package integer_unit_pkg;
     /* Shift and add operations */
     typedef enum logic [1:0] {
         SH1ADD, SH2ADD, SH3ADD
-    } bmu_shadd_uops_t;
+    } bmu_shadd_uop_t;
 
     /* Bit count operations */
     typedef enum logic [1:0] {
         CLZ, CTZ, CPOP
-    } bmu_count_uops_t;
+    } bmu_count_uop_t;
 
     /* Compare operations */
     typedef enum logic [1:0] {
         MAX, MAXU, MIN, MINU
-    } bmu_compare_uops_t;
+    } bmu_compare_uop_t;
 
     /* Sign extend operations */
     typedef enum logic [1:0] {
         SEXTB, SEXTH, ZEXTH
-    } bmu_extension_uops_t;
+    } bmu_extension_uop_t;
 
     /* Rotate operations */
     typedef enum logic {
         ROL, ROR
-    } bmu_rotate_uops_t; 
+    } bmu_rotate_uop_t; 
 
     /* Byte operations */
     typedef enum logic {
         ORCB, REV8
-    } bmu_byte_uops_t;
+    } bmu_byte_uop_t;
 
     /* Bit operations */
     typedef enum logic [2:0] {
         ANDN, ORN, XNOR, BCLR, 
         BEXT, BINV, BSET
-    } bmu_logic_uops_t; 
+    } bmu_logic_uop_t; 
 
     /* Valid BMU operation type */
     typedef enum logic [2:0] {
         SHADD, COUNT, COMPARE, EXTEND, 
         ROTATE, BYTEOP, LOGICOP
-    } bmu_valid_uops_t;
+    } bmu_valid_uop_t;
 
 
     /* Pack all those operations in three bits 
@@ -77,63 +77,63 @@ package integer_unit_pkg;
         union packed {
 
             struct packed {
-                bmu_shadd_uops_t opcode;
-                logic            padding;
+                bmu_shadd_uop_t opcode;
+                logic           padding;
             } SHADD;
 
             struct packed {
-                bmu_count_uops_t opcode;
-                logic            padding;
+                bmu_count_uop_t opcode;
+                logic           padding;
             } BITC;
 
             struct packed {
-                bmu_compare_uops_t opcode;
-                logic              padding;
+                bmu_compare_uop_t opcode;
+                logic             padding;
             } CMP;
 
             struct packed {
-                bmu_extension_uops_t opcode;
-                logic                padding;
+                bmu_extension_uop_t opcode;
+                logic               padding;
             } EXT;
  
              struct packed {
-                bmu_rotate_uops_t opcode;
-                logic [1:0]       padding;
+                bmu_rotate_uop_t opcode;
+                logic [1:0]      padding;
             } ROT;
 
             struct packed {
-                bmu_byte_uops_t opcode;
-                logic [1:0]     padding;
+                bmu_byte_uop_t opcode;
+                logic [1:0]    padding;
             } OPBYTE;
 
             struct packed {
-                bmu_byte_uops_t opcode;
+                bmu_logic_uop_t opcode;
             } OPLOGIC;
 
         } select;
 
-        bmu_valid_uops_t op_type;
-    } bmu_uops_t;
+        bmu_valid_uop_t op_type;
+    } bmu_uop_t;
 
 
 //----------------------------//
 //  MULTIPLY UNIT OPERATIONS  //
 //----------------------------//
 
+    /* Multiplication instructions */
     typedef enum logic [1:0] {  
-        /* Multiplication instructions */
         MUL, MULH, MULHSU, MULHU 
-    } mul_uops_t;
+    } mul_uop_t;
 
 
 //--------------------------//
 //  DIVIDE UNIT OPERATIONS  //
 //--------------------------//
 
+    /* Division instructions */
     typedef enum logic [1:0] {  
-        /* Division instructions */
         DIV, DIVU, REM, REMU
-    } div_uops_t;
+    } div_uop_t;
 
 
 //----------------------//
@@ -142,24 +142,24 @@ package integer_unit_pkg;
 
     typedef union packed {
         struct packed {
-            alu_uops_t opcode;
+            alu_uop_t opcode;
+            logic     padding;
         } ALU;
 
         struct packed {
-            bmu_uops_t  opcode;
-            logic [1:0] padding;
+            bmu_uop_t opcode;
         } BMU;
 
         struct packed {
-            mul_wrap_t  opcode;
-            logic [2:0] padding;
+            mul_uop_t   opcode;
+            logic [3:0] padding;
         } MUL;
 
         struct packed {
-            div_uops_t  opcode;
-            logic [2:0] padding;
+            div_uop_t   opcode;
+            logic [3:0] padding;
         } DIV;
-    } iexu_uops_t;
+    } iexu_uop_t;
 
     typedef struct packed {
         logic  ALU;
