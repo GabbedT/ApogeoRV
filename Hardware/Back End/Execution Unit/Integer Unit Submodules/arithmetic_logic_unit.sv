@@ -38,22 +38,37 @@
 `ifndef ARITHMETIC_LOGIC_UNIT_SV 
     `define ARITHMETIC_LOGIC_UNIT_SV
 
-`include "../../../Include/Headers/core_configuration.svh"
-`include "../../../Include/Packages/rv32_instructions_pkg.sv"
+`include "../../../Include/Headers/apogeo_configuration.svh"
+`include "../../../Include/Packages/integer_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
 
 module arithmetic_logic_unit (
-    input  logic [XLEN - 1:0] operand_A_i,
-    input  logic [XLEN - 1:0] operand_B_i,
-    input  logic [XLEN - 1:0] instr_addr_i,
-    input  alu_uops_t    operation_i,
-    input  logic              data_valid_i,
-    input  logic              is_compressed_jump_i,
-    output logic [XLEN - 1:0] result_o,
-    output logic              branch_taken_o,
-    output logic              is_branch_o,
-    output logic              data_valid_o
-);
+    /* Operands */
+    input data_word_t operand_A_i,
+    input data_word_t operand_B_i,
 
+    /* Instruction address */
+    input data_word_t instr_addr_i,
+
+    /* Operation to execute */
+    input alu_uop_t operation_i,
+
+    /* Inputs are valid */
+    input logic data_valid_i,
+
+    /* Jump instruction is compressed so store
+     * in the register the instruction address
+     * incremented by only 2 */
+    input logic is_compressed_jump_i,
+
+    /* Result and valid bits */
+    output data_word_t result_o,
+    output logic       data_valid_o,
+
+    /* Branch logic */
+    output logic branch_taken_o,
+    output logic is_branch_o
+);
 
 //--------------//
 //  MAIN ADDER  //
@@ -63,7 +78,7 @@ module arithmetic_logic_unit (
      *  ADDI, ADD, SUB, LUI, AUIPC, JAL, JALR
      */
 
-    logic [XLEN - 1:0] adder_result;
+    data_word_t adder_result;
 
     assign adder_result = operand_A_i + operand_B_i;
 
@@ -76,10 +91,10 @@ module arithmetic_logic_unit (
      *  JAL, JALR, BEQ, BNE, BLT, BLTU, BGE, BGEU
      */
 
-    logic [XLEN - 1:0] operand_B_comparison;
+    data_word_t operand_B_comparison;
 
     /* In SLTIU and SLTI the immediate (operand_B_i) is sign extended and then treated as unsigned number */
-    assign operand_B_comparison = (operation_i == SLTIU ) ? $signed(operand_B_i[11:0]) : operand_B_i;
+    assign operand_B_comparison = (operation_i == SLTU ) ? $signed(operand_B_i[11:0]) : operand_B_i;
 
 
     /* Signed */
@@ -137,7 +152,7 @@ module arithmetic_logic_unit (
      *  SLL, SLLI, SRL, SRLI, SRA, SRAI
      */
 
-    logic [XLEN - 1:0] logical_sh_left_result, logical_sh_right_result, arithmetic_sh_right_result;
+    data_word_t logical_sh_left_result, logical_sh_right_result, arithmetic_sh_right_result;
     logic [4:0]        shift_amount;
 
     /* Shift amount is held in the lower 5 bit of the register / immediate */
@@ -153,7 +168,7 @@ module arithmetic_logic_unit (
 //  LOGIC OPERATION  //
 //-------------------//
 
-    logic [XLEN - 1:0] and_result, or_result, xor_result;
+    data_word_t and_result, or_result, xor_result;
 
     assign and_result = operand_A_i & operand_B_i;
     assign or_result = operand_A_i | operand_B_i;
@@ -169,27 +184,27 @@ module arithmetic_logic_unit (
 
         always_comb begin : output_assignment
             case (operation_i)
-                ADDI, ADD, SUB: result_o = adder_result;
+                ADD: result_o = adder_result;
 
-                SLTI, SLT: result_o = is_less_than_s;
+                SLT: result_o = is_less_than_s;
 
-                SLTIU, SLTU: result_o = is_less_than_u;
+                SLTU: result_o = is_less_than_u;
 
-                ANDI, AND: result_o = and_result;
+                AND: result_o = and_result;
 
-                ORI, OR: result_o = or_result;
+                OR: result_o = or_result;
 
-                XORI, XOR: result_o = xor_result;
+                XOR: result_o = xor_result;
 
                 LUI: result_o = operand_B_i; 
                 
                 AUIPC: result_o = adder_result;
 
-                SLL, SLLI: result_o = logical_sh_left_result;
+                SLL: result_o = logical_sh_left_result;
 
-                SRL, SRLI: result_o = logical_sh_right_result;
+                SRL: result_o = logical_sh_right_result;
 
-                SRAI, SRA: result_o = arithmetic_sh_right_result;
+                SRA: result_o = arithmetic_sh_right_result;
 
                 JAL, JALR: result_o = (is_compressed_jump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
 
