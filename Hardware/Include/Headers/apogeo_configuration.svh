@@ -61,7 +61,7 @@
 //--------------//
 
     /* In bytes */
-    `define DATA_CACHE_SIZE 2 ** 16
+    `define DATA_CACHE_SIZE 2 ** 14
 
     /* In bits */
     `define DATA_CACHE_BLOCK_SIZE 128 
