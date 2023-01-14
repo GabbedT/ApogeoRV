@@ -41,8 +41,8 @@
 `ifndef STORE_BUFFER_SV
     `define STORE_BUFFER_SV
 
-`include "../../Include/data_memory_pkg.sv"
-`include "../../Include/core_configuration.svh"
+`include "../../Include/Packages/data_memory_pkg.sv"
+`include "../../Include/Headers/apogeo_configuration.svh"
 
 module store_buffer (
     input  logic                clk_i,

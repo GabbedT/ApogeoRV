@@ -43,20 +43,42 @@
 `include "data_memory_bank.sv"
 
 module data_cache_block (
-    input  logic                    clk_i,
+    input logic clk_i,
 
-    /* Port 0 (R / W) interface */
-    input  logic [PORT_BYTES - 1:0] port0_byte_write_i,
-    input  logic [CHIP_ADDR  - 1:0] port0_chip_select_i,
-    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
-    input  logic [PORT_WIDTH - 1:0] port0_data_i,
-    input                           port0_write_i,
+    /* 
+     * Port 0 (W) interface 
+     */
+    
+    /* Byte write select */
+    input data_cache_byte_write_t port0_byte_write_i,
 
-    /* Port 1 (R) interface */
-    input  logic [CHIP_ADDR  - 1:0] port1_chip_select_i,
-    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
-    output logic [PORT_WIDTH - 1:0] port1_data_o,
-    input  logic                    port1_read_i 
+    /* Select the data memory bank */
+    input bank_select_t port0_bank_select_i,
+
+    /* Write address */
+    input data_cache_address_t port0_address_i,
+
+    /* Write request */
+    input logic port0_write_i,
+
+    /* Data write */
+    input data_cache_data_t port0_data_i,
+
+    /* 
+     * Port 1 (R) interface 
+     */
+    
+    /* Select the data memory bank */
+    input bank_select_t port1_bank_select_i,
+
+    /* Read address */
+    input data_cache_address_t port1_address_i,
+
+    /* Read request */
+    input logic port1_read_i,
+
+    /* Data read */
+    output data_cache_data_t port1_data_o
 );
 
 //----------------//
@@ -71,11 +93,11 @@ module data_cache_block (
             port1_enable = 'b0;
 
             for (int i = 0; i < CACHE_CHIP; ++i) begin : decode_logic
-                if (port0_chip_select_i == i) begin
+                if (port0_bank_select_i == i) begin
                     port0_enable[i] = 1'b1;
                 end
 
-                if (port1_chip_select_i == i) begin
+                if (port1_bank_select_i == i) begin
                     port1_enable[i] = 1'b1;
                 end
             end : decode_logic
@@ -115,7 +137,7 @@ module data_cache_block (
     logic [CHIP_ADDR - 1:0] port1_read_data_select;
 
         always_ff @(posedge clk_i) begin
-            port1_read_data_select <= port1_chip_select_i;
+            port1_read_data_select <= port1_bank_select_i;
         end
 
     /* Output assignment */

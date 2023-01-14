@@ -40,27 +40,57 @@
 
 `include "data_cache_way.sv"
 
-
+(* DONT_TOUCH = "yes" *) 
 module data_cache (
-    input  logic                     clk_i,
-    input  logic [WAYS_NUMBER - 1:0] enable_way_i,
+    input logic clk_i,
 
-    /* Port 0 (R / W) interface */
-    input  data_cache_enable_t       port0_enable_i,
-    input  logic [CHIP_ADDR   - 1:0] port0_chip_select_i,
-    input  logic [PORT_BYTES  - 1:0] port0_byte_write_i,
-    input  logic [ADDR_WIDTH  - 1:0] port0_address_i,
-    input  logic                     port0_write_i,
-    input  logic                     port0_read_i,
-    input  data_cache_packet_t       port0_cache_packet_i,
-    output logic [WAYS_NUMBER - 1:0] port0_valid_o,
+    /* Enable a way (one hot signal, used for write) */
+    input data_cache_ways_t enable_way_i,
+
+    /* 
+     * Port 0 (R / W) interface 
+     */
+
+    /* Enable operations on the selected memory chip */
+    input data_cache_enable_t port0_enable_i,
+
+    /* Select the data memory bank */
+    input bank_select_t port0_bank_select_i,
+
+    /* Byte write select */
+    input data_cache_byte_write_t port0_byte_write_i,
+
+    /* Read / Write address */
+    input data_cache_address_t port0_address_i,
+
+    /* Read / Write request */
+    input logic port0_write_i,
+    input logic port0_read_i,
+
+    /* Cache transaction packet */
+    input data_cache_packet_t port0_cache_packet_i,
+
+    /* Data read from the ways */
+    output logic [WAYS_NUMBER - 1:0]                 port0_valid_o,
     output logic [WAYS_NUMBER - 1:0][TAG_SIZE - 1:0] port0_tag_o,
 
-    /* Port 1 (R) interface */
-    input  data_cache_enable_t       port1_enable_i,
-    input  logic [CHIP_ADDR   - 1:0] port1_chip_select_i,
-    input  logic [ADDR_WIDTH  - 1:0] port1_address_i,
-    input  logic                     port1_read_i,
+    /* 
+     * Port 1 (R) interface 
+     */
+
+    /* Enable operations on the selected memory chip */
+    input data_cache_enable_t port1_enable_i,
+
+    /* Select the data memory bank */
+    input bank_select_t port1_bank_select_i,
+
+    /* Read address */
+    input data_cache_address_t port1_address_i,
+
+    /* Read request */
+    input logic port1_read_i,
+
+    /* Cache transaction packet */
     output data_cache_packet_t [WAYS_NUMBER - 1:0] port1_cache_packet_o 
 );
 
@@ -74,7 +104,7 @@ module data_cache (
 
                 /* Port 0 (R / W) interface */
                 .port0_enable_i       ( port0_enable_i          ),
-                .port0_chip_select_i  ( port0_chip_select_i     ),
+                .port0_bank_select_i  ( port0_bank_select_i     ),
                 .port0_byte_write_i   ( port0_byte_write_i      ),
                 .port0_address_i      ( port0_address_i         ),
                 .port0_cache_packet_i ( port0_cache_packet_i    ),
@@ -85,7 +115,7 @@ module data_cache (
 
                 /* Port 1 (R) interface */
                 .port1_enable_i       ( port1_enable_i          ),
-                .port1_chip_select_i  ( port1_chip_select_i     ),
+                .port1_bank_select_i  ( port1_bank_select_i     ),
                 .port1_address_i      ( port1_address_i         ),
                 .port1_read_i         ( port1_read_i            ),
                 .port1_cache_packet_o ( port1_cache_packet_o[i] )
@@ -94,8 +124,11 @@ module data_cache (
     endgenerate
 
     `ifdef ASSERTIONS 
-        assert property @(posedge clk_i) ($onehot(enable_way_i));
-        assert property @(posedge clk_i) ({port0_write_i, port0_read_i} != 2'b11);
+        assert property(DCH_ConcurrentPortOperation)
+        else $error("[Data Cache] Multiple operation request for the same port!");
+
+        assert property(DCH_ConcurrentWayEnable)
+        else $error("[Data Cache] Multiple enabled ways!")
     `endif 
 
 endmodule : data_cache

@@ -155,18 +155,18 @@ module bit_manipulation_unit (
 
 
     /* CTZ and CLZ logic */
-    data_word_t         reeversed_operand_A, count_zeros_operand; 
+    data_word_t         reversed_operand_A, count_zeros_operand; 
     logic [$clog2(DATA_WIDTH) - 1:0] count_zeros_result; 
     logic                      all_zeros;
 
         /* Count trailing zeroes (CTZ) is a CLZ with the inverted bits */
         always_comb begin : ctz_assignment_logic
             for (int i = 0; i < DATA_WIDTH; ++i) begin
-                reeversed_operand_A[(DATA_WIDTH - 1) - i] = operand_A_i[i];
+                reversed_operand_A[(DATA_WIDTH - 1) - i] = operand_A_i[i];
             end
         end : ctz_assignment_logic
 
-    assign count_zeros_operand = (operation_i.select.BITC.opcode == CLZ) ? operand_A_i : reeversed_operand_A;
+    assign count_zeros_operand = (operation_i.select.BITC.opcode == CLZ) ? operand_A_i : reversed_operand_A;
 
     count_leading_zeros #(DATA_WIDTH) clz32 (
         .operand_i     ( count_zeros_operand ),

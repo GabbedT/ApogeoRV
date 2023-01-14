@@ -44,18 +44,36 @@
 `include "../../../Include/Packages/data_memory_pkg.sv"
 
 module data_memory_bank (
-    input  logic                    clk_i,
+    input logic clk_i,
 
-    /* Port 0 (R / W) interface */
-    input  logic [PORT_BYTES - 1:0] port0_byte_write_i,
-    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
-    input  logic [PORT_WIDTH - 1:0] port0_data_i,
-    input  logic                    port0_write_i,
+    /* 
+     * Port 0 (W) interface 
+     */
 
-    /* Port 1 (R) interface */
-    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
-    output logic [PORT_WIDTH - 1:0] port1_data_o,
-    input  logic                    port1_read_i          
+    /* Byte write select */
+    input data_cache_byte_write_t port0_byte_write_i,
+
+    /* Write address */
+    input data_cache_address_t port0_address_i,
+
+    /* Data to write */
+    input data_cache_data_t port0_data_i,
+
+    /* Write request */
+    input logic port0_write_i,
+
+    /* 
+     * Port 1 (R) interface 
+     */
+
+    /* Read address */
+    input data_cache_address_t port1_address_i,
+
+    /* Read request */
+    input logic port1_read_i,  
+
+    /* Data read */        
+    output data_cache_data_t port1_data_o
 );
 
 //----------//

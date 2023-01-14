@@ -39,23 +39,43 @@
 `include "../../../Include/Packages/data_memory_pkg.sv"
 
 module data_status_memory (
-    input  logic                    clk_i,
+    input logic clk_i,
 
-    /* Port 0 (R / W) interface */
-    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
-    input  logic                    port0_valid_i,
-    input  logic                    port0_dirty_i,
-    input  logic                    port0_valid_write_i,
-    input  logic                    port0_dirty_write_i,
-    output logic                    port0_valid_o,
-    input  logic                    port0_valid_read_i,
+    /* 
+     * Port 0 (R / W) interface 
+     */
 
-    /* Port 1 (R) interface */
-    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
-    output logic                    port1_valid_o,
-    output logic                    port1_dirty_o,
-    input  logic                    port1_valid_read_i,
-    input  logic                    port1_dirty_read_i
+    /* Read / Write address */
+    input data_cache_address_t port0_address_i,
+
+    /* Valid and dirty bits to write */
+    input logic port0_valid_i,
+    input logic port0_dirty_i,
+
+    /* Write request */
+    input logic port0_valid_write_i,
+    input logic port0_dirty_write_i,
+
+    /* Read command only for valid memory */
+    input logic  port0_valid_read_i,
+
+    /* Valid bit read */
+    output logic port0_valid_o,
+
+    /* 
+     * Port 1 (R) interface 
+     */
+
+    /* Read address */
+    input data_cache_address_t port1_address_i,
+
+    /* Read request */
+    input logic port1_valid_read_i,
+    input logic port1_dirty_read_i,
+
+    /* Data read */
+    output logic port1_valid_o,
+    output logic port1_dirty_o
 );
 
 //----------------//

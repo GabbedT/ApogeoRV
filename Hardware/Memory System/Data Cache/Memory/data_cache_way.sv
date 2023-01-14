@@ -42,26 +42,57 @@
 `include "data_tag_memory.sv"
 
 module data_cache_way (
-    input  logic                    clk_i,
-    input  logic                    enable_way_i,                  
+    input logic clk_i,
 
-    /* Port 0 (R / W) interface */
-    input  data_cache_enable_t      port0_enable_i, 
-    input  logic [CHIP_ADDR  - 1:0] port0_chip_select_i,
-    input  logic [PORT_BYTES - 1:0] port0_byte_write_i,
-    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
-    input  data_cache_packet_t      port0_cache_packet_i,
-    input  logic                    port0_write_i,
-    input  logic                    port0_read_i,
-    output logic                    port0_valid_o,
-    output logic [TAG_SIZE - 1:0 ]  port0_tag_o,
+    /* Way enable operation */
+    input logic enable_way_i,                  
 
-    /* Port 1 (R) interface */
-    input  data_cache_enable_t      port1_enable_i, 
-    input  logic [CHIP_ADDR  - 1:0] port1_chip_select_i,
-    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
-    input  logic                    port1_read_i,
-    output data_cache_packet_t      port1_cache_packet_o
+    /* 
+     * Port 0 (R / W) interface 
+     */
+
+    /* Enable operation on selected memory chip */
+    input data_cache_enable_t port0_enable_i, 
+
+    /* Select the data memory bank */
+    input bank_select_t port0_bank_select_i,
+
+    /* Byte write select */
+    input data_cache_byte_write_t port0_byte_write_i,
+
+    /* Read / Write address */
+    input data_cache_address_t port0_address_i,
+
+    /* Cache transaction packet */
+    input data_cache_packet_t port0_cache_packet_i,
+
+    /* Operation request */
+    input logic port0_write_i,
+    input logic port0_read_i,
+
+    /* Read data, in port 0 only reading valid and tag is 
+     * useful */
+    output logic port0_valid_o,
+    output logic [TAG_SIZE - 1:0]  port0_tag_o,
+
+    /* 
+     * Port 1 (R) interface 
+     */
+
+    /* Enable operation on selected memory chip */
+    input data_cache_enable_t port1_enable_i,
+
+    /* Select the data memory bank */
+    input bank_select_t port1_bank_select_i,
+
+    /* Read address */
+    input data_cache_address_t port1_address_i,
+
+    /* Read request */
+    input logic port1_read_i,
+
+    /* Cache transaction packet */
+    output data_cache_packet_t port1_cache_packet_o
 );
 
     logic port0_write, port0_read, port1_read;
@@ -131,13 +162,13 @@ module data_cache_way (
 
         /* Port 0 (R / W) interface */
         .port0_byte_write_i  ( port0_byte_write_i                ),
-        .port0_chip_select_i ( port0_chip_select_i               ),
+        .port0_bank_select_i ( port0_bank_select_i               ),
         .port0_address_i     ( port0_address_i                   ),
         .port0_data_i        ( port0_cache_packet_i.word         ),
         .port0_write_i       ( port0_write & port0_enable_i.data ),
 
         /* Port 1 (R) interface */
-        .port1_chip_select_i ( port1_chip_select_i               ),
+        .port1_bank_select_i ( port1_bank_select_i               ),
         .port1_address_i     ( port1_address_i                   ),
         .port1_data_o        ( port1_cache_packet_o.word         ),
         .port1_read_i        ( port1_read & port1_enable_i.data  )  

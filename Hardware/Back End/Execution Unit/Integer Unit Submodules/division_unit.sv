@@ -45,6 +45,7 @@
 
 `include "../../../Include/Headers/apogeo_configuration.svh"
 `include "../../../Include/Packages/integer_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Dividers/non_restoring_divider.sv"
 
@@ -175,20 +176,20 @@ module division_unit (
 //------------------//
 
     data_word_t quotient, remainder;
-    logic       div_data_valid, div_zero_divide, div_idle;
+    logic       div_data_valid, div_idle, divide_by_zero;
 
     non_restoring_divider #(DATA_WIDTH) divider (
-        .clk_i            ( clk_i            ),
-        .clk_en_i         ( clk_en_i         ),
-        .rst_n_i          ( rst_n_i          ),
-        .dividend_i       ( div_dividend     ),
-        .divisor_i        ( div_divisor      ),
-        .data_valid_i     ( data_valid       ),
-        .quotient_o       ( quotient         ),
-        .remainder_o      ( remainder        ),
-        .divide_by_zero_o ( divide_by_zero_o ),
-        .data_valid_o     ( div_data_valid   ),
-        .idle_o           ( div_idle         )
+        .clk_i            ( clk_i          ),
+        .clk_en_i         ( clk_en_i       ),
+        .rst_n_i          ( rst_n_i        ),
+        .dividend_i       ( div_dividend   ),
+        .divisor_i        ( div_divisor    ),
+        .data_valid_i     ( data_valid     ),
+        .quotient_o       ( quotient       ),
+        .remainder_o      ( remainder      ),
+        .divide_by_zero_o ( divide_by_zero ),
+        .data_valid_o     ( div_data_valid ),
+        .idle_o           ( div_idle       )
     );
 
 
@@ -198,6 +199,8 @@ module division_unit (
             if (clk_en_i) begin 
                 last_stage_quotient <= quotient;
                 last_stage_remainder <= remainder;
+
+                divide_by_zero_o <= divide_by_zero;
                 data_valid_o <= div_data_valid;
 
                 if (data_valid_i | data_valid) begin 

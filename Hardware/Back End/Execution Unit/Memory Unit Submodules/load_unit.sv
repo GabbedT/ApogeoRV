@@ -9,7 +9,6 @@
 module load_unit (
     /* Register control */
     input logic clk_i,
-    input logic clk_en_i,
     input logic rst_n_i,
 
     /* Inputs are valid */
@@ -25,7 +24,7 @@ module load_unit (
      * LDU can now transition in IDLE state */
     input logic data_accepted_i,
 
-    /* Data retrieved from cache an valid bit */
+    /* Data retrieved from cache or memory and valid bit */
     input data_word_t data_loaded_i,
     input logic       data_loaded_valid_i,
 
@@ -40,8 +39,8 @@ module load_unit (
         /* Data property */
         output logic cache_ctrl_cachable_o,
     `else 
-        /* Memory controller read operation */
-        output logic memory_ctrl_load_o,
+        /* CPU request for external memory */
+        output logic cpu_request_o,
     `endif  
     
     /* Data loaded from memory / cache */   
@@ -71,9 +70,7 @@ module load_unit (
     data_word_t load_data_CRT, load_data_NXT;
 
         always_ff @(posedge clk_i) begin
-            if (clk_en_i) begin
-                load_data_CRT <= load_data_NXT;
-            end
+            load_data_CRT <= load_data_NXT;
         end
 
 
@@ -83,7 +80,7 @@ module load_unit (
         /* Load the register as soon as the inputs 
          * become available */
         always_ff @(posedge clk_i) begin
-            if (valid_operation_i & clk_en_i) begin
+            if (valid_operation_i) begin
                 load_address <= load_address_i;
                 operation <= operation_i;
             end
@@ -103,7 +100,7 @@ module load_unit (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin 
                 state_CRT <= IDLE;
-            end else if (clk_en_i) begin 
+            end else begin 
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -122,7 +119,7 @@ module load_unit (
             `ifdef CACHE_SYSTEM
                 cache_ctrl_load_o = 1'b0;
             `else  
-                memory_ctrl_load_o = 1'b0;
+                cpu_request_o = 1'b0;
             `endif 
 
             case (state_CRT)
@@ -141,8 +138,8 @@ module load_unit (
                         end
                     `else 
                         if (valid_operation_i) begin
+                            cpu_request_o = 1'b1;
                             state_NXT = WAIT; 
-                            memory_ctrl_load_o = 1'b1;
                         end
                     `endif 
 

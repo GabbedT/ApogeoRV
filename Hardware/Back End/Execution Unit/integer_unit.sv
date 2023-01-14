@@ -9,7 +9,7 @@
 `include "../../Include/Headers/apogeo_configuration.svh"
 `include "../../Include/Packages/integer_unit_pkg.sv"
 `include "../../Include/Packages/apogeo_pkg.sv"
- 
+
 module integer_unit (
     /* Pipeline control */
     input logic clk_i,
@@ -32,7 +32,6 @@ module integer_unit (
 
     /* Branch control */
     output logic is_branch_o,
-    output logic branch_taken_o,
 
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
@@ -105,7 +104,6 @@ module integer_unit (
         .data_valid_i         ( data_valid_i.ALU       ),
         .is_compressed_jump_i ( is_compressed_jmp_i    ),
         .result_o             ( alu_result             ),
-        .branch_taken_o       ( branch_taken           ),
         .is_branch_o          ( is_branch              ),
         .data_valid_o         ( alu_valid              )
     );
@@ -117,7 +115,6 @@ module integer_unit (
     assign alu_final_ipacket = alu_valid ? ipacket_i : '0;
 
     assign is_branch_o = is_branch & alu_valid;
-    assign branch_taken_o = branch_taken & alu_valid;
 
 
 //-------------------------//
@@ -263,7 +260,7 @@ module integer_unit (
 
     `ifdef ASSERTIONS
         /* New valid data mustn't be supplied to the DIV if it's not idle */
-        assert property @(posedge clk_i) (!div_idle_o |-> !data_valid_i.DIV)
+        assert property(DIV_DataValidWhenIdle)
         else $error("[Integer Execution Unit] Data supplied to DIV unit while it wasn't idle!");
     `endif 
 
@@ -285,7 +282,7 @@ module integer_unit (
 
     instr_packet_t div_final_ipacket;
 
-    assign div_result_o = div_valid ? mul_result : '0;
+    assign div_result_o = div_valid ? div_result : '0;
     assign div_final_ipacket = div_valid ? exc_div_ipacket : '0;
 
 

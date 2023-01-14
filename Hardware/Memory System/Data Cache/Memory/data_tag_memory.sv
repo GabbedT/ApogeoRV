@@ -39,19 +39,37 @@
 `include "../../../Include/Packages/data_memory_pkg.sv"
 
 module data_tag_memory (
-    input  logic                    clk_i,
+    input logic clk_i,
 
-    /* Port 0 (R / W) interface */
-    input  logic [ADDR_WIDTH - 1:0] port0_address_i,
-    input  logic [TAG_SIZE   - 1:0] port0_tag_i,
-    input  logic                    port0_write_i,
-    output logic [TAG_SIZE   - 1:0] port0_tag_o,
-    input  logic                    port0_read_i,
+    /* 
+     * Port 0 (R / W) interface 
+     */
 
-    /* Port 1 (R) interface */
-    input  logic [ADDR_WIDTH - 1:0] port1_address_i,
-    output logic [TAG_SIZE   - 1:0] port1_tag_o,
-    input  logic                    port1_read_i 
+    /* Read / Write address */
+    input data_cache_address_t port0_address_i,
+
+    /* Data to write */
+    input logic [TAG_SIZE - 1:0] port0_tag_i,
+
+    /* Read / Write request */
+    input logic port0_write_i,
+    input logic port0_read_i,
+
+    /* Data read */
+    output logic [TAG_SIZE - 1:0] port0_tag_o,
+
+    /* 
+     * Port 1 (R) interface 
+     */
+
+    /* Read address */
+    input data_cache_address_t port1_address_i,
+
+    /* Read request */
+    input logic port1_read_i, 
+
+    /* Data read */
+    output logic [TAG_SIZE - 1:0] port1_tag_o
 );
 
 //----------//
