@@ -40,58 +40,121 @@
     `define LOAD_UNIT_CACHE_CONTROLLER_SV
 
 `include "../../Include/Packages/data_memory_pkg.sv"
-`include "../../Include/Headers/core_configuration.svh"
-`include "../../Include/Packages/rv32_instructions_pkg.sv"
+`include "../../Include/Packages/apogeo_pkg.sv"
+`include "../../Include/Headers/apogeo_configuration.svh"
 
 module load_unit_cache_controller (
-    /* Pipeline control */
+    /* Register control */
     input  logic clk_i,
     input  logic rst_n_i,
-    output logic stall_pipeline_o,
 
-    /* External interface */
-    input  data_cache_block_t word_number_i,
-    input  data_cache_data_t  ext_data_i,
-    input  logic              ext_data_valid_i,
-    input  logic              ext_acknowledge_i,
-    output logic              cpu_request_o,
+    /* 
+     * External interface 
+     */
 
-    /* Store buffer interface */
-    input  logic             str_buf_address_match_i,
-    input  data_cache_data_t str_buf_data_i,
-    input  logic             str_buf_full_i,
-    input  logic             str_buf_port_idle_i,
-    output logic             str_buf_push_data_o,
+    /* Which word in the block has been supplied (one hot) */
+    input logic [BLOCK_WORDS - 1:0] word_number_i,
 
-    /* Store unit interface */
-    input  data_cache_port_t  stu_data_i,
-    input  logic [XLEN - 1:0] stu_address_i,
-    input  logic              stu_idle_i,
+    /* Data supplied from the external memory and
+     * valid bit */
+    input data_word_t ext_data_i,
+    input logic       ext_data_valid_i,
 
-    /* Load unit interface */
-    input  logic                  ldu_read_cache_i,
-    input  data_cache_full_addr_t ldu_address_i,
-    input  logic                  ldu_data_cachable_i,
-    output data_cache_data_t      ldu_data_o,
-    output logic                  ldu_data_valid_o,
+    /* CPU request for load data from memory */
+    output logic cpu_load_req_o,
 
-    /* Cache interface */
-    input  logic               cache_dirty_i,
-    input  data_cache_data_t   cache_data_i,
-    output logic               cache_dirty_o,
-    output logic               cache_valid_o,
-    output logic               cache_port1_read_o, 
-    output logic               cache_port0_write_o,
-    output data_cache_addr_t   cache_address_o,
+
+    /* 
+     * Store buffer interface 
+     */
+    
+    /* Address match in one of the entries of the store buffer */
+    input logic str_buf_address_match_i,
+
+    /* Data fowarded */
+    input data_word_t str_buf_data_i,
+
+    /* Buffer full */
+    input logic str_buf_full_i,
+
+    /* The port is not used by the store controller */
+    input logic str_buf_port_idle_i,
+
+    /* Insert data into the buffer */
+    output logic str_buf_push_data_o,
+
+
+    /* 
+     * Store unit interface 
+     */
+
+    /* Data and address fowarded from the store unit */
+    input data_word_t stu_data_i,
+    input data_word_t stu_address_i,
+
+    /* Store unit status */
+    input logic stu_idle_i,
+
+
+    /* 
+     * Load unit interface 
+     */
+
+    /* Load request */
+    input logic ldu_read_cache_i,
+
+    /* Load address */
+    input data_cache_full_addr_t ldu_address_i,
+
+    /* Address property */
+    input logic ldu_data_cachable_i,
+
+    /* Data loaded */
+    output data_word_t ldu_data_o,
+
+    /* 
+     * Cache interface 
+     */
+
+    /* Dirty bit to check if the block needs to be
+     * written back to memory or not during a load miss */
+    input logic cache_dirty_i,
+
+    /* Data read */
+    input  data_cache_data_t cache_data_i,
+
+    /* To set clean and valid the external allocated data */ 
+    output logic cache_dirty_o,
+    output logic cache_valid_o,
+
+    /* Ports operations */
+    output logic cache_port1_read_o, 
+    output logic cache_port0_write_o,
+
+    /* Cache address */
+    output data_cache_addr_t cache_address_o,
+
+    /* Enable operations on memory chip */
     output data_cache_enable_t cache_port0_enable_o,
     output data_cache_enable_t cache_port1_enable_o,
 
-    input  logic             port0_granted_i,
-    input  logic             port1_hit_i,
-    input  data_cache_data_t data_writeback_i,
-    output data_cache_ways_t random_way_o,
-    output logic             port0_request_o,              
-    output logic             idle_o
+
+    /* Cache port 0 handshake */
+    input  logic port0_granted_i,
+    output logic port0_request_o,
+
+    /* Cache read was an hit */
+    input logic port1_hit_i,
+
+    /* Data to write back to external memory */
+    input data_cache_data_t data_writeback_i,
+
+    /* Random one hot way select */
+    output data_cache_ways_t random_way_o,    
+
+    /* Functional unit status */         
+    output logic idle_o,
+    output logic data_valid_o
 );
 
 
@@ -101,7 +164,7 @@ module load_unit_cache_controller (
 
     /* External memory will supply the cache line in more clock cycles since
      * the data interface is narrower than the cache line */
-    logic [BLOCK_WORDS - 1:0][PORT_WIDTH - 1:0] external_memory_data;
+    data_cache_data_t external_memory_data [BLOCK_WORDS - 1:0];
 
         always_ff @(posedge clk_i) begin : cache_line_register
             for (int i = 0; i < BLOCK_WORDS; ++i) begin 
@@ -171,7 +234,9 @@ module load_unit_cache_controller (
             end
         end : lfsr_shift_register
 
-        always_comb begin
+        always_comb begin 
+            /* Transform a number in the corresponding one
+             * hot rapresentation */
             for (int i = 0; i < WAYS_NUMBER; ++i) begin
                 if (i == lfsr_data[1:0]) begin
                     random_way_o[i] = 1'b1;
@@ -180,7 +245,6 @@ module load_unit_cache_controller (
                 end
             end
         end
-
 
     /* Check if store unit is writing in the same memory location */
     logic store_unit_address_match;
@@ -192,7 +256,8 @@ module load_unit_cache_controller (
 //  FSM LOGIC  //
 //-------------//
 
-    typedef enum logic [3:0] {IDLE, WAIT_CACHE, COMPARE_TAG, DATA_STABLE, MEMORY_REQUEST, WAIT_MEMORY, DIRTY_CHECK, READ_CACHE, WRITE_BACK, ALLOCATE} load_unit_cache_fsm_t;
+    typedef enum logic [3:0] {IDLE, WAIT_CACHE, COMPARE_TAG, DATA_STABLE, MEMORY_REQUEST, 
+                              DIRTY_CHECK, READ_CACHE, WRITE_BACK, ALLOCATE} load_unit_cache_fsm_t;
 
     load_unit_cache_fsm_t state_CRT, state_NXT;
 
@@ -210,8 +275,8 @@ module load_unit_cache_controller (
             state_NXT = state_CRT;
             cache_data_NXT = cache_data_CRT;
             chip_select_NXT = chip_select_CRT;
-            allocated_data_cnt_NXT = allocated_data_cnt_CRT;
             memory_data_cnt_NXT = memory_data_cnt_CRT;
+            allocated_data_cnt_NXT = allocated_data_cnt_CRT;
 
             cache_port1_read_o = 1'b0; 
             cache_port0_write_o = 1'b0;
@@ -220,12 +285,12 @@ module load_unit_cache_controller (
             cache_port1_enable_o = '0; 
             cache_dirty_o = 1'b0; 
             cache_valid_o = 1'b0; 
-      
-            cpu_request_o = 1'b0;
-            stall_pipeline_o = 1'b0;
+
+            idle_o = 1'b0;
+            cpu_load_req_o = 1'b0;
             str_buf_push_data_o = 1'b0;
             port0_request_o = 1'b0;
-            ldu_data_valid_o = 1'b0;
+            data_valid_o = 1'b0;
             enable_lfsr = 1'b1;
             ldu_data_o = '0;
 
@@ -239,9 +304,14 @@ module load_unit_cache_controller (
                 /* 
                  *  The FSM stays idle until a valid address is 
                  *  received, send address to cache and read  
-                 *  immediately the data, tag and status.
+                 *  immediately the data, tag and status. If an 
+                 *  address match is registred in the store unit 
+                 *  or in the store buffer, the data is immediatly 
+                 *  valid
                  */
                 IDLE: begin
+                    idle_o = 1'b1;
+
                     if (ldu_read_cache_i) begin
                         /* If data is found in the store buffer or is inside the 
                          * store unit, there's no need to check for an hit */
@@ -290,7 +360,6 @@ module load_unit_cache_controller (
                         cache_data_NXT = cache_data_i; 
                     end else begin
                         state_NXT = MEMORY_REQUEST;
-                        stall_pipeline_o = 1'b1;
                     end
                 end
 
@@ -299,9 +368,11 @@ module load_unit_cache_controller (
                  *  Data is ready to be used 
                  */
                 DATA_STABLE: begin
-                    ldu_data_valid_o = 1'b1;
                     ldu_data_o = cache_data_CRT;
+                    
                     state_NXT = IDLE;
+                    data_valid_o = 1'b1;
+                    idle_o = 1'b1;
                 end
 
 
@@ -309,33 +380,24 @@ module load_unit_cache_controller (
                  *  Send a read request to memory unit.
                  */
                 MEMORY_REQUEST: begin
-                    cpu_request_o = 1'b1;
+                    cpu_load_req_o = 1'b1;
                     enable_lfsr = 1'b0;
 
                     chip_select_NXT = '0;
                     
                     if (ldu_data_cachable_i) begin
+                        /* If cachable fill the entire cache line starting by the first word */
                         cache_address_o = {ldu_address_i.tag, ldu_address_i.index, '0}; 
                     end else begin
+                        /* If not cachable retrieve only the word needed */
                         cache_address_o = {ldu_address_i.tag, ldu_address_i.index, ldu_address_i.chip_sel};
                     end
 
-                    if (ext_acknowledge_i) begin
-                        if (ldu_data_cachable_i) begin 
-                            state_NXT = READ_CACHE;
-                        end else begin
-                            state_NXT = WAIT_MEMORY;
-                        end
-                    end
-                end
-
-
-                /*
-                 *  Wait memory response.
-                 */
-                WAIT_MEMORY: begin
                     if (ext_data_valid_i) begin
                         state_NXT = DATA_STABLE;
+
+                        /* Sample the data */
+                        cache_data_NXT = ext_data_i;
                     end
                 end
 
@@ -349,7 +411,7 @@ module load_unit_cache_controller (
 
                     if (!str_buf_full_i & str_buf_port_idle_i) begin
                         ldu_data_o = data_writeback_i;
-                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, 2'b0}; 
+                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, '0}; 
 
                         if (cache_dirty_i) begin
                             state_NXT = READ_CACHE;
@@ -444,20 +506,21 @@ module load_unit_cache_controller (
                             cache_port0_write_o = 1'b1;
                             ldu_data_o = external_memory_data[allocated_data_cnt_CRT];
 
-                            ldu_data_valid_o = (chip_select_CRT == ldu_address_i.chip_sel);
+                            /* Load unit word requested is now valid */
+                            data_valid_o = (chip_select_CRT == ldu_address_i.chip_sel);
                         end
 
                         /* End of cache line reached */
                         if (chip_select_CRT == (BLOCK_WORDS - 1)) begin
-                            state_NXT = IDLE;
                             memory_data_cnt_NXT = '0;
+
+                            state_NXT = IDLE;
+                            idle_o = 1'b1;
                         end
                     end
                 end
             endcase
         end : fsm_logic
-
-    assign idle_o = (state_NXT == IDLE);
 
 endmodule : load_unit_cache_controller
 
