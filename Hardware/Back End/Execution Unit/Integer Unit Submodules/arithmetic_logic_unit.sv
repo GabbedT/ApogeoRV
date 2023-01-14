@@ -66,7 +66,6 @@ module arithmetic_logic_unit (
     output logic       data_valid_o,
 
     /* Branch logic */
-    output logic branch_taken_o,
     output logic is_branch_o
 );
 
@@ -91,57 +90,23 @@ module arithmetic_logic_unit (
      *  JAL, JALR, BEQ, BNE, BLT, BLTU, BGE, BGEU
      */
 
-    data_word_t operand_B_comparison;
-
-    /* In SLTIU and SLTI the immediate (operand_B_i) is sign extended and then treated as unsigned number */
-    assign operand_B_comparison = (operation_i == SLTU ) ? $signed(operand_B_i[11:0]) : operand_B_i;
-
-
     /* Signed */
     logic is_greater_or_equal_s, is_less_than_s;
 
     assign is_greater_or_equal_s = $signed(operand_A_i) >= $signed(operand_B_i);
-    assign is_less_than_s = $signed(operand_A_i) < $signed(operand_B_comparison);
+    assign is_less_than_s = $signed(operand_A_i) < $signed(operand_B_i);
 
 
     /* Unsigned */
-    logic            is_greater_or_equal_u, is_less_than_u;
+    logic is_greater_or_equal_u, is_less_than_u;
 
     assign is_greater_or_equal_u = $unsigned(operand_A_i) >= $unsigned(operand_B_i);
-    assign is_less_than_u = $unsigned(operand_A_i) < $unsigned(operand_B_comparison);
+    assign is_less_than_u = $unsigned(operand_A_i) < $unsigned(operand_B_i);
 
 
     logic is_equal;
 
     assign is_equal = (operand_A_i == operand_B_i);
-
-        always_comb begin : comparison_outcome
-            /* Default values */
-            is_branch_o = 1'b1;
-            branch_taken_o = 1'b0;
-
-            case (operation_i)
-                JAL:  branch_taken_o = 1'b1;
-
-                JALR: branch_taken_o = 1'b1;
-
-                BEQ:  branch_taken_o = is_equal;
-
-                BNE:  branch_taken_o = !is_equal;
-
-                BLT:  branch_taken_o = is_less_than_s;
-
-                BLTU: branch_taken_o = is_less_than_u;
-
-                BGE:  branch_taken_o = is_greater_or_equal_s;
-
-                BGEU: branch_taken_o = is_greater_or_equal_u;
-
-                default: begin
-                    is_branch_o = 1'b0;
-                end
-            endcase
-        end : comparison_outcome
 
 
 //-----------//
@@ -181,14 +146,9 @@ module arithmetic_logic_unit (
 
     assign data_valid_o = data_valid_i;
 
-
         always_comb begin : output_assignment
             case (operation_i)
                 ADD: result_o = adder_result;
-
-                SLT: result_o = is_less_than_s;
-
-                SLTU: result_o = is_less_than_u;
 
                 AND: result_o = and_result;
 
@@ -196,22 +156,35 @@ module arithmetic_logic_unit (
 
                 XOR: result_o = xor_result;
 
-                LUI: result_o = operand_B_i; 
-                
-                AUIPC: result_o = adder_result;
-
                 SLL: result_o = logical_sh_left_result;
 
                 SRL: result_o = logical_sh_right_result;
 
                 SRA: result_o = arithmetic_sh_right_result;
 
-                JAL, JALR: result_o = (is_compressed_jump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
+                JAL: result_o = (is_compressed_jump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
 
-                /* Conditional jump operation */
-                default: result_o = 'b0;
+                BEQ: result_o = is_equal;
+
+                BNE: result_o = !is_equal;
+
+                BLT: result_o = is_less_than_s;
+
+                BLTU: result_o = is_less_than_u;
+
+                BGE: result_o = is_greater_or_equal_s;
+
+                BGEU: result_o = is_greater_or_equal_u;
+
+                default: result_o = '0;
             endcase
         end : output_assignment
+
+    /* Micro operation has encoded the jumps in the first 7 numbers.
+     * If the result is not 0 and a branch is detected then it's taken.
+     * Note that in JAL and JALR instructions, the result is always
+     * not 0 */
+    assign is_branch_o = (operation_i <= 4'd7) & data_valid_i;
 
 endmodule : arithmetic_logic_unit
 
