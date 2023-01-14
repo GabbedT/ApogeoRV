@@ -9,18 +9,15 @@ package integer_unit_pkg;
 //  ALU OPERATIONS  //
 //------------------//
 
-    typedef enum logic [4:0] {
+    typedef enum logic [3:0] {
         /* Jump instructions */
-        JAL, JALR, BEQ, BNE, BGE, 
+        JAL, BEQ, BNE, BGE, 
         BLT, BLTU, BGEU,
+
 
         ADD,
         SLL, SRL, SRA,
-        AND, OR, XOR,
-        SLT, SLTU,
-
-        /* Load instructions */
-        LUI, AUIPC
+        AND, OR, XOR
     } alu_uop_t;
 
 
@@ -142,8 +139,8 @@ package integer_unit_pkg;
 
     typedef union packed {
         struct packed {
-            alu_uop_t opcode;
-            logic     padding;
+            alu_uop_t   opcode;
+            logic [1:0] padding;
         } ALU;
 
         struct packed {

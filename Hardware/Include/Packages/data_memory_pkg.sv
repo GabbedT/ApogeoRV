@@ -67,14 +67,14 @@ package data_memory_pkg;
     typedef struct packed {
         /* Valid bit is used to signal if the current block 
          * holds valid data */
-        logic                    valid;
+        logic valid;
 
         /* Dirty bit is used to signal that the current block 
          * has been written and memory is not up to date */
-        logic                    dirty;
+        logic dirty;
 
         /* Tag is used to compare the address */
-        logic [TAG_SIZE - 1:0]   tag;
+        logic [TAG_SIZE - 1:0] tag;
         
         logic [PORT_WIDTH - 1:0] word;
     } data_cache_packet_t;
@@ -106,14 +106,23 @@ package data_memory_pkg;
     /* Cache port width */
     typedef logic [PORT_BYTES - 1:0] data_cache_port_t;
 
+    /* Select the byte to write */
+    typedef logic [PORT_BYTES - 1:0] data_cache_byte_write_t;
+
+    /* Cache address width */
+    typedef logic [ADDR_WIDTH - 1:0] data_cache_address_t;
+
+    /* Cache chip select (bank) */
+    typedef logic [CHIP_ADDR - 1:0] bank_select_t;
+
 
     /* Store buffer entry */
     typedef struct packed {
-        logic [31:0]   data;
+        logic [31:0] data;
 
-        logic [31:0]   address;
+        logic [31:0] address;
 
-        store_width_t operation_width;
+        store_width_t store_width;
     } store_buffer_entry_t;
 
 
