@@ -17,6 +17,7 @@ class IntegerUnitPacket;
     randc iexu_valid_t data_valid;
     randc iexu_uop_t operation;
 
+    time pkt_time;
     data_word_t result;
     string operation_str;
 
@@ -630,12 +631,18 @@ class IntegerUnitPacket;
 
 
     function void print();
-        $display("[Packet] ID: %0d", packet_id);
+        $display("[Packet] [%t ns] ID: %0d", pkt_time, packet_id);
         $display("[Packet] Operation: %s", operation_str);
         $display("[Packet] Operand 1: %b", operand_1); 
         $display("[Packet] Operand 2: %b", operand_2); 
         $display("[Packet] Returned: %0d", result);
     endfunction : print
+
+
+    function void set_time();
+        this.pkt_time = $time();
+    endfunction : set_time
+
     
 endclass : IntegerUnitPacket
 
