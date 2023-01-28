@@ -46,18 +46,8 @@ module integer_unit (
     input data_word_t operand_1_i,
     input data_word_t operand_2_i,
 
-
-    /* ALU result */
-    output data_word_t alu_result_o, 
-    
-    /* BMU result */
-    output data_word_t bmu_result_o, 
-
-    /* BMU result */
-    output data_word_t mul_result_o, 
-
-    /* BMU result */
-    output data_word_t div_result_o, 
+    /* Result */
+    output data_word_t result_o, 
 
     /* General instruction packet and valid bit */
     output instr_packet_t ipacket_o,
@@ -110,8 +100,9 @@ module integer_unit (
 
 
     instr_packet_t alu_final_ipacket;
+    data_word_t    alu_result_out;
 
-    assign alu_result_o = alu_valid ? alu_result : '0;
+    assign alu_result_out = alu_valid ? alu_result : '0;
     assign alu_final_ipacket = alu_valid ? ipacket_i : '0;
 
     assign is_branch_o = is_branch & alu_valid;
@@ -155,8 +146,9 @@ module integer_unit (
 
 
     instr_packet_t bmu_final_ipacket;
+    data_word_t    bmu_result_out;
 
-    assign bmu_result_o = bmu_valid ? bmu_result : '0;
+    assign bmu_result_out = bmu_valid ? bmu_result : '0;
     assign bmu_final_ipacket = bmu_valid ? bmu_ipacket : '0;
 
 
@@ -206,8 +198,9 @@ module integer_unit (
 
 
     instr_packet_t mul_final_ipacket;
+    data_word_t    mul_result_out;
 
-    assign mul_result_o = mul_valid ? mul_result : '0;
+    assign mul_result_out = mul_valid ? mul_result : '0;
     assign mul_final_ipacket = mul_valid ? mul_ipacket[IMUL_STAGES] : '0;
 
 
@@ -281,14 +274,17 @@ module integer_unit (
 
 
     instr_packet_t div_final_ipacket;
+    data_word_t    div_result_out;
 
-    assign div_result_o = div_valid ? div_result : '0;
+    assign div_result_out = div_valid ? div_result : '0;
     assign div_final_ipacket = div_valid ? exc_div_ipacket : '0;
 
 
 //----------------//
 //  OUTPUT LOGIC  //
 //----------------//
+
+    assign result_o = div_result_out | mul_result_out | bmu_result_out | alu_result_out;
 
     assign data_valid_o = alu_valid | bmu_valid | mul_valid | div_valid;
 
