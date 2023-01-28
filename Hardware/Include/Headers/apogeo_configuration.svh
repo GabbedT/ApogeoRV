@@ -61,12 +61,12 @@
 //--------------//
 
     /* In bytes */
-    `define DATA_CACHE_SIZE 2 ** 14
+    `define DATA_CACHE_SIZE 2 ** 10
 
     /* In bits */
     `define DATA_CACHE_BLOCK_SIZE 128 
 
-    /* Number of cache ways */
+    /* Number of cache ways (minimum 2) */
     `define DATA_CACHE_ASSOCIATIVITY 2
 
     /* Total number of entries in the store buffer (A power of 2) */
