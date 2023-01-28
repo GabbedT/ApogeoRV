@@ -36,6 +36,8 @@
 
 `include "../../Include/Packages/data_memory_pkg.sv"
 
+`include "../../Include/test_include.sv"
+
 module data_cache_port0_hit_check (
     input  logic [WAYS_NUMBER - 1:0][TAG_SIZE - 1:0] cache_tag_i,
     input  logic [WAYS_NUMBER - 1:0] cache_valid_i,
@@ -64,6 +66,13 @@ module data_cache_port0_hit_check (
 
     /* Which way has been hitted */
     assign way_hit_o = way_hit;
+
+
+    `ifdef TEST_DESIGN
+        always_ff @(posedge hit_o) begin
+            $display("[PORT 0] Way HIT!");
+        end
+    `endif
 
 endmodule : data_cache_port0_hit_check
 
