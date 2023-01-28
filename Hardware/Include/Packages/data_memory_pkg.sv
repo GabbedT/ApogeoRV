@@ -47,7 +47,7 @@ package data_memory_pkg;
 
         /* Select one of four bytes in a word of 32 bit */
         logic [1:0]              byte_sel;
-    } data_cache_full_addr_t;
+    } full_address_t;
 
  
     typedef struct packed {
@@ -60,7 +60,7 @@ package data_memory_pkg;
 
         /* A way may be composed of more SRAM chip */
         logic [CHIP_ADDR - 1:0]  chip_sel;
-    } data_cache_addr_t;
+    } data_cache_address_t;
 
 
     /* Transaction packet */
@@ -109,8 +109,8 @@ package data_memory_pkg;
     /* Select the byte to write */
     typedef logic [PORT_BYTES - 1:0] data_cache_byte_write_t;
 
-    /* Cache address width */
-    typedef logic [ADDR_WIDTH - 1:0] data_cache_address_t;
+    /* Address a cache line */
+    typedef logic [ADDR_WIDTH - 1:0] data_cache_index_t;
 
     /* Cache chip select (bank) */
     typedef logic [CHIP_ADDR - 1:0] bank_select_t;
