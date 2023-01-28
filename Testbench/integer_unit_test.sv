@@ -33,18 +33,8 @@ module integer_unit_test;
     data_word_t operand_1_i = '0;
     data_word_t operand_2_i = '0;
 
-
     /* ALU result */
-    data_word_t alu_result_o; 
-    
-    /* BMU result */
-    data_word_t bmu_result_o; 
-
-    /* BMU result */
-    data_word_t mul_result_o; 
-
-    /* BMU result */
-    data_word_t div_result_o; 
+    data_word_t result_o; 
 
     /* General instruction packet and valid bit */
     instr_packet_t ipacket_o;
@@ -75,7 +65,6 @@ module integer_unit_test;
     endfunction : drive 
 
 
-    data_word_t result;
     int errors = 0;
 
     IntegerUnitPacket faulty_packet [$];
@@ -98,14 +87,13 @@ module integer_unit_test;
 
             wait(data_valid_o);
 
-            result = alu_result_o | bmu_result_o | mul_result_o | div_result_o;
-
             /* Check the result */
-            assert (packet.check_result(result))
+            assert (packet.check_result(result_o))
             else begin
-                $display("Error on packet %0d. Result: 0x%h", packet.packet_id, result);
+                $display("Error on packet %0d. Result: 0x%h", packet.packet_id, result_o);
+                packet.set_time();
                 faulty_packet.push_front(packet);
-                dut_result.push_front(result);
+                dut_result.push_front(result_o);
                 ++errors;
             end
 
