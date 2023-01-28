@@ -44,6 +44,7 @@
 
 `include "../../../Include/Headers/apogeo_configuration.svh"
 `include "../../../Include/Packages/integer_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CPOP/Combinational/population_count_combinational.sv"
@@ -149,15 +150,15 @@ module bit_manipulation_unit (
      * not accept any operands until the end of the 
      * previous computation */
     population_count_combinational #(DATA_WIDTH) cpop (
-        .operand_i ( operand_A_i    ),
+        .operand_i ( operand_A_i ),
         .count_o   ( cpop_result )
     );
 
 
     /* CTZ and CLZ logic */
-    data_word_t         reversed_operand_A, count_zeros_operand; 
+    data_word_t                      reversed_operand_A, count_zeros_operand; 
     logic [$clog2(DATA_WIDTH) - 1:0] count_zeros_result; 
-    logic                      all_zeros;
+    logic                            all_zeros;
 
         /* Count trailing zeroes (CTZ) is a CLZ with the inverted bits */
         always_comb begin : ctz_assignment_logic
