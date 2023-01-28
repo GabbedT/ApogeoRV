@@ -110,7 +110,9 @@ module load_store_unit (
      * Store buffer interface 
      */
     `ifdef CACHE_SYSTEM
-        input logic str_buf_port_idle_i,
+        /* Grant access to the port */
+        input logic str_buf_ldu_port_granted_i,
+        input logic str_buf_stu_port_granted_i,
 
         /* Data fowarded */
         input data_cache_data_t str_buf_data_i,
@@ -342,14 +344,15 @@ module load_store_unit (
             .stu_store_request_o   ( stu_store_request_o   ),
             .stu_cpu_acknowledge_o ( stu_cpu_acknowledge_o ),
 
-            .str_buf_address_match_i ( str_buf_address_match_i ),
-            .str_buf_port_idle_i     ( str_buf_port_idle_i     ),
-            .str_buf_data_i          ( str_buf_data_i          ),
-            .str_buf_full_i          ( str_buf_full_i          ),
-            .str_buf_ldu_entry_o     ( str_buf_ldu_entry_o     ),
-            .str_buf_stu_entry_o     ( str_buf_stu_entry_o     ), 
-            .str_buf_ldu_push_data_o ( str_buf_ldu_push_data_o ),  
-            .str_buf_stu_push_data_o ( str_buf_stu_push_data_o ),
+            .str_buf_address_match_i    ( str_buf_address_match_i    ),
+            .str_buf_ldu_port_granted_i ( str_buf_ldu_port_granted_i ),
+            .str_buf_stu_port_granted_i ( str_buf_stu_port_granted_i ),
+            .str_buf_data_i             ( str_buf_data_i             ),
+            .str_buf_full_i             ( str_buf_full_i             ),
+            .str_buf_ldu_entry_o        ( str_buf_ldu_entry_o        ),
+            .str_buf_stu_entry_o        ( str_buf_stu_entry_o        ), 
+            .str_buf_ldu_push_data_o    ( str_buf_ldu_push_data_o    ),  
+            .str_buf_stu_push_data_o    ( str_buf_stu_push_data_o    ),
 
             .stu_data_bufferable_i ( stu2cache_bufferable    ),
             .stu_data_cachable_i   ( stu2cache_cachable      ),
