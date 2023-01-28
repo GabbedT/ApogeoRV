@@ -41,6 +41,8 @@
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Headers/apogeo_configuration.svh"
 
+`include "../../Include/test_include.sv"
+
 module store_unit_cache_controller (
     /* Register control */
     input logic clk_i,
@@ -58,7 +60,7 @@ module store_unit_cache_controller (
 
     /* Address supplied by the external interface, used for
      * data invalidation */
-    input data_cache_addr_t ext_address_i,
+    input data_cache_address_t ext_address_i,
 
     /* Acknowledge the external request */
     output logic cpu_acknowledge_o,
@@ -72,7 +74,6 @@ module store_unit_cache_controller (
 
     /* Address property */
     input logic stu_data_bufferable_i,
-    input logic stu_data_cachable_i,
 
     /* Store request */
     input logic stu_write_cache_i,
@@ -81,7 +82,7 @@ module store_unit_cache_controller (
     input data_word_t stu_data_i,
 
     /* Store address */
-    input data_cache_full_addr_t stu_address_i,
+    input full_address_t stu_address_i,
 
     /* Store width */
     input store_width_t stu_store_width_i,
@@ -95,7 +96,7 @@ module store_unit_cache_controller (
     output logic cache_read_o,
 
     /* Store address */
-    output data_cache_addr_t cache_address_o,
+    output data_cache_address_t cache_address_o,
 
     /* Byte write select */
     output data_cache_byte_write_t cache_byte_write_o, 
@@ -119,6 +120,9 @@ module store_unit_cache_controller (
 
     /* Buffer full */
     input logic str_buf_full_i,
+
+    /* The port is granted to use */
+    input logic str_buf_port_granted_i,
 
     /* Request to push an entry into the buffer */
     output logic str_buf_push_data_o,
@@ -169,8 +173,18 @@ module store_unit_cache_controller (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= IDLE;
+
+                `ifdef TEST_DESIGN
+                    $display("[Store Cache Controller] Reset! State: %s", state_CRT.name());
+                `endif
             end else begin
                 state_CRT <= state_NXT;
+
+                `ifdef TEST_DESIGN
+                    if (state_NXT != state_CRT) begin
+                        $display("[Load Cache Controller] Transition in the next clock cycle in the state: %s", state_NXT.name());
+                    end
+                `endif
             end
         end : state_register
 
@@ -223,20 +237,21 @@ module store_unit_cache_controller (
                             cache_enable_o.valid = 1'b1;
                             cpu_acknowledge_o = 1'b1;
 
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Invalidate cache line at address 0x%h", $time(), cache_address_o);
+                            `endif
                         end else if (stu_write_cache_i) begin
-                            /* If cachable data is probably in cache, initiate a read
-                             * operation to check data */
-                            if (stu_data_cachable_i) begin
-                                state_NXT = WAIT_CACHE;
+                            state_NXT = WAIT_CACHE;
 
-                                /* Initiate cache read */
-                                cache_read_o = 1'b1;
-                            end else begin
-                                state_NXT = MEMORY_WRITE;
-                            end
+                            /* Initiate cache read */
+                            cache_read_o = 1'b1;
 
                             cache_enable_o.tag = 1'b1;
                             cache_enable_o.valid = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Requesting writing cache at address 0x%h", $time(), cache_address_o);
+                            `endif
                         end 
                     end
                 end
@@ -270,10 +285,18 @@ module store_unit_cache_controller (
                     if (hit_i) begin
                         /* Write in cache */
                         state_NXT = WRITE_DATA;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Cache hit! Writing cache line...", $time());
+                        `endif 
                     end else begin
                         /* Send a write request to memory
                          * unit */
                         state_NXT = MEMORY_WRITE;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Cache miss! Sending a memory request...", $time());
+                        `endif 
                     end 
                 end
 
@@ -287,12 +310,20 @@ module store_unit_cache_controller (
 
                     if (hit_i) begin
                         state_NXT = INVALIDATE;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Cache hit! Invalidating cache line...", $time());
+                        `endif 
                     end else begin
                         /* If a miss happens the invalid block 
                         * is not in cache, no further operations
                         * are needed */
                         state_NXT = IDLE;
                         idle_o = 1'b1;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Cache miss! No need to invalidate the cache line.", $time());
+                        `endif
                     end
                 end
 
@@ -314,6 +345,10 @@ module store_unit_cache_controller (
                         state_NXT = IDLE;
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Port 0 granted! Data written!\n", $time());
+                        `endif
                     end
 
                     case (stu_store_width_i)
@@ -352,16 +387,26 @@ module store_unit_cache_controller (
                  */
                 MEMORY_WRITE: begin
                     if (stu_data_bufferable_i) begin
-                        if (!str_buf_full_i) begin
+                        str_buf_push_data_o = 1'b1;
+                        
+                        if (!str_buf_full_i & str_buf_port_granted_i) begin
                             state_NXT = IDLE;
                             data_valid_o = 1'b1;
 
-                            str_buf_push_data_o = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Data pushed in the store buffer!\n", $time());
+                            `endif
                         end
                     end else begin
                         if (ext_data_stored_i) begin 
                             state_NXT = IDLE;
+                            idle_o = 1'b1;
                             data_valid_o = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Data stored in memory!\n", $time());
+                            `endif
                         end 
 
                         cpu_store_req_o = !ext_data_stored_i;
@@ -386,7 +431,12 @@ module store_unit_cache_controller (
                         cache_write_o = 1'b1;
 
                         state_NXT = IDLE;
+                        idle_o = 1'b1;
                         data_valid_o = 1'b1;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Port 0 granted! Data invalidated!\n", $time());
+                        `endif
                     end
                 end
             endcase

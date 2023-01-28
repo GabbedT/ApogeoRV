@@ -43,10 +43,12 @@
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Headers/apogeo_configuration.svh"
 
+`include "../../Include/test_include.sv"
+
 module load_unit_cache_controller (
     /* Register control */
-    input  logic clk_i,
-    input  logic rst_n_i,
+    input logic clk_i,
+    input logic rst_n_i,
 
     /* 
      * External interface 
@@ -78,7 +80,7 @@ module load_unit_cache_controller (
     input logic str_buf_full_i,
 
     /* The port is not used by the store controller */
-    input logic str_buf_port_idle_i,
+    input logic str_buf_port_granted_i,
 
     /* Insert data into the buffer */
     output logic str_buf_push_data_o,
@@ -104,10 +106,7 @@ module load_unit_cache_controller (
     input logic ldu_read_cache_i,
 
     /* Load address */
-    input data_cache_full_addr_t ldu_address_i,
-
-    /* Address property */
-    input logic ldu_data_cachable_i,
+    input full_address_t ldu_address_i,
 
     /* Data loaded */
     output data_word_t ldu_data_o,
@@ -132,7 +131,7 @@ module load_unit_cache_controller (
     output logic cache_port0_write_o,
 
     /* Cache address */
-    output data_cache_addr_t cache_address_o,
+    output data_cache_address_t cache_address_o,
 
     /* Enable operations on memory chip */
     output data_cache_enable_t cache_port0_enable_o,
@@ -166,13 +165,22 @@ module load_unit_cache_controller (
      * the data interface is narrower than the cache line */
     data_cache_data_t external_memory_data [BLOCK_WORDS - 1:0];
 
-        always_ff @(posedge clk_i) begin : cache_line_register
-            for (int i = 0; i < BLOCK_WORDS; ++i) begin 
+    genvar i;
+    generate 
+        
+        for (i = 0; i < BLOCK_WORDS; ++i) begin 
+            always_ff @(posedge clk_i) begin : cache_line_register
                 if (ext_data_valid_i & word_number_i[i]) begin 
                     external_memory_data[i] <= ext_data_i;
+
+                    `ifdef TEST_DESIGN
+                        $display("[Load Cache Controller][%0t] Data 0x%h supplied by the memory", $time(), ext_data_i);
+                    `endif
                 end 
-            end
-        end : cache_line_register
+            end : cache_line_register
+        end
+
+    endgenerate
 
 
     /* Track number of data supplied by memory */
@@ -188,7 +196,7 @@ module load_unit_cache_controller (
 
 
     /* Track number of data allocated in the cache */
-    logic [$clog2(BLOCK_WORDS) - 1:0] allocated_data_cnt_CRT, allocated_data_cnt_NXT;
+    logic [$clog2(BLOCK_WORDS):0] allocated_data_cnt_CRT, allocated_data_cnt_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : allocated_data_counter
             if (!rst_n_i) begin
@@ -238,7 +246,7 @@ module load_unit_cache_controller (
             /* Transform a number in the corresponding one
              * hot rapresentation */
             for (int i = 0; i < WAYS_NUMBER; ++i) begin
-                if (i == lfsr_data[1:0]) begin
+                if (i == lfsr_data[$clog2(WAYS_NUMBER) - 1:0]) begin
                     random_way_o[i] = 1'b1;
                 end else begin
                     random_way_o[i] = 1'b0;
@@ -264,8 +272,18 @@ module load_unit_cache_controller (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= IDLE;
+
+                `ifdef TEST_DESIGN
+                    $display("[Load Cache Controller][%0t] Reset! State: %s", $time(), state_CRT.name());
+                `endif 
             end else begin
                 state_CRT <= state_NXT;
+
+                `ifdef TEST_DESIGN
+                    if (state_NXT != state_CRT) begin
+                        $display("[Load Cache Controller][%0t] Transition in the next clock cycle in the state: %s", $time(), state_NXT.name());
+                    end
+                `endif
             end
         end : state_register
 
@@ -315,19 +333,25 @@ module load_unit_cache_controller (
                     if (ldu_read_cache_i) begin
                         /* If data is found in the store buffer or is inside the 
                          * store unit, there's no need to check for an hit */
-                        if (store_unit_address_match | str_buf_address_match_i) begin
+                        if (str_buf_address_match_i | store_unit_address_match) begin 
                             state_NXT = DATA_STABLE;
-                        end else if (ldu_data_cachable_i) begin 
-                            state_NXT = WAIT_CACHE;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Load Cache Controller][%0t] Data found in %s", $time(), str_buf_address_match_i ? "store buffer!" : "store cache controller");
+                            `endif 
                         end else begin
-                            state_NXT = MEMORY_REQUEST;
-                        end
+                            state_NXT = WAIT_CACHE;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Load Cache Controller][%0t] Requesting reading cache at address 0x%h...!", $time(), cache_address_o);
+                            `endif 
+                        end 
 
                         /* Access all the cache */
                         cache_port1_enable_o = '1;
 
                         /* Cache control */
-                        cache_port1_read_o = ldu_data_cachable_i;
+                        cache_port1_read_o = 1'b1;
                         cache_address_o.index = ldu_address_i.index;
                         cache_address_o.chip_sel = ldu_address_i.chip_sel;
 
@@ -357,9 +381,17 @@ module load_unit_cache_controller (
                 COMPARE_TAG: begin
                     if (port1_hit_i) begin
                         state_NXT = DATA_STABLE; 
-                        cache_data_NXT = cache_data_i; 
+                        cache_data_NXT = cache_data_i;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Load Cache Controller][%0t] Cache hit! Data stable in the next clock cycle...", $time());
+                        `endif  
                     end else begin
                         state_NXT = MEMORY_REQUEST;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Load Cache Controller][%0t] Cache miss! Sending a memory request...", $time());
+                        `endif 
                     end
                 end
 
@@ -373,6 +405,10 @@ module load_unit_cache_controller (
                     state_NXT = IDLE;
                     data_valid_o = 1'b1;
                     idle_o = 1'b1;
+
+                    `ifdef TEST_DESIGN
+                        $display("[Load Cache Controller][%0t] Data fetched: 0x%h!\n", $time(), cache_data_i);
+                    `endif 
                 end
 
 
@@ -385,20 +421,12 @@ module load_unit_cache_controller (
 
                     chip_select_NXT = '0;
                     
-                    if (ldu_data_cachable_i) begin
-                        /* If cachable fill the entire cache line starting by the first word */
-                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, '0}; 
-                    end else begin
-                        /* If not cachable retrieve only the word needed */
-                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, ldu_address_i.chip_sel};
-                    end
+                    /* Fill the entire cache line starting by the first word */
+                    cache_address_o.tag = ldu_address_i.tag; 
+                    cache_address_o.index = ldu_address_i.index;
+                    cache_address_o.chip_sel = '0;
 
-                    if (ext_data_valid_i) begin
-                        state_NXT = DATA_STABLE;
-
-                        /* Sample the data */
-                        cache_data_NXT = ext_data_i;
-                    end
+                    state_NXT = READ_CACHE;
                 end
 
 
@@ -408,20 +436,39 @@ module load_unit_cache_controller (
                  */
                 DIRTY_CHECK: begin 
                     enable_lfsr = 1'b0;
+                    
+                    ldu_data_o = data_writeback_i;
+                        
+                    cache_address_o.tag = ldu_address_i.tag; 
+                    cache_address_o.index = ldu_address_i.index;
+                    cache_address_o.chip_sel = '0;
 
-                    if (!str_buf_full_i & str_buf_port_idle_i) begin
-                        ldu_data_o = data_writeback_i;
-                        cache_address_o = {ldu_address_i.tag, ldu_address_i.index, '0}; 
+                    if (cache_dirty_i) begin
+                        str_buf_push_data_o = 1'b1;
 
-                        if (cache_dirty_i) begin
+                        /* Wait until the store buffer access is granted or it's not 
+                         * full anymore */
+                        if (!str_buf_full_i & str_buf_port_granted_i) begin
+                            /* If the block is dirty it needs to be written
+                             * back to memory */
                             state_NXT = READ_CACHE;
-                            str_buf_push_data_o = 1'b1;
 
                             chip_select_NXT = chip_select_CRT + 1'b1;
-                        end else begin
-                            state_NXT = ALLOCATE;
-                            chip_select_NXT = '0;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Load Cache Controller][%0t] Data dirty! Writing back the entire cache line...", $time());
+                                $display("[Load Cache Controller][%0t] Writing back 0x%h at address 0x%h", $time(), ldu_data_o, cache_address_o);
+                            `endif
                         end
+                    end else begin
+                        /* If the block is not dirty, it can be simply 
+                         * replaced by allocating the new data */
+                        state_NXT = ALLOCATE;
+                        chip_select_NXT = '0;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Load Cache Controller][%0t] Data not dirty! Allocating a new cache line...", $time());
+                        `endif
                     end
                 end
 
@@ -444,6 +491,10 @@ module load_unit_cache_controller (
                         state_NXT = DIRTY_CHECK;
  
                         cache_port1_enable_o.dirty = 1'b1;  
+
+                        `ifdef TEST_DESIGN
+                            $display("[Load Cache Controller][%0t] Checking if the data is dirty for writeback...", $time());
+                        `endif 
                     end else begin
                         state_NXT = WRITE_BACK;
                     end
@@ -455,17 +506,25 @@ module load_unit_cache_controller (
                  */
                 WRITE_BACK: begin
                     enable_lfsr = 1'b0;
-
-                    if (!str_buf_full_i & str_buf_port_idle_i) begin
+                    str_buf_push_data_o = 1'b1;
+                    
+                    if (!str_buf_full_i & str_buf_port_granted_i) begin
                         ldu_data_o = data_writeback_i;
                         cache_address_o = {ldu_address_i.tag, ldu_address_i.index, chip_select_CRT}; 
 
-                        str_buf_push_data_o = 1'b1;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Load Cache Controller][%0t] Writing back 0x%h at address 0x%h", $time(), ldu_data_o, cache_address_o);
+                        `endif 
 
                         /* If the end of the block is reached, allocate a new block */
-                        if (chip_select_CRT == ((BLOCK_WIDTH / PORT_WIDTH) - 1)) begin
+                        if (chip_select_CRT == (BLOCK_WORDS - 1)) begin
                             state_NXT = ALLOCATE;
                             chip_select_NXT = '0;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Load Cache Controller][%0t] Last word of the block written back!", $time());
+                            `endif
                         end else begin
                             state_NXT = READ_CACHE;
                             chip_select_NXT = chip_select_CRT + 1'b1;
@@ -475,8 +534,7 @@ module load_unit_cache_controller (
 
 
                 /*
-                 *  When the entire cache line has been received from the memory,
-                 *  write multiple times the cache keeping the index and incrementing
+                 *  Write multiple times the cache keeping the index and incrementing
                  *  the chip select signal as the write happens. In the first write
                  *  allocate status and tag bits. Allocate new data as soon as data
                  *  arrives.
@@ -487,7 +545,7 @@ module load_unit_cache_controller (
 
                     cache_address_o = {ldu_address_i.tag, ldu_address_i.index, chip_select_CRT};
 
-                    if (port0_granted_i) begin                        
+                    if (port0_granted_i & !str_buf_full_i) begin  
                         if (chip_select_CRT == '0) begin
                             cache_port0_enable_o = '1;
 
@@ -508,14 +566,23 @@ module load_unit_cache_controller (
 
                             /* Load unit word requested is now valid */
                             data_valid_o = (chip_select_CRT == ldu_address_i.chip_sel);
+
+                            `ifdef TEST_DESIGN
+                                $display("[Load Cache Controller][%0t] Allocating 0x%h in the %0d-th word of the line...", $time(), ldu_data_o, allocated_data_cnt_CRT);
+                            `endif 
                         end
 
                         /* End of cache line reached */
-                        if (chip_select_CRT == (BLOCK_WORDS - 1)) begin
+                        if (allocated_data_cnt_CRT == BLOCK_WORDS) begin
                             memory_data_cnt_NXT = '0;
+                            allocated_data_cnt_NXT = '0;
 
                             state_NXT = IDLE;
                             idle_o = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Load Cache Controller][%0t] Done allocating the cache line!\n", $time());
+                            `endif
                         end
                     end
                 end
