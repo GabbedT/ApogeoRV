@@ -46,7 +46,7 @@ module data_status_memory (
      */
 
     /* Read / Write address */
-    input data_cache_address_t port0_address_i,
+    input data_cache_index_t port0_address_i,
 
     /* Valid and dirty bits to write */
     input logic port0_valid_i,
@@ -67,7 +67,7 @@ module data_status_memory (
      */
 
     /* Read address */
-    input data_cache_address_t port1_address_i,
+    input data_cache_index_t port1_address_i,
 
     /* Read request */
     input logic port1_valid_read_i,

@@ -54,7 +54,7 @@ module data_memory_bank (
     input data_cache_byte_write_t port0_byte_write_i,
 
     /* Write address */
-    input data_cache_address_t port0_address_i,
+    input data_cache_index_t port0_address_i,
 
     /* Data to write */
     input data_cache_data_t port0_data_i,
@@ -67,7 +67,7 @@ module data_memory_bank (
      */
 
     /* Read address */
-    input data_cache_address_t port1_address_i,
+    input data_cache_index_t port1_address_i,
 
     /* Read request */
     input logic port1_read_i,  

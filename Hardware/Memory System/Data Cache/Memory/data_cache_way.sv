@@ -61,7 +61,7 @@ module data_cache_way (
     input data_cache_byte_write_t port0_byte_write_i,
 
     /* Read / Write address */
-    input data_cache_address_t port0_address_i,
+    input data_cache_index_t port0_address_i,
 
     /* Cache transaction packet */
     input data_cache_packet_t port0_cache_packet_i,
@@ -86,7 +86,7 @@ module data_cache_way (
     input bank_select_t port1_bank_select_i,
 
     /* Read address */
-    input data_cache_address_t port1_address_i,
+    input data_cache_index_t port1_address_i,
 
     /* Read request */
     input logic port1_read_i,

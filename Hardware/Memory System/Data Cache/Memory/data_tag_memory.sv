@@ -46,7 +46,7 @@ module data_tag_memory (
      */
 
     /* Read / Write address */
-    input data_cache_address_t port0_address_i,
+    input data_cache_index_t port0_address_i,
 
     /* Data to write */
     input logic [TAG_SIZE - 1:0] port0_tag_i,
@@ -63,7 +63,7 @@ module data_tag_memory (
      */
 
     /* Read address */
-    input data_cache_address_t port1_address_i,
+    input data_cache_index_t port1_address_i,
 
     /* Read request */
     input logic port1_read_i, 
