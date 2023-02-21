@@ -223,25 +223,20 @@ module data_cache_system_test;
                     if (str_buf_stu_push_data_o) begin
                         str_buf_stu_port_granted_i <= 1'b1;
                         str_buf_ldu_port_granted_i <= 1'b0;
+                        @(posedge clk_i);
+                        str_buf_stu_port_granted_i <= 1'b0;
 
                         stbuf.push_entry(str_buf_stu_entry_o);
                         repeat(5) @(posedge clk_i);
-                        stu_ext_data_stored_i <= 1'b1;
                     end else if (str_buf_ldu_push_data_o) begin
                         str_buf_ldu_port_granted_i <= 1'b1;
                         str_buf_stu_port_granted_i <= 1'b0;
+                        @(posedge clk_i);
+                        str_buf_ldu_port_granted_i <= 1'b0;
 
                         stbuf.push_entry(str_buf_ldu_entry_o);
+                        repeat(5) @(posedge clk_i);
                     end
-
-                    @(posedge clk_i);
-                    str_buf_stu_port_granted_i <= 1'b0;
-                    str_buf_ldu_port_granted_i <= 1'b0;
-
-                    repeat(5) @(posedge clk_i);
-                    stu_ext_data_stored_i <= 1'b1;
-                    @(posedge clk_i);
-                    stu_ext_data_stored_i <= 1'b0;
                 end
             end : store_buffer_control
 
