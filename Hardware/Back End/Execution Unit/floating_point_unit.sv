@@ -1,9 +1,11 @@
 `ifndef FLOATING_POINT_UNIT_SV 
     `define FLOATING_POINT_UNIT_SV 
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/floating_point_unit_pkg.sv"
 `include "../../Include/Headers/apogeo_configuration.svh"
+
+`include "../../Include/Packages/apogeo_pkg.sv"
+`include "../../Include/Packages/Execution Unit/floating_point_unit_pkg.sv"
+`include "../../Include/Packages/apogeo_operations_pkg.sv"
 
 `include "Floating Point Submodules/floating_point_fused_muladd.sv"
 `include "Floating Point Submodules/floating_point_divider.sv"
@@ -17,6 +19,7 @@ module floating_point_unit (
     /* Register control */
     input logic clk_i,
     input logic clk_en_i, 
+    input logic kill_instructions_i,
     input logic rst_n_i, 
 
     /* Operands */
@@ -33,47 +36,15 @@ module floating_point_unit (
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
 
+    /* Result */
+    output float32_t result_o,
 
-    /* FMA result */
-    output float32_t fpfma_result_o,
-
-    /* FMA exceptions generated */
-    output logic fpfma_invalid_op_o,
-    output logic fpfma_inexact_o,
-    output logic fpfma_overflow_o,
-    output logic fpfma_underflow_o,
-
-    /* DIV result */
-    output float32_t fpdiv_result_o,
-
-    /* DIV exceptions generated */
-    output logic fpdiv_invalid_op_o,
-    output logic fpdiv_inexact_o,
-    output logic fpdiv_overflow_o,
-    output logic fpdiv_underflow_o,
-    output logic fpdiv_divide_by_zero_o,
-
-    /* SQRT result */
-    output float32_t fpsqrt_result_o,
-
-    /* SQRT exceptions generated */
-    output logic fpsqrt_invalid_op_o,
-    output logic fpsqrt_inexact_o,
-    output logic fpsqrt_overflow_o,
-
-    /* CVT result */
-    output float32_t fpcvt_result_o,
-
-    /* CVT exceptions generated */
-    output logic fpcvt_inexact_o,
-    output logic fpcvt_overflow_o,
-    output logic fpcvt_underflow_o,
-
-    /* Result from units that needs no rounding */
-    output float32_t noround_result_o,
-
-    /* Units that needs no rounding exceptions generated */
-    output logic noround_invalid_op_o,
+    /* Exceptions generated */
+    output logic invalid_op_o,
+    output logic inexact_o,
+    output logic overflow_o,
+    output logic underflow_o,
+    output logic divide_by_zero_o,
 
     /* Instruction packet */
     output instr_packet_t ipacket_o,
@@ -81,14 +52,19 @@ module floating_point_unit (
     /* Data valid */
     output logic data_valid_o,
 
+    /* Needs rounding */
+    output logic        round_skip_o,
+    output round_bits_t round_bits_o,
+    output rnd_uop_t    round_mode_o,
+
     /* Sequential functional units status */
     output logic fpdiv_idle_o,
     output logic fpsqrt_idle_o
 );
 
-//---------------------//
-//  FUSED MULADD UNIT  //
-//---------------------//
+//====================================================================================
+//      FUSED MULADD UNIT
+//====================================================================================
 
     /* FPADD nets */
     float32_t    fpadd_result;
@@ -142,6 +118,15 @@ module floating_point_unit (
         always_ff @(posedge clk_i) begin : fpmul_shift_register
             if (clk_en_i) begin
                 fpmul_round_mode <= {fpmul_round_mode[FPMUL_STAGES - 1:0], operation_i.round_uop};
+
+                if (kill_instructions_i) begin
+                    for (int i = 0; i <= FPMUL_STAGES; ++i) begin
+                        fpmul_ipacket[i] <= NO_OPERATION;
+                    end
+                end else begin 
+                    fpmul_ipacket <= {fpmul_ipacket[FPMUL_STAGES - 1:0], ipacket_i};
+                end
+
                 fpmul_ipacket <= {fpmul_ipacket[FPMUL_STAGES - 1:0], ipacket_i};
             end
         end : fpmul_shift_register
@@ -158,17 +143,24 @@ module floating_point_unit (
             if (clk_en_i) begin
                 /* Select the input based on the operation performed: if fused take it from the last multiplier stage */
                 fpadd_round_mode <= is_fused ? fpmul_round_mode[FPMUL_STAGES] : {fpadd_round_mode[FPADD_STAGES - 1:0], operation_i.round_uop};
-                fpadd_ipacket <= is_fused ? fpmul_ipacket[FPMUL_STAGES] : {fpadd_ipacket[FPADD_STAGES - 1:0], ipacket_i};
+
+                if (kill_instructions_i) begin
+                    for (int i = 0; i <= FPADD_STAGES; ++i) begin
+                        fpadd_ipacket[i] <= NO_OPERATION;
+                    end
+                end else begin 
+                    fpadd_ipacket <= is_fused ? fpmul_ipacket[FPMUL_STAGES] : {fpadd_ipacket[FPADD_STAGES - 1:0], ipacket_i};
+                end
             end
         end : fpadd_shift_register
 
 
     /* FPFMA register nets coming from 0-th stage */
-    float32_t      fpfma_result_stg0;
-    round_bits_t   fpfma_round_stg0;
-    rnd_uop_t      fpfma_round_mode_stg0;
-    instr_packet_t fpfma_ipacket_stg0;
-    logic          fpfma_invalid_op_stg0, fpfma_inexact_stg0, fpfma_overflow_stg0, fpfma_underflow_stg0;
+    float32_t      fpfma_result_out;
+    round_bits_t   fpfma_round_out;
+    rnd_uop_t      fpfma_round_mode_out;
+    instr_packet_t fpfma_ipacket_out;
+    logic          fpfma_invalid_op_out, fpfma_inexact_out, fpfma_overflow_out, fpfma_underflow_out;
 
         always_ff @(posedge clk_i) begin : fpfma_stage_register
             case ({fpmul_data_valid, fpadd_data_valid})
@@ -176,53 +168,53 @@ module floating_point_unit (
                  * multiplier */
                 2'b10: begin
                     /* FPMUL results */
-                    fpfma_result_stg0 <= fpmul_result;
-                    fpfma_round_stg0 <= fpmul_round;
+                    fpfma_result_out <= fpmul_result;
+                    fpfma_round_out <= fpmul_round;
 
                     /* FPMUL exceptions */
-                    fpfma_inexact_stg0 <= fpmul_inexact;
-                    fpfma_overflow_stg0 <= fpmul_overflow;
-                    fpfma_underflow_stg0 <= fpmul_underflow;
-                    fpfma_invalid_op_stg0 <= fpmul_invalid_op; 
+                    fpfma_inexact_out <= fpmul_inexact;
+                    fpfma_overflow_out <= fpmul_overflow;
+                    fpfma_underflow_out <= fpmul_underflow;
+                    fpfma_invalid_op_out <= fpmul_invalid_op; 
 
                     /* FPMUL shift register */
-                    fpfma_round_mode_stg0 <= fpmul_round_mode[FPMUL_STAGES]; 
-                    fpfma_ipacket_stg0 <= fpmul_ipacket[FPMUL_STAGES];
+                    fpfma_round_mode_out <= fpmul_round_mode[FPMUL_STAGES]; 
+                    fpfma_ipacket_out <= fpmul_ipacket[FPMUL_STAGES];
                 end
 
                 /* Take results from the floating point
                  * adder */
                 2'b01: begin
                     /* FPADD results */
-                    fpfma_result_stg0 <= fpadd_result;
-                    fpfma_round_stg0 <= fpadd_round;
+                    fpfma_result_out <= fpadd_result;
+                    fpfma_round_out <= fpadd_round;
 
                     /* FPADD exceptions */
-                    fpfma_inexact_stg0 <= fpadd_inexact;
-                    fpfma_overflow_stg0 <= fpadd_overflow;
-                    fpfma_underflow_stg0 <= fpadd_underflow;
-                    fpfma_invalid_op_stg0 <= fpadd_invalid_op; 
+                    fpfma_inexact_out <= fpadd_inexact;
+                    fpfma_overflow_out <= fpadd_overflow;
+                    fpfma_underflow_out <= fpadd_underflow;
+                    fpfma_invalid_op_out <= fpadd_invalid_op; 
 
                     /* FPADD shift register */
-                    fpfma_round_mode_stg0 <= fpadd_round_mode[FPADD_STAGES]; 
-                    fpfma_ipacket_stg0 <= fpadd_ipacket[FPADD_STAGES];
+                    fpfma_round_mode_out <= fpadd_round_mode[FPADD_STAGES]; 
+                    fpfma_ipacket_out <= fpadd_ipacket[FPADD_STAGES];
                 end
 
                 /* Reset all bits */
                 default: begin
                     /* Results */
-                    fpfma_result_stg0 <= '0;
-                    fpfma_round_stg0 <= '0;
+                    fpfma_result_out <= '0;
+                    fpfma_round_out <= '0;
 
                     /* Exceptions */
-                    fpfma_inexact_stg0 <= 1'b0;
-                    fpfma_overflow_stg0 <= 1'b0;
-                    fpfma_underflow_stg0 <= 1'b0;
-                    fpfma_invalid_op_stg0 <= 1'b0;
+                    fpfma_inexact_out <= 1'b0;
+                    fpfma_overflow_out <= 1'b0;
+                    fpfma_underflow_out <= 1'b0;
+                    fpfma_invalid_op_out <= 1'b0;
 
                     /* Shift register */
-                    fpfma_round_mode_stg0 <= NRD;
-                    fpfma_ipacket_stg0 <= '0;
+                    fpfma_round_mode_out <= NRD;
+                    fpfma_ipacket_out <= '0;
                 end
             endcase
         end : fpfma_stage_register
@@ -233,39 +225,20 @@ module floating_point_unit (
     `endif 
 
 
-    logic fpfma_data_valid_stg0;
+    logic fpfma_data_valid_out;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpfma_valid_stage_register
             if (!rst_n_i) begin 
-                fpfma_data_valid_stg0 <= 1'b0;
+                fpfma_data_valid_out <= 1'b0;
             end else begin
-                fpfma_data_valid_stg0 <= fpadd_data_valid | fpmul_data_valid;
+                fpfma_data_valid_out <= fpadd_data_valid | fpmul_data_valid;
             end
         end : fpfma_valid_stage_register
 
 
-    logic fpfma_round_valid;
-
-    floating_point_rounder fpfma_round_unit (
-        .operand_i      ( fpfma_result_stg0     ),
-        .round_bits_i   ( fpfma_round_stg0      ),
-        .data_valid_i   ( fpfma_data_valid_stg0 ),
-        .operation_i    ( fpfma_round_mode_stg0 ),
-        .overflow_i     ( fpfma_overflow_stg0   ),
-        .underflow_i    ( fpfma_underflow_stg0  ),
-        .result_o       ( fpfma_result_o        ),
-        .data_valid_o   ( fpfma_round_valid     ),
-        .overflow_o     ( fpfma_overflow_o      ),
-        .underflow_o    ( fpfma_underflow_o     )
-    );
-
-    assign fpfma_inexact_o = fpfma_inexact_stg0;
-    assign fpfma_invalid_op_o = fpfma_invalid_op_stg0;
-
-
-//-----------------//
-//  DIVISION UNIT  //
-//-----------------//
+//====================================================================================
+//      DIVISION UNIT
+//====================================================================================
 
     /* FPDIV nets */
     float32_t    fpdiv_result;
@@ -304,84 +277,74 @@ module floating_point_unit (
 
         always_ff @(posedge clk_i) begin : fpdiv_latency_register
             if (clk_en_i & fpdiv_idle_o) begin
-                fpdiv_ipacket <= ipacket_i;
                 fpdiv_round_mode <= operation_i.round_uop;
+
+                if (kill_instructions_i) begin
+                    fpdiv_ipacket <= NO_OPERATION;
+                end else begin 
+                    fpdiv_ipacket <= ipacket_i;
+                end
             end
         end : fpdiv_latency_register
 
 
     /* FPDIV register nets coming from 0-th stage */
-    float32_t      fpdiv_result_stg0;
-    round_bits_t   fpdiv_round_stg0;
-    instr_packet_t fpdiv_ipacket_stg0;
-    rnd_uop_t      fpdiv_round_mode_stg0;
-    logic          fpdiv_invalid_op_stg0, fpdiv_inexact_stg0, fpdiv_overflow_stg0, fpdiv_underflow_stg0, fpdiv_divide_by_zero_stg0;
+    float32_t      fpdiv_result_out;
+    round_bits_t   fpdiv_round_out;
+    instr_packet_t fpdiv_ipacket_out;
+    rnd_uop_t      fpdiv_round_mode_out;
+    logic          fpdiv_invalid_op_out, fpdiv_inexact_out, fpdiv_overflow_out, fpdiv_underflow_out, fpdiv_divide_by_zero_out;
 
         always_ff @(posedge clk_i) begin : fpdiv_stage0_register
             if (!fpdiv_data_valid) begin
-                fpdiv_result_stg0 <= '0;
-                fpdiv_round_stg0 <= '0;
+                fpdiv_result_out <= '0;
+                fpdiv_round_out <= '0;
 
-                fpdiv_inexact_stg0 <= 1'b0;
-                fpdiv_overflow_stg0 <= 1'b0;
-                fpdiv_underflow_stg0 <= 1'b0;
-                fpdiv_invalid_op_stg0 <= 1'b0;
-                fpdiv_divide_by_zero_stg0 <= 1'b0;
+                fpdiv_inexact_out <= 1'b0;
+                fpdiv_overflow_out <= 1'b0;
+                fpdiv_underflow_out <= 1'b0;
+                fpdiv_invalid_op_out <= 1'b0;
+                fpdiv_divide_by_zero_out <= 1'b0;
 
-                fpdiv_round_mode_stg0 <= NRD;
-                fpdiv_ipacket_stg0 <= '0;
+                fpdiv_round_mode_out <= NRD;
+                fpdiv_ipacket_out <= '0;
             end else begin
-                fpdiv_result_stg0 <= fpdiv_result;
-                fpdiv_round_stg0 <= fpdiv_round;
+                fpdiv_result_out <= fpdiv_result;
+                fpdiv_round_out <= fpdiv_round;
 
-                fpdiv_inexact_stg0 <= fpdiv_inexact;
-                fpdiv_overflow_stg0 <= fpdiv_overflow;
-                fpdiv_underflow_stg0 <= fpdiv_underflow;
-                fpdiv_invalid_op_stg0 <= fpdiv_invalid_op;
-                fpdiv_divide_by_zero_stg0 <= fpdiv_divide_by_zero;
+                fpdiv_inexact_out <= fpdiv_inexact;
+                fpdiv_overflow_out <= fpdiv_overflow;
+                fpdiv_underflow_out <= fpdiv_underflow;
+                fpdiv_invalid_op_out <= fpdiv_invalid_op;
+                fpdiv_divide_by_zero_out <= fpdiv_divide_by_zero;
 
-                fpdiv_round_mode_stg0 <= fpdiv_round_mode;
-                fpdiv_ipacket_stg0 <= fpdiv_ipacket;
+                fpdiv_round_mode_out <= fpdiv_round_mode;
+
+                if (kill_instructions_i) begin
+                    fpdiv_ipacket_out <= NO_OPERATION;
+                end else begin 
+                    fpdiv_ipacket_out <= fpdiv_ipacket;
+                end
             end
         end : fpdiv_stage0_register
 
-    assign divide_by_zero_o = fpdiv_divide_by_zero_stg0;
+    assign divide_by_zero_o = fpdiv_divide_by_zero_out;
 
 
-    logic fpdiv_data_valid_stg0;
+    logic fpdiv_data_valid_out;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpdiv_valid_stage_register
             if (!rst_n_i) begin 
-                fpdiv_data_valid_stg0 <= 1'b0;
+                fpdiv_data_valid_out <= 1'b0;
             end else begin
-                fpdiv_data_valid_stg0 <= fpdiv_data_valid;
+                fpdiv_data_valid_out <= fpdiv_data_valid;
             end
         end : fpdiv_valid_stage_register
-  
-
-    logic fpdiv_round_valid;
-
-    floating_point_rounder fpdiv_round_unit (
-        .operand_i      ( fpdiv_result_stg0     ),
-        .round_bits_i   ( fpdiv_round_stg0      ),
-        .data_valid_i   ( fpdiv_data_valid_stg0 ),
-        .operation_i    ( fpdiv_round_mode_stg0 ),
-        .overflow_i     ( fpdiv_overflow_stg0   ),
-        .underflow_i    ( fpdiv_underflow_stg0  ),
-        .result_o       ( fpdiv_result_o        ),
-        .data_valid_o   ( fpdiv_round_valid     ),
-        .overflow_o     ( fpdiv_overflow_o      ),
-        .underflow_o    ( fpdiv_underflow_o     )
-    );
-
-    assign fpdiv_divide_by_zero_o = fpdiv_divide_by_zero_stg0;
-    assign fpdiv_inexact_o = fpdiv_inexact_stg0;
-    assign fpdiv_invalid_op_o = fpdiv_invalid_op_stg0;
 
 
-//--------------------//
-//  SQUARE ROOT UNIT  //
-//--------------------//
+//====================================================================================
+//      SQUARE ROOT UNIT
+//====================================================================================
 
     /* FPSQRT nets */
     float32_t    fpsqrt_result;
@@ -411,77 +374,68 @@ module floating_point_unit (
 
         always_ff @(posedge clk_i) begin : fpsqrt_latency_register
             if (clk_en_i & data_valid_i.SQRT) begin
-                fpsqrt_ipacket <= ipacket_i;
                 fpsqrt_round_mode <= operation_i.round_uop;
+                
+                if (kill_instructions_i) begin
+                    fpsqrt_ipacket <= NO_OPERATION;
+                end else begin 
+                    fpsqrt_ipacket <= ipacket_i;
+                end
             end
         end : fpsqrt_latency_register
 
 
     /* FPSQRT register nets coming from 0-th stage */
-    float32_t      fpsqrt_result_stg0;
-    round_bits_t   fpsqrt_round_stg0;
-    instr_packet_t fpsqrt_ipacket_stg0;
-    rnd_uop_t      fpsqrt_round_mode_stg0;
-    logic          fpsqrt_invalid_op_stg0, fpsqrt_inexact_stg0, fpsqrt_overflow_stg0, fpsqrt_underflow_stg0;
+    float32_t      fpsqrt_result_out;
+    round_bits_t   fpsqrt_round_out;
+    instr_packet_t fpsqrt_ipacket_out;
+    rnd_uop_t      fpsqrt_round_mode_out;
+    logic          fpsqrt_invalid_op_out, fpsqrt_inexact_out, fpsqrt_overflow_out;
 
         always_ff @(posedge clk_i) begin : fpsqrt_stage0_register
             if (!fpsqrt_data_valid) begin
-                fpsqrt_result_stg0 <= '0;
-                fpsqrt_round_stg0 <= '0;
+                fpsqrt_result_out <= '0;
+                fpsqrt_round_out <= '0;
 
-                fpsqrt_inexact_stg0 <= 1'b0;
-                fpsqrt_overflow_stg0 <= 1'b0;
-                fpsqrt_invalid_op_stg0 <= 1'b0;
+                fpsqrt_inexact_out <= 1'b0;
+                fpsqrt_overflow_out <= 1'b0;
+                fpsqrt_invalid_op_out <= 1'b0;
 
-                fpsqrt_round_mode_stg0 <= NRD;
-                fpsqrt_ipacket_stg0 <= '0;
+                fpsqrt_round_mode_out <= NRD;
+                fpsqrt_ipacket_out <= '0;
             end else begin
-                fpsqrt_result_stg0 <= fpsqrt_result;
-                fpsqrt_round_stg0 <= fpsqrt_round;
+                fpsqrt_result_out <= fpsqrt_result;
+                fpsqrt_round_out <= fpsqrt_round;
 
-                fpsqrt_inexact_stg0 <= fpsqrt_inexact;
-                fpsqrt_overflow_stg0 <= fpsqrt_overflow;
-                fpsqrt_invalid_op_stg0 <= fpsqrt_invalid_op;
+                fpsqrt_inexact_out <= fpsqrt_inexact;
+                fpsqrt_overflow_out <= fpsqrt_overflow;
+                fpsqrt_invalid_op_out <= fpsqrt_invalid_op;
 
-                fpsqrt_round_mode_stg0 <= fpsqrt_round_mode;
-                fpsqrt_ipacket_stg0 <= fpsqrt_ipacket;
+                fpsqrt_round_mode_out <= fpsqrt_round_mode;
+                
+                if (kill_instructions_i) begin
+                    fpsqrt_ipacket_out <= NO_OPERATION;
+                end else begin 
+                    fpsqrt_ipacket_out <= fpsqrt_ipacket;
+                end
             end
         end : fpsqrt_stage0_register
 
 
-    logic fpsqrt_data_valid_stg0;
+    logic fpsqrt_data_valid_out;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpsqrt_valid_stage_register
             if (!rst_n_i) begin 
-                fpsqrt_data_valid_stg0 <= 1'b0;
+                fpsqrt_data_valid_out <= 1'b0;
             end else begin
-                fpsqrt_data_valid_stg0 <= fpsqrt_data_valid;
+                fpsqrt_data_valid_out <= fpsqrt_data_valid;
             end
         end : fpsqrt_valid_stage_register
 
 
-    logic fpsqrt_round_valid;
-
-    floating_point_rounder fpsqrt_round_unit (
-        .operand_i      ( fpsqrt_result_stg0     ),
-        .round_bits_i   ( fpsqrt_round_stg0      ),
-        .data_valid_i   ( fpsqrt_data_valid_stg0 ),
-        .operation_i    ( fpsqrt_round_mode_stg0 ),
-        .overflow_i     ( fpsqrt_overflow_stg0   ),
-        .underflow_i    (   /* NOT CONNECTED */  ),
-        .result_o       ( fpsqrt_result_o        ),
-        .data_valid_o   ( fpsqrt_round_valid     ),
-        .overflow_o     ( fpsqrt_overflow_o      ),
-        .underflow_o    (   /* NOT CONNECTED */  )
-    );
-
-    assign fpsqrt_inexact_o = fpsqrt_inexact_stg0;
-    assign fpsqrt_invalid_op_o = fpsqrt_invalid_op_stg0;
-
-
-//-------------------//
-//  COMPARISON UNIT  //
-//-------------------//
+//====================================================================================
+//      COMPARISON UNIT
+//====================================================================================
 
     /* FPCMP nets */
     float32_t fpcmp_result;
@@ -502,41 +456,45 @@ module floating_point_unit (
  
 
     /* FPCMP register nets coming from 0-th stage */
-    float32_t      fpcmp_result_stg0;
-    instr_packet_t fpcmp_ipacket_stg0;
-    logic          fpcmp_invalid_op_stg0;
+    float32_t      fpcmp_result_out;
+    instr_packet_t fpcmp_ipacket_out;
+    logic          fpcmp_invalid_op_out;
 
         always_ff @(posedge clk_i) begin : fpcmp_stage_register
             if (!fpcmp_data_valid) begin
-                fpcmp_result_stg0 <= '0;
+                fpcmp_result_out <= '0;
 
-                fpcmp_invalid_op_stg0 <= 1'b0;
+                fpcmp_invalid_op_out <= 1'b0;
 
-                fpcmp_ipacket_stg0 <= '0;
+                fpcmp_ipacket_out <= '0;
             end else begin 
-                fpcmp_result_stg0 <= fpcmp_result;
+                fpcmp_result_out <= fpcmp_result;
 
-                fpcmp_invalid_op_stg0 <= fpcmp_invalid_op;
+                fpcmp_invalid_op_out <= fpcmp_invalid_op;
 
-                fpcmp_ipacket_stg0 <= ipacket_i;
+                if (kill_instructions_i) begin
+                    fpcmp_ipacket_out <= NO_OPERATION;
+                end else begin 
+                    fpcmp_ipacket_out <= ipacket_i;
+                end
             end
         end : fpcmp_stage_register
 
 
-    logic fpcmp_data_valid_stg0;
+    logic fpcmp_data_valid_out;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpcmp_valid_stage_register
             if (!rst_n_i) begin 
-                fpcmp_data_valid_stg0 <= 1'b0;
+                fpcmp_data_valid_out <= 1'b0;
             end else begin
-                fpcmp_data_valid_stg0 <= fpcmp_data_valid;
+                fpcmp_data_valid_out <= fpcmp_data_valid;
             end
         end : fpcmp_valid_stage_register
 
 
-//-------------------//
-//  CONVERSION UNIT  //
-//-------------------//
+//====================================================================================
+//      CONVERSION UNIT
+//====================================================================================
 
     /* FPSQRT nets */
     float32_t    fpcvt_result;
@@ -572,83 +530,69 @@ module floating_point_unit (
         always_ff @(posedge clk_i) begin : fpcvt_shift_register
             if (clk_en_i) begin
                 fpcvt_round_mode <= {fpcvt_round_mode[FPCVT_STAGES - 1:0], operation_i.round_uop};
-                fpcvt_ipacket <= {fpcvt_ipacket[FPCVT_STAGES - 1:0], ipacket_i};
+
+                if (kill_instructions_i) begin
+                    for (int i = 0; i <= FPCVT_STAGES; ++i) begin
+                        fpcvt_ipacket[i] <= NO_OPERATION;
+                    end
+                end else begin 
+                    fpcvt_ipacket <= {fpcvt_ipacket[FPCVT_STAGES - 1:0], ipacket_i};
+                end
             end
         end : fpcvt_shift_register
 
 
     /* FPSQRT register nets coming from 0-th stage */
-    float32_t      fpcvt_result_stg0;
-    round_bits_t   fpcvt_round_stg0;
-    rnd_uop_t      fpcvt_round_mode_stg0;
-    instr_packet_t fpcvt_ipacket_stg0;
-    logic          fpcvt_inexact_stg0, fpcvt_overflow_stg0, fpcvt_underflow_stg0;
-    logic          fpcvt_round_enable_stg0;
+    float32_t      fpcvt_result_out;
+    round_bits_t   fpcvt_round_out;
+    rnd_uop_t      fpcvt_round_mode_out;
+    instr_packet_t fpcvt_ipacket_out;
+    logic          fpcvt_inexact_out, fpcvt_overflow_out, fpcvt_underflow_out;
  
         always_ff @(posedge clk_i) begin : fpcvt_stage0_register
             if (!fpcvt_data_valid) begin
-                fpcvt_result_stg0 <= '0;
-                fpcvt_round_stg0 <= '0;
+                fpcvt_result_out <= '0;
+                fpcvt_round_out <= '0;
 
-                fpcvt_round_enable_stg0 <= 1'b0;
-                fpcvt_inexact_stg0 <= 1'b0;
-                fpcvt_overflow_stg0 <= 1'b0;
-                fpcvt_underflow_stg0 <= 1'b0;
+                fpcvt_inexact_out <= 1'b0;
+                fpcvt_overflow_out <= 1'b0;
+                fpcvt_underflow_out <= 1'b0;
 
-                fpcvt_round_mode_stg0 <= NRD;
-                fpcvt_ipacket_stg0 <= '0;
+                fpcvt_round_mode_out <= NRD;
+                fpcvt_ipacket_out <= '0;
             end else begin
-                fpcvt_result_stg0 <= fpcvt_result;
-                fpcvt_round_stg0 <= fpcvt_round;
+                fpcvt_result_out <= fpcvt_result;
+                fpcvt_round_out <= fpcvt_round;
 
-                fpcvt_round_enable_stg0 <= fpcvt_round_enable;
-                fpcvt_inexact_stg0 <= fpcvt_inexact;
-                fpcvt_overflow_stg0 <= fpcvt_overflow;
-                fpcvt_underflow_stg0 <= fpcvt_underflow;
+                fpcvt_inexact_out <= fpcvt_inexact;
+                fpcvt_overflow_out <= fpcvt_overflow;
+                fpcvt_underflow_out <= fpcvt_underflow;
 
-                fpcvt_round_mode_stg0 <= fpcvt_round_mode[FPCVT_STAGES];
-                fpcvt_ipacket_stg0 <= fpcvt_ipacket[FPCVT_STAGES];
+                fpcvt_round_mode_out <= rnd_uop_t'(fpcvt_round_mode[FPCVT_STAGES] & fpcvt_round_enable);
+                
+                if (kill_instructions_i) begin
+                    fpcvt_ipacket_out <= NO_OPERATION;
+                end else begin 
+                    fpcvt_ipacket_out <= fpcvt_ipacket[FPCVT_STAGES];
+                end
             end
         end : fpcvt_stage0_register
 
 
-    logic fpcvt_data_valid_stg0;
+    logic fpcvt_data_valid_out;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpcvt_valid_stage_register
             if (!rst_n_i) begin
-                fpcvt_data_valid_stg0 <= 1'b0;
+                fpcvt_data_valid_out <= 1'b0;
             end else begin
-                fpcvt_data_valid_stg0 <= fpcvt_data_valid;
+                fpcvt_data_valid_out <= fpcvt_data_valid;
             end
         end : fpcvt_valid_stage_register
 
-    
-    `define ROUND_ENABLE_SIGNAL
 
-    logic fpcvt_round_valid;
-
-    floating_point_rounder fpcvt_round_unit (
-        .operand_i      ( fpcvt_result_stg0       ),
-        .round_bits_i   ( fpcvt_round_stg0        ),
-        .data_valid_i   ( fpcvt_data_valid_stg0   ),
-        .operation_i    ( fpcvt_round_mode_stg0   ),
-        .round_enable_i ( fpcvt_round_enable_stg0 ),
-        .overflow_i     ( fpcvt_overflow_stg0     ),
-        .underflow_i    ( fpcvt_underflow_stg0    ),
-        .result_o       ( fpcvt_result_o          ),
-        .data_valid_o   ( fpcvt_round_valid       ),
-        .overflow_o     ( fpcvt_overflow_o        ),
-        .underflow_o    ( fpcvt_underflow_o       )
-    );
-
-    `undef ROUND_ENABLE_SIGNAL 
-
-    assign fpcvt_inexact_o = fpcvt_inexact_stg0;
-
-
-//----------------------//
-//  MISCELLANEOUS UNIT  //
-//----------------------//
+//====================================================================================
+//      MISCELLANEOUS UNIT
+//====================================================================================
 
     /* FPMISC nets */
     float32_t fpmisc_result;
@@ -675,44 +619,64 @@ module floating_point_unit (
 
 
     /* FPMISC register nets coming from 0-th stage */
-    float32_t      fpmisc_result_stg0;
-    instr_packet_t fpmisc_ipacket;
+    float32_t      fpmisc_result_out;
+    instr_packet_t fpmisc_ipacket_out;
 
         always_ff @(posedge clk_i) begin : fpmisc_stage0_register
             if (!fpmisc_data_valid) begin
-                fpmisc_result_stg0 <= '0;
+                fpmisc_result_out <= '0;
 
-                fpmisc_ipacket <= '0;
+                fpmisc_ipacket_out <= '0;
             end else begin
-                fpmisc_result_stg0 <= fpmisc_result_stg0;
+                fpmisc_result_out <= fpmisc_result_out;
 
-                fpmisc_ipacket <= fpmisc_ipacket_unit;
+                if (kill_instructions_i) begin
+                    fpmisc_ipacket_out <= NO_OPERATION;
+                end else begin 
+                    fpmisc_ipacket_out <= fpmisc_ipacket_unit;
+                end
             end
         end : fpmisc_stage0_register
 
 
-    logic fpmisc_data_valid_stg0;
+    logic fpmisc_data_valid_out;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpmisc_valid_stage_register
             if (!rst_n_i) begin
-                fpmisc_data_valid_stg0 <= 1'b0;
+                fpmisc_data_valid_out <= 1'b0;
             end else begin
-                fpmisc_data_valid_stg0 <= fpmisc_data_valid;
+                fpmisc_data_valid_out <= fpmisc_data_valid;
             end
         end : fpmisc_valid_stage_register
 
 
-//----------------//
-//  OUTPUT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC
+//====================================================================================
 
-    assign noround_result_o = fpcmp_result_stg0 | fpmisc_result_stg0;
+    assign result_o = fpfma_result_out | fpdiv_result_out | fpsqrt_result_out | fpcmp_result_out | fpcvt_result_out | fpmisc_result_out;
 
-    assign noround_invalid_op_o = fpcmp_invalid_op_stg0;
+    assign overflow_o = fpfma_overflow_out | fpdiv_overflow_out | fpsqrt_overflow_out | fpcvt_overflow_out;
 
-    assign ipacket_o = fpmisc_ipacket | fpcvt_ipacket_stg0 | fpcmp_ipacket_stg0 | fpsqrt_ipacket_stg0 | fpdiv_ipacket_stg0 | fpfma_ipacket_stg0;
+    assign underflow_o = fpfma_underflow_out | fpdiv_underflow_out | fpcvt_underflow_out;
 
-    assign data_valid_o = fpcmp_data_valid_stg0 | fpmisc_data_valid_stg0 | fpfma_round_valid | fpdiv_round_valid | fpsqrt_round_valid | fpcvt_round_valid;
+    assign inexact_o = fpfma_inexact_out | fpdiv_inexact_out | fpsqrt_inexact_out | fpcvt_inexact_out;
+
+    assign invalid_op_o = fpfma_invalid_op_out | fpdiv_invalid_op_out | fpsqrt_invalid_op_out | fpcmp_invalid_op_out;
+
+    assign divide_by_zero_o = fpdiv_divide_by_zero_out;
+
+
+    assign round_skip_o = fpcmp_data_valid_out | fpmisc_data_valid_out;
+
+    assign round_mode_o = rnd_uop_t'((fpfma_round_mode_out | fpdiv_round_mode_out | fpsqrt_round_mode_out | fpcvt_round_mode_out));
+
+    assign round_bits_o = fpfma_round_out | fpdiv_round_out | fpsqrt_round_out | fpcvt_round_out;
+
+
+    assign ipacket_o = fpfma_ipacket_out | fpdiv_ipacket_out | fpsqrt_ipacket_out | fpcmp_ipacket_out | fpcvt_ipacket_out | fpmisc_ipacket_out;
+     
+    assign data_valid_o = fpfma_data_valid_out | fpdiv_data_valid_out | fpsqrt_data_valid_out | fpcmp_data_valid_out | fpcvt_data_valid_out | fpmisc_data_valid_out;
 
 endmodule : floating_point_unit
 
