@@ -1,5 +1,3 @@
-Add assertions and display check
+Integrate WAIT ACCEPT state in the load cache controller and store cache controller
 
-Better address decode
-
-The scheduler must ensure that sequential units are idle and two end operations doesn't overlap
+Add load cache controller and store cache controller deep descriptions and assertions
