@@ -7,28 +7,24 @@
 `include "Integer Unit Submodules/multiplication_unit.sv"
 
 `include "../../Include/Headers/apogeo_configuration.svh"
-`include "../../Include/Packages/integer_unit_pkg.sv"
+`include "../../Include/Headers/apogeo_exception_vectors.svh"
+
+`include "../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../Include/Packages/apogeo_pkg.sv"
 
 module integer_unit (
     /* Pipeline control */
     input logic clk_i,
     input logic rst_n_i,
-    input logic clk_en_i,
+    input logic kill_instructions_i,
 
-    /* Enable / Disable M extension */
-    `ifdef FPGA
-        input logic mul_clk_en_i,
-        input logic div_clk_en_i,
-        input logic bmu_clk_en_i,
-    `elsif ASIC 
-        input logic mul_gated_clk_i,
-        input logic div_gated_clk_i,
-        input logic bmu_gated_clk_i,
-    `endif
+    /* Enable / Disable extension */
+    input logic enable_mul,
+    input logic enable_div,
+    input logic enable_bmu,
 
-    /* Instruction jump (JAL, JALR) is compressed */
-    input logic is_compressed_jmp_i,
+    /* Instruction jump is compressed */
+    input logic is_cjump_i,
 
     /* Branch control */
     output logic is_branch_o,
@@ -37,10 +33,10 @@ module integer_unit (
     input instr_packet_t ipacket_i,
 
     /* Operation to execute */
-    input iexu_uop_t operation_i,
+    input itu_uop_t operation_i,
 
     /* Which units gets valid operands */
-    input iexu_valid_t data_valid_i,
+    input itu_valid_t data_valid_i,
 
     /* Operands */
     input data_word_t operand_1_i,
@@ -57,45 +53,24 @@ module integer_unit (
     output logic div_idle_o
 );
 
-    `ifdef ASSERTIONS 
-        assert property (IEX_ConcurrentInputsValidity);
-        else $error("[Integer Execution Unit] Valid inputs on different functional units!")
-    `endif 
-
-
-//--------------------------//
-//  DISABLE MUL - DIV UNIT  //
-//--------------------------//
-
-    `ifdef FPGA
-        /* Multiplier, divider and bit manipulation unit disable
-         * active low (enable active high) */
-        logic enable_mul, enable_div, enable_bmu;
-
-        assign enable_mul = clk_en_i & mul_clk_en_i;
-        assign enable_div = clk_en_i & div_clk_en_i;
-        assign enable_bmu = clk_en_i & bmu_clk_en_i;
-    `endif
-
-
-//-------------------------//
-//  ARITHMETIC LOGIC UNIT  //
-//-------------------------//
+//====================================================================================
+//      ARITHMETIC LOGIC UNIT
+//====================================================================================
 
     /* Module instantiation logic */
     data_word_t alu_result;
     logic       alu_valid, branch_taken, is_branch;
 
     arithmetic_logic_unit alu (
-        .operand_A_i          ( operand_1_i            ),
-        .operand_B_i          ( operand_2_i            ),
-        .instr_addr_i         ( ipacket_i.instr_addr   ),
-        .operation_i          ( operation_i.ALU.opcode ),
-        .data_valid_i         ( data_valid_i.ALU       ),
-        .is_compressed_jump_i ( is_compressed_jmp_i    ),
-        .result_o             ( alu_result             ),
-        .is_branch_o          ( is_branch              ),
-        .data_valid_o         ( alu_valid              )
+        .operand_A_i  ( operand_1_i            ),
+        .operand_B_i  ( operand_2_i            ),
+        .instr_addr_i ( ipacket_i.instr_addr   ),
+        .operation_i  ( operation_i.ALU.opcode ),
+        .data_valid_i ( data_valid_i.ALU       ),
+        .is_cjump_i   ( is_cjump_i             ),
+        .result_o     ( alu_result             ),
+        .is_branch_o  ( is_branch              ),
+        .data_valid_o ( alu_valid              )
     );
 
 
@@ -103,26 +78,34 @@ module integer_unit (
     data_word_t    alu_result_out;
 
     assign alu_result_out = alu_valid ? alu_result : '0;
-    assign alu_final_ipacket = alu_valid ? ipacket_i : '0;
+    
+        always_comb begin
+            if (kill_instructions_i) begin
+                alu_final_ipacket = NO_OPERATION;
+            end else begin
+                if (alu_valid) begin
+                    alu_final_ipacket = ipacket_i; 
+                end else begin
+                    alu_final_ipacket = '0; 
+                end
+            end
+        end
 
     assign is_branch_o = is_branch & alu_valid;
 
 
-//-------------------------//
-//  BIT MANIPULATION UNIT  //
-//-------------------------//
+//====================================================================================
+//      BIT MANIPULATION UNIT
+//====================================================================================
+
+    `ifdef BMU 
 
     data_word_t bmu_result;
     logic       bmu_valid;
 
     bit_manipulation_unit bmu (
-        `ifdef ASIC
-            .clk_i    ( bmu_gated_clk_i         ),
-            .clk_en_i ( 1'b1                    ),
-        `elsif FPGA 
-            .clk_i    ( clk_i                   ),
-            .clk_en_i ( enable_bmu              ),
-        `endif 
+        .clk_i        ( clk_i                   ),
+        .clk_en_i     ( enable_bmu              ),
         .rst_n_i      ( rst_n_i                 ),
         .operand_A_i  ( operand_1_i             ),
         .operand_B_i  ( operand_2_i             ),
@@ -139,7 +122,9 @@ module integer_unit (
     instr_packet_t bmu_ipacket;
 
         always_ff @(posedge clk_i) begin : bmu_stage_register
-            if (clk_en_i) begin
+            if (kill_instructions_i) begin
+                bmu_ipacket <= NO_OPERATION;
+            end else begin
                 bmu_ipacket <= ipacket_i;
             end
         end : bmu_stage_register
@@ -151,10 +136,12 @@ module integer_unit (
     assign bmu_result_out = bmu_valid ? bmu_result : '0;
     assign bmu_final_ipacket = bmu_valid ? bmu_ipacket : '0;
 
+    `endif 
 
-//-----------------------//
-//  MULTIPLICATION UNIT  //
-//-----------------------//
+
+//====================================================================================
+//      MULTIPLICATION UNIT
+//====================================================================================
 
     localparam IMUL_STAGES = 2 + `MUL_PIPE_STAGES;
 
@@ -162,13 +149,8 @@ module integer_unit (
     logic       mul_valid;
 
     multiplication_unit #(`MUL_PIPE_STAGES) mul_unit (
-        `ifdef ASIC
-            .clk_i      ( mul_gated_clk_i        ),
-            .clk_en_i   ( 1'b1                   ),
-        `elsif FPGA 
-            .clk_i      ( clk_i                  ),
-            .clk_en_i   ( enable_mul             ),
-        `endif 
+        .clk_i          ( clk_i                  ),
+        .clk_en_i       ( enable_mul             ),
         .rst_n_i        ( rst_n_i                ),
         .multiplicand_i ( operand_1_i            ),
         .multiplier_i   ( operand_2_i            ),
@@ -179,21 +161,21 @@ module integer_unit (
     );
 
 
-    /* Multiplication unit is fully pipelined and has 9 cycles of latency,
-     * instruction packet must be passed through a shift register that delays
-     * the delivery to the final multiplexer */
+    /* Multiplication unit is fully pipelined  instruction packet 
+     * must be passed through a shift register that delays the delivery 
+     * to the final multiplexer */
     instr_packet_t [IMUL_STAGES:0] mul_ipacket;
 
-        always_ff @(`ifdef ASIC posedge mul_gated_clk_i `elsif FPGA posedge clk_i `endif) begin : mul_stage_register
-            `ifdef ASIC 
-                if (clk_en_i) begin 
-                    mul_ipacket <= {mul_ipacket[IMUL_STAGES - 1:0], ipacket_i};
-                end 
-            `elsif FPGA 
-                if (enable_mul) begin
+        always_ff @(posedge clk_i) begin : mul_stage_register
+            if (enable_mul) begin
+                if (kill_instructions_i) begin
+                    for (int i = 0; i <= IMUL_STAGES; ++i) begin
+                        mul_ipacket[i] <= NO_OPERATION;
+                    end 
+                end else begin
                     mul_ipacket <= {mul_ipacket[IMUL_STAGES - 1:0], ipacket_i};
                 end
-            `endif
+            end
         end : mul_stage_register
 
 
@@ -204,10 +186,9 @@ module integer_unit (
     assign mul_final_ipacket = mul_valid ? mul_ipacket[IMUL_STAGES] : '0;
 
 
-//-----------------//
-//  DIVISION UNIT  //
-//-----------------//
-
+//====================================================================================
+//      DIVISION UNIT
+//====================================================================================
 
     /* Module instantiation logic */
     logic       divide_by_zero;
@@ -215,13 +196,8 @@ module integer_unit (
     logic       div_valid;
 
     division_unit div_unit (
-        `ifdef ASIC
-            .clk_i        ( div_gated_clk_i        ),
-            .clk_en_i     ( 1'b1                   ),
-        `elsif FPGA 
-            .clk_i        ( clk_i                  ),
-            .clk_en_i     ( enable_div             ),
-        `endif
+        .clk_i            ( clk_i                  ),
+        .clk_en_i         ( enable_div             ),
         .rst_n_i          ( rst_n_i                ),
         .dividend_i       ( operand_1_i            ),
         .divisor_i        ( operand_2_i            ),
@@ -238,24 +214,13 @@ module integer_unit (
      * until the previous one has completed */
     instr_packet_t div_ipacket;
 
-        always_ff @(`ifdef ASIC posedge div_gated_clk_i `elsif FPGA posedge clk_i `endif) begin : div_stage_register 
-            `ifdef ASIC 
-                if (clk_en_i & div_idle_o) begin 
-                    div_ipacket <= instr_packet_i;
-                end 
-            `elsif FPGA 
-                if (enable_div & div_idle_o) begin
-                    div_ipacket <= ipacket_i;
-                end
-            `endif 
+        always_ff @(posedge clk_i) begin : div_stage_register 
+            if (kill_instructions_i) begin
+                div_ipacket <= NO_OPERATION;
+            end else if (data_valid_i.DIV) begin
+                div_ipacket <= ipacket_i;
+            end 
         end : div_stage_register
-
-
-    `ifdef ASSERTIONS
-        /* New valid data mustn't be supplied to the DIV if it's not idle */
-        assert property(DIV_DataValidWhenIdle)
-        else $error("[Integer Execution Unit] Data supplied to DIV unit while it wasn't idle!");
-    `endif 
 
 
     /* Exception logic */
@@ -266,7 +231,7 @@ module integer_unit (
             exc_div_ipacket = div_ipacket;
 
             if (divide_by_zero & div_valid) begin
-                exc_div_ipacket.trap_vector = DIVIDE_BY_ZERO;
+                exc_div_ipacket.trap_vector = `DIVIDE_BY_ZERO;
                 exc_div_ipacket.trap_generated = 1'b1;
                 exc_div_ipacket.reg_dest = 5'b0;
             end
@@ -280,21 +245,15 @@ module integer_unit (
     assign div_final_ipacket = div_valid ? exc_div_ipacket : '0;
 
 
-//----------------//
-//  OUTPUT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC
+//====================================================================================
 
-    assign result_o = div_result_out | mul_result_out | bmu_result_out | alu_result_out;
+    assign result_o = div_result_out | mul_result_out | `ifdef BMU bmu_result_out | `endif alu_result_out;
 
-    assign data_valid_o = alu_valid | bmu_valid | mul_valid | div_valid;
+    assign data_valid_o = alu_valid | `ifdef BMU bmu_valid | `endif mul_valid | div_valid;
 
-    assign ipacket_o = alu_final_ipacket | bmu_final_ipacket | mul_final_ipacket | div_final_ipacket;
-
-
-    `ifdef ASSERTIONS
-        assert property (IEX_ConcurrentResultValidity);
-        else $error("[Integer Execution Unit] Valid result produced by more than 1 functional unit!");
-    `endif 
+    assign ipacket_o = alu_final_ipacket | `ifdef BMU bmu_final_ipacket | `endif mul_final_ipacket | div_final_ipacket;
 
 endmodule : integer_unit
 
