@@ -39,8 +39,9 @@
 `ifndef DATA_CACHE_BLOCK_SV
     `define DATA_CACHE_BLOCK_SV
 
-`include "../../../Include/Packages/data_memory_pkg.sv"
 `include "data_memory_bank.sv"
+
+`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
 
 module data_cache_block (
     input logic clk_i,

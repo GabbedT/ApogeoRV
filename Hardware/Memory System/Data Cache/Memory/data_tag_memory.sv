@@ -36,7 +36,7 @@
 `ifndef DATA_TAG_MEMORY_SV
     `define DATA_TAG_MEMORY_SV
 
-`include "../../../Include/Packages/data_memory_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
 
 module data_tag_memory (
     input logic clk_i,

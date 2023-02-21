@@ -34,9 +34,9 @@
 `ifndef DATA_CACHE_PORT0_HIT_CHECK_SV
     `define DATA_CACHE_PORT0_HIT_CHECK_SV
 
-`include "../../Include/Packages/data_memory_pkg.sv"
+`include "../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
 
-`include "../../Include/test_include.sv"
+`include "../../Include/test_include.svh"
 
 module data_cache_port0_hit_check (
     input  logic [WAYS_NUMBER - 1:0][TAG_SIZE - 1:0] cache_tag_i,

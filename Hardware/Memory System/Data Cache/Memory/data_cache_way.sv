@@ -36,10 +36,11 @@
 `ifndef DATA_CACHE_WAY_SV
     `define DATA_CACHE_WAY_SV
 
-`include "../../../Include/Packages/data_memory_pkg.sv"
 `include "data_cache_block.sv"
 `include "data_status_memory.sv"
 `include "data_tag_memory.sv"
+
+`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
 
 module data_cache_way (
     input logic clk_i,
