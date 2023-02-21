@@ -1,10 +1,15 @@
 `ifndef LOAD_UNIT_SV
     `define LOAD_UNIT_SV
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Headers/apogeo_configuration.svh"
-`include "../../Include/Headers/apogeo_memory_map.svh"
-`include "../../Include/Packages/data_memory_pkg.sv"
+`include "../../../Include/Headers/apogeo_configuration.svh"
+`include "../../../Include/Headers/apogeo_memory_map.svh"
+
+`include "../../../Include/Packages/apogeo_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+
+`include "../../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../../Include/Interfaces/store_buffer_interface.sv"
 
 module load_unit (
     /* Register control */
@@ -20,35 +25,19 @@ module load_unit (
     /* Operation to execute */
     input ldu_uop_t operation_i,
 
-    /* Data loaded is accepted and the 
-     * LDU can now transition in IDLE state */
-    input logic data_accepted_i,
+    /* Memory controller load channel */
+    load_controller_interface.master ld_ctrl_channel,
 
-    /* Data retrieved from cache or memory and valid bit */
-    input data_word_t data_loaded_i,
-    input logic       data_loaded_valid_i,
+    /* Store controller fowarding nets */
+    input logic       stu_address_match_i,
+    input data_word_t stu_fowarded_data_i,
 
-    `ifdef CACHE_SYSTEM
-        /* Cache controller idle */
-        input logic cache_ctrl_idle_i,
-
-
-        /* Cache controller load request */
-        output logic cache_ctrl_load_o,
-
-        /* Data property */
-        output logic cache_ctrl_cachable_o,
-    `else 
-        /* CPU request for external memory */
-        output logic cpu_request_o,
-    `endif  
+    /* Store buffer fowarding nets */
+    input logic       str_buf_address_match_i,
+    input data_word_t str_buf_fowarded_data_i,
     
-    /* Data loaded from memory / cache */   
-    output data_word_t loaded_data_o,
-
-    /* Load data request address to cache 
-     * controller / memory controller */ 
-    output data_word_t load_address_o,
+    /* Data loaded from memory */   
+    output data_word_t data_loaded_o,
 
     /* Functional unit status */
     output logic idle_o,
@@ -57,43 +46,81 @@ module load_unit (
     output logic data_valid_o
 );
 
-//------------//
-//  DATAPATH  //
-//------------//
-    
-    `ifdef CACHE_SYSTEM
-        assign cache_ctrl_cachable_o = (load_address_i > (`CODE_START - 1)) | (load_address_i < (`CODE_END + 1));
-    `endif 
 
+//====================================================================================
+//      DATAPATH
+//====================================================================================
 
     /* Load data from cache or memory */
     data_word_t load_data_CRT, load_data_NXT;
+    logic match_CRT, match_NXT;
 
         always_ff @(posedge clk_i) begin
             load_data_CRT <= load_data_NXT;
+            match_CRT <= match_NXT;
         end
 
 
     ldu_uop_t   operation;
     data_word_t load_address;
-
         /* Load the register as soon as the inputs 
          * become available */
         always_ff @(posedge clk_i) begin
             if (valid_operation_i) begin
-                load_address <= load_address_i;
                 operation <= operation_i;
+                load_address <= load_address_i;
             end
         end
 
-    assign load_address_o = load_address;
+
+    /* During WAIT, load_data_CRT is the buffer data */
+    data_word_t data_selected;
+
+    assign data_selected = match_CRT ? load_data_CRT : ld_ctrl_channel.data;
 
 
-//-------------//
-//  FSM LOGIC  //
-//-------------//
+    /* Select a subword */
+    data_word_t data_sliced;
 
-    typedef enum logic [2:0] {IDLE, WAIT, DATA_VALID} load_unit_fsm_state_t;
+        always_comb begin
+            /* Default value */
+            data_sliced = '0;
+
+            case (operation.opcode)
+                /* Load byte */
+                LDB: begin 
+                    if (operation.signed_load) begin
+                        data_sliced = $signed(data_selected.word8[load_address[1:0]]);
+                    end else begin
+                        data_sliced = $unsigned(data_selected.word8[load_address[1:0]]);
+                    end
+                end
+
+                /* Load half word signed */
+                LDH: begin 
+                    if (operation.signed_load) begin 
+                        data_sliced = $signed(data_selected.word16[load_address[1]]);
+                    end else begin
+                        data_sliced = $unsigned(data_selected.word16[load_address[1]]);
+                    end
+                end
+
+                /* Load word */
+                LDW: begin 
+                    data_sliced = data_selected;
+                end
+            endcase
+        end
+
+
+    assign ld_ctrl_channel.address = load_address_i;
+    
+
+//====================================================================================
+//      FSM LOGIC
+//====================================================================================
+
+    typedef enum logic [1:0] {IDLE, WAIT} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
@@ -108,92 +135,61 @@ module load_unit (
 
         always_comb begin : fsm_logic
             /* Default values */
+            match_NXT = match_CRT;
             load_data_NXT = load_data_CRT;
             state_NXT = state_CRT;
-            
-            loaded_data_o = '0;
 
+            ld_ctrl_channel.request = 1'b0;
+            
             idle_o = 1'b0;
             data_valid_o = 1'b0;
-
-            `ifdef CACHE_SYSTEM
-                cache_ctrl_load_o = 1'b0;
-            `else  
-                cpu_request_o = 1'b0;
-            `endif 
+            data_loaded_o = '0;
 
             case (state_CRT)
 
                 /* 
                  *  The FSM stays idle until a valid operation
-                 *  is supplied to the unit. Checks if the address
-                 *  is cachable and decides if request data from
-                 *  cache or from the memory.
+                 *  is supplied to the unit. The data can be
+                 *  fowarded from store buffer or from the 
+                 *  store unit if it's waiting the store 
+                 *  controller. If no fowarding is done, the
+                 *  unit issue a load request
                  */ 
                 IDLE: begin
-                    `ifdef CACHE_SYSTEM
-                        if (valid_operation_i & cache_ctrl_idle_i) begin
-                            state_NXT = WAIT;
-                            cache_ctrl_load_o = 1'b1;
+                    if (valid_operation_i) begin
+                        state_NXT = WAIT;
+
+                        if (str_buf_address_match_i) begin
+                            load_data_NXT = str_buf_fowarded_data_i;
+                            match_NXT = 1'b1;
+                        end else if (stu_address_match_i) begin
+                            load_data_NXT = stu_fowarded_data_i;
+                            match_NXT = 1'b1;
+                        end else begin 
+                            ld_ctrl_channel.request = 1'b1;
                         end
-                    `else 
-                        if (valid_operation_i) begin
-                            cpu_request_o = 1'b1;
-                            state_NXT = WAIT; 
-                        end
-                    `endif 
+                    end
 
                     idle_o = 1'b1;
                 end
 
 
                 /* 
-                 *  Waits for cache to supply data
+                 *  Waits for memory to supply data, 
                  */
                 WAIT: begin
-                    if (data_loaded_valid_i) begin
-                        state_NXT = DATA_VALID;
-                        load_data_NXT = data_loaded_i;
-                    end
-                end
-
-
-                /*
-                 *  Elaborates the data supplied 
-                 */
-                DATA_VALID: begin
-                    data_valid_o = 1'b1;
-
-                    if (data_accepted_i) begin
+                    /* Valid signal is the OR between the signal from controller
+                     * and the signal from the memory interface */
+                    if (ld_ctrl_channel.valid | match_CRT) begin
                         state_NXT = IDLE;
+
                         idle_o = 1'b1;
-                    end
+                        data_valid_o = 1'b1;
+                    end 
 
-                    case (operation.opcode)
-                        /* Load byte */
-                        LDB: begin 
-                            if (operation.signed_load) begin
-                                loaded_data_o = $signed(load_data_CRT.word8[load_address[1:0]]);
-                            end else begin
-                                loaded_data_o = $unsigned(load_data_CRT.word8[load_address[1:0]]);
-                            end
-                        end
-
-                        /* Load half word signed */
-                        LDH: begin 
-                            if (operation.signed_load) begin 
-                                loaded_data_o = $signed(load_data_CRT.word16[load_address[1]]);
-                            end else begin
-                                loaded_data_o = $unsigned(load_data_CRT.word16[load_address[1]]);
-                            end
-                        end
-
-                        /* Load word */
-                        LDW: begin 
-                            loaded_data_o = load_data_CRT;
-                        end
-                    endcase    
-                end    
+                    load_data_NXT = data_sliced;
+                    data_loaded_o = data_sliced;
+                end   
             endcase
         end : fsm_logic
 

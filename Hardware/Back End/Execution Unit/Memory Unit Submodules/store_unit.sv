@@ -1,15 +1,18 @@
 `ifndef STORE_UNIT_SV
     `define STORE_UNIT_SV
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Headers/apogeo_configuration.svh"
-`include "../../Include/Headers/apogeo_memory_map.svh"
-`include "../../Include/Packages/data_memory_pkg.sv"
+`include "../../../Include/Headers/apogeo_memory_map.svh"
+`include "../../../Include/Headers/apogeo_configuration.svh"
+
+`include "../../../Include/Packages/apogeo_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+
+`include "../../../Include/test_include.svh"
 
 module store_unit (
     /* Register control */
     input logic clk_i,
-    input logic clk_en_i,
     input logic rst_n_i,
 
     /* Inputs are valid */
@@ -26,46 +29,13 @@ module store_unit (
     /* Data loaded is accepted and the 
      * STU can now transition in IDLE state */
     input logic data_accepted_i,
-
-    `ifdef CACHE_SYSTEM
-        /* Cache controller has finished storing 
-         * data into cache */
-        input  logic cache_ctrl_store_done_i,
-
-        /* Cache controller is idle */
-        input  logic cache_ctrl_store_idle_i,
-
-        /* Data properties */
-        output logic cache_ctrl_bufferable_o,
-        output logic cache_ctrl_cachable_o,
-
-        /* Cache controller store request */
-        output logic cache_ctrl_store_o,
-
-        /* Data to store in cache */
-        output data_cache_data_t cache_ctrl_data_o,
-
-        /* Store location */
-        output data_cache_full_addr_t cache_ctrl_address_o,
-
-        /* Store width */
-        output store_width_t cache_ctrl_store_width_o,
-    `else 
-        /* Enable pushing data into the buffer */
-        output logic data_bufferable_o,
         
-        /* Store buffer is full */
-        input logic str_buf_full_i,
+    /* Store buffer channel */
+    store_buffer_push_interface.master st_buf_channel,
 
-        /* Memory controller store request */
-        output logic str_buf_push_data_o,
-
-
-        /* Data to store, store memory location
-         * and store width output */
-        output store_buffer_entry_t str_buf_packet_o,
-    `endif 
-
+    /* Memory controller store channel */
+    store_controller_interface.master st_ctrl_channel,
+    input logic store_ctrl_idle_i,
 
     /* Functional unit status */
     output logic idle_o,
@@ -77,53 +47,25 @@ module store_unit (
     output logic data_valid_o
 );
 
-//------------//
-//  DATAPATH  //
-//------------//
+//====================================================================================
+//      DATAPATH
+//====================================================================================
 
     /* Check address properties to determine the operation */
-    logic cachable, bufferable, accessable;
+    logic bufferable, accessable;
 
-    assign cachable = store_address_i > `IO_END;
-    
+
     /* If not bufferable the data has priority over other entries in queue */
     assign bufferable = store_address_i > `IO_END;
 
     /* Legal access to the memory region */
     assign accessable = store_address_i > `BOOT_END;
 
+    logic accessable_CRT, accessable_NXT;
 
-    /* Write cache and memory request signal */
-    logic data_bufferable_CRT, data_bufferable_NXT; 
-
-    `ifdef CACHE_SYSTEM
-        logic data_cachable_CRT, data_cachable_NXT; 
-    `endif 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (!rst_n_i) begin 
-                data_bufferable_CRT <= 1'b1;
-
-                `ifdef CACHE_SYSTEM
-                    data_cachable_CRT <= 1'b1;
-                `endif
-            end else if (clk_en_i) begin 
-                data_bufferable_CRT <= data_bufferable_NXT;
-
-                `ifdef CACHE_SYSTEM
-                    data_cachable_CRT <= data_cachable_NXT;
-                `endif
-            end
+        always_ff @(posedge clk_i) begin 
+            accessable_CRT <= accessable_NXT;
         end
-
-    
-    `ifdef CACHE_SYSTEM
-        assign cache_ctrl_bufferable_o = data_bufferable_CRT;
-        assign cache_ctrl_cachable_o = data_cachable_CRT;
-    `else 
-        assign data_bufferable_o = data_bufferable_CRT;
-    `endif 
-
 
     /* Sampled when a valid operation is supplied to provide a stable
      * output */
@@ -132,33 +74,35 @@ module store_unit (
     store_width_t store_width_CRT, store_width_NXT;
 
         always_ff @(posedge clk_i) begin 
-            if (clk_en_i) begin
-                store_data_CRT <= store_data_NXT;
-                store_width_CRT <= store_width_NXT;
-                store_address_CRT <= store_address_NXT;
-            end
+            store_data_CRT <= store_data_NXT;
+            store_width_CRT <= store_width_NXT;
+            store_address_CRT <= store_address_NXT;
         end
 
-    `ifdef CACHE_SYSTEM
-        assign cache_ctrl_data_o = store_data_CRT;
-        assign cache_ctrl_store_width_o = store_width_CRT;
-        assign cache_ctrl_address_o = store_address_CRT;
-    `endif 
 
+//====================================================================================
+//      FSM LOGIC
+//====================================================================================
 
-//-------------//
-//  FSM LOGIC  //
-//-------------//
-
-    typedef enum logic [1:0] {IDLE, WAIT, STORE_COMMIT, EXCEPTION} store_unit_fsm_t;
+    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_BUFFER, WAIT_ACCEPT} store_unit_fsm_t;
 
     store_unit_fsm_t state_CRT, state_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin 
                 state_CRT <= IDLE;
+
+                `ifdef TEST_DESIGN
+                    $display("[Store Unit] Reset! State: %s", state_CRT.name());
+                `endif
             end else begin 
                 state_CRT <= state_NXT;
+
+                `ifdef TEST_DESIGN
+                    if (state_NXT != state_CRT) begin
+                        $display("[Store Unit] Transition in the next clock cycle in the state: %s", state_NXT.name());
+                    end
+                `endif
             end
         end : state_register
 
@@ -167,17 +111,17 @@ module store_unit (
             /* Default values */
             state_NXT = state_CRT;
             store_data_NXT = store_data_CRT;
+            accessable_NXT = accessable_CRT;
             store_width_NXT = store_width_CRT;
             store_address_NXT = store_address_CRT;
-            data_bufferable_NXT = data_bufferable_CRT;
 
-            `ifdef CACHE_SYSTEM
-                data_cachable_NXT = data_cachable_CRT;
-                cache_ctrl_store_o = 1'b0;
-            `else 
-                str_buf_push_data_o = 1'b0;
-                str_buf_packet_o = '0;
-            `endif 
+            st_buf_channel.push_request = 1'b0;
+            st_buf_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
+
+            st_ctrl_channel.request = 1'b0;
+            st_ctrl_channel.data = store_data_CRT;
+            st_ctrl_channel.address = store_address_CRT;
+            st_ctrl_channel.width = store_width_CRT;
 
             idle_o = 1'b0;
             data_valid_o = 1'b0;
@@ -189,85 +133,143 @@ module store_unit (
                     idle_o = 1'b1;
 
                     if (valid_operation_i) begin 
-                        /* Exception detection */
-                        if (!accessable) begin
-                            state_NXT = EXCEPTION;
-                        end else 
-                    `ifdef CACHE_SYSTEM
-                        if (!cache_ctrl_store_idle_i) begin
-                            state_NXT = WAIT;
-                            cache_ctrl_store_o = 1'b1;
+                        casez ({accessable, bufferable})
+                            2'b0?: begin
+                                state_NXT = WAIT_ACCEPT;
+
+                                `ifdef TEST_DESIGN
+                                    $display("[Store Unit][%0t] Accessing illegal memory region!", $time());
+                                `endif
+                            end
+
+                            2'b11: begin
+                                if (!st_buf_channel.full) begin
+                                    state_NXT = WAIT_ACCEPT;
+                                end else begin
+                                    state_NXT = WAIT_BUFFER;
+                                end
+                                    
+                                /* Don't push data if the buffer is full */
+                                st_buf_channel.push_request = !st_buf_channel.full;
+
+                                `ifdef TEST_DESIGN
+                                    $display("[Store Unit][%0t] Requesting a push to the store buffer...", $time());
+                                `endif
+                            end
+
+                            2'b10: begin
+                                state_NXT = WAIT_MEMORY;
+                                
+                                if (store_ctrl_idle_i) begin
+                                    st_ctrl_channel.request = 1'b1;
+                                end
+
+                                `ifdef TEST_DESIGN
+                                    $display("[Store Unit][%0t] Waiting memory store...", $time());
+                                `endif 
+                            end
+                        endcase 
+                    end
+
+
+                    /* Stable signals */
+                    store_data_NXT = store_data_i;
+                    store_address_NXT = store_address_i;
+                    store_width_NXT = store_width_t'(operation_i);
+
+                    accessable_NXT = accessable;
+
+                    st_buf_channel.packet = {store_data_i, store_address_i, store_width_t'(operation_i)};
+
+                    st_ctrl_channel.data = store_data_i;
+                    st_ctrl_channel.address = store_address_i;
+                    st_ctrl_channel.width = store_width_t'(operation_i);
+                end
+
+
+                WAIT_MEMORY: begin
+                    if (st_ctrl_channel.done) begin 
+                        data_valid_o = 1'b1;
+
+                        if (data_accepted_i) begin
+                            state_NXT = IDLE;
+
+                            idle_o = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Unit][%0t] Operation accepted!", $time());
+                            `endif
+                        end else begin 
+                            state_NXT = WAIT_ACCEPT;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Unit][%0t] Waiting for operation accept...", $time());
+                            `endif
                         end
-                    `else  
-                        if (str_buf_full_i) begin 
-                            state_NXT = WAIT;
-                            str_buf_push_data_o = 1'b1;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Unit][%0t] Data stored in memory!\n", $time());
+                        `endif
+                    end
+
+                    st_ctrl_channel.request = store_ctrl_idle_i;
+                end
+
+
+                WAIT_BUFFER: begin
+                    st_buf_channel.push_request = !st_buf_channel.full; 
+
+                    if (!st_buf_channel.full) begin 
+                        data_valid_o = 1'b1;
+
+                        if (data_accepted_i) begin
+                            state_NXT = IDLE;
+
+                            idle_o = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Unit][%0t] Operation accepted!", $time());
+                            `endif
+                        end else begin
+                            state_NXT = WAIT_ACCEPT;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Unit][%0t] Waiting for operation accept...", $time());
+                            `endif
                         end
-                    `endif 
-
-                        /* Stable signals */
-                        store_data_NXT = store_data_i;
-                        store_address_NXT = store_address_i;
-                        data_bufferable_NXT = bufferable;
-
-                        `ifdef CACHE_SYSTEM
-                            data_cachable_NXT = cachable;
-                        `endif 
-
-                        case (operation_i)
-                            STB: store_width_NXT = BYTE;
-
-                            STH: store_width_NXT = HALF_WORD;
-
-                            STW: store_width_NXT = WORD;
-                        endcase
                     end
                 end
 
 
-                WAIT: begin
-                    `ifdef CACHE_SYSTEM
-                        cache_ctrl_store_o = 1'b1; 
-
-                        if (cache_ctrl_store_done_i) begin
-                            state_NXT = STORE_COMMIT;
-                        end
-                    `else 
-
-                        if (!str_buf_full_i) begin
-                            str_buf_push_data_o = 1'b1;
-                            str_buf_packet_o = {store_data_CRT, store_address_CRT, store_width_CRT};
-
-                            state_NXT = STORE_COMMIT;
-                        end
-                    `endif 
-                end
-
-
-                STORE_COMMIT: begin
+                WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
 
+                    illegal_access_o = !accessable_CRT;
+                    
                     if (data_accepted_i) begin
                         state_NXT = IDLE;
-                    end
-                end
 
+                        idle_o = 1'b1;
 
-                EXCEPTION: begin
-                    illegal_access_o = 1'b1;
-                    data_valid_o = 1'b1;
-
-                    if (data_accepted_i) begin
-                        state_NXT = IDLE;
+                        `ifdef TEST_DESIGN
+                            $display("[Store Unit][%0t] Operation accepted!", $time());
+                        `endif
                     end
                 end
             endcase
         end 
 
-    `ifdef CACHE_SYSTEM
-        assign cache_ctrl_data_o = store_data_CRT;
-        assign cache_ctrl_address_o = store_address_CRT;
-        assign cache_ctrl_store_width_o = store_width_CRT;
+
+//====================================================================================
+//      ASSERTIONS
+//====================================================================================
+
+    `ifdef TEST_DESIGN
+        /* Push request must be deasserted after accepting the request (buffer not full) */
+        buffer_push_check: assert property (@(posedge clk_i) st_buf_channel.push_request & !st_buf_channel.full |=> !st_buf_channel.push_request);
+
+        /* Check that the illegal access exception is detected */
+        illegal_access_check: assert property (@(posedge clk_i) !accessable |=> illegal_access_o);
     `endif 
 
 endmodule : store_unit 
