@@ -26,7 +26,10 @@
 //---------------//
 
     /* Enable floating point unit and F extension */
-    `define FLOATING_POINT_UNIT 
+    `define FPU 
+
+    /* Enable bit manipulation unit and B extension */
+    `define BMU
 
     /* Enable or disable cache */
     `define CACHE_SYSTEM
@@ -49,7 +52,7 @@
 
     /* Number of pipeline stages in the core integer multiplier, so 
      * if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */
-    `define MUL_PIPE_STAGES 1
+    `define MUL_PIPE_STAGES 2
 
     /* Number of pipeline stages in the core floating point multiplier,
      * so if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */ 
@@ -71,13 +74,5 @@
 
     /* Total number of entries in the store buffer (A power of 2) */
     `define ST_BUF_DEPTH 4
-
-
-//---------------------//
-//  EXCEPTIONS VECTOR  //
-//---------------------//
-
-    `define DIVIDE_BY_ZERO        4'b0000;
-    `define ILLEGAL_MEMORY_ACCESS 4'b0001;
 
 `endif 
