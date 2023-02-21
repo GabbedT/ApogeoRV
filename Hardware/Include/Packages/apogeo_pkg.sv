@@ -51,7 +51,7 @@ package rv32_instructions_pkg;
          * by different jump can be in flight  */
         logic [1:0] speculative_id;
         
-        `ifdef FLOATING_POINT_UNIT
+        `ifdef FPU
             /* Is a floating point operation */
             logic is_float;
         `endif
@@ -60,7 +60,7 @@ package rv32_instructions_pkg;
         logic trap_generated;
 
         /* Exception vector */
-        logic [3:0] trap_vector;
+        logic [4:0] trap_vector;
 
         /* Instruction address */
         logic [31:0] instr_addr;
@@ -77,6 +77,8 @@ package rv32_instructions_pkg;
         /* Register destination */
         logic [4:0] reg_dest;
     } instr_packet_t;
+
+    localparam NO_OPERATION = '0;
 
 endpackage : rv32_instructions_pkg
 
