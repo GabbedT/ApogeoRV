@@ -37,11 +37,16 @@
 `ifndef STORE_UNIT_CACHE_CONTROLLER_SV
     `define STORE_UNIT_CACHE_CONTROLLER_SV
 
-`include "../../Include/Packages/data_memory_pkg.sv"
-`include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Headers/apogeo_configuration.svh"
+`include "../../Include/Headers/apogeo_memory_map.svh"
 
-`include "../../Include/test_include.sv"
+`include "../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../../Include/Packages/apogeo_pkg.sv"
+
+`include "../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../Include/Interfaces/store_buffer_interface.sv"
+
+`include "../../Include/test_include.svh"
 
 module store_unit_cache_controller (
     /* Register control */
@@ -52,44 +57,59 @@ module store_unit_cache_controller (
      * External interface 
      */
 
-    /* Invalidate request */
-    input logic ext_invalidate_i,
+    store_controller_interface.master str_ctrl_channel,
 
-    /* Memory controller has finished storing the data */
-    input logic ext_data_stored_i,
+    /* Invalidate request */
+    input logic invalidate_request_i,
 
     /* Address supplied by the external interface, used for
      * data invalidation */
-    input data_cache_address_t ext_address_i,
+    input full_address_t invalidate_address_i,
 
     /* Acknowledge the external request */
-    output logic cpu_acknowledge_o,
+    output logic acknowledge_o,
 
-    /* CPU request for external memory */
-    output logic cpu_store_req_o,
 
     /* 
      * Store unit interface 
      */
 
-    /* Address property */
-    input logic stu_data_bufferable_i,
-
     /* Store request */
-    input logic stu_write_cache_i,
+    input logic valid_operation_i,
 
     /* Data to store */
-    input data_word_t stu_data_i,
+    input data_word_t store_data_i,
 
     /* Store address */
-    input full_address_t stu_address_i,
+    input full_address_t store_address_i,
 
     /* Store width */
-    input store_width_t stu_store_width_i,
+    input stu_uop_t operation_i,
+
+    /* Data accepted from load store unit */
+    input logic data_accepted_i,
+
+    /* Functional unit status */         
+    output logic data_stored_o,
+
+    /* Functional unit status */
+    output logic idle_o,
+
+    /* Illegal memory access exception */
+    output logic illegal_access_o,
+
 
     /* 
      * Cache interface 
      */
+
+    /* Which way has been hit */
+    input data_cache_ways_t way_hit_i,
+    input logic             hit_i,
+
+    /* Cache port 0 handshake */
+    input  logic port0_granted_i,
+    output logic port0_request_o,
 
     /* Write / Read request */
     output logic cache_write_o,
@@ -114,44 +134,64 @@ module store_unit_cache_controller (
     /* Enable operations on the selected memory chip */
     output data_cache_enable_t cache_enable_o,
 
+
     /* 
      * Store buffer interface 
      */
 
-    /* Buffer full */
-    input logic str_buf_full_i,
+    store_buffer_push_interface.master str_buf_channel,
 
     /* The port is granted to use */
-    input logic str_buf_port_granted_i,
-
-    /* Request to push an entry into the buffer */
-    output logic str_buf_push_data_o,
-
-    /* Store width information for the memory controller */
-    output store_width_t str_buf_store_width_o,
-    
-
-    
-    /* Which way has been hit */
-    input data_cache_ways_t way_hit_i,
-    input logic             hit_i,
-
-    /* Cache port 0 handshake */
-    input logic port0_granted_i,
-    output logic port0_request_o,
-
-    /* Byte index for byte store */
-    output logic [1:0] store_address_byte_o,
-
-    /* Functional unit status */
-    output logic idle_o,
-    output logic data_valid_o
+    input logic str_buf_port_granted_i
 );
 
+//====================================================================================
+//      DATAPATH
+//====================================================================================
 
-//-------------//
-//  FSM LOGIC  //
-//-------------//
+    /* Check address properties to determine the operation */
+    logic bufferable, accessable;
+
+
+    /* If not bufferable the data has priority over other entries in queue */
+    assign bufferable = store_address_i > `IO_END;
+
+    /* Legal access to the memory region */
+    assign accessable = store_address_i > `BOOT_END;
+
+
+    logic bufferable_CRT, bufferable_NXT;
+    logic accessable_CRT, accessable_NXT;
+    logic invalidate_CRT, invalidate_NXT;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : address_property_register
+            if (!rst_n_i) begin 
+                accessable_CRT <= 1'b1;
+                bufferable_CRT <= 1'b1;
+                invalidate_CRT <= 1'b0;
+            end else begin
+                accessable_CRT <= accessable_NXT;
+                bufferable_CRT <= bufferable_NXT;
+                invalidate_CRT <= invalidate_NXT;
+            end
+        end : address_property_register
+
+
+    full_address_t store_address_CRT, store_address_NXT;
+    data_word_t    store_data_CRT, store_data_NXT;
+    stu_uop_t      operation_CRT, operation_NXT;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_register
+            if (!rst_n_i) begin 
+                store_data_CRT <= '0;
+                operation_CRT <= STW;
+                store_address_CRT <= '0;
+            end else begin
+                store_data_CRT <= store_data_NXT;
+                operation_CRT <= operation_NXT;
+                store_address_CRT <= store_address_NXT;
+            end
+        end : data_register
 
     /* Save the hitting way */
     logic latch_way_hit; 
@@ -165,8 +205,11 @@ module store_unit_cache_controller (
         end : way_hit_register
 
 
-    typedef enum logic [3:0] {IDLE, WAIT_CACHE, WAIT_INVALIDATE, COMPARE_TAG, COMPARE_TAG_INVALIDATE, 
-                              WRITE_DATA, MEMORY_WRITE, INVALIDATE} store_unit_cache_fsm_t;
+//====================================================================================
+//      FSM LOGIC   
+//====================================================================================
+
+    typedef enum logic [2:0] {IDLE, COMPARE_TAG, HIT_CHECK, STORE_DATA, MEMORY_WRITE, INVALIDATE, WAIT_ACCEPT} store_unit_cache_fsm_t;
 
     store_unit_cache_fsm_t state_CRT, state_NXT;
 
@@ -182,7 +225,7 @@ module store_unit_cache_controller (
 
                 `ifdef TEST_DESIGN
                     if (state_NXT != state_CRT) begin
-                        $display("[Load Cache Controller] Transition in the next clock cycle in the state: %s", state_NXT.name());
+                        $display("[Store Cache Controller] Transition in the next clock cycle in the state: %s", state_NXT.name());
                     end
                 `endif
             end
@@ -190,26 +233,37 @@ module store_unit_cache_controller (
 
         always_comb begin : fsm_logic
             /* Default values */
+            store_address_NXT = store_address_CRT;
+            bufferable_NXT = bufferable_CRT;
+            accessable_NXT = accessable_CRT;
+            invalidate_NXT = invalidate_CRT;
+            store_data_NXT = store_data_CRT;
+            operation_NXT = operation_CRT;
             state_NXT = state_CRT;
 
-            store_address_byte_o = stu_address_i.byte_sel;
+            str_ctrl_channel.request = 1'b0;
+            str_ctrl_channel.data = 1'b0;
+            str_ctrl_channel.address = 1'b0;
+            str_ctrl_channel.width = WORD;
 
-            str_buf_push_data_o = 1'b0;
-            cpu_acknowledge_o = 1'b0;
-            port0_request_o = 1'b0;
-            cpu_store_req_o = 1'b0;
-            latch_way_hit = 1'b0;
-            idle_o = 1'b0;
-            data_valid_o = 1'b0;
+            str_buf_channel.push_request = 1'b0;
+            str_buf_channel.packet = '0;
             
             cache_read_o = 1'b0;
             cache_write_o = 1'b0;
             cache_valid_o = 1'b0;
             cache_dirty_o = 1'b0;
             cache_enable_o = 4'b0;
-            cache_address_o = {stu_address_i.tag, stu_address_i.index, stu_address_i.chip_sel};
+            cache_address_o = '0;
             cache_byte_write_o = '0;
             cache_data_o = '0;
+
+            illegal_access_o = 1'b0;
+            acknowledge_o = 1'b0;
+            port0_request_o = 1'b0;
+            latch_way_hit = 1'b0;
+            idle_o = 1'b0;
+            data_stored_o = 1'b0;
 
             case (state_CRT)
 
@@ -218,81 +272,111 @@ module store_unit_cache_controller (
                  *  send address to cache and read immediately 
                  */
                 IDLE: begin
-                    idle_o = 1'b1;
-
-                    /* Send a request to access port 0 */
-                    port0_request_o = ext_invalidate_i | stu_write_cache_i;
-
                     /* Store request and invalidate request need to read the
                      * cache block first */
-                    if (port0_granted_i) begin 
-                        if (ext_invalidate_i) begin
-                            state_NXT = WAIT_INVALIDATE;
+                    if (invalidate_request_i) begin
+                        cache_address_o = {invalidate_address_i.tag, invalidate_address_i.index, invalidate_address_i.chip_sel};
+                        acknowledge_o = 1'b1;
 
-                            /* Initiate cache read */
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Invalidate cache line at address 0x%h", $time(), cache_address_o);
+                        `endif
+                    end else if (valid_operation_i) begin
+                        cache_address_o = {store_address_i.tag, store_address_i.index, store_address_i.chip_sel};
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Cache Controller][%0t] Requesting writing cache at address 0x%h", $time(), cache_address_o);
+                        `endif
+                    end 
+
+                    if (invalidate_request_i | valid_operation_i) begin 
+                        port0_request_o = 1'b1;
+
+                        /* Wait for the port to be granted before
+                         * sending a read request */
+                        if (port0_granted_i) begin
                             cache_read_o = 1'b1;
-                            cache_address_o = ext_address_i;
+                        end
 
-                            cache_enable_o.tag = 1'b1;
-                            cache_enable_o.valid = 1'b1;
-                            cpu_acknowledge_o = 1'b1;
+                        if (valid_operation_i) begin
+                            case ({accessable, bufferable})
+                                /* Store address invalid */
+                                2'b00, 2'b01: state_NXT = WAIT_ACCEPT;
 
-                            `ifdef TEST_DESIGN
-                                $display("[Store Cache Controller][%0t] Invalidate cache line at address 0x%h", $time(), cache_address_o);
-                            `endif
-                        end else if (stu_write_cache_i) begin
-                            state_NXT = WAIT_CACHE;
+                                /* Write directly to memory */
+                                2'b10: state_NXT = MEMORY_WRITE;
 
-                            /* Initiate cache read */
-                            cache_read_o = 1'b1;
+                                /* Write in cache or in the store buffer */
+                                2'b11: state_NXT = COMPARE_TAG;
+                            endcase
+                        end else begin
+                            state_NXT = COMPARE_TAG;
+                        end
 
-                            cache_enable_o.tag = 1'b1;
-                            cache_enable_o.valid = 1'b1;
+                        cache_enable_o.tag = 1'b1;
+                        cache_enable_o.valid = 1'b1;
+                    end 
 
-                            `ifdef TEST_DESIGN
-                                $display("[Store Cache Controller][%0t] Requesting writing cache at address 0x%h", $time(), cache_address_o);
-                            `endif
-                        end 
-                    end
+                    invalidate_NXT = invalidate_request_i;
+                    bufferable_NXT = bufferable;
+                    accessable_NXT = accessable;
+
+                    store_address_NXT = cache_address_o;
+                    operation_NXT = operation_i;
+                    store_data_NXT = store_data_i;
+
+                    idle_o = 1'b1;
                 end
 
 
                 /* 
-                 *  Cache hit / miss signal will be valid one cycle after the
-                 *  cache read
+                 *  Cache hit / miss signal will be valid one cycle after 
+                 *  the cache read
                  */
-                WAIT_CACHE: begin
-                    state_NXT = COMPARE_TAG;
-                end
-
-
-                /* 
-                 *  Cache hit / miss signal will be valid one cycle after the
-                 *  cache read
-                 */
-                WAIT_INVALIDATE: begin
-                    state_NXT = COMPARE_TAG_INVALIDATE;
+                COMPARE_TAG: begin
+                    state_NXT = HIT_CHECK;
                 end
 
 
                 /* 
                  *  The block is retrieved from cache, the tag is then compared
                  *  to part of the address sended and an hit signal is received.
+                 *  Store the way number that hitted.
                  */
-                COMPARE_TAG: begin
+                HIT_CHECK: begin
                     latch_way_hit = 1'b1;
 
                     if (hit_i) begin
-                        /* Write in cache */
-                        state_NXT = WRITE_DATA;
+                        if (invalidate_CRT) begin
+                            /* Invalidate in cache */
+                            state_NXT = INVALIDATE;
 
-                        `ifdef TEST_DESIGN
-                            $display("[Store Cache Controller][%0t] Cache hit! Writing cache line...", $time());
-                        `endif 
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Cache hit! Invalidating cache line...", $time());
+                            `endif 
+                        end else begin 
+                            /* Write in cache */
+                            state_NXT = STORE_DATA;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Cache hit! Writing cache line...", $time());
+                            `endif 
+                        end
                     end else begin
-                        /* Send a write request to memory
-                         * unit */
-                        state_NXT = MEMORY_WRITE;
+                        if (invalidate_CRT) begin
+                            /* If a miss happens the invalid block is not in cache, no further operations
+                             * are needed */
+                            state_NXT = WAIT_ACCEPT;
+                            idle_o = 1'b1;
+
+                            `ifdef TEST_DESIGN
+                                $display("[Store Cache Controller][%0t] Cache miss! No need to invalidate the cache line.", $time());
+                            `endif
+                        end else begin
+                            /* Send a write request to memory unit */
+                            state_NXT = MEMORY_WRITE;
+                            str_ctrl_channel.request = !bufferable_CRT;
+                        end
 
                         `ifdef TEST_DESIGN
                             $display("[Store Cache Controller][%0t] Cache miss! Sending a memory request...", $time());
@@ -302,37 +386,12 @@ module store_unit_cache_controller (
 
 
                 /* 
-                 *  Compare tag state for invalidation request.
-                 */
-                COMPARE_TAG_INVALIDATE: begin
-                    latch_way_hit = 1'b1;
-                    cache_address_o = ext_address_i;
-
-                    if (hit_i) begin
-                        state_NXT = INVALIDATE;
-
-                        `ifdef TEST_DESIGN
-                            $display("[Store Cache Controller][%0t] Cache hit! Invalidating cache line...", $time());
-                        `endif 
-                    end else begin
-                        /* If a miss happens the invalid block 
-                        * is not in cache, no further operations
-                        * are needed */
-                        state_NXT = IDLE;
-                        idle_o = 1'b1;
-
-                        `ifdef TEST_DESIGN
-                            $display("[Store Cache Controller][%0t] Cache miss! No need to invalidate the cache line.", $time());
-                        `endif
-                    end
-                end
-
-                /* 
                  *  Simply write data into cache, tag it as dirty. Write data
                  *  memory block and dirty memory block.
                  */
-                WRITE_DATA: begin
+                STORE_DATA: begin
                     port0_request_o = 1'b1;
+                    cache_address_o = {store_address_CRT.tag, store_address_CRT.index, store_address_CRT.chip_sel};;
 
                     if (port0_granted_i) begin
                         cache_write_o = 1'b1;
@@ -342,26 +401,31 @@ module store_unit_cache_controller (
                         cache_enable_o.data = 1'b1;
                         cache_enable_o.dirty = 1'b1;
 
-                        state_NXT = IDLE;
+                        state_NXT = WAIT_ACCEPT;
                         idle_o = 1'b1;
-                        data_valid_o = 1'b1;
+                        data_stored_o = 1'b1;
 
                         `ifdef TEST_DESIGN
                             $display("[Store Cache Controller][%0t] Port 0 granted! Data written!\n", $time());
                         `endif
                     end
 
-                    case (stu_store_width_i)
-                        BYTE: begin 
-                            cache_data_o.word8[stu_address_i.byte_sel] = stu_data_i[7:0];
+                    case (operation_CRT)
+                        STB: begin 
+                            /* Insert the least significand byte of the data to store in the 
+                             * position of the address */
+                            cache_data_o.word8[store_address_CRT.byte_sel] = store_data_CRT[7:0];
 
-                            cache_byte_write_o[stu_address_i.byte_sel] = 1'b1;
+                            /* Write single byte */
+                            cache_byte_write_o[store_address_CRT.byte_sel] = 1'b1;
                         end 
 
-                        HALF_WORD: begin
-                            cache_data_o.word16[stu_address_i.byte_sel[1]] = stu_data_i[15:0];
+                        STH: begin
+                            /* Insert the least significand halfword of the data to store in the 
+                             * position of the address */
+                            cache_data_o.word16[store_address_CRT.byte_sel[1]] = store_data_CRT[15:0];
 
-                            if (stu_address_i.byte_sel[1]) begin
+                            if (store_address_CRT.byte_sel[1]) begin
                                 /* Write upper 16 bits */
                                 cache_byte_write_o = 4'b1100;
                             end else begin
@@ -370,10 +434,10 @@ module store_unit_cache_controller (
                             end
                         end
 
-                        WORD: begin
-                            /* Write word */
-                            cache_data_o = stu_data_i;
+                        STW: begin
+                            cache_data_o = store_data_CRT;
 
+                            /* Write the entire word */
                             cache_byte_write_o = '1;
                         end
                     endcase
@@ -383,36 +447,40 @@ module store_unit_cache_controller (
                 /*
                  *  Write data into the write buffer, if data is not
                  *  bufferable, request a store directly to the 
-                 *  memory controller. 
+                 *  memory controller. For direct memory write, in 
+                 *  this state, the FSM just wait for store completition
+                 *  since the store command was issued in the previous state
+                 *  to be asserted for only 1 clock cycle. 
                  */
                 MEMORY_WRITE: begin
-                    if (stu_data_bufferable_i) begin
-                        str_buf_push_data_o = 1'b1;
-                        
-                        if (!str_buf_full_i & str_buf_port_granted_i) begin
-                            state_NXT = IDLE;
-                            data_valid_o = 1'b1;
+                    str_buf_channel.packet = {store_data_CRT, store_address_CRT, store_width_t'(operation_CRT)};
 
+                    str_ctrl_channel.address = store_address_CRT;
+                    str_ctrl_channel.width = store_width_t'(operation_CRT);
+                    str_ctrl_channel.data = store_data_CRT;
+
+                    if (bufferable_CRT) begin
+                        str_buf_channel.push_request = 1'b1;
+                        
+                        if (!str_buf_channel.full & str_buf_port_granted_i) begin
+                            state_NXT = WAIT_ACCEPT;
+                            data_stored_o = 1'b1;
 
                             `ifdef TEST_DESIGN
                                 $display("[Store Cache Controller][%0t] Data pushed in the store buffer!\n", $time());
                             `endif
                         end
                     end else begin
-                        if (ext_data_stored_i) begin 
+                        if (str_ctrl_channel.done) begin 
                             state_NXT = IDLE;
                             idle_o = 1'b1;
-                            data_valid_o = 1'b1;
+                            data_stored_o = 1'b1;
 
                             `ifdef TEST_DESIGN
                                 $display("[Store Cache Controller][%0t] Data stored in memory!\n", $time());
                             `endif
                         end 
-
-                        cpu_store_req_o = !ext_data_stored_i;
                     end
-
-                    cache_data_o = stu_data_i;
                 end
 
 
@@ -422,27 +490,80 @@ module store_unit_cache_controller (
                 INVALIDATE: begin
                     port0_request_o = 1'b1;
                     
+                    cache_enable_o.valid = 1'b1;
+                    cache_valid_o = 1'b0;
+
+                    cache_address_o = store_address_CRT;
+
                     if (port0_granted_i) begin
-                        cache_enable_o.valid = 1'b1;
-                        cache_valid_o = 1'b0;
-
-                        cache_address_o = ext_address_i;
-
                         cache_write_o = 1'b1;
 
-                        state_NXT = IDLE;
+                        state_NXT = WAIT_ACCEPT;
                         idle_o = 1'b1;
-                        data_valid_o = 1'b1;
+                        data_stored_o = 1'b1;
 
                         `ifdef TEST_DESIGN
                             $display("[Store Cache Controller][%0t] Port 0 granted! Data invalidated!\n", $time());
                         `endif
                     end
                 end
+
+
+                /* 
+                 *  Wait that the load store unit accept the operation
+                 *  then transition in the IDLE stage
+                 */
+                WAIT_ACCEPT: begin
+                    data_stored_o = 1'b1;
+
+                    illegal_access_o = !accessable_CRT;
+                    
+                    if (data_accepted_i) begin
+                        state_NXT = IDLE;
+
+                        idle_o = 1'b1;
+
+                        `ifdef TEST_DESIGN
+                            $display("[Store Unit][%0t] Operation accepted!", $time());
+                        `endif
+                    end
+                end
             endcase
         end : fsm_logic
 
-    assign str_buf_store_width_o = stu_store_width_i;
+
+//====================================================================================
+//      ASSERTIONS   
+//====================================================================================
+
+    `ifdef TEST_DESIGN
+
+        /* 
+         *  STORE BUFFER
+         */
+
+        /* As soon as the grant signal is asserted, deassert the push request */
+        property store_buffer_push_check
+            @(posedge clk_i) str_buf_port_granted_i |-> !str_buf_channel.push_request;
+        endproperty : store_buffer_push_check
+
+        /* The grant signal must arrive after one clock cycle after the assertion
+         * of the push request */
+        property store_buffer_grant_check
+            @(posedge clk_i) str_buf_channel.push_request |=> str_buf_port_granted_i;
+        endproperty : store_buffer_grant_check
+
+
+        /*
+         *  MEMORY CONTROLLER
+         */
+
+        /* Check if the store request is asserted for only 1 clock cycle */
+        property memory_ctrl_request_check
+            @(posedge clk_i) $rose(str_ctrl_channel.request) |=> $fell(str_ctrl_channel.request); 
+        endproperty : 
+
+    `endif 
 
 endmodule : store_unit_cache_controller
 
