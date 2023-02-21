@@ -37,7 +37,8 @@
 `ifndef FLOATING_POINT_ROUNDER_SV
     `define FLOATING_POINT_ROUNDER_SV 
 
-`include "../../../Include/Packages/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 
 module floating_point_rounder (
     /* Input operand to round */
@@ -46,21 +47,16 @@ module floating_point_rounder (
     /* Guard, round and sticky bits */
     input round_bits_t round_bits_i,
 
-    /* Inputs are valid */
-    input logic data_valid_i,
-
     /* Specify the rounding mode */
     input rnd_uop_t operation_i,
-    input logic     round_enable_i,
 
     /* Exceptions */
     input logic overflow_i,
     input logic underflow_i,
 
 
-    /* Result and valid bit */
+    /* Result */
     output float32_t result_o,
-    output logic     data_valid_o,
 
     /* Exceptions */
     output logic overflow_o,
@@ -162,13 +158,11 @@ module floating_point_rounder (
 //  OUTPUT LOGIC  //
 //----------------//
 
-    assign data_valid_o = data_valid_i;
-
     assign overflow_o = (normalized_exponent == '1) & (normalized_significand == '0);
     assign underflow_o = (normalized_exponent == '0) & (normalized_significand == '0);
 
         always_comb begin : output_logic
-            if (is_nan | overflow_i | underflow_i | !round_enable_i) begin
+            if (is_nan | overflow_i | underflow_i) begin
                 /* Don't round special values */
                 result_o = operand_i;
             end else begin

@@ -38,7 +38,8 @@
 `ifndef FLOATING_POINT_COMPARATOR_SV
     `define FLOATING_POINT_COMPARATOR_SV
 
-`include "../../../Include/Packages/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 
 module floating_point_comparator (
     /* Operands */

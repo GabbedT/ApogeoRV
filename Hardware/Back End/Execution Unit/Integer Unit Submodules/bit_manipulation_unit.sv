@@ -43,7 +43,7 @@
     `define BIT_MANIPULATION_UNIT_SV
 
 `include "../../../Include/Headers/apogeo_configuration.svh"
-`include "../../../Include/Packages/integer_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/apogeo_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
@@ -191,8 +191,10 @@ module bit_manipulation_unit (
         end : bit_count_selection      
 
     /* Count zeroes output */
-    logic           all_zeros_out;
-    bmu_count_uop_t bit_count_out;
+    logic       all_zeros_out;
+    logic [1:0] bit_count_out;
+    
+    localparam CPOP_OP = 2;
 
         always_ff @(posedge clk_i) begin : bit_count_stage_register
             if (clk_en_i) begin
@@ -208,7 +210,7 @@ module bit_manipulation_unit (
 
         always_comb begin : bit_count_final_logic
             /* Append zeroes */
-            if (bit_count_out == CPOP) begin
+            if (bit_count_out == CPOP_OP) begin
                 bit_count_final_result = {'0, bit_count_result_out};
             end else begin
                 bit_count_final_result[$clog2(DATA_WIDTH):0] = {all_zeros_out, (all_zeros_out == 1'b1) ? 4'b0 : bit_count_result_out};
@@ -435,7 +437,7 @@ module bit_manipulation_unit (
 //  RESULT LOGIC  //
 //----------------//
 
-    bmu_valid_uop_t valid_operation_out;    
+    bmu_op_type_t valid_operation_out;    
 
         always_ff @(posedge clk_i) begin : control_stage_register
             if (clk_en_i) begin

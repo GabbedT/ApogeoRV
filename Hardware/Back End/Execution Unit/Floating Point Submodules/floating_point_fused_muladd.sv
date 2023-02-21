@@ -41,7 +41,8 @@
 `ifndef FLOATING_POINT_FUSED_MULADD_SV
     `define FLOATING_POINT_FUSED_MULADD_SV
 
-`include "../../../Include/Packages/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Headers/apogeo_configuration.svh"
 
 `include "floating_point_adder.sv"
@@ -155,6 +156,16 @@ module floating_point_fused_muladd (
 
     assign fpmul_result_o = fpmul_result;
 
+
+    float32_t fpmul_result_out;
+    logic     fpmul_valid_out;
+
+        always_ff @(posedge clk_i) begin
+            if (clk_en_i) begin
+                fpmul_result_out <= fpmul_result;
+                fpmul_valid_out <= fpmul_data_valid;
+            end
+        end
     
 //------------------//
 //  FP ADDER LOGIC  //
@@ -166,10 +177,10 @@ module floating_point_fused_muladd (
         always_comb begin : adder_selection_logic
             /* If is a fused operation take the first addend from 
              * the result of the multiplier */
-            if (operation_pipe[FPMUL_PIPE_STAGES].is_fused & fpmul_data_valid) begin
-                fpadd_operand_A.sign = operation_pipe[FPMUL_PIPE_STAGES].invert_product ? !fpmul_result.sign :fpmul_result.sign;
-                fpadd_operand_A.exponent = fpmul_result.exponent;
-                fpadd_operand_A.significand = fpmul_result.significand;
+            if (operation_pipe[FPMUL_PIPE_STAGES].is_fused & fpmul_valid_out) begin
+                fpadd_operand_A.sign = operation_pipe[FPMUL_PIPE_STAGES].invert_product ? !fpmul_result_out.sign :fpmul_result_out.sign;
+                fpadd_operand_A.exponent = fpmul_result_out.exponent;
+                fpadd_operand_A.significand = fpmul_result_out.significand;
 
                 fpadd_operand_B = operand_3_pipe[FPMUL_PIPE_STAGES];
             end else begin
@@ -183,7 +194,7 @@ module floating_point_fused_muladd (
      * has produced a valid result and the operation is fused */
     logic fpadd_data_valid_in;
 
-    assign fpadd_data_valid_in = (data_valid_i & operation_i.operation == FP_ADD) | (fpmul_data_valid & operation_pipe[FPMUL_PIPE_STAGES].is_fused);
+    assign fpadd_data_valid_in = (data_valid_i & operation_i.operation == FP_ADD) | (fpmul_valid_out & operation_pipe[FPMUL_PIPE_STAGES].is_fused);
 
     `ifdef ASSERTIONS 
         assert property @(posedge clk_i) ({add_data_valid_i, mul_data_valid} != 2'b11);

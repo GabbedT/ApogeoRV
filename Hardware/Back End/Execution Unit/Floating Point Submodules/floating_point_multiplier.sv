@@ -36,7 +36,8 @@
 `ifndef FLOATING_POINT_MULTIPLIER_SV
     `define FLOATING_POINT_MULTIPLIER_SV
 
-`include "../../../Include/Packages/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
@@ -193,7 +194,7 @@ module floating_point_multiplier #(
                 invalid_operation_stg0 <= invalid_operation | !((!multiplicand_subnormal & !multiplicand_is_zero) & (!multiplier_subnormal & !multiplier_is_zero));
 
                 result_exponent_stg0 <= pre_result_exponent;
-                result_sign_stg0 <= result_sign;
+                result_sign_stg0 <= result_sign; 
             end  
         end : stage0_register
         

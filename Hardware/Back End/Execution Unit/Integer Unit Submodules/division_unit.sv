@@ -44,7 +44,8 @@
     `define DIVISION_UNIT_SV
 
 `include "../../../Include/Headers/apogeo_configuration.svh"
-`include "../../../Include/Packages/integer_unit_pkg.sv"
+
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/apogeo_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Dividers/non_restoring_divider.sv"
@@ -77,21 +78,13 @@ module division_unit (
     output logic idle_o
 );
 
-    `ifdef ASSERTIONS
-        assert property (DIV_DataValidWhenIdle);
-        else $error("[Division Unit] Valid inputs when the functional unit is not idle!");
-    `endif 
-
-//--------------//
-//  PARAMETERS  //
-//--------------//
 
     localparam DATA_WIDTH = $bits(dividend_i);
 
 
-//---------------//
-//  FIRST STAGE  //
-//---------------//
+//====================================================================================
+//      FIRST STAGE
+//====================================================================================
 
     /* Since the non restoring division algorithm operates with 
      * unsigned numbers if the operation is on signed number, 
@@ -129,8 +122,8 @@ module division_unit (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_register
             if (!rst_n_i) begin 
-                div_divisor <= 'b0;
-                div_dividend <= 'b0;
+                div_divisor <= '0;
+                div_dividend <= '0;
             end else if (clk_en_i & data_valid_i) begin
                 div_divisor <= divisor;
                 div_dividend <= dividend;
@@ -171,9 +164,9 @@ module division_unit (
         end 
 
 
-//------------------//
-//  DIVISION STAGE  //
-//------------------//
+//====================================================================================
+//      DIVISION STAGE
+//====================================================================================
 
     data_word_t quotient, remainder;
     logic       div_data_valid, div_idle, divide_by_zero;
@@ -212,9 +205,9 @@ module division_unit (
         end
 
 
-//--------------//
-//  LAST STAGE  //
-//--------------//
+//====================================================================================
+//      LAST STAGE
+//====================================================================================
 
     data_word_t converted_quotient, converted_remainder;
 
@@ -235,7 +228,7 @@ module division_unit (
 
             /* Output select */
             case (operation)
-                DIV, DIVU: product_o = (div_dividend < div_divisor) ? 32'b0 : converted_quotient;
+                DIV, DIVU: product_o = (div_dividend < div_divisor) ? '0 : converted_quotient;
 
                 REM, REMU: product_o = (div_dividend < div_divisor) ? div_dividend : converted_remainder;
             endcase

@@ -47,7 +47,7 @@
     `define MULTIPLICATION_UNIT_SV
 
 `include "../../../Include/Headers/apogeo_configuration.svh"
-`include "../../../Include/Packages/integer_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/apogeo_pkg.sv"
 
 `include "../Arithmetic Circuits/Integer/Multipliers/Pipelined/pipelined_array_multiplier.sv"
@@ -267,7 +267,7 @@ module multiplication_unit #(
             case (operation_pipe[CORE_STAGES]) 
                 MUL: product_o = converted_result[DATA_WIDTH - 1:0];
 
-                default: product_o = converted_result[RESULT_WIDTH - 1:XLEN];
+                default: product_o = converted_result[RESULT_WIDTH - 1:DATA_WIDTH];
             endcase
         end : final_conversion_logic
 

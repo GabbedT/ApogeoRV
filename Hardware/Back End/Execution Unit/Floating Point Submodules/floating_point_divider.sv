@@ -36,7 +36,8 @@
 `ifndef FLOATING_POINT_DIVIDER_SV
     `define FLOATING_POINT_DIVIDER_SV
 
-`include "../../../Include/Packages/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/floating_point_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Headers/apogeo_configuration.svh"
 
 `include "../Arithmetic Circuits/Integer/Dividers/non_restoring_divider.sv"
@@ -191,7 +192,7 @@ module floating_point_divider (
     logic        divider_data_valid;
     logic [23:0] result_division, remainder_division;
 
-    non_restoring_divider #(24, 0) significand_core_divider (
+    non_restoring_divider #(24) significand_core_divider (
         .clk_i            ( clk_i               ),
         .clk_en_i         ( clk_en_i            ),
         .rst_n_i          ( rst_n_i             ),

@@ -39,7 +39,8 @@
     `define ARITHMETIC_LOGIC_UNIT_SV
 
 `include "../../../Include/Headers/apogeo_configuration.svh"
-`include "../../../Include/Packages/integer_unit_pkg.sv"
+
+`include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/apogeo_pkg.sv"
 
 module arithmetic_logic_unit (
@@ -59,7 +60,7 @@ module arithmetic_logic_unit (
     /* Jump instruction is compressed so store
      * in the register the instruction address
      * incremented by only 2 */
-    input logic is_compressed_jump_i,
+    input logic is_cjump_i,
 
     /* Result and valid bits */
     output data_word_t result_o,
@@ -69,9 +70,9 @@ module arithmetic_logic_unit (
     output logic is_branch_o
 );
 
-//--------------//
-//  MAIN ADDER  //
-//--------------//
+//====================================================================================
+//      MAIN ADDER
+//====================================================================================
 
     /* 
      *  ADDI, ADD, SUB, LUI, AUIPC, JAL, JALR
@@ -82,9 +83,9 @@ module arithmetic_logic_unit (
     assign adder_result = operand_A_i + operand_B_i;
 
 
-//-------------------//
-//  NEXT PC OUTCOME  //
-//-------------------//
+//====================================================================================
+//      NEXT PC OUTCOME
+//====================================================================================
 
     /*
      *  JAL, JALR, BEQ, BNE, BLT, BLTU, BGE, BGEU
@@ -109,9 +110,9 @@ module arithmetic_logic_unit (
     assign is_equal = (operand_A_i == operand_B_i);
 
 
-//-----------//
-//  SHIFTER  //
-//-----------//
+//====================================================================================
+//      SHIFTER
+//====================================================================================
 
     /*
      *  SLL, SLLI, SRL, SRLI, SRA, SRAI
@@ -129,9 +130,9 @@ module arithmetic_logic_unit (
     assign arithmetic_sh_right_result = $signed(operand_A_i) >>> shift_amount;
 
 
-//-------------------//
-//  LOGIC OPERATION  //
-//-------------------//
+//====================================================================================
+//      LOGIC OPERATIONS
+//====================================================================================
 
     data_word_t and_result, or_result, xor_result;
 
@@ -140,9 +141,9 @@ module arithmetic_logic_unit (
     assign xor_result = operand_A_i ^ operand_B_i;
 
 
-//----------------//
-//  RESULT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC
+//====================================================================================
 
     assign data_valid_o = data_valid_i;
 
@@ -162,7 +163,7 @@ module arithmetic_logic_unit (
 
                 SRA: result_o = arithmetic_sh_right_result;
 
-                JAL: result_o = (is_compressed_jump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
+                JAL: result_o = (is_cjump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
 
                 BEQ: result_o = is_equal;
 
