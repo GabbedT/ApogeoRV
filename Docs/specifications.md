@@ -582,14 +582,18 @@ The instruction is issued if the depending instruction in the execute stage is a
 
 ### Scoreboard 
 
-The scoreboard keeps track of the instructions in the execution unit. The informations are: 
+The scoreboard keeps track of the instructions in the execution unit and resolves the RAW dependencies. The informations are: 
 
 * Executing bit
 * Functional unit 
 * Register destination
 * Clock cycles until the unit produces a valid result
 
-Every functional unit is an entry (pipelined FUs have an entry for every pipe stage), for every entry is associated a counter that decrements every cycle the latency counter. The latency number is the number of cycles from the instruction issuing to the moment where the data become valid (ALU is fully combinational thus has latency of 0 cycles). Latency cycles are loaded in the scoreboard as LATENCY + 1, infact a latency of 1 means that the result is valid right now, 0 means that the instruction has been committed. 
+Every functional unit is an entry (pipelined FUs have an entry for every pipe stage), for every entry is associated a counter that decrements every cycle the latency counter. The latency number is the number of cycles from the instruction issuing to the moment where the data become valid (ALU is fully combinational thus has latency of 0 cycles). Latency cycles are loaded in the scoreboard as LATENCY, infact a latency of 0 means that the result is valid right now and is ready to be taken into the commit stage. Basically if **issue_instr.latency + 1 == any_latency_in_pipeline**
+
+To detect a concurrent valid result, the current instruction latency must match one of the latency entries of the scoreboard. In that case don't issue the instruction.
+
+To detect RAW hazard, compare each register source with the destination register (for floating point also the third rs). If a match is registred (the unit must be executing an instruction) the register destination must not be X0
 
 Example: 
 
