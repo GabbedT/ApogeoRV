@@ -2,7 +2,7 @@
     `define INTEGER_UNIT_PACKET_SV
 
 `include "../../Hardware/Include/Packages/apogeo_pkg.sv"
-`include "../../Hardware/Include/Packages/integer_unit_pkg.sv"
+`include "../../Hardware/Include/Packages/apogeo_operations_pkg.sv"
 
 `define BMU_operation operation.BMU.opcode.select
 
@@ -14,16 +14,20 @@ class IntegerUnitPacket;
 
     /* Class attributes */
     data_word_t operand_1, operand_2;
-    randc iexu_valid_t data_valid;
-    randc iexu_uop_t operation;
+    randc itu_valid_t data_valid;
+    randc itu_uop_t operation;
 
     time pkt_time;
     data_word_t result;
     string operation_str;
 
+    int instruction_address;
+
     /* Constructor */
-    function new();
+    function new(input int instruction_address);
         packet_id = glb_packet_id;
+
+        this.instruction_address = instruction_address;
 
         data_valid = '0; 
         operation = '0; 
@@ -32,7 +36,7 @@ class IntegerUnitPacket;
 
         result = '0;
 
-        $display("[Packet] Generated packet, ID: %0d", packet_id);
+        $display("[EXU Packet] Generated packet, ID: %0d", packet_id);
 
         ++glb_packet_id;
     endfunction : new
@@ -48,15 +52,15 @@ class IntegerUnitPacket;
 
         case (data_valid) 
             4'b1000: begin 
-                $display("[Packet] Generated ALU operation!");
+                $display("[EXU Packet] Generated ALU operation!");
 
                 operation.ALU.opcode = alu_uop_t'($urandom_range(0, 13));
             end
 
             4'b0100: begin 
-                $display("[Packet] Generated BMU operation!");
+                $display("[EXU Packet] Generated BMU operation!");
 
-                operation.BMU.opcode.op_type = bmu_valid_uop_t'($urandom_range(0, 6));
+                operation.BMU.opcode.op_type = bmu_op_type_t'($urandom_range(0, 6));
 
                 case (operation.BMU.opcode.op_type)
                     SHADD: `BMU_operation.SHADD.opcode = bmu_shadd_uop_t'($urandom_range(0, 2));
@@ -76,13 +80,13 @@ class IntegerUnitPacket;
             end
 
             4'b0010: begin 
-                $display("[Packet] Generated MUL operation!");
+                $display("[EXU Packet] Generated MUL operation!");
 
                 operation.MUL.opcode = mul_uop_t'($urandom_range(0, 3));
             end
 
             4'b0001: begin 
-                $display("[Packet] Generated DIV operation!");
+                $display("[EXU Packet] Generated DIV operation!");
 
                 operation.DIV.opcode = div_uop_t'($urandom_range(0, 3));
             end
@@ -102,118 +106,118 @@ class IntegerUnitPacket;
     function bit check_result(input data_word_t iexu_result);
         case (data_valid) 
             4'b1000: begin
-                $display("[Packet] Instruction: %s", operation.ALU.opcode.name());
+                $display("[EXU Packet] Instruction: %s", operation.ALU.opcode.name());
                 operation_str = operation.ALU.opcode.name();
 
                 case (operation.ALU.opcode)
                     JAL: begin
-                        result = operand_1 + 4;
-                        $display("[Packet] Operand: %0d", operand_1);
-                        $display("[Packet] Returned: %0d", result);
+                        result = instruction_address + 4;
+                        $display("[EXU Packet] Operand: %0d", operand_1);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     ADD: begin
                         result = operand_1 + operand_2;
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     BEQ: begin
                         result = operand_1 == operand_2;
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     BNE: begin
                         result = operand_1 != operand_2;
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     BGE: begin
                         result = $signed(operand_1) >= $signed(operand_2);
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     BLT: begin
                         result = $signed(operand_1) < $signed(operand_2);
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     BLTU: begin
                         result = operand_1 < operand_2;
-                        $display("[Packet] Operand 1: 0x%h", operand_1);
-                        $display("[Packet] Operand 2: 0x%h", operand_2);
-                        $display("[Packet] Returned: 0x%h", result);
+                        $display("[EXU Packet] Operand 1: 0x%h", operand_1);
+                        $display("[EXU Packet] Operand 2: 0x%h", operand_2);
+                        $display("[EXU Packet] Returned: 0x%h", result);
                         return result == iexu_result;
                     end
 
                     BGEU: begin
                         result = operand_1 >= operand_2;
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     SLL: begin
                         result = operand_1 << operand_2[4:0];
-                        $display("[Packet] Operand 1: %b", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %b", result);
+                        $display("[EXU Packet] Operand 1: %b", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %b", result);
                         return result == iexu_result;
                     end
 
                     SRL: begin
                         result = operand_1 >> operand_2[4:0];
-                        $display("[Packet] Operand 1: %b", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %b", result);
+                        $display("[EXU Packet] Operand 1: %b", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %b", result);
                         return result == iexu_result;
                     end
 
                     SRA: begin
                         result = $signed(operand_1) >> operand_2[4:0];
-                        $display("[Packet] Operand 1: %b", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %b", result);
+                        $display("[EXU Packet] Operand 1: %b", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %b", result);
                         return result == iexu_result;
                     end
 
                     AND: begin
                         result = operand_1 & operand_2;
-                        $display("[Packet] Operand 1: %b", operand_1);
-                        $display("[Packet] Operand 2: %b", operand_2);
-                        $display("[Packet] Returned: %b", result);
+                        $display("[EXU Packet] Operand 1: %b", operand_1);
+                        $display("[EXU Packet] Operand 2: %b", operand_2);
+                        $display("[EXU Packet] Returned: %b", result);
                         return result == iexu_result;
                     end
 
                     OR: begin
                         result = operand_1 | operand_2;
-                        $display("[Packet] Operand 1: %b", operand_1);
-                        $display("[Packet] Operand 2: %b", operand_2);
-                        $display("[Packet] Returned: %b", result);
+                        $display("[EXU Packet] Operand 1: %b", operand_1);
+                        $display("[EXU Packet] Operand 2: %b", operand_2);
+                        $display("[EXU Packet] Returned: %b", result);
                         return result == iexu_result;
                     end
 
                     XOR: begin
                         result = operand_1 ^ operand_2;
-                        $display("[Packet] Operand 1: %b", operand_1);
-                        $display("[Packet] Operand 2: %b", operand_2);
-                        $display("[Packet] Returned: %b", result);
+                        $display("[EXU Packet] Operand 1: %b", operand_1);
+                        $display("[EXU Packet] Operand 2: %b", operand_2);
+                        $display("[EXU Packet] Returned: %b", result);
                         return result == iexu_result;
                     end
                 endcase
@@ -222,31 +226,31 @@ class IntegerUnitPacket;
             4'b0100: begin 
                 case (operation.BMU.opcode.op_type)
                     SHADD: begin
-                        $display("[Packet] Instruction: %s", `BMU_operation.SHADD.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.SHADD.opcode.name());
                         operation_str = `BMU_operation.SHADD.opcode.name();
 
                         case (`BMU_operation.SHADD.opcode)
                             SH1ADD: begin
                                 result = (operand_1 * 2) + operand_2;
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             SH2ADD: begin
                                 result = (operand_1 * 4) + operand_2;
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             SH3ADD: begin
                                 result = (operand_1 * 8) + operand_2;
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
@@ -255,49 +259,49 @@ class IntegerUnitPacket;
                     end
 
                     COUNT: begin
-                        $display("[Packet] Instruction: %s", `BMU_operation.BITC.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.BITC.opcode.name());
                         operation_str = `BMU_operation.BITC.opcode.name();
 
                         case (`BMU_operation.BITC.opcode)
                             CTZ: begin
-                                $display("[Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
 
                                 for (int i = 0; i < 32; ++i) begin
                                     if (operand_1[i]) begin
-                                        $display("[Packet] Returned: %0d", i);
+                                        $display("[EXU Packet] Returned: %0d", i);
                                         result = i;
-                                        return result;
+                                        return result == iexu_result;
                                     end 
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             CLZ: begin
-                                $display("[Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
 
                                 for (int i = 0; i < 32; ++i) begin
                                     if (operand_1[31 - i]) begin
-                                        $display("[Packet] Returned: %0d", result);
-                                        return result;
+                                        $display("[EXU Packet] Returned: %0d", result);
+                                        return result == iexu_result;
                                     end 
 
                                     ++result;
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             CPOP: begin
-                                $display("[Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
 
                                 for (int i = 0; i < 32; ++i) begin
                                     result += operand_1[i];
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
@@ -306,13 +310,13 @@ class IntegerUnitPacket;
                     end
 
                     COMPARE: begin
-                        $display("[Packet] Instruction: %s", `BMU_operation.CMP.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.CMP.opcode.name());
                         operation_str = `BMU_operation.CMP.opcode.name();
 
                         case (`BMU_operation.CMP.opcode)
                             MAX: begin
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
 
                                 if ($signed(operand_1) >= $signed(operand_2)) begin
                                     result = operand_1;
@@ -320,13 +324,13 @@ class IntegerUnitPacket;
                                     result = operand_2;
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             MAXU: begin
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
 
                                 if (operand_1 >= operand_2) begin
                                     result = operand_1;
@@ -334,13 +338,13 @@ class IntegerUnitPacket;
                                     result = operand_2;
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             MIN: begin
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
 
                                 if ($signed(operand_1) < $signed(operand_2)) begin
                                     result = operand_1;
@@ -348,13 +352,13 @@ class IntegerUnitPacket;
                                     result = operand_2;
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
                             MINU: begin
-                                $display("[Packet] Operand 1: %0d", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Operand 1: %0d", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
 
                                 if (operand_1 < operand_2) begin
                                     result = operand_1;
@@ -362,7 +366,7 @@ class IntegerUnitPacket;
                                     result = operand_2;
                                 end
 
-                                $display("[Packet] Returned: %0d", result);
+                                $display("[EXU Packet] Returned: %0d", result);
                                 return result == iexu_result;
                             end
 
@@ -371,31 +375,31 @@ class IntegerUnitPacket;
                     end
 
                     EXTEND: begin
-                        $display("[Packet] Instruction: %s", `BMU_operation.EXT.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.EXT.opcode.name());
                         operation_str = `BMU_operation.EXT.opcode.name();
 
                         case (`BMU_operation.EXT.opcode)
                             SEXTB: begin
                                 result = $signed(operand_1.word8[0]);
                                 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             SEXTH: begin
                                 result = $signed(operand_1.word16[0]);
                                 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             ZEXTH: begin
                                 result = operand_1.word16[0];
                                 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
@@ -405,124 +409,124 @@ class IntegerUnitPacket;
                     end
 
                     ROTATE: begin 
-                        $display("[Packet] Instruction: %s", `BMU_operation.ROT.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.ROT.opcode.name());
                         operation_str = `BMU_operation.ROT.opcode.name();
 
                         case (`BMU_operation.ROT.opcode)
                             ROL: begin
                                 result = (operand_1 << operand_2[4:0]) | (operand_1 >> (32 - operand_2[4:0]));
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             ROR: begin
                                 result = (operand_1 >> operand_2[4:0]) | (operand_1 << (32 - operand_2[4:0]));
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %0d", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %0d", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
                         endcase
                     end
 
                     BYTEOP: begin
-                        $display("[Packet] Instruction: %s", `BMU_operation.OPBYTE.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.OPBYTE.opcode.name());
                         operation_str = `BMU_operation.OPBYTE.opcode.name();
 
                         case (`BMU_operation.OPBYTE.opcode)
                             ORCB: begin 
-                                $display("[Packet] Operand 1: 0x%h", operand_1);
+                                $display("[EXU Packet] Operand 1: 0x%h", operand_1);
 
                                 for (int i = 0; i < 4; ++i) begin
                                     result.word8[i] = $signed(|operand_1.word8[i]);
                                 end
 
-                                $display("[Packet] Returned: 0x%h", result);
+                                $display("[EXU Packet] Returned: 0x%h", result);
                                 return result == iexu_result;
                             end
 
                             REV8: begin
-                                $display("[Packet] Operand 1: 0x%h", operand_1);
+                                $display("[EXU Packet] Operand 1: 0x%h", operand_1);
 
                                 for (int i = 0, int j = 3; i < 4; ++i, --j) begin
                                     result.word8[i] = operand_1.word8[j];
                                 end
 
-                                $display("[Packet] Returned: 0x%h", result);
+                                $display("[EXU Packet] Returned: 0x%h", result);
                                 return result == iexu_result;
                             end
                         endcase
                     end
 
                     LOGICOP: begin 
-                        $display("[Packet] Instruction: %s", `BMU_operation.OPLOGIC.opcode.name());
+                        $display("[EXU Packet] Instruction: %s", `BMU_operation.OPLOGIC.opcode.name());
                         operation_str = `BMU_operation.OPLOGIC.opcode.name();
 
                         case (`BMU_operation.OPLOGIC.opcode)
                             ANDN: begin
                                 result = operand_1 & (~operand_2);
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             ORN: begin
                                 result = operand_1 | (~operand_2);
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             XNOR: begin
                                 result = ~(operand_1 ^ operand_2);
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             BCLR: begin
                                 result = operand_1 & ~(1 << operand_2[4:0]);
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             BEXT: begin
                                 result = (operand_1 >> operand_2[4:0]) & 1;
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             BINV: begin
                                 result = operand_1 ^ (1 << operand_2[4:0]);
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
                             BSET: begin
                                 result = operand_1 | (1 << operand_2[4:0]);
 
-                                $display("[Packet] Operand 1: %b", operand_1);
-                                $display("[Packet] Operand 2: %b", operand_2);
-                                $display("[Packet] Returned: %b", result);
+                                $display("[EXU Packet] Operand 1: %b", operand_1);
+                                $display("[EXU Packet] Operand 2: %b", operand_2);
+                                $display("[EXU Packet] Returned: %b", result);
                                 return result == iexu_result;
                             end
 
@@ -534,68 +538,76 @@ class IntegerUnitPacket;
             end
 
             4'b0010: begin
-                $display("[Packet] Instruction: %s", operation.MUL.opcode.name());
+                $display("[EXU Packet] Instruction: %s", operation.MUL.opcode.name());
                 operation_str = operation.MUL.opcode.name();
 
                 case (operation.MUL.opcode)
                     MUL: begin
                         logic [63:0] result = $signed(operand_1) * $signed(operand_2);
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result[31:0] == iexu_result;
                     end
 
                     MULH: begin
                         logic [63:0] result = $signed(operand_1) * $signed(operand_2);
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result[63:32]);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result[63:32]);
                         return result[63:32] == iexu_result;
                     end
 
                     MULHSU: begin
                         logic [63:0] result = $signed(operand_1) * $unsigned(operand_2);
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result[63:32]);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result[63:32]);
                         return result[63:32] == iexu_result;
                     end
 
                     MULHU: begin
                         logic [63:0] result = $unsigned(operand_1) * $unsigned(operand_2);
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result[63:32]);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result[63:32]);
                         return result[63:32] == iexu_result;
                     end
                 endcase
             end
 
             4'b0001: begin 
-                $display("[Packet] Instruction: %s", operation.DIV.opcode.name());
+                $display("[EXU Packet] Instruction: %s", operation.DIV.opcode.name());
                 operation_str = operation.DIV.opcode.name();
 
                 case (operation.DIV.opcode)
                     DIV: begin
-                        result = $signed(operand_1) / $signed(operand_2);
+                        if (operand_2 == '0) begin 
+                            result = '1;
+                        end else begin 
+                            result = $signed(operand_1) / $signed(operand_2);
+                        end 
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
                     DIVU: begin
-                        result = $unsigned(operand_1) / $unsigned(operand_2);
+                        if (operand_2 == '0) begin 
+                            result = '1;
+                        end else begin 
+                            result = $unsigned(operand_1) / $unsigned(operand_2);
+                        end 
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
@@ -606,9 +618,9 @@ class IntegerUnitPacket;
                             result = operand_1;
                         end
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
 
@@ -619,9 +631,9 @@ class IntegerUnitPacket;
                             result = operand_1;
                         end
 
-                        $display("[Packet] Operand 1: %0d", operand_1);
-                        $display("[Packet] Operand 2: %0d", operand_2);
-                        $display("[Packet] Returned: %0d", result);
+                        $display("[EXU Packet] Operand 1: %0d", operand_1);
+                        $display("[EXU Packet] Operand 2: %0d", operand_2);
+                        $display("[EXU Packet] Returned: %0d", result);
                         return result == iexu_result;
                     end
                 endcase 
@@ -631,11 +643,11 @@ class IntegerUnitPacket;
 
 
     function void print();
-        $display("[Packet] [%t ns] ID: %0d", pkt_time, packet_id);
-        $display("[Packet] Operation: %s", operation_str);
-        $display("[Packet] Operand 1: %b", operand_1); 
-        $display("[Packet] Operand 2: %b", operand_2); 
-        $display("[Packet] Returned: %0d", result);
+        $display("[EXU Packet] [%0t ns] ID: %0d", pkt_time, packet_id);
+        $display("[EXU Packet] Operation: %s", operation_str);
+        $display("[EXU Packet] Operand 1: %b or %0d", operand_1, operand_1); 
+        $display("[EXU Packet] Operand 2: %b or %0d", operand_2, operand_2); 
+        $display("[EXU Packet] Returned: %b or %0d", result, result);
     endfunction : print
 
 
