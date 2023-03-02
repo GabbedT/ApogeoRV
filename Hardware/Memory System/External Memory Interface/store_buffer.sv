@@ -54,9 +54,6 @@ module store_buffer (
     store_buffer_push_interface.slave push_channel,
     store_buffer_pull_interface.slave pull_channel,
 
-    /* Merge signal */
-    output logic merge_done_o,
-
     /* Foward data nets */
     input  data_word_t foward_address_i,
     output data_word_t foward_data_o,
@@ -72,6 +69,8 @@ module store_buffer (
 
     assign inc_push_ptr = push_ptr + 1'b1;
     assign inc_pull_ptr = pull_ptr + 1'b1;
+
+    logic merge_done;
     
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pointers_register
             if (!rst_n_i) begin
@@ -79,7 +78,7 @@ module store_buffer (
                 push_ptr <= '0; 
             end else begin 
                 /* Increment pointer */
-                if (push_channel.push_request & !merge_done_o) begin
+                if (push_channel.push_request & !merge_done) begin
                     push_ptr <= inc_push_ptr;
                 end
 
@@ -107,7 +106,7 @@ module store_buffer (
 
                     PUSH: begin
                         /* Merging doesn't increase FIFO data */
-                        if (!merge_done_o) begin
+                        if (!merge_done) begin
                             pull_channel.empty <= 1'b0;
                             push_channel.full <= (pull_ptr == inc_push_ptr);
                         end
@@ -134,9 +133,17 @@ module store_buffer (
 
         always_ff @(posedge clk_i) begin : write_data_port
             if (push_channel.push_request) begin
-                if (merge_done_o) begin
+                if (merge_done) begin
                     /* Merge has priority over pushing */
-                    data_buffer[merge_ptr] <= {push_channel.packet.data, push_channel.packet.store_width};
+                    case (push_channel.packet.store_width)
+                        WORD: data_buffer[merge_ptr].data <= push_channel.packet.data;
+
+                        HALF_WORD: data_buffer[merge_ptr].data.word16[push_channel.packet.address[1]] <= push_channel.packet.data[15:0];
+
+                        BYTE: data_buffer[merge_ptr].data.word16[push_channel.packet.address[1:0]] <= push_channel.packet.data[7:0];
+                    endcase 
+
+                    data_buffer[merge_ptr].store_width <= push_channel.packet.store_width;
                 end else begin
                     /* Push data */
                     data_buffer[push_ptr] <= {push_channel.packet.data, push_channel.packet.store_width};
@@ -145,7 +152,7 @@ module store_buffer (
         end : write_data_port
 
     /* Foward read port */
-    assign foward_data_o = data_buffer[foward_ptr];
+    assign foward_data_o = data_buffer[foward_ptr].data;
 
     /* Pull read port */
     assign pull_channel.packet.data = data_buffer[pull_ptr].data;
@@ -157,8 +164,8 @@ module store_buffer (
 //====================================================================================
 
     typedef struct packed {
-        logic         valid;
-        data_word_t   address;
+        logic       valid;
+        data_word_t address;
     } metadata_t;
 
     /* Implemented with flip-flops since every entry needs to
@@ -177,14 +184,16 @@ module store_buffer (
                 /* Validate on push */
                 metadata_buffer[push_ptr].valid <= 1'b1;
 
-                if (merge_done_o) begin
+                if (merge_done) begin
                     /* Merge has priority over pushing */
                     metadata_buffer[merge_ptr].address <= push_channel.packet.address;
                 end else begin
                     /* Push data */
                     metadata_buffer[push_ptr].address <= push_channel.packet.address;
                 end
-            end else if (pull_channel.pull_request) begin
+            end
+            
+            if (pull_channel.pull_request) begin
                 /* Invalidate on pull */
                 metadata_buffer[pull_ptr].valid <= 1'b0;
             end
@@ -206,10 +215,10 @@ module store_buffer (
 
             for (int i = 0; i < `ST_BUF_DEPTH; ++i) begin
                 /* Check if any write address match an entry */
-                push_address_match[i] = (push_channel.packet.address == metadata_buffer[i].address) & metadata_buffer[i].valid;
+                push_address_match[i] = (push_channel.packet.address[31:2] == metadata_buffer[i].address[31:2]) & metadata_buffer[i].valid;
 
                 /* Check if any read address match an entry */
-                pop_address_match[i] = (foward_address_i == metadata_buffer[i].address) & metadata_buffer[i].valid;
+                pop_address_match[i] = (foward_address_i[31:2] == metadata_buffer[i].address[31:2]) & metadata_buffer[i].valid;
 
                 /* Generate pointer based on address match */ 
                 if (push_address_match[i]) begin
@@ -222,7 +231,7 @@ module store_buffer (
             end
         end : address_match_logic
 
-    assign merge_done_o = (push_address_match != '0) & push_channel.push_request;
+    assign merge_done = (push_address_match != '0) & push_channel.push_request;
     assign address_match_o = (pop_address_match != '0);
 
 endmodule : store_buffer
