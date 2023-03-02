@@ -5,6 +5,73 @@
 
 package control_status_registers_pkg;
 
+    /* Unprivileged Floating-Point CSRs */
+    localparam FFLAGS = 12'h001;
+    localparam FRM = 12'h002;
+    localparam FCSR = 12'h003;
+
+    /* Unprivileged Counter/Timers Low bits */
+    localparam CYCLE = 12'hC00;
+    localparam TIME = 12'hC01;
+    localparam INSTRET = 12'hC02;
+    localparam HPMCOUNTER3 = 12'hC03;
+    localparam HPMCOUNTER4 = 12'hC04;
+    localparam HPMCOUNTER5 = 12'hC05;
+    localparam HPMCOUNTER6 = 12'hC06;
+
+    /* Unprivileged Counter/Timers High bits */
+    localparam CYCLEH = 12'hC80;
+    localparam TIMEH = 12'hC81;
+    localparam INSTRETH = 12'hC82;
+    localparam HPMCOUNTER3H = 12'hC83;
+    localparam HPMCOUNTER4H = 12'hC84;
+    localparam HPMCOUNTER5H = 12'hC85;
+    localparam HPMCOUNTER6H = 12'hC86;
+
+    /* Machine Information Registers */
+    localparam MVENDORID = 12'hF11;
+    localparam MARCHID = 12'hF12;
+    localparam MIMPID = 12'hF13;
+    localparam MHARTID = 12'hF14;
+
+    /* Machine Trap Setup */
+    localparam MSTATUS = 12'h300;
+    localparam MISA = 12'h301;
+    localparam MIE = 12'h304;
+    localparam MTVEC = 12'h305;
+    localparam MCOUNTEREN = 12'h306;
+
+    /* Machine Trap Handling */
+    localparam MSCRATCH = 12'h340;
+    localparam MEPC = 12'h341;
+    localparam MCAUSE = 12'h342;
+    localparam MIP = 12'h344;
+
+    /* Machine Counter/Timers Low bits */
+    localparam MCYCLE = 12'hB00;
+    localparam MTIME = 12'hB01;
+    localparam MINSTRET = 12'hB02;
+    localparam MHPMCOUNTER3 = 12'hB03;
+    localparam MHPMCOUNTER4 = 12'hB04;
+    localparam MHPMCOUNTER5 = 12'hB05;
+    localparam MHPMCOUNTER6 = 12'hB06;
+
+    /* Machine Counter/Timers High bits */
+    localparam MCYCLEH = 12'hB80;
+    localparam MTIMEH = 12'hB81;
+    localparam MINSTRETH = 12'hB82;
+    localparam MHPMCOUNTER3H = 12'hB83;
+    localparam MHPMCOUNTER4H = 12'hB84;
+    localparam MHPMCOUNTER5H = 12'hB85;
+    localparam MHPMCOUNTER6H = 12'hB86;
+
+    /* Machine Counter Setup */
+    localparam MCOUNTINHIBIT = 12'h320;
+    localparam MHPMEVENT3 = 12'h323;
+    localparam MHPMEVENT4 = 12'h324;
+    localparam MHPMEVENT5 = 12'h325;
+    localparam MHPMEVENT6 = 12'h326;
+
     /* Privilege modes */
     localparam USER = 2'b00;
     localparam MACHINE = 2'b11;

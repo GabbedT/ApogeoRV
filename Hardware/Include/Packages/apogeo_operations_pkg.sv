@@ -33,6 +33,42 @@ package apogeo_operations_pkg;
         ROTATE, BYTEOP, LOGICOP
     } bmu_op_type_t;
 
+    /* Shift and add operations */
+    typedef enum logic [1:0] {
+        SH1ADD, SH2ADD, SH3ADD
+    } bmu_shadd_uop_t;
+
+    /* Bit count operations */
+    typedef enum logic [1:0] {
+        CLZ, CTZ, CPOP
+    } bmu_count_uop_t;
+
+    /* Compare operations */
+    typedef enum logic [1:0] {
+        MAX, MAXU, MIN, MINU
+    } bmu_compare_uop_t;
+
+    /* Sign extend operations */
+    typedef enum logic [1:0] {
+        SEXTB, SEXTH, ZEXTH
+    } bmu_extension_uop_t;
+
+    /* Rotate operations */
+    typedef enum logic {
+        ROL, ROR
+    } bmu_rotate_uop_t;
+
+    /* Byte operations */
+    typedef enum logic {
+        ORCB, REV8
+    } bmu_byte_uop_t;
+
+    /* Bit operations */
+    typedef enum logic [2:0] {
+        ANDN, ORN, XNOR, BCLR, 
+        BEXT, BINV, BSET
+    } bmu_logic_uop_t;
+
 
     /* Pack all those operations in three bits 
      * and let the unit interpret those differently */
@@ -40,65 +76,43 @@ package apogeo_operations_pkg;
         union packed {
 
             struct packed {
-                /* Shift and add operations */
-                enum logic [1:0] {
-                    SH1ADD, SH2ADD, SH3ADD
-                } opcode;
+                bmu_shadd_uop_t opcode;
                 
                 logic padding;
             } SHADD;
 
             struct packed {
-                /* Bit count operations */
-                enum logic [1:0] {
-                    CLZ, CTZ, CPOP
-                } opcode;
+                bmu_count_uop_t opcode;
 
                 logic padding;
             } BITC;
 
             struct packed {
-                /* Compare operations */
-                enum logic [1:0] {
-                    MAX, MAXU, MIN, MINU
-                } opcode;
+                bmu_compare_uop_t opcode;
 
                 logic padding;
             } CMP;
 
             struct packed {
-                /* Sign extend operations */
-                enum logic [1:0] {
-                    SEXTB, SEXTH, ZEXTH
-                } opcode;
+                bmu_extension_uop_t opcode;
 
                 logic padding;
             } EXT;
  
             struct packed {
-                /* Rotate operations */
-                enum logic {
-                    ROL, ROR
-                } opcode;
+                bmu_rotate_uop_t opcode;
 
                 logic [1:0] padding;
             } ROT;
 
             struct packed {
-                /* Byte operations */
-                enum logic {
-                    ORCB, REV8
-                } opcode;
+                bmu_byte_uop_t opcode;
 
                 logic [1:0] padding;
             } OPBYTE;
 
             struct packed {
-                /* Bit operations */
-                enum logic [2:0] {
-                    ANDN, ORN, XNOR, BCLR, 
-                    BEXT, BINV, BSET
-                } opcode;
+                bmu_logic_uop_t opcode;
             } OPLOGIC;
 
         } select;
