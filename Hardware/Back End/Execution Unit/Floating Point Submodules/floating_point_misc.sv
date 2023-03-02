@@ -62,9 +62,9 @@ module floating_point_misc (
     output logic dest_reg_file_o
 );
 
-//------------------//
-//  CLASSIFY LOGIC  //
-//------------------//
+//====================================================================================
+//      CLASSIFY LOGIC  
+//====================================================================================
 
     /* Special values detection (absolute values) */
     logic is_infinity, is_zero, is_nan;
@@ -111,9 +111,9 @@ module floating_point_misc (
     assign class_value = pclass_value | nclass_value | nan_value;
 
 
-//----------------//
-//  OUTPUT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC  
+//====================================================================================
 
     assign data_valid_o = data_valid_i;
 

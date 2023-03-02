@@ -74,9 +74,9 @@ module floating_point_adder (
     output round_bits_t round_bits_o
 );
 
-//-----------------------//
-//  DATA VALID PIPELINE  //
-//-----------------------//
+//====================================================================================
+//      DATA VALID PIPELINE
+//====================================================================================
 
     /* 
      *  This is the main valid bit pipeline, the bit is taken from the input and delayed
@@ -96,9 +96,9 @@ module floating_point_adder (
     assign data_valid_o = valid_bit_pipe[3];
 
 
-//--------------------------//
-//  EXPONENT COMPARE STAGE  //
-//--------------------------//
+//====================================================================================
+//      EXPONENT COMPARE STAGE
+//====================================================================================
 
     /* 
      *  In this stage the multiple things happen. First of all special numbers are detected
@@ -208,9 +208,9 @@ module floating_point_adder (
         end : stage0_register
     
 
-//---------------------------//
-//  ALIGN SIGNIFICAND STAGE  //
-//---------------------------//
+//====================================================================================
+//      ALIGN SIGNIFICAND STAGE  
+//====================================================================================
 
     /* 
      *  This stage aligns the two operands for the following addition. This happens to 
@@ -252,9 +252,9 @@ module floating_point_adder (
         end : stage1_register
 
 
-//-------------------------//
-//  SIGNIFICAND ADD STAGE  //
-//-------------------------//
+//====================================================================================
+//      SIGNIFICAND ADD STAGE  
+//====================================================================================
 
     /* 
      *  In this stage the significands are simply added together. The 
@@ -333,9 +333,9 @@ module floating_point_adder (
         end : stage2_register
 
 
-//-----------------------//
-//  NORMALIZATION STAGE  //
-//-----------------------//
+//====================================================================================
+//      NORMALIZATION STAGE  
+//====================================================================================
 
     /* 
      *  In this stage the result is normalized. The normalization is done

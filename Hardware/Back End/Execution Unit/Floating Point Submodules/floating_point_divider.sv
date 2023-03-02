@@ -75,9 +75,9 @@ module floating_point_divider (
 );
 
 
-//------------//
-//  DATAPATH  //
-//------------//
+//====================================================================================
+//      DATAPATH  
+//====================================================================================
 
     /* Dividend special values */
     logic dividend_is_infty_CRT, dividend_is_infty_NXT;
@@ -227,9 +227,9 @@ module floating_point_divider (
     );
 
 
-//-------------//
-//  FSM LOGIC  //
-//-------------//
+//====================================================================================
+//      FSM LOGIC  
+//====================================================================================
 
     typedef enum logic [1:0] {IDLE, DIVIDE_SIGNIFICAND, NORMALIZE, SPECIAL_VALUES} fsm_states_t;
 
@@ -383,9 +383,9 @@ module floating_point_divider (
         end : fsm_logic
 
 
-//----------------//
-//  OUTPUT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC  
+//====================================================================================
 
     assign round_bits_o.guard = shifted_out[23];
     assign round_bits_o.round = shifted_out[22];

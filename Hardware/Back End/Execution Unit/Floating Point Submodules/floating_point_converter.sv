@@ -77,9 +77,9 @@ module floating_point_converter (
     output round_bits_t round_bits_o
 );
 
-//----------------------//
-//  FLOAT TO INT LOGIC  //
-//----------------------//
+//====================================================================================
+//      FLOAT TO INT LOGIC  
+//====================================================================================
 
     logic hidden_bit;
 
@@ -180,9 +180,9 @@ module floating_point_converter (
         end : float_to_integer_conversion_logic
 
 
-//----------------//
-//  INT TO FLOAT  //
-//----------------//
+//====================================================================================
+//      INT TO FLOAT  
+//====================================================================================
 
     /* Complement the integer if negative to count the
      * leading zeros used for the shift */
@@ -251,9 +251,9 @@ module floating_point_converter (
     assign converted_float = {sign_bit_stg0, converted_exponent, converted_significand[31:9]};
 
 
-//----------------//
-//  OUTPUT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC 
+//====================================================================================
  
         always_ff @(posedge clk_i `ifndef ASYNC or negedge rst_n_i `endif) begin  
             if (!rst_n_i) begin 

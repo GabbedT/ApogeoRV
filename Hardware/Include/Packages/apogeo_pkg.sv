@@ -5,20 +5,23 @@
 
 package rv32_instructions_pkg;
 
-//--------------//
-//  PARAMETERS  //
-//--------------//
+//====================================================================================
+//      PARAMETERS
+//====================================================================================
 
     /* Exception vector */
     localparam DIVIDE_BY_ZERO = 4'b0000;
 
 
-//----------------//
-//  COMMON TYPES  //
-//----------------//
+//====================================================================================
+//      COMMON TYPES
+//====================================================================================
 
     /* Data word */
     typedef union packed {
+        /* 32 bits word */
+        logic [31:0] word32;
+
         /* 32 bits word splitted in two 
          * 16 bits half words */
         logic [1:0][15:0] word16;
@@ -39,9 +42,9 @@ package rv32_instructions_pkg;
     } regfile_address_t;
 
 
-//----------------------//
-//  INSTRUCTION PACKET  //
-//----------------------//
+//====================================================================================
+//      INSTRUCTION PACKET
+//====================================================================================
 
     typedef struct packed {
         /* Is a speculative instruction */
@@ -79,6 +82,40 @@ package rv32_instructions_pkg;
     } instr_packet_t;
 
     localparam NO_OPERATION = '0;
+
+
+//====================================================================================
+//      REORDER BUFFER
+//====================================================================================
+
+    typedef struct packed {
+        /* Is a speculative instruction */
+        logic speculative;
+
+        /* Multiple speculative instruction generated 
+         * by different jump can be in flight  */
+        logic [1:0] speculative_id;
+        
+        `ifdef FPU
+            /* Is a floating point operation */
+            logic is_float;
+        `endif
+
+        /* Has generated an trap */
+        logic trap_generated;
+
+        /* Exception vector */
+        logic [4:0] trap_vector;
+
+        /* Instruction address */
+        logic [31:0] instr_addr;
+
+        /* Result */
+        logic [31:0] result;
+
+        /* Register destination */
+        logic [4:0] reg_dest;
+    } rob_entry_t;
 
 endpackage : rv32_instructions_pkg
 

@@ -73,9 +73,9 @@ module floating_point_multiplier #(
     output round_bits_t round_bits_o
 );
 
-//---------------------------//
-//  FIRST COMPUTATION STAGE  //
-//---------------------------//
+//====================================================================================
+//      FIRST COMPUTATION STAGE 
+//====================================================================================
 
     /*
      *  - The result sign is computed
@@ -210,9 +210,9 @@ module floating_point_multiplier #(
         end 
 
 
-//--------------------//
-//  SIGNALS PIPELINE  //
-//--------------------//
+//====================================================================================
+//  SIGNALS PIPELINE  
+//====================================================================================
 
     /* Signals are simply pipelined in a shift register to wait until the multiplier 
      * produces a valid result. Note that if the multiplier is completely combinational
@@ -288,9 +288,9 @@ module floating_point_multiplier #(
         end
 
 
-//-----------------------------//
-//  SIGNIFICAND PRODUCT STAGE  //
-//-----------------------------//
+//====================================================================================
+//      SIGNIFICAND PRODUCT STAGE  
+//====================================================================================
 
     /* Significand multiplier product */
     logic [47:0] significand_product;
@@ -375,9 +375,9 @@ module floating_point_multiplier #(
         end : stage1_register
 
 
-//-----------------------//
-//  NORMALIZATION STAGE  //
-//-----------------------//
+//====================================================================================
+//      NORMALIZATION STAGE  
+//====================================================================================
 
     /* Exceptions */
     logic overflow;
@@ -457,9 +457,9 @@ module floating_point_multiplier #(
         end : normalization_logic
 
  
-//----------------//
-//  OUTPUT STAGE  //
-//----------------//
+//====================================================================================
+//      OUTPUT STAGE  
+//====================================================================================
 
     assign data_valid_o = data_valid_stg1;
 

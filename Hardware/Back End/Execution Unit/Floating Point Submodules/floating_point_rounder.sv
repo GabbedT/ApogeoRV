@@ -63,9 +63,9 @@ module floating_point_rounder (
     output logic underflow_o
 );
 
-//------------------//
-//  ROUNDING LOGIC  //
-//------------------//
+//====================================================================================
+//      ROUNDING LOGIC 
+//====================================================================================
 
     logic [22:0] rounded_significand;
     logic        carry;
@@ -154,9 +154,9 @@ module floating_point_rounder (
     assign is_nan = (operand_i.exponent == '1) & (operand_i.significand != '0);
 
 
-//----------------//
-//  OUTPUT LOGIC  //
-//----------------//
+//====================================================================================
+//      OUTPUT LOGIC 
+//====================================================================================
 
     assign overflow_o = (normalized_exponent == '1) & (normalized_significand == '0);
     assign underflow_o = (normalized_exponent == '0) & (normalized_significand == '0);

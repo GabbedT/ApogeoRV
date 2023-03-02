@@ -76,18 +76,18 @@ module multiplication_unit #(
     output logic       data_valid_o
 );
 
-//--------------//
-//  PARAMETERS  //
-//--------------//
+//====================================================================================
+//      PARAMETERS
+//====================================================================================
 
     localparam DATA_WIDTH = $bits(multiplicand_i);
 
     localparam RESULT_WIDTH = 2 * DATA_WIDTH;
 
 
-//---------------//
-//  FIRST STAGE  //
-//---------------//
+//====================================================================================
+//      FIRST STAGE
+//====================================================================================
 
     /* Since array multiplier operates with unsigned numbers if 
      * the operation is on signed number, the operands must be 
@@ -156,9 +156,9 @@ module multiplication_unit #(
         end : data_valid_stage_register
 
 
-//--------------------//
-//  SIGNALS PIPELINE  //
-//--------------------//
+//====================================================================================
+//      SIGNALS PIPELINE
+//====================================================================================
 
     /* The operation must be passed through the pipeline */
     mul_uop_t [CORE_STAGES:0] operation_pipe;
@@ -188,9 +188,9 @@ module multiplication_unit #(
         end : convert_signal_shift_register
 
 
-//------------------------//
-//  MULTIPLICATION STAGE  //
-//------------------------//
+//====================================================================================
+//      MULTIPLICATION STAGE
+//====================================================================================
 
 `ifdef ASIC 
 
@@ -255,9 +255,9 @@ module multiplication_unit #(
         end
 
 
-//--------------//
-//  LAST STAGE  //
-//--------------//
+//====================================================================================
+//      LAST STAGE
+//====================================================================================
 
     logic [RESULT_WIDTH - 1:0] converted_result;
 

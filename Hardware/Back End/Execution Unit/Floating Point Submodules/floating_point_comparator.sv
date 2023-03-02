@@ -66,9 +66,9 @@ module floating_point_comparator (
     output logic invalid_op_o
 );
 
-//------------//
-//  DATAPATH  //
-//------------//
+//====================================================================================
+//      DATAPATH  
+//====================================================================================
 
     /* Structure that holds the outcome
      * of a comparison */
@@ -140,9 +140,9 @@ module floating_point_comparator (
         end : significand_comparison_logic
 
 
-//----------------//
-//  NAN HANDLING  //
-//----------------//
+//====================================================================================
+//      NAN HANDLING  
+//====================================================================================
 
     logic A_is_nan, B_is_nan;
 
@@ -182,9 +182,9 @@ module floating_point_comparator (
         end : special_value_logic
 
 
-//-----------------//
-//  OUTCOME LOGIC  //
-//-----------------//
+//====================================================================================
+//      OUTCOME LOGIC 
+//====================================================================================
 
     /* The sign bit has priority over the exponent which has 
      * priority over the significand in the comparison */

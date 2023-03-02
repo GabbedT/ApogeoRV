@@ -96,9 +96,9 @@ module floating_point_fused_muladd (
     output round_bits_t fpmul_round_bits_o
 ); 
 
-//-----------------//
-//  CONTROL LOGIC  //
-//-----------------//
+//====================================================================================
+//      CONTROL LOGIC  
+//====================================================================================
 
     /* Total number of pipeline registers minus 1 */
     localparam FPMUL_PIPE_STAGES = `SIGNIFICAND_MUL_PIPE_STAGES + 2;
@@ -118,9 +118,9 @@ module floating_point_fused_muladd (
         end
 
 
-//-----------------------//
-//  FP MULTIPLIER LOGIC  //
-//-----------------------//
+//====================================================================================
+//      FP MULTIPLIER LOGIC  
+//====================================================================================
 
     logic fpmul_valid_in;
 
@@ -167,9 +167,9 @@ module floating_point_fused_muladd (
             end
         end
     
-//------------------//
-//  FP ADDER LOGIC  //
-//------------------//
+//====================================================================================
+//      FP ADDER LOGIC  
+//====================================================================================
 
     /* Addend selection */
     float32_t fpadd_operand_A, fpadd_operand_B;
