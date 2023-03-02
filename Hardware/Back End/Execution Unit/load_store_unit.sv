@@ -1,3 +1,38 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : load_store_unit.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module manages the arbitration of the memory units, the load unit
+//               has priority over the store unit because, the loaded value might 
+//               be needed immediately, while the stored value is not. 
+// ------------------------------------------------------------------------------------
+
 `ifndef LOAD_STORE_UNIT_SV
     `define LOAD_STORE_UNIT_SV
 
@@ -16,7 +51,7 @@
 module load_store_unit (
     input logic clk_i,
     input logic rst_n_i,
-    input logic kill_instructions_i,
+    input logic kill_instr_i,
 
     /* Instruction packet */
     input instr_packet_t instr_packet_i,
@@ -106,11 +141,12 @@ module load_store_unit (
 
             if (stu_illegal_access) begin
                 stu_exception_packet.trap_vector = `STORE_ACCESS_FAULT;
+                stu_exception_packet.trap_generated = 1'b1;
             end
         end
 
         always_ff @(posedge clk_i) begin
-            if (kill_instructions_i) begin
+            if (kill_instr_i) begin
                 stu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.STU) begin
                 stu_ipacket <= stu_exception_packet;
@@ -127,7 +163,7 @@ module load_store_unit (
 
     logic address_match;
 
-    assign address_match = (st_ctrl_channel.address == address_i);
+    assign address_match = (st_ctrl_channel.address == address_i) & !stu_idle_o;
 
     load_unit ldu (
         .clk_i             ( clk_i                  ),
@@ -152,7 +188,7 @@ module load_store_unit (
     instr_packet_t ldu_ipacket;
 
         always_ff @(posedge clk_i) begin
-            if (kill_instructions_i) begin
+            if (kill_instr_i) begin
                 ldu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.LDU) begin
                 ldu_ipacket <= instr_packet_i;

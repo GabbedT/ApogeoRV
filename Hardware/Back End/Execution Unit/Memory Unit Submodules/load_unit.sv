@@ -1,3 +1,41 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : load_unit.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module communicates with the memory controller and issues load 
+//               requests to it. When data comes, based on the operation and the 
+//               offset, it slices the data into the requested format (byte, half word
+//               full word). The unit could not issue the request if the data is found
+//               in the store buffer or in the store unit (already doing a store). In
+//               this case the data is directly fowarded to this unit.
+// ------------------------------------------------------------------------------------
+
 `ifndef LOAD_UNIT_SV
     `define LOAD_UNIT_SV
 
@@ -53,11 +91,20 @@ module load_unit (
 
     /* Load data from cache or memory */
     data_word_t load_data_CRT, load_data_NXT;
-    logic match_CRT, match_NXT;
 
         always_ff @(posedge clk_i) begin
             load_data_CRT <= load_data_NXT;
-            match_CRT <= match_NXT;
+        end
+
+
+    logic match_CRT, match_NXT;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                match_CRT <= 1'b0;
+            end else begin 
+                match_CRT <= match_NXT;
+            end
         end
 
 
@@ -120,7 +167,7 @@ module load_unit (
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT} load_unit_fsm_state_t;
+    typedef enum logic {IDLE, WAIT} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
@@ -156,8 +203,11 @@ module load_unit (
                  *  unit issue a load request
                  */ 
                 IDLE: begin
+                    idle_o = 1'b1;
+                    
                     if (valid_operation_i) begin
                         state_NXT = WAIT;
+                        idle_o = 1'b0;
 
                         if (str_buf_address_match_i) begin
                             load_data_NXT = str_buf_fowarded_data_i;
@@ -169,8 +219,6 @@ module load_unit (
                             ld_ctrl_channel.request = 1'b1;
                         end
                     end
-
-                    idle_o = 1'b1;
                 end
 
 
@@ -182,6 +230,7 @@ module load_unit (
                      * and the signal from the memory interface */
                     if (ld_ctrl_channel.valid | match_CRT) begin
                         state_NXT = IDLE;
+                        match_NXT = 1'b0;
 
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;

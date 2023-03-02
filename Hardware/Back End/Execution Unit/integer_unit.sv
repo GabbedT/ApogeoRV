@@ -1,3 +1,39 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : integer_unit.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module simply hosts the units that do computation on integer 
+//               numbers. Those computation can be arithmetic type (ALU, MULU, DIVU) or
+//               bit manipulation type (BMU). The unit can accept and issue only one
+//               instruction per cycle.
+// ------------------------------------------------------------------------------------
+
 `ifndef INTEGER_UNIT_SV
     `define INTEGER_UNIT_SV
 
@@ -16,7 +52,7 @@ module integer_unit (
     /* Pipeline control */
     input logic clk_i,
     input logic rst_n_i,
-    input logic kill_instructions_i,
+    input logic kill_instr_i,
 
     /* Enable / Disable extension */
     input logic enable_mul,
@@ -80,7 +116,7 @@ module integer_unit (
     assign alu_result_out = alu_valid ? alu_result : '0;
     
         always_comb begin
-            if (kill_instructions_i) begin
+            if (kill_instr_i) begin
                 alu_final_ipacket = NO_OPERATION;
             end else begin
                 if (alu_valid) begin
@@ -122,7 +158,7 @@ module integer_unit (
     instr_packet_t bmu_ipacket;
 
         always_ff @(posedge clk_i) begin : bmu_stage_register
-            if (kill_instructions_i) begin
+            if (kill_instr_i) begin
                 bmu_ipacket <= NO_OPERATION;
             end else begin
                 bmu_ipacket <= ipacket_i;
@@ -168,7 +204,7 @@ module integer_unit (
 
         always_ff @(posedge clk_i) begin : mul_stage_register
             if (enable_mul) begin
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     for (int i = 0; i <= IMUL_STAGES; ++i) begin
                         mul_ipacket[i] <= NO_OPERATION;
                     end 
@@ -215,7 +251,7 @@ module integer_unit (
     instr_packet_t div_ipacket;
 
         always_ff @(posedge clk_i) begin : div_stage_register 
-            if (kill_instructions_i) begin
+            if (kill_instr_i) begin
                 div_ipacket <= NO_OPERATION;
             end else if (data_valid_i.DIV) begin
                 div_ipacket <= ipacket_i;
@@ -233,7 +269,6 @@ module integer_unit (
             if (divide_by_zero & div_valid) begin
                 exc_div_ipacket.trap_vector = `DIVIDE_BY_ZERO;
                 exc_div_ipacket.trap_generated = 1'b1;
-                exc_div_ipacket.reg_dest = 5'b0;
             end
         end : division_exception_logic
 

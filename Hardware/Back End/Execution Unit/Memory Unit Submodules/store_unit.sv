@@ -1,3 +1,42 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
+// FILE NAME : store_unit.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// --------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module communicates with the store buffer and the memory controller.
+//               If the address of the store indicates that the data to be stored is
+//               bufferable, then the store controller pushes the data inside the store
+//               buffer and then wait for the arbiter to accept the operation. If the 
+//               data is not bufferable the a store request is issued to the memory 
+//               controller. This has priority over any store request from the store 
+//               buffer.
+// --------------------------------------------------------------------------------------
+
 `ifndef STORE_UNIT_SV
     `define STORE_UNIT_SV
 
@@ -125,14 +164,15 @@ module store_unit (
 
             idle_o = 1'b0;
             data_valid_o = 1'b0;
-            illegal_access_o = 1'b0;
 
             case (state_CRT)
 
                 IDLE: begin
                     idle_o = 1'b1;
 
-                    if (valid_operation_i) begin 
+                    if (valid_operation_i) begin
+                        idle_o = 1'b0;
+                        
                         casez ({accessable, bufferable})
                             2'b0?: begin
                                 state_NXT = WAIT_ACCEPT;
@@ -170,7 +210,6 @@ module store_unit (
                             end
                         endcase 
                     end
-
 
                     /* Stable signals */
                     store_data_NXT = store_data_i;
@@ -243,8 +282,6 @@ module store_unit (
 
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
-
-                    illegal_access_o = !accessable_CRT;
                     
                     if (data_accepted_i) begin
                         state_NXT = IDLE;
@@ -258,6 +295,8 @@ module store_unit (
                 end
             endcase
         end 
+
+    assign illegal_access_o = !accessable_CRT | !accessable;
 
 
 //====================================================================================

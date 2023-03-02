@@ -1,3 +1,39 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// -------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------
+// FILE NAME : floating_point_unit.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// -------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : This module simply hosts the units that do computation on floating 
+//               points numbers. Those computation can be arithmetic type, conversion,
+//               bit manipulation and comparison. The unit can accept and issue only one
+//               instruction per cycle.
+// -------------------------------------------------------------------------------------
+
 `ifndef FLOATING_POINT_UNIT_SV 
     `define FLOATING_POINT_UNIT_SV 
 
@@ -19,7 +55,7 @@ module floating_point_unit (
     /* Register control */
     input logic clk_i,
     input logic clk_en_i, 
-    input logic kill_instructions_i,
+    input logic kill_instr_i,
     input logic rst_n_i, 
 
     /* Operands */
@@ -119,7 +155,7 @@ module floating_point_unit (
             if (clk_en_i) begin
                 fpmul_round_mode <= {fpmul_round_mode[FPMUL_STAGES - 1:0], operation_i.round_uop};
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     for (int i = 0; i <= FPMUL_STAGES; ++i) begin
                         fpmul_ipacket[i] <= NO_OPERATION;
                     end
@@ -144,7 +180,7 @@ module floating_point_unit (
                 /* Select the input based on the operation performed: if fused take it from the last multiplier stage */
                 fpadd_round_mode <= is_fused ? fpmul_round_mode[FPMUL_STAGES] : {fpadd_round_mode[FPADD_STAGES - 1:0], operation_i.round_uop};
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     for (int i = 0; i <= FPADD_STAGES; ++i) begin
                         fpadd_ipacket[i] <= NO_OPERATION;
                     end
@@ -279,7 +315,7 @@ module floating_point_unit (
             if (clk_en_i & fpdiv_idle_o) begin
                 fpdiv_round_mode <= operation_i.round_uop;
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpdiv_ipacket <= NO_OPERATION;
                 end else begin 
                     fpdiv_ipacket <= ipacket_i;
@@ -320,7 +356,7 @@ module floating_point_unit (
 
                 fpdiv_round_mode_out <= fpdiv_round_mode;
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpdiv_ipacket_out <= NO_OPERATION;
                 end else begin 
                     fpdiv_ipacket_out <= fpdiv_ipacket;
@@ -376,7 +412,7 @@ module floating_point_unit (
             if (clk_en_i & data_valid_i.SQRT) begin
                 fpsqrt_round_mode <= operation_i.round_uop;
                 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpsqrt_ipacket <= NO_OPERATION;
                 end else begin 
                     fpsqrt_ipacket <= ipacket_i;
@@ -413,7 +449,7 @@ module floating_point_unit (
 
                 fpsqrt_round_mode_out <= fpsqrt_round_mode;
                 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpsqrt_ipacket_out <= NO_OPERATION;
                 end else begin 
                     fpsqrt_ipacket_out <= fpsqrt_ipacket;
@@ -472,7 +508,7 @@ module floating_point_unit (
 
                 fpcmp_invalid_op_out <= fpcmp_invalid_op;
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpcmp_ipacket_out <= NO_OPERATION;
                 end else begin 
                     fpcmp_ipacket_out <= ipacket_i;
@@ -531,7 +567,7 @@ module floating_point_unit (
             if (clk_en_i) begin
                 fpcvt_round_mode <= {fpcvt_round_mode[FPCVT_STAGES - 1:0], operation_i.round_uop};
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     for (int i = 0; i <= FPCVT_STAGES; ++i) begin
                         fpcvt_ipacket[i] <= NO_OPERATION;
                     end
@@ -570,7 +606,7 @@ module floating_point_unit (
 
                 fpcvt_round_mode_out <= rnd_uop_t'(fpcvt_round_mode[FPCVT_STAGES] & fpcvt_round_enable);
                 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpcvt_ipacket_out <= NO_OPERATION;
                 end else begin 
                     fpcvt_ipacket_out <= fpcvt_ipacket[FPCVT_STAGES];
@@ -630,7 +666,7 @@ module floating_point_unit (
             end else begin
                 fpmisc_result_out <= fpmisc_result_out;
 
-                if (kill_instructions_i) begin
+                if (kill_instr_i) begin
                     fpmisc_ipacket_out <= NO_OPERATION;
                 end else begin 
                     fpmisc_ipacket_out <= fpmisc_ipacket_unit;
