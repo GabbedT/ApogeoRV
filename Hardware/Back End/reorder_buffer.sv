@@ -46,11 +46,14 @@
 
 `include "../Include/Packages/apogeo_pkg.sv"
 
+`include "../Include/Headers/apogeo_configuration.svh"
+
 module reorder_buffer (
     input logic clk_i,
     input logic rst_n_i,
     input logic clear_rob_i,
 
+    /* ROB address */
     input logic [5:0] tag_i,
 
     /* Reorder buffer entry from memory
@@ -60,6 +63,12 @@ module reorder_buffer (
     /* Commands */
     input logic write_i,
     input logic read_i,
+
+    /* Issue interface */
+    `ifdef FPU input logic is_float_i, `endif 
+    input logic [4:0] reg_dest_i,
+    output data_word_t result_o, 
+    output logic result_valid_o,
 
     /* The current ROB packet pointed is
      * valid and can be written back */
@@ -80,8 +89,7 @@ module reorder_buffer (
             if (!rst_n_i | clear_rob_i) begin
                 read_ptr <= 6'b1;
             end else if (read_i) begin
-                /* Address 0 is never read */
-                read_ptr <= (read_ptr == '1) ? 6'b1 : (read_ptr + 1'b1);
+                read_ptr <= read_ptr + 1'b1;
             end
         end
 
@@ -120,6 +128,149 @@ module reorder_buffer (
         end
 
     assign valid_o = valid[read_ptr];
+
+
+//====================================================================================
+//      INTEGER FOWARD MEMORY LOGIC
+//====================================================================================
+
+    /* Foward register holds the result of the instruction. 
+     * It's write indexed by the destination register of the instruction
+     * and read indexed by the issue stage register destination */
+    logic [31:0] foward_iregister [31:0];
+
+        always_ff @(posedge clk_i) begin : iregister_write_port
+            `ifdef FPU if (!is_float_i) begin `endif 
+                if (write_i) begin
+                    foward_iregister[entry_i.reg_dest] <= entry_i.result;
+                end 
+            `ifdef FPU end `endif 
+        end : iregister_write_port
+
+    /* Read port */
+    logic [31:0] iregister_result;
+    assign iregister_result = foward_iregister[reg_dest_i];
+
+
+    /* Register the last packet that wrote the foward register */
+    logic [5:0] tag_iregister [31:0];
+
+        always_ff @(posedge clk_i) begin : iregister_tag_write_port
+            `ifdef FPU if (!is_float_i) begin `endif 
+                if (write_i) begin
+                    tag_iregister[entry_i.reg_dest] <= tag_i;
+                end 
+            `ifdef FPU end `endif 
+        end : iregister_tag_write_port
+
+
+    /* Indicates it the result was written back to register file or not */
+    logic [31:0] valid_iregister;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : iregister_valid_write_port
+            if (!rst_n_i) begin
+                valid_iregister <= '0;
+            end else
+            `ifdef FPU if (!is_float_i) begin `endif 
+                if (write_i) begin
+                    /* On writes validate the result */
+                    valid_iregister[entry_i.reg_dest] <= 1'b1;
+                end 
+
+                if (read_i & (tag_iregister[entry_o.reg_dest] == read_ptr)) begin
+                    /* If the instruction that wrote the result in the foward register
+                     * is being pulled from the ROB, invalidate the result */
+                    valid_iregister[entry_o.reg_dest] <= 1'b0;
+                end
+            `ifdef FPU end `endif 
+        end : iregister_valid_write_port
+
+    /* Read port */
+    logic iregister_valid;
+    assign iregister_valid = valid_iregister[reg_dest_i];
+
+
+//====================================================================================
+//      FLOATING POINT FOWARD MEMORY LOGIC
+//====================================================================================
+
+    `ifdef FPU 
+
+    /* Foward register holds the result of the instruction. 
+     * It's write indexed by the destination register of the instruction
+     * and read indexed by the issue stage register destination */
+    logic [31:0] foward_fregister [31:0];
+
+        always_ff @(posedge clk_i) begin : fregister_write_port
+            if (is_float_i) begin 
+                if (write_i) begin
+                    foward_fregister[entry_i.reg_dest] <= entry_i.result;
+                end 
+            end 
+        end : fregister_write_port
+
+    /* Read port */
+    logic [31:0] fregister_result;
+    assign fregister_result = foward_fregister[reg_dest_i];
+
+
+    /* Register the last packet that wrote the foward register */
+    logic [5:0] tag_fregister [31:0];
+
+        always_ff @(posedge clk_i) begin : fregister_tag_write_port
+            if (is_float_i) begin 
+                if (write_i) begin
+                    tag_fregister[entry_i.reg_dest] <= tag_i;
+                end 
+            end 
+        end : fregister_tag_write_port
+
+
+    /* Indicates it the result was written back to register file or not */
+    logic [31:0] valid_fregister;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fregister_valid_write_port
+            if (!rst_n_i) begin
+                valid_fregister <= '0;
+            end else if (is_float_i) begin 
+                if (write_i) begin
+                    /* On writes validate the result */
+                    valid_fregister[entry_i.reg_dest] <= 1'b1;
+                end 
+
+                if (read_i & (tag_fregister[entry_o.reg_dest] == read_ptr)) begin
+                    /* If the instruction that wrote the result in the foward register
+                     * is being pulled from the ROB, invalidate the result */
+                    valid_fregister[entry_o.reg_dest] <= 1'b0;
+                end
+            end 
+        end : fregister_valid_write_port
+
+    /* Read port */
+    logic fregister_valid;
+    assign fregister_valid = valid_fregister[reg_dest_i];
+
+    `endif 
+
+
+//====================================================================================
+//      FOWARD OUTPUT LOGIC
+//====================================================================================
+
+        always_comb begin 
+            `ifdef FPU 
+                if (is_float_i) begin
+                    result_o = fregister_result;
+                    result_valid_o = fregister_valid;
+                end else begin
+                    result_o = iregister_result;
+                    result_valid_o = iregister_valid;
+                end
+            `else 
+                result_o = iregister_result;
+                result_valid_o = iregister_valid;
+            `endif 
+        end
 
 endmodule : reorder_buffer
 
