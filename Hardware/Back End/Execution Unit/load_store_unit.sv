@@ -38,6 +38,7 @@
 
 `include "Memory Unit Submodules/load_unit.sv"
 `include "Memory Unit Submodules/store_unit.sv"
+`include "Memory Unit Submodules/memory_mapped_timer.sv"
 
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Packages/apogeo_operations_pkg.sv"
@@ -52,6 +53,7 @@ module load_store_unit (
     input logic clk_i,
     input logic rst_n_i,
     input logic kill_instr_i,
+    input logic prv_level_i,
 
     /* Instruction packet */
     input instr_packet_t instr_packet_i,
@@ -65,6 +67,9 @@ module load_store_unit (
 
     /* Memory operation */
     input lsu_uop_t operation_i,
+
+    /* To CSR unit */
+    output logic timer_interrupt_o,
 
     /* Functional unit state */
     output logic ldu_idle_o,
@@ -112,21 +117,24 @@ module load_store_unit (
 //      STORE UNIT
 //====================================================================================
 
-    logic stu_data_accepted, stu_illegal_access, stu_data_valid;
+    logic stu_data_accepted, stu_illegal_access, stu_data_valid, stu_timer_write;
 
     store_unit stu (
-        .clk_i             ( clk_i                  ),
-        .rst_n_i           ( rst_n_i                ),
-        .valid_operation_i ( data_valid_i.STU       ),
-        .store_data_i      ( data_i                 ),
-        .store_address_i   ( address_i              ),
-        .operation_i       ( operation_i.STU.opcode ),
-        .data_accepted_i   ( stu_data_accepted      ),
+        .clk_i             ( clk_i                      ),
+        .rst_n_i           ( rst_n_i                    ),
+        .prv_level_i       ( prv_level_i                ),
+        .valid_operation_i ( data_valid_i.STU           ),
+        .store_data_i      ( data_i                     ),
+        .store_address_i   ( address_i                  ),
+        .operation_i       ( operation_i.STU.opcode     ),
+        .data_accepted_i   ( stu_data_accepted          ),
 
         .st_buf_channel ( st_buf_channel ),
 
         .st_ctrl_channel   ( st_ctrl_channel   ),
         .store_ctrl_idle_i ( store_ctrl_idle_i ),
+
+        .timer_write_o ( stu_timer_write ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
@@ -158,8 +166,8 @@ module load_store_unit (
 //      LOAD UNIT
 //====================================================================================
     
-    logic       ldu_data_valid;
-    data_word_t loaded_data;
+    logic       ldu_data_valid, ldu_illegal_access;
+    data_word_t loaded_data, timer_data;
 
     logic address_match;
 
@@ -168,10 +176,13 @@ module load_store_unit (
     load_unit ldu (
         .clk_i             ( clk_i                  ),
         .rst_n_i           ( rst_n_i                ),
+        .prv_level_i       ( prv_level_i            ),
         .valid_operation_i ( data_valid_i.LDU       ),
         .load_address_i    ( address_i              ),
         .operation_i       ( operation_i.LDU.opcode ),
         
+        .timer_data_i ( timer_data ),
+
         .ld_ctrl_channel ( ld_ctrl_channel ),
 
         .stu_address_match_i ( address_match ),
@@ -180,21 +191,49 @@ module load_store_unit (
         .str_buf_address_match_i ( str_buf_address_match_i ),
         .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
 
-        .data_loaded_o  ( loaded_data    ),
-        .idle_o         ( ldu_idle_o     ),
-        .data_valid_o   ( ldu_data_valid )
+        .data_loaded_o    ( loaded_data        ),
+        .idle_o           ( ldu_idle_o         ),
+        .data_valid_o     ( ldu_data_valid     ),
+        .illegal_access_o ( ldu_illegal_access )
     ); 
 
-    instr_packet_t ldu_ipacket;
+    instr_packet_t ldu_ipacket, ldu_exception_packet;
+
+        always_comb begin
+            ldu_exception_packet = instr_packet_i;
+
+            if (ldu_illegal_access) begin
+                ldu_exception_packet.trap_vector = `LOAD_ACCESS_FAULT;
+                ldu_exception_packet.trap_generated = 1'b1;
+            end
+        end
 
         always_ff @(posedge clk_i) begin
             if (kill_instr_i) begin
                 ldu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.LDU) begin
-                ldu_ipacket <= instr_packet_i;
+                ldu_ipacket <= ldu_exception_packet;
             end
         end
     
+
+//====================================================================================
+//      MEMORY MAPPED TIMER
+//====================================================================================
+
+    memory_mapped_timer timer (
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+
+        .write_i         ( stu_timer_write              ),
+        .write_data_i    ( st_ctrl_channel.data         ),
+        .write_address_i ( st_ctrl_channel.address[1:0] ),
+
+        .read_address_i ( ld_ctrl_channel.address[1:0] ),
+        .read_data_o    ( timer_data                   ),
+
+        .timer_interrupt_o ( timer_interrupt_o )
+    );
 
 //====================================================================================
 //      OUTPUT LOGIC

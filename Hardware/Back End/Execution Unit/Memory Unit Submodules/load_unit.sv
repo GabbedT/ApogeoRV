@@ -45,6 +45,7 @@
 `include "../../../Include/Packages/apogeo_pkg.sv"
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/control_status_registers_pkg.sv"
 
 `include "../../../Include/Interfaces/memory_controller_interface.sv"
 `include "../../../Include/Interfaces/store_buffer_interface.sv"
@@ -53,12 +54,16 @@ module load_unit (
     /* Register control */
     input logic clk_i,
     input logic rst_n_i,
+    input logic prv_level_i,
 
     /* Inputs are valid */
     input logic valid_operation_i,
 
     /* Load data request address */
     input data_word_t load_address_i,
+
+    /* Data from the memory mapped timer */
+    input data_word_t timer_data_i,
 
     /* Operation to execute */
     input ldu_uop_t operation_i,
@@ -80,6 +85,9 @@ module load_unit (
     /* Functional unit status */
     output logic idle_o,
 
+    /* Privilege access error */
+    output logic illegal_access_o,
+
     /* Data is valid */
     output logic data_valid_o
 );
@@ -88,6 +96,14 @@ module load_unit (
 //====================================================================================
 //      DATAPATH
 //====================================================================================
+
+    logic timer_access, illegal_priv_access;
+
+    assign timer_access = (load_address_i > (`TIMER_START - 1)) & (load_address_i < (`TIMER_END - 1));
+
+    /* Access IO in user mode is illegal */
+    assign illegal_priv_access = ((load_address_i > `TIMER_END - 1) & (load_address_i < `IO_END - 1)) & !prv_level_i;
+
 
     /* Load data from cache or memory */
     data_word_t load_data_CRT, load_data_NXT;
@@ -191,6 +207,7 @@ module load_unit (
             idle_o = 1'b0;
             data_valid_o = 1'b0;
             data_loaded_o = '0;
+            illegal_access_o = 1'b0;
 
             case (state_CRT)
 
@@ -205,12 +222,18 @@ module load_unit (
                 IDLE: begin
                     idle_o = 1'b1;
                     
-                    if (valid_operation_i) begin
+                    if (illegal_priv_access) begin
+                        idle_o = 1'b0;
+                        illegal_access_o = 1'b1;
+                    end if (valid_operation_i) begin
                         state_NXT = WAIT;
                         idle_o = 1'b0;
 
                         if (str_buf_address_match_i) begin
                             load_data_NXT = str_buf_fowarded_data_i;
+                            match_NXT = 1'b1;
+                        end else if (timer_access) begin
+                            load_data_NXT = timer_data_i;
                             match_NXT = 1'b1;
                         end else if (stu_address_match_i) begin
                             load_data_NXT = stu_fowarded_data_i;

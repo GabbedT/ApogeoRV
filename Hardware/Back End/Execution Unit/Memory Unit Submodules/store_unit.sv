@@ -47,12 +47,16 @@
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
 
+`include "../../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../../Include/Interfaces/store_buffer_interface.sv"
+
 `include "../../../Include/test_include.svh"
 
 module store_unit (
     /* Register control */
     input logic clk_i,
     input logic rst_n_i,
+    input logic prv_level_i,
 
     /* Inputs are valid */
     input logic valid_operation_i,
@@ -76,6 +80,9 @@ module store_unit (
     store_controller_interface.master st_ctrl_channel,
     input logic store_ctrl_idle_i,
 
+    /* Write memory mapped timer */
+    output logic timer_write_o,
+
     /* Functional unit status */
     output logic idle_o,
  
@@ -91,20 +98,23 @@ module store_unit (
 //====================================================================================
 
     /* Check address properties to determine the operation */
-    logic bufferable, accessable;
-
+    logic bufferable, accessable, timer_access;
+    
+    assign timer_access = (store_address_i > (`TIMER_START - 1)) & (store_address_i < (`TIMER_END - 1));
 
     /* If not bufferable the data has priority over other entries in queue */
-    assign bufferable = store_address_i > `IO_END;
+    assign bufferable = store_address_i > (`IO_END - 1);
 
-    /* Legal access to the memory region */
-    assign accessable = store_address_i > `BOOT_END;
+    /* Legal access to the memory region: cannot write into boot region, access to IO is enabled only by M mode instruction 
+     * except for timer access */
+    assign accessable = (store_address_i > (`BOOT_END - 1)) & ((((store_address_i > `TIMER_END - 1) & (store_address_i < `IO_END - 1)) & prv_level_i) | timer_access);
 
     logic accessable_CRT, accessable_NXT;
 
         always_ff @(posedge clk_i) begin 
             accessable_CRT <= accessable_NXT;
         end
+
 
     /* Sampled when a valid operation is supplied to provide a stable
      * output */
@@ -164,6 +174,7 @@ module store_unit (
 
             idle_o = 1'b0;
             data_valid_o = 1'b0;
+            timer_write_o = 1'b0;
 
             case (state_CRT)
 
@@ -173,42 +184,46 @@ module store_unit (
                     if (valid_operation_i) begin
                         idle_o = 1'b0;
                         
-                        casez ({accessable, bufferable})
-                            2'b0?: begin
-                                state_NXT = WAIT_ACCEPT;
-
-                                `ifdef TEST_DESIGN
-                                    $display("[Store Unit][%0t] Accessing illegal memory region!", $time());
-                                `endif
-                            end
-
-                            2'b11: begin
-                                if (!st_buf_channel.full) begin
+                        if (timer_access) begin
+                            timer_write_o = 1'b1;
+                        end else begin 
+                            casez ({accessable, bufferable})
+                                2'b0?: begin
                                     state_NXT = WAIT_ACCEPT;
-                                end else begin
-                                    state_NXT = WAIT_BUFFER;
+
+                                    `ifdef TEST_DESIGN
+                                        $display("[Store Unit][%0t] Accessing illegal memory region!", $time());
+                                    `endif
                                 end
+
+                                2'b11: begin
+                                    if (!st_buf_channel.full) begin
+                                        state_NXT = WAIT_ACCEPT;
+                                    end else begin
+                                        state_NXT = WAIT_BUFFER;
+                                    end
+                                        
+                                    /* Don't push data if the buffer is full */
+                                    st_buf_channel.push_request = !st_buf_channel.full;
+
+                                    `ifdef TEST_DESIGN
+                                        $display("[Store Unit][%0t] Requesting a push to the store buffer...", $time());
+                                    `endif
+                                end
+
+                                2'b10: begin
+                                    state_NXT = WAIT_MEMORY;
                                     
-                                /* Don't push data if the buffer is full */
-                                st_buf_channel.push_request = !st_buf_channel.full;
+                                    if (store_ctrl_idle_i) begin
+                                        st_ctrl_channel.request = 1'b1;
+                                    end
 
-                                `ifdef TEST_DESIGN
-                                    $display("[Store Unit][%0t] Requesting a push to the store buffer...", $time());
-                                `endif
-                            end
-
-                            2'b10: begin
-                                state_NXT = WAIT_MEMORY;
-                                
-                                if (store_ctrl_idle_i) begin
-                                    st_ctrl_channel.request = 1'b1;
+                                    `ifdef TEST_DESIGN
+                                        $display("[Store Unit][%0t] Waiting memory store...", $time());
+                                    `endif 
                                 end
-
-                                `ifdef TEST_DESIGN
-                                    $display("[Store Unit][%0t] Waiting memory store...", $time());
-                                `endif 
-                            end
-                        endcase 
+                            endcase 
+                        end
                     end
 
                     /* Stable signals */
