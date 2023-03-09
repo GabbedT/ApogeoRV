@@ -31,7 +31,7 @@
 // DESCRIPTION : This module perform a floating point comparison between two inputs.
 //               All the types of comparison can be done here (except >= which can be
 //               produce from the < operator). The output format can be a bit set or
-//               the operand which matched the comparison. TRe unit is fully combinat
+//               the operand which matched the comparison. The unit is fully combinat
 //               ional
 // ------------------------------------------------------------------------------------
 
