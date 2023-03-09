@@ -87,6 +87,9 @@ module execution_unit (
     /* Branch control */
     output logic is_branch_o,
 
+    /* Global interrupt enable */
+    output logic glb_interrupt_enable_o,
+
 
     /* 
      * Memory controller interface 
@@ -205,15 +208,19 @@ module execution_unit (
 //      LOAD STORE UNIT
 //====================================================================================
 
+    logic timer_interrupt;
+
     load_store_unit LSU (
         .clk_i                   ( clk_i                   ),
         .rst_n_i                 ( rst_n_i                 ),
         .kill_instr_i            ( kill_instr_i            ),
+        .prv_level_i             ( current_privilege_o     ),
         .instr_packet_i          ( ipacket_i               ),
         .data_valid_i            ( data_valid_i.LSU        ),
         .address_i               ( operand_1_i             ),
         .data_i                  ( operand_2_i             ),
         .operation_i             ( operation_i.LSU.subunit ),
+        .timer_interrupt_o       ( timer_interrupt         ),
         .ldu_idle_o              ( ldu_idle_o              ),
         .stu_idle_o              ( stu_idle_o              ),
         .ld_ctrl_channel         ( ld_ctrl_channel         ),
@@ -348,11 +355,13 @@ module execution_unit (
 
         .trap_pc_i              ( trap_pc_i              ),
         .interrupt_vector_i     ( interrupt_vector_i     ),
+        .timer_interrupt_i      ( timer_interrupt        ),
         .exception_vector_i     ( exception_vector_i     ),
         .interrupt_request_i    ( interrupt_request_i    ),
         .exception_i            ( exception_i            ),
         .trap_pc_address_o      ( trap_pc_address_o      ),
         .handling_mode_o        ( handling_mode_o        ),
+        .glb_int_enabled_o      ( glb_interrupt_enable_o ),
         .machine_return_instr_i ( machine_return_instr_i ),
         .current_privilege_o    ( current_privilege_o    )
     );
@@ -368,16 +377,10 @@ module execution_unit (
             if (data_valid_i.CSR) begin
                 csr_ipacket_o = ipacket_i;
 
-                if (illegal_privilege) begin
+                if (illegal_privilege | illegal_csr | illegal_instruction) begin
                     /* Low privilege access on an higher privilege CSR */
-                    csr_ipacket_o.trap_vector = `PRIVILEGE_CSR_ACCESS;
-                end else if (illegal_csr) begin
-                    /* CSR doesn't exist */
-                    csr_ipacket_o.trap_vector = `ILLEGAL_CSR_ADDRESS;
-                end else if (illegal_instruction) begin
-                    /* Access to a read-only register */
-                    csr_ipacket_o.trap_vector = `ILLEGAL_CSR_WRITE;
-                end
+                    csr_ipacket_o.trap_vector = `INSTR_ILLEGAL;
+                end 
 
                 csr_result_o = csr_data_read;
             end
