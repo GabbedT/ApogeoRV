@@ -32,7 +32,7 @@
     `define BMU
 
     /* Enable or disable cache */
-    `define CACHE_SYSTEM
+    //`define CACHE_SYSTEM
 
 
 //====================================================================================
