@@ -1,3 +1,10 @@
-Integrate WAIT ACCEPT state in the load cache controller and store cache controller
+Verify FPU 
+Add FPU Scheduling 
 
-Add load cache controller and store cache controller deep descriptions and assertions
+Add FPU commit buffer
+
+Add unprivileged access
+
+Delete kill_instruction
+
+Test output stage of division unit (div_dividend > div_divisor)

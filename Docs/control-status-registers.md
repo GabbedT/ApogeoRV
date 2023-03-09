@@ -1,5 +1,32 @@
 # Control Status Registers
 
+## Index
+
+* [Introduction](#introduction)
+* [CSR List](#csr-list)
+* [CSR Unit](#csr-unit)
+* [Machine Mode CSRs](#machine-mode-csrs)
+    * [ISA](#isa-csr)
+    * [ID](#id-csrs)
+    * [Status](#status-csr)
+    * [Trap Vector](#trap-vector-csr)
+    * [Interrupt Status](#interrupt-status-csrs)
+    * [Exception PC](#exception-program-counter-csr)
+    * [Exception Cause](#exception-cause-csr)
+    * [Hardware Performance Monitor](#hardware-performance-monitor-csrs)
+    * [Counter Enable](#counter-enable-csr)
+    * [Counter Inhibit](#counter-inhibit-csr)
+    * [Scratch](#scratch-register)
+    * [Time Register](#time-register)
+* [User Mode CSRs](#user-mode-csrs)
+    * [Floating Point](#floating-point-csr)
+
+---
+
+&nbsp;
+
+## Introduction
+
 RV32-Apogeo doesn't implement all CSRs proposed by RISC-V specifications, only essentials ones are actually keeped to reduce area ovehead. Specification says that there are bit fields with certains properties. 
 
 Some bit fields specify a precise behaviour for a subset of the possible bit combinations:
@@ -12,12 +39,13 @@ Some CSRs can only be readed (**RO**, read only) or can be freely accessed (**RW
 All CSRs have a privilege mode associated. RV32-Apogeo implements 3 different modes:
 
 * **M**: Machine mode
-* **S**: Supervisor mode
 * **U**: User mode
 
 A CSR with *X* mode can only be accessed by an instruction in *Y* mode that have the same or higher privilege level (*Y* >= *X*)
 
 ---
+
+&nbsp;
 
 &nbsp;
 
@@ -41,16 +69,6 @@ USER
 0xC83    | hpmcounter3h | U | RO | Upper 32 bits of hpmcounter3.
 . . . | 
 0xC86    | hpmcounter6h | U | RO | Upper 32 bits of hpmcounter6.
-SUPERVISOR|  
-0x100     | sstatus | S | RW | Supervisor status register.
-0x104     | sie | S | RW | Supervisor interrupt-enable register.
-0x105     | stvec | S | RW | Supervisor trap handler base address.
-0x106     | scounteren | S | RW | Supervisor counter enable.
-0x140     | sscratch | S | RW | Scratch register for supervisor trap handlers.
-0x141     | sepc | S | RW | Supervisor exception program counter.
-0x142     | scause | S | RW | Supervisor trap cause.
-0x143     | staval | S | RW | Supervisor bad address or instruction.
-0x144     | sip | S | RW | Supervisor interrupt pending.
 MACHINE
 0xF11     | mvendorid | M | R0 | Vendor ID.
 0xF12     | marchid | M | R0 | Architecture ID.
@@ -58,8 +76,6 @@ MACHINE
 0xF14     | mhartid | M | R0 | Hardware thread ID.
 0x300     | mstatus    | M | RW | Machine status register.
 0x301     | misa    | M | RW | ISA and extensions
-0x302     | medeleg    | M | RW |  Machine exception delegation register.
-0x303     | mideleg    | M | RW | Machine interrupt delegation register.
 0x304     | mie    | M | RW | Machine interrupt-enable register.
 0x305     | mtvec    | M | RW | Machine trap-handler base address.
 0x340     | mscratch    | M | RW | Scratch register for machine trap handlers.
@@ -85,11 +101,11 @@ MACHINE
 
 &nbsp;
 
+&nbsp;
+
 ## CSR Unit
 
-The **CSR Unit write port** is situated (in the pipeline) in the **writeback stage** just like the register file (write port). This is because *CSRs are part of the CPU architectural state*, so they must not be written out of order. 
-
-On the other end the **CSR Unit read port** is accessed during the **read registers stage**: after decode and before execute stage.
+The **CSR Unit** is situated (in the pipeline) in the **execute stage**. 
 
 The CSR address is 12 bits wide, the fields are:
 
@@ -99,13 +115,17 @@ The CSR address is 12 bits wide, the fields are:
 
 Each CSR has an enable signal that tells if the instruction has targeted that type of CSR, then a *decoder* decodes the [7:0] bits to generate a single read / write signal anded (&) with the instruction read / write operation.
 
+The following paragraphs will provide a description of the CSRs implemented in the core with the relative bit fields and their functionality. The fields that are not present in the tables will return a 0 if read.
+
 ---
+
+&nbsp;
 
 &nbsp;
 
 ## Machine Mode CSRs
 
-### Machine ISA CSR
+### ISA CSR
 
 Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. Extensions implemented can be read through this register. Another use is to disable M and F extensions, by clearing the corresponding bit into the *Extensions* bit field.
 
@@ -114,43 +134,31 @@ Bits    | Name | Access Mode | Description | Default Value |
 [31:30] | Machine XLEN       | RO  | Encodes the native base integer ISA | 1 |
 [25:0]  | Extensions         | RW  | Read implemented extensions and disable M - F extensions | 0x141126
 
-The bits that are not present in the table will return a 0 if read.
+&nbsp;
 
 ### ID CSRs
 
 CSRs like **mvendorid**, **marchid**, **mimpid** and **mhartid** privide a simple mechanism to identify the CPU core. They are all *read-only* registers and will return a 0 except for *marchid* CSR. A read to that will return the value: **0x41504F47** (APOG in ASCII) 
 
+&nbsp;
 
-### Machine Status Register CSR
+### Status CSR
 
 The machine status register: **mstatus**, keeps track of and controls the hart’s current operating state.
 
 Bits    | Name | Access Mode | Description  | Default Value |
 ---     | ---  | ---         | ---          | ---   | 
-[31]    | SD   | RO          | Not implemented | 0     | 
-[22]    | TSR  | RW          | Not implemented | 0 | 
-[21]    | TW   | RW  | Not implemented | 0 |
-[20]    | TVM  | RO  | Not implemented since virtual memory is not supported | 0 |
-[19]    | MXR  | RO  | Not implemented since virtual memory is not supported | 0 |
-[18]    | SUM  | RO  | Not implemented since virtual memory is not supported | 0 |
-[17]    | MPRV | RO  | Not implemented since virtual memory is not supported | 0 |
-[16:15] | XS   | RO  | Not implemented                                       | 0 |
-[14:13] | FS   | RO  | Not implemented                                       | 0 |
 [12:11] | MPP  | RO  | Save the preceeding privilege mode after a trap (M-mode)       | 0 | 
-[10:9]  | VS   | RO  | Not implemented                                       | 0 |
-[8]     | SPP  | RO  | Save the preceeding privilege mode after a trap (S-mode)       | 0 | 
 [7]     | MPIE | RO  | Save the preceeding interrupt enable bit after a trap (M-mode) | 0 |
-[6]     | UBE  | RO  | Not implemented | 0 |
-[5]     | SPIE | RO  | Save the preceeding interrupt enable bit after a trap (S-mode) | 0 | 
 [3]     | MIE  | RW  | Global interrupt enable (M-mode) | 1 |
-[1]     | SIE  | RW  | Global interrupt enable (S-mode) | 1 |
 
 The bits that are not present in the table will return a 0 if read.
 
 Some bit fields are not implemented because of the lack of features like virtual memory and endianness memory operation (B extension has REV8 instruction to reverse the byte order) to keep the complexity low.
 
+&nbsp;
 
-### Machine Trap-Vector CSR 
+### Trap-Vector CSR 
 
 The **mtvec** register hold the base address of the memory location that will be loaded into the PC. RISC-V supports 2 different modes of interrupt handling:
 
@@ -162,65 +170,43 @@ Bits    | Name | Access Mode | Description  | Default Value |
 [31:2]  | BASE | RW          | Base address | 0x00000000 
 [1:0]   | MODE | RW          | Exception handling mode | 0 | 
 
+&nbsp;
 
-### Machine Trap and Interrupt Delegation CSR 
-
-When an exception is taken, usually it's handled in machine mode. The handler can then execute an MRET instruction to deliver the handling to a lower privilege code.
-
-To speedup this process, **mideleg** and **medeleg** registers are used, if the n-th bit is set, it means that the exception associated with that bit should be handled by lower privilege level code.
-
-This happens when the core runs in S-mode or U-mode. Infact *traps never transition from a more privileged mode to a less privileged mode*. 
-
-When the trap is delegated to S-mode code, [scause](#Supervisor-Cause-CSR) register is written with the trap cause code, [sepc](#Supervisor-Exception-Program-Counter-CSR) is written with the PC that took the trap, [stval](#Supervisor-Trap-Value-CSR) is written with the right value. In **mstatus** register: SPP is written with the privilege mode before the trap was taken, SPIE is written with the value of SIE and this one is cleared.
-
-
-### Machine Interrupt Pending and Enable CSR
+### Interrupt Status CSRs
 
 The **mip** and **mie** registers control the machine interrupt. The **mip** register keeps track of *pending interrupts* while through **mie** register single interrupts can be disabled. On an interrupt cause 'i' correspond the bit 'i' in MIP and MIE set.
 
-Interrupts to M-mode take priority over any interrupts to lower privilege modes.
-Conditions must be evaluated when an interrupt BECOMES or CEASES to be pending, those must be checked also immediately following the execution of an xRET instruction or a write to a CSR (mip, mie, mstatus, mideleg).
-
+An interrupt will be taken if:
 * Current privilege mode is M and mstatus.MIE is set, or the current privilege mode is less privileged than M-mode.
 * Bit 'i' is set in both MIE and MIP.
-* Bit 'i' in mideleg is not set.
 
-Interrupts for higher privilege modes must be serviced before lower ones.
-External interrupts are handled before internal ones.
+The **mip** register has the following field implemented:
 
+Bits    | Name | Access Mode | Description  | Default Value |
+---     | ---  | ---         | ---          | ---   | 
+[11]    | MEIP | RO          | External interrupt pending | 0 
+[7]     | MTIP | RO          | Timer interrupt pending | 0 | 
 
-### Hardware Performance Monitor CSRs
+The **mie** register has the following field implemented:
 
-Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The **mcycle** CSR simply increment every clock cycle, **minstret** CSR increment itself when an instruction is retired from the *reorder buffer*. 
+Bits    | Name | Access Mode | Description  | Default Value |
+---     | ---  | ---         | ---          | ---   | 
+[11]    | MEIE | RW          | External interrupt enable | 0 
+[7]     | MTIE | RW          | Timer interrupt enable | 0 | 
 
-RV32-Apogeo implements other 4 general purpouse counters: **mhpmcounter3** -> **mhpmcounter6**.
-The increment-enable event can be selected through the **mhpmevent3** -> **mhpmevent6**. 
+**MEIE** and **MEIP** bits refers to external interrupts handled by the interrupt controller. Apogeo has 1 single IRQ pin which is managed by the interrupt controller based on priority levels. **MTIE** and **MTIP** bits refers to the internal memory mapped CSR. The **time** CSR interrupt has priority over the external one.
 
-The events are:
+The pending bits are *read only* and can only be cleared by performing special operation. To clear the timer interrupt pending bit for example, it's necessary to manually change the *timer compare register* or change the *timer value*. For the external interrupt, the hardware will take care of it by running an acknowledge cycle to announce the interrupt controller that the core is going to service the request.
 
-* Data cache hit
-* Data cache miss
-* Data store executed 
-* Data load executed
-* Instruction cache hit
-* Instruction cache miss
-* Interrupt taken
-* Exception taken
-* Cycles waiting for memory
-* Branch mispredicted
-* Branch encountered
+&nbsp;
 
-Reads (not in M-mode) to those CSRs are permitted only if the corresponding bit in **mcounteren** CSR is asserted. If the bit is cleared and U-mode or S-mode code tries to read the associated CSR, an *illegal instruction exception is raised*.
-
-The **mcountinhibit** enable the associated CSR to the asserted bit to increment. (Bit asserted = 0)  
-
-
-### Machine Exception Program Counter CSR
+### Exception Program Counter CSR
 
 When an exception is taken into M-mode, the PC of the interrupting instruction is saved into **mepc** register, later is restored to continue executing the program.
 
+&nbsp;
 
-### Machine Cause CSR
+### Exception Cause CSR
 
 To identify the exception cause **mcause** register save useful info. 
 
@@ -233,13 +219,15 @@ Interrupt Codes (Interrupt bit = 1):
 
 Code  | Description |
 ---   | ---         |
+0     | Non Maskable Interrupt (NMI)  | 
 1     | Supervisor software interrupt |
 3     | Machine software interrupt    |
 5     | Supervisor timer interrupt    | 
 7     | Machine timer interrupt       |
 9     | Supervisor external interrupt | 
 11    | Machine external interrupt    |
-16 >= | Platform Use
+16 >= | Platform Use                  |
+'1    | (All bits 1) Hardware reset   | 
 
 Trap Codes (Interrupt bit = 0):
 
@@ -255,7 +243,6 @@ Code  | Description                    | Priority         |
 6     | Store/AMO address misaligned   | 5
 7     | Store/AMO access fault         | 6
 8     | Environment call from U-mode   | 3
-9     | Environment call from S-mode   | 3
 11    | Environment call from M-mode   | 3
 12    | Instruction page fault         | /
 13    | Load page fault                | /
@@ -263,3 +250,141 @@ Code  | Description                    | Priority         |
 16    | Divide by zero                 | 0
 
 *Page faults* are not valid exceptions since no virtual memory is implemented as well as *breakpoint* exceptions (no debug support).
+
+&nbsp;
+
+### Hardware Performance Monitor CSRs
+
+Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The **mcycle** CSR simply increment every clock cycle, **minstret** CSR increment itself when an instruction is retired from the *reorder buffer*. 
+
+RV32-Apogeo implements other 4 general purpouse counters: **mhpmcounter3** -> **mhpmcounter6**.
+The increment-enable event can be selected through the **mhpmevent3** -> **mhpmevent6**. 
+
+The events are:
+
+* Machine cycle
+* Data store executed
+* Data load executed
+* Interrupt taken
+* Exception taken
+* Branch mispredicted
+* Branch encountered
+
+With the cache enabled, 4 more events are added:
+
+* Data cache accesses
+* Data cache hits
+* Instruction cache accesses
+* Instruction cache hits
+
+The codes of the events goes from 0 (machine cycle) to 7 (branch encountered) or 10 (instruction cache hits).
+
+&nbsp;
+
+### Counter-Enable CSR
+
+Reads in U-mode to those CSRs are permitted only if the corresponding bit in **mcounteren** CSR is asserted (bit set to 1). If the bit is cleared and U-mode code tries to read the associated CSR, an *illegal instruction exception is raised*. The **time** CSR can always be always accessed by lower level privilege.
+
+Bits    | Name | Access Mode | Description  | Default Value |
+---     | ---  | ---         | ---          | ---   | 
+[6:3]   | HPMn | RW          | Enable access to *hpmcountern* CSR | 0 |
+[2]     | IR   | RW          | Enable access to *instret* CSR | 0 |
+[0]     | CY   | RW          | Enable access to *cycle* CSR | 0 | 
+
+&nbsp;
+
+### Counter-Inhibit CSR
+
+The **mcountinhibit** enable the associated CSR to the asserted bit to increment (bit set to 0).
+
+Bits    | Name | Access Mode | Description  | Default Value |
+---     | ---  | ---         | ---          | ---   | 
+[6:3]   | HPMn | RW          | Enable increment the counter of *hpmcountern* CSR | 0 |
+[2]     | IR   | RW          | Enable increment the counter of *instret* CSR | 0 |
+[0]     | CY   | RW          | Enable increment the counter of *cycle* CSR | 0 | 
+
+
+&nbsp;
+
+### Scratch Register
+
+The **mscratch** register is used to store temporary information by M-mode code, typically, it is used to hold a pointer to a machine-mode hart-local context space and swapped with a user register upon entry to an M-mode trap handler.
+
+&nbsp;
+
+### Time Register
+
+The **time** register is a simple 64 bits counter. The peculiarity of this CSR is that it's *memory mapped*, this means that the CSR will be accesses only through load and store instructions instead of special CSR instructions. The register can be accessed by both U-mode and M-mode code.
+
+It has two 64 bits register, which translate in four 32 bits registers. The **time** register itself hold the current value of the CSR, the **timecmp** register holds the value that will trigger an interrupt once the counter reach that.
+
+The base address of the register can be configured, the default value is the first address of the IO space.
+
+Address  | Name     | Access Mode | Description  | Default Value |
+---      | ---      | ---         | ---          | ---   | 
+BASE + 0 | time     | RW          | Lower 32 bits of the *time* CSR | 0
+BASE + 1 | timeh    | RW          | Higher 32 bits of the *time* CSR | 0 |
+BASE + 2 | timecmp  | RW          | Lower 32 bits of the *timecmp* CSR | 0 |
+BASE + 3 | timecmph | RW          | Higher 32 bits of the *timecmp* CSR | 0 |
+
+The software should always write first to the lower 32 bits of any register and then proceed to the higher 32 bits to prevent any bug.
+
+
+---
+
+&nbsp;
+
+&nbsp;
+
+## User Mode CSRs
+
+The user mode CSRs are mostly **shadows of the M-mode CSRs**, that means a read of a particular CSR, will target a machine mode CSR. The **M-mode performance counters** are all accessable by U-level code *only if the relative bit of mcounteren CSR is asserted*. 
+
+There are some registers that can be accessed freely by U-level code without checking the *mcounteren* CSR. We have already talked about the **time** and **timecmp** in the previous paragraph.
+
+
+### Floating Point CSR
+
+If the *F extension* (floating point) is implemented, three new CSRs can be accessed. Two of them are simply a shadow of one of the field of the main CSR:
+
+Address | Name | Privilege | Access Mode | Description |
+---     | ---  | ---       | ---         | ---         |
+0x001   | fflags | U | RW  | Floating-Point Accrued Exceptions. 
+0x002   | frm    | U | RW  | Floating-Point Rounding Mode.
+0x003   | fcsr   | U | RW  | Floating-Point Control and Status Register (frm + fflags).
+
+&nbsp;
+
+The **fcsr** register is composed of:
+
+Bits  | Name   | Access Mode | Description          | Default Value |
+---   | ---    | ---         | ---                  | ---           | 
+[7:5] | frm    | RW          | Rounding mode        | 0             |
+[4:0] | fflags | RW          | Floating-Point flags | 0             |
+
+&nbsp;
+
+The **fflags** CSR, hold all the floating point exceptions, it's written everytime a floating point operation is completed. Since the RISCV specification doesn't require rising an exception every time a bit is set in this CSR, the software should check this to ensure that everything was completed correctly.
+
+Bits | Name | Access Mode | Description            | Default Value |
+---  | ---  | ---         | ---                    | ---           | 
+[4]  | NV   | RW          | Invalid operation flag | 0             |
+[3]  | DZ   | RW          | Divide by zero flag    | 0             |
+[2]  | OF   | RW          | Overflow flag          | 0             |
+[1]  | UF   | RW          | Underflow flag         | 0             |
+[0]  | NX   | RW          | Inexact                | 0             | 
+
+&nbsp;
+
+The **frm** CSR, hold the current rounding mode of the system, that is static or dynamic mode. Static mode is fixed for all the instructions that are currently executing. Dynamic mode is based on the current instruction which hold three bits to specify this.
+
+Rounding Mode | Description                                         | Default Value |
+---           | ---                                                 | ---           | 
+000           | Round to Nearest, ties to Even                      | 0 |
+001           | Round towards Zero                                  | 0 |
+010           | Round Down (towards $-\infty$)                      | 0 |
+011           | Round Up (towards $+\infty$)                        | 0 |
+100           | Round to Nearest, ties to Max Magnitude             | 0 |
+101           | Invalid                                             | 0 |
+110           | Invalid                                             | 0 |
+111           | Dynamic rounding mode, check the instruction field  | 0 |
