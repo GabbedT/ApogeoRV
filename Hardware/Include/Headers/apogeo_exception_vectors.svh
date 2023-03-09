@@ -53,13 +53,4 @@
 /* Integer divide by zero */
 `define DIVIDE_BY_ZERO 16
 
-/* Writing to a read-only CSR */
-`define ILLEGAL_CSR_WRITE 24   
-
-/* Privilege too low */
-`define PRIVILEGE_CSR_ACCESS 25
-
-/* CSR not found */
-`define ILLEGAL_CSR_ADDRESS 26
-
 `endif 
