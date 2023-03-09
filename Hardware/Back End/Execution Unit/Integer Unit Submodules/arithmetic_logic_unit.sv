@@ -31,7 +31,9 @@
 // DESCRIPTION : Arithmetic Logic Unit of the CPU, the module is fully combinational 
 //               and every instruction executed is single cycle. It can execute every
 //               RV32I instruction and optionally RV32 C extension instruction. The 
-//               input pin `operand_B_i` holds the immediate encoded in the instruction
+//               input pin `operand_B_i` holds the immediate encoded in the instruction.
+//               Branches instruction write the outcome on the result, to not overwrite
+//               registers, the branches have all the register destination as X0. 
 // ------------------------------------------------------------------------------------
 
 
@@ -119,7 +121,7 @@ module arithmetic_logic_unit (
      */
 
     data_word_t logical_sh_left_result, logical_sh_right_result, arithmetic_sh_right_result;
-    logic [4:0]        shift_amount;
+    logic [4:0] shift_amount;
 
     /* Shift amount is held in the lower 5 bit of the register / immediate */
     assign shift_amount = operand_B_i[4:0];
@@ -156,6 +158,10 @@ module arithmetic_logic_unit (
                 OR: result_o = or_result;
 
                 XOR: result_o = xor_result;
+
+                SLTI: result_o = is_less_than_s;
+
+                SLTU: result_o = is_less_than_u;
 
                 SLL: result_o = logical_sh_left_result;
 
