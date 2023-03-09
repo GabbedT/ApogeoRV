@@ -47,13 +47,6 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
-        /* Is a speculative instruction */
-        logic speculative;
-
-        /* Multiple speculative instruction generated 
-         * by different jump can be in flight  */
-        logic [1:0] speculative_id;
-        
         `ifdef FPU
             /* Is a floating point operation */
             logic is_float;
@@ -71,12 +64,6 @@ package rv32_instructions_pkg;
         /* Reorder buffer entry */
         logic [5:0] rob_tag;
 
-        /* Register source 1 */
-        logic [4:0] reg_src1;
-
-        /* Register source 2 */
-        logic [4:0] reg_src2;
-
         /* Register destination */
         logic [4:0] reg_dest;
     } instr_packet_t;
@@ -89,13 +76,6 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
-        /* Is a speculative instruction */
-        logic speculative;
-
-        /* Multiple speculative instruction generated 
-         * by different jump can be in flight  */
-        logic [1:0] speculative_id;
-        
         `ifdef FPU
             /* Is a floating point operation */
             logic is_float;
@@ -116,6 +96,20 @@ package rv32_instructions_pkg;
         /* Register destination */
         logic [4:0] reg_dest;
     } rob_entry_t;
+
+    function rob_entry_t packet_convert(input instr_packet_t packet, input data_word_t result);
+        automatic rob_entry_t rob_packet;
+
+        `ifdef FPU rob_packet.is_float = packet.is_float; `endif 
+
+        rob_packet.trap_generated = packet.trap_generated;
+        rob_packet.trap_vector = packet.trap_vector;
+        rob_packet.instr_addr = packet.instr_addr;
+        rob_packet.result = result;
+        rob_packet.reg_dest = packet.reg_dest;
+
+        return rob_packet;
+    endfunction : packet_convert
 
 endpackage : rv32_instructions_pkg
 
