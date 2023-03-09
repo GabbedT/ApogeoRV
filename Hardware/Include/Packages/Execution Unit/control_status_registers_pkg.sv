@@ -129,12 +129,14 @@ package control_status_registers_pkg;
     /* Machine Interrupt Pending Register fields */
     typedef struct packed {
         logic MEIP;
+        logic MTIP;
     } mip_csr_t;
 
 
     /* Machine Interrupt Enable Register fields */
     typedef struct packed {
         logic MEIE; 
+        logic MTIE;
     } mie_csr_t;
 
 
