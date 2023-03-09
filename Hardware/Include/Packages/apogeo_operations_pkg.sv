@@ -1,6 +1,8 @@
 `ifndef APOGEO_OPERATIONS_PKG_SV
     `define APOGEO_OPERATIONS_PKG_SV
 
+`include "../Headers/apogeo_configuration.svh"
+
 package apogeo_operations_pkg;
 
 //====================================================================================
@@ -18,6 +20,7 @@ package apogeo_operations_pkg;
 
 
         ADD,
+        SLTI, SLTU,
         SLL, SRL, SRA,
         AND, OR, XOR
     } alu_uop_t;
@@ -409,48 +412,60 @@ package apogeo_operations_pkg;
     } exu_valid_t;
 
 
+    /* Determine the max number of bits for padding */
+    function int max(input int itu_size, input int lsu_size, input int csr_size `ifdef FPU , input int fpu_size `endif);
+        automatic int max_size = 0;
+
+        if (itu_size > max_size) begin
+            max_size = itu_size;
+        end
+
+        if (lsu_size > max_size) begin
+            max_size = lsu_size;
+        end
+
+        if (csr_size > max_size) begin
+            max_size = csr_size;
+        end
+
+        `ifdef FPU 
+            if (fpu_size > max_size) begin
+                max_size = fpu_size;
+            end
+        `endif 
+        
+        $display("MAX SIZE = %d", max_size);
+        return max_size;
+    endfunction : max 
+
+
+    localparam MAX_BITS = max($bits(itu_uop_t), $bits(lsu_uop_t), $bits(csr_uop_t) `ifdef FPU , $bits(fpu_uop_t) `endif);
+
+
     typedef union packed {
         struct packed {
             itu_uop_t subunit;
             
-            `ifdef FPU 
-                `ifdef BMU 
-                    logic padding;
-                `else 
-                    logic [2:0] padding;
-                `endif 
-            `endif 
+            logic [MAX_BITS - $bits(itu_uop_t):0] padding;
         } ITU;
 
         struct packed {
             lsu_uop_t subunit;
             
-            `ifdef FPU
-                logic [3:0] padding;
-            `else 
-                `ifdef BMU 
-                    logic [2:0] padding;
-                `else 
-                    logic padding; 
-                `endif 
-            `endif 
+            logic [MAX_BITS - $bits(lsu_uop_t):0] padding;
         } LSU;
 
         struct packed {
             csr_uop_t opcode;
 
-            `ifdef FPU 
-                `ifdef BMU 
-                    logic [4:0] padding;
-                `else 
-                    logic [6:0] padding;
-                `endif 
-            `endif 
+            logic [MAX_BITS - $bits(csr_uop_t):0] padding;
         } CSR; 
 
         `ifdef FPU 
             struct packed {
                 fpu_uop_t subunit; 
+
+                logic [MAX_BITS - $bits(fpu_uop_t):0] padding;
             } FPU; 
         `endif 
     } exu_uop_t;
