@@ -7,7 +7,8 @@ module register_file (
     input logic clk_i,
 
     /* Select floating point register file */
-    `ifdef FPU input logic float_sel_i, `endif 
+    `ifdef FPU input logic src_float_sel_i, `endif 
+    `ifdef FPU input logic dest_float_sel_i, `endif 
 
     /* Addresses */
     input logic [4:0] read_address_1_i,
@@ -40,7 +41,7 @@ module register_file (
 
         /* Bank 0 */
         always_ff @(posedge clk_i) begin : integer_write_port0
-            `ifdef FPU if (!float_sel_i) begin `endif
+            `ifdef FPU if (!dest_float_sel_i) begin `endif
                 if (write_i) begin
                     iregister[0][write_address_i] <= write_data_i;
                 end
@@ -54,7 +55,7 @@ module register_file (
 
         /* Bank 1 */
         always_ff @(posedge clk_i) begin : integer_write_port1
-            `ifdef FPU if (!float_sel_i) begin `endif 
+            `ifdef FPU if (!dest_float_sel_i) begin `endif 
                 if (write_i) begin
                     iregister[1][write_address_i] <= write_data_i;
                 end
@@ -79,7 +80,7 @@ module register_file (
 
         /* Bank 0 */
         always_ff @(posedge clk_i) begin : floating_point_write_port0
-            if (float_sel_i) begin 
+            if (dest_float_sel_i) begin 
                 if (write_i) begin
                     fregister[0][write_address_i] <= write_data_i;
                 end
@@ -93,7 +94,7 @@ module register_file (
 
         /* Bank 1 */
         always_ff @(posedge clk_i) begin : floating_point_write_port1
-            if (float_sel_i) begin 
+            if (dest_float_sel_i) begin 
                 if (write_i) begin
                     fregister[1][write_address_i] <= write_data_i;
                 end
@@ -107,7 +108,7 @@ module register_file (
 
         /* Bank 2 */
         always_ff @(posedge clk_i) begin : floating_point_write_port2
-            if (float_sel_i) begin 
+            if (dest_float_sel_i) begin 
                 if (write_i) begin
                     fregister[2][write_address_i] <= write_data_i;
                 end
@@ -128,7 +129,7 @@ module register_file (
     `ifdef FPU 
 
         always_comb begin
-            if (float_sel_i) begin
+            if (src_float_sel_i) begin
                 read_data_1_o = foperand_1;
                 read_data_2_o = foperand_2;
                 read_data_3_o = foperand_3;
