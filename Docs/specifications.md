@@ -271,8 +271,6 @@ An entry is composed of:
 * Branch id
 * Compressed flag
 
-To speedup the recovery after a branch misprediction the fetch buffer is duplicated, so in case of a misprediction the buffer that supply the decode stage is just switched. This is valid only in case of a single branch, for multiple branch the cache / memory needs to be accessed.
-
 When an instruction on the head is supplied to the decode stage, the tail register is marked as invalid as the preceeding instruction is passed to the next register. 
 
 A counter keeps track of the instructions in the buffer and signals if the next clock cycle the buffer will be empty.
@@ -360,12 +358,12 @@ case (iw.opcode[6:2])
                             001: iw = CTZ
                             010: iw = CPOP
                             100: iw = SEXT.B
-                            101: iw = SEXT.H
+                            101: iw = SEXT.H 
                         endcase 
                     end
                     111: iw = BINVI
                 endcase  
-            end   // SLLI 0000000  BCLRI 0100100 BINVI 0110100  
+            end     
             010: iw = SLTI
             011: iw = SLTIU
             100: iw = XORI
@@ -374,9 +372,9 @@ case (iw.opcode[6:2])
                     iw = REV8
                 end else begin 
                     case ({iw.funct7[5:4], iw.funct7[2]})
-                        000: iw = SRL 
+                        000: iw = SRLI 
                         001: iw = MINU
-                        100: iw = SRA 
+                        100: iw = SRAI 
                         101: iw = BEXT
                         110: iw = RORI
                     endcase 
@@ -394,7 +392,6 @@ case (iw.opcode[6:2])
             001: begin 
                 case ({iw.funct7[5:4], iw.funct7[2]})
                     000: iw = SLL 
-                    001: iw = CLMUL
                     011: iw = BSET
                     101: iw = BCLR
                     110: iw = ROL 
@@ -402,7 +399,7 @@ case (iw.opcode[6:2])
                 endcase 
             end 
             010: iw = iw[29] ? SHA1ADD : SLT
-            011: iw = iw.func7 == 0 ? SLTU : CLMULH
+            011: iw = SLTU
             100: begin 
                 case ({iw.funct7[5:4], ((iw.funct7[2:0]) == 0)})
                     000: iw = funct7[0] ? MIN : ZEXT.H
@@ -410,8 +407,8 @@ case (iw.opcode[6:2])
                     011: iw = SH2ADD
                     101: iw = XNOR
                 endcase 
-            end iw = (iw.funct7[2:0]) == 0 ? XOR : MIN 
-            101: begin 
+            end  
+            101: begin <=== HERE
                 if ({iw[29], iw[27], iw[22:20]} == '1) begin 
                     iw = ORC.B
                 end else begin 
@@ -425,14 +422,13 @@ case (iw.opcode[6:2])
                 end 
             end 
             110: begin 
-                case ({iw.funct7[4], ((iw.funct7[2:0]) == 0)})
-                    00: iw = MAXU
+                case ({iw.funct7[4]})
                     01: iw = iw.funct7[5] ? ORN : OR 
                     11: iw = SH3ADD
                 endcase 
             end  
             111: begin 
-                case (iw.funct7[2:0]) == 0)
+                case (iw.funct7[2:0] == 0)
                     0: iw = iw.funct7[5] ? ANDN : AND 
                     1: iw = MAXU 
                 endcase 
@@ -441,7 +437,7 @@ case (iw.opcode[6:2])
     end  
 
     /* System and CSR */
-    00011: iw = funct3[0] ? FENCE.I : FENCE
+    00011: iw = FENCE
     11100: begin 
         case (funct3)
             000: begin 
@@ -454,7 +450,6 @@ case (iw.opcode[6:2])
                 end else begin 
                     case ({iw[29:28], iw[21]})
                         000: iw = ECALL
-                        011: iw = SRET
                         111: iw = MRET
                     endcase 
                 end
