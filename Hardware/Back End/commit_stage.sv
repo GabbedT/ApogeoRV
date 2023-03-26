@@ -12,140 +12,108 @@
 module commit_stage (
     input logic clk_i,
     input logic rst_n_i,
+    input logic flush_i,
+    output logic stall_o,
 
     /* Result */
-    input data_word_t itu_result_i,
-    input data_word_t lsu_result_i,
-    input data_word_t csr_result_i,
-    `ifdef FPU input data_word_t fpu_result_i, `endif 
+    input data_word_t [2:0] result_i,
 
     /* Instruction packet */
-    input instr_packet_t itu_ipacket_i,
-    input instr_packet_t lsu_ipacket_i,
-    input instr_packet_t csr_ipacket_i,
-    `ifdef FPU input instr_packet_t fpu_ipacket_i, `endif 
+    input instr_packet_t [2:0] ipacket_i,
 
     /* Valid data */
-    input logic itu_data_valid_i,
-    input logic lsu_data_valid_i,
-    input logic csr_data_valid_i,
-    `ifdef FPU input logic fpu_data_valid_i, `endif
+    input logic [2:0] data_valid_i,
 
     /* Reorder buffer data */
     output logic rob_write_o,
     output logic [5:0] rob_tag_o,
     output rob_entry_t rob_entry_o,
 
-    /* If one of the buffers is full */ 
-    output logic stall_pipe_o
+    /* Foward data */
+    output data_word_t [1:0] foward_data_o,
+    output logic [1:0] foward_valid_o
 );
 
 //====================================================================================
-//      COMMIT BUFFERS
+//      NETS
 //====================================================================================
 
     /* Arithmetic / Logic instructions buffer */
-    instr_packet_t itu_ipacket_write, itu_ipacket_read;
-    data_word_t itu_result_write, itu_result_read;
+    instr_packet_t [2:0] ipacket_write, ipacket_read;
+    data_word_t [2:0] result_write, result_read;
 
-    logic itu_buffer_full, itu_buffer_empty; logic itu_push_buffer, itu_pull_buffer; logic itu_data_valid;
+    /* Status */
+    logic [2:0] buffer_full, buffer_empty, data_valid;
+
+    /* Control */
+    logic [2:0] push_buffer, pull_buffer;
+
+
+//====================================================================================
+//      ITU COMMIT BUFFERS
+//====================================================================================
 
     /* Push when data is valid */
-    assign itu_push_buffer = itu_data_valid;
+    assign push_buffer[ITU] = data_valid[ITU];
 
     commit_buffer #(8) itu_buffer (
-        .clk_i     ( clk_i             ),
-        .rst_n_i   ( rst_n_i           ),
-        .write_i   ( itu_push_buffer   ),
-        .read_i    ( itu_pull_buffer   ),
-        .result_i  ( itu_result_write  ),
-        .ipacket_i ( itu_ipacket_write ),
-        .result_o  ( itu_result_read   ),
-        .ipacket_o ( itu_ipacket_read  ),
-        .full_o    ( itu_buffer_full   ),
-        .empty_o   ( itu_buffer_empty  )
+        .clk_i     ( clk_i              ),
+        .rst_n_i   ( rst_n_i            ),
+        .flush_i   ( flush_i            ),
+        .write_i   ( push_buffer[ITU]   ),
+        .read_i    ( pull_buffer[ITU]   ),
+        .result_i  ( result_write[ITU]  ),
+        .ipacket_i ( ipacket_write[ITU] ),
+        .result_o  ( result_read[ITU]   ),
+        .ipacket_o ( ipacket_read[ITU]  ),
+        .full_o    ( buffer_full[ITU]   ),
+        .empty_o   ( buffer_empty[ITU]  )
     );
 
     `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) itu_buffer_full |-> !itu_push_buffer;
+        assert property @(posedge clk_i) buffer_full[ITU] |-> !push_buffer[ITU];
 
-        assert property @(posedge clk_i) itu_buffer_empty |-> !itu_pull_buffer;
+        assert property @(posedge clk_i) buffer_empty[ITU] |-> !pull_buffer[ITU];
     `endif 
 
 
-    /* Memory instructions buffer */
-    instr_packet_t lsu_ipacket_write, lsu_ipacket_read;
-    data_word_t lsu_result_write, lsu_result_read;
+//====================================================================================
+//      LSU COMMIT BUFFERS
+//====================================================================================
 
-    logic lsu_buffer_full, lsu_buffer_empty; logic lsu_push_buffer, lsu_pull_buffer;
-
-    assign lsu_ipacket_write = lsu_ipacket_i;
-    assign lsu_result_write = lsu_result_i;
+    assign lsu_ipacket_write[LSU] = ipacket_i[LSU];
+    assign lsu_result_write[LSU] = result_i[LSU];
 
     /* Push when data is valid */
-    assign lsu_push_buffer = lsu_data_valid_i;
+    assign lsu_push_buffer[LSU] = data_valid_i[LSU];
 
     commit_buffer #(4) lsu_buffer (
-        .clk_i     ( clk_i             ),
-        .rst_n_i   ( rst_n_i           ),
-        .write_i   ( lsu_push_buffer   ),
-        .read_i    ( lsu_pull_buffer   ),
-        .result_i  ( lsu_result_write  ),
-        .ipacket_i ( lsu_ipacket_write ),
-        .result_o  ( lsu_result_read   ),
-        .ipacket_o ( lsu_ipacket_read  ),
-        .full_o    ( lsu_buffer_full   ),
-        .empty_o   ( lsu_buffer_empty  )
+        .clk_i     ( clk_i                  ),
+        .rst_n_i   ( rst_n_i                ),
+        .flush_i   ( flush_i                ),
+        .write_i   ( lsu_push_buffer[LSU]   ),
+        .read_i    ( lsu_pull_buffer[LSU]   ),
+        .result_i  ( lsu_result_write[LSU]  ),
+        .ipacket_i ( lsu_ipacket_write[LSU] ),
+        .result_o  ( lsu_result_read[LSU]   ),
+        .ipacket_o ( lsu_ipacket_read[LSU]  ),
+        .full_o    ( lsu_buffer_full[LSU]   ),
+        .empty_o   ( lsu_buffer_empty[LSU]  )
     );
 
     `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) lsu_buffer_full |-> !lsu_push_buffer;
+        assert property @(posedge clk_i) lsu_buffer_full[LSU] |-> !lsu_push_buffer[LSU];
 
-        assert property @(posedge clk_i) lsu_buffer_empty |-> !lsu_pull_buffer;
+        assert property @(posedge clk_i) lsu_buffer_empty[LSU] |-> !lsu_pull_buffer[LSU];
     `endif 
 
-
-    `ifdef FPU 
-
-    /* Floating Point instructions buffer */
-    instr_packet_t fpu_ipacket_write, fpu_ipacket_read;
-    data_word_t fpu_result_write, fpu_result_read;
-
-    logic fpu_buffer_full, fpu_buffer_empty; logic fpu_push_buffer, fpu_pull_buffer;
-
-    assign fpu_ipacket_write = fpu_ipacket_i;
-    assign fpu_result_write = fpu_result_i;
-    
-    /* Push when data is valid */
-    assign fpu_push_buffer = fpu_data_valid_i;
-
-    commit_buffer #(4) fpu_buffer (
-        .clk_i     ( clk_i             ),
-        .rst_n_i   ( rst_n_i           ),
-        .write_i   ( fpu_push_buffer   ),
-        .read_i    ( fpu_pull_buffer   ),
-        .result_i  ( fpu_result_write  ),
-        .ipacket_i ( fpu_ipacket_write ),
-        .result_o  ( fpu_result_read   ),
-        .ipacket_o ( fpu_ipacket_read  ),
-        .full_o    ( fpu_buffer_full   ),
-        .empty_o   ( fpu_buffer_empty  )
-    );
-
-    `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) fpu_buffer_full |-> !fpu_push_buffer;
-
-        assert property @(posedge clk_i) fpu_buffer_empty |-> !fpu_pull_buffer;
-    `endif 
-
-    `endif 
 
 
 //====================================================================================
 //      BUFFER ARBITER LOGIC
 //====================================================================================
 
-    typedef enum logic `ifdef FPU [1:0] `endif {BUFFER1, BUFFER2 `ifdef FPU ,BUFFER3 `endif} fsm_state_t;
+    typedef enum logic {BUFFER1, BUFFER2} fsm_state_t;
 
     fsm_state_t state_CRT, state_NXT;
 
@@ -162,12 +130,7 @@ module commit_stage (
             /* Default values */
             state_NXT = state_CRT;
 
-            itu_pull_buffer = 1'b0;
-            lsu_pull_buffer = 1'b0;
-
-            `ifdef FPU 
-                fpu_pull_buffer = 1'b0;
-            `endif 
+            pull_buffer = '0;
 
             rob_entry_o = '0;
             rob_write_o = 1'b0;
@@ -178,92 +141,57 @@ module commit_stage (
                  * ITU Buffer turn
                  */
                 BUFFER1: begin
-                    if (!itu_buffer_empty) begin
+                    if (!buffer_empty[ITU]) begin
                         /* If the buffer is not empty read the value */
-                        itu_pull_buffer = 1'b1;
+                        pull_buffer[ITU] = 1'b1;
                         rob_write_o = 1'b1;
-                        rob_entry_o = packet_convert(itu_ipacket_read, itu_result_read);
-                        rob_tag_o = itu_ipacket_read.rob_tag;
+                        rob_entry_o = packet_convert(ipacket_read[ITU], result_read[ITU]);
+                        rob_tag_o = ipacket_read[ITU].rob_tag;
                     end else begin
-                        if (itu_data_valid) begin
+                        if (data_valid[ITU]) begin
                             /* Don't push the value and foward it */
                             rob_write_o = 1'b1;
-                            rob_entry_o = packet_convert(itu_ipacket_write, itu_result_write);
-                            rob_tag_o = itu_ipacket_write.rob_tag;
+                            rob_entry_o = packet_convert(ipacket_write[ITU], result_write[ITU]);
+                            rob_tag_o = ipacket_write[ITU].rob_tag;
                         end
                     end
 
                     /* Go to next buffer, give priority 
                      * to the next one */
-                    if (!lsu_buffer_empty) begin
+                    if (!lsu_buffer_empty[LSU]) begin
                         state_NXT = BUFFER2;
-                    end `ifdef FPU else if (!fpu_buffer_empty) begin
-                        state_NXT = BUFFER3;
-                    end `endif
+                    end 
                 end
 
                 /* 
                  * LSU Buffer turn
                  */
                 BUFFER2: begin
-                    if (!lsu_buffer_empty) begin
+                    if (!lsu_buffer_empty[LSU]) begin
                         /* If the buffer is not empty read the value */
-                        lsu_pull_buffer = 1'b1;
+                        lsu_pull_buffer[LSU] = 1'b1;
                         rob_write_o = 1'b1;
-                        rob_entry_o = packet_convert(lsu_ipacket_read, lsu_result_read);
-                        rob_tag_o = lsu_ipacket_read.rob_tag;
+                        rob_entry_o = packet_convert(lsu_ipacket_read[LSU], lsu_result_read[LSU]);
+                        rob_tag_o = lsu_ipacket_read[LSU].rob_tag;
                     end else begin
-                        if (lsu_data_valid_i) begin
+                        if (data_valid_i[LSU]) begin
                             /* Don't push the value and foward it */
                             rob_write_o = 1'b1;
-                            rob_entry_o = packet_convert(lsu_ipacket_i, lsu_result_i);
-                            rob_tag_o = lsu_ipacket_i.rob_tag;
+                            rob_entry_o = packet_convert(ipacket_i[LSU], result_i[LSU]);
+                            rob_tag_o = ipacket_i[LSU].rob_tag;
                         end
                     end
 
                     /* Go to next buffer, give priority 
                      * to the next one */
-                    `ifdef FPU 
-                    if (!fpu_buffer_empty) begin
-                        state_NXT = BUFFER3;
-                    end else `endif if (!itu_buffer_empty) begin
+                    if (!buffer_empty[ITU]) begin
                         state_NXT = BUFFER1;
                     end
                 end
-
-
-                `ifdef FPU 
-                /*
-                 * FPU Buffer turn
-                 */ 
-                BUFFER3: begin
-                    if (!fpu_buffer_empty) begin
-                        /* If the buffer is not empty read the value */
-                        fpu_pull_buffer = 1'b1;
-                        rob_write_o = 1'b1;
-                        rob_entry_o = packet_convert(fpu_ipacket_read, fpu_result_read);
-                        rob_tag_o = fpu_ipacket_read.rob_tag;
-                    end else begin
-                        if (lsu_data_valid_i) begin
-                            /* Don't push the value and foward it */
-                            rob_write_o = 1'b1;
-                            rob_entry_o = packet_convert(fpu_ipacket_i, fpu_result_i);
-                            rob_tag_o = fpu_ipacket_i.rob_tag;
-                        end
-                    end
-
-                    if (!itu_buffer_empty) begin
-                        state_NXT = BUFFER1;
-                    end else if (!lsu_buffer_empty) begin
-                        state_NXT = BUFFER2;
-                    end
-                end
-
-                `endif 
             endcase 
         end : next_state_logic
 
-    assign stall_pipe_o = itu_buffer_full | lsu_buffer_full `ifdef FPU | fpu_buffer_full `endif;
+    assign stall_o = buffer_full[ITU] | lsu_buffer_full[LSU];
 
 
 //====================================================================================
@@ -275,19 +203,19 @@ module commit_stage (
      * result, otherwise the reduced result become corrupted. The LSU 
      * has a separated channel since it's a variable latency unit. */
 
-    assign itu_ipacket_write = csr_ipacket_i | itu_ipacket_i;
+    assign ipacket_write[ITU] = ipacket_i[CSR] | ipacket_i[ITU];
 
-    assign itu_result_write = csr_result_i | itu_result_i;
+    assign result_write[ITU] = result_i[CSR] | result_i[ITU];
 
-    assign itu_data_valid = csr_data_valid_i | itu_data_valid_i;
+    assign data_valid[ITU] = data_valid_i[CSR] | data_valid_i[ITU];
     
 
     `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) $onehot0({csr_data_valid_i, itu_data_valid_i});
+        assert property @(posedge clk_i) $onehot0({data_valid_i[CSR], data_valid_i[ITU]});
 
-        assert property @(posedge clk_i) $onehot0({(csr_ipacket_i != '0), (itu_ipacket_i != '0)});
+        assert property @(posedge clk_i) $onehot0({(ipacket_i[CSR] != '0), (ipacket_i[ITU] != '0)});
 
-        assert property @(posedge clk_i) $onehot0({(csr_result_i != '0), (itu_result_i != '0)});
+        assert property @(posedge clk_i) $onehot0({(result_i[CSR] != '0), (result_i[ITU] != '0)});
     `endif 
 
 endmodule : commit_stage

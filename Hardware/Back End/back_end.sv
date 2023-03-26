@@ -8,6 +8,7 @@
 `include "../Include/Interfaces/memory_controller_interface.sv"
 `include "../Include/Interfaces/store_buffer_interface.sv"
 
+`include "bypass_controller.sv"
 `include "execution_unit.sv"
 `include "commit_stage.sv"
 `include "reorder_buffer.sv"
@@ -19,9 +20,8 @@ module back_end (
     input logic rst_n_i,
 
     /* Operands */
-    input data_word_t operand_1_i,
-    input data_word_t operand_2_i,
-    `ifdef FPU input data_word_t operand_3_i, `endif
+    input logic [1:0][4:0] reg_src_i,
+    input data_word_t [1:0] operand_i,
 
     /* Valid operations signals */
     input exu_valid_t data_valid_i,
@@ -53,7 +53,7 @@ module back_end (
     output logic resume_execution_pc_o,
     
     /* Insert NOPs in pipeline */
-    output logic clear_pipeline_o,
+    output logic flush_pipeline_o,
 
     /* No instructions in pipeline */
     input logic pipeline_empty_i,
@@ -106,22 +106,10 @@ module back_end (
     output logic ldu_idle_o,
     output logic stu_idle_o,
 
-    `ifdef FPU 
-        output logic fpdiv_idle_o, 
-        output logic fpsqrt_idle_o, 
-
-        input logic [1:0] is_float_i,  
-    `endif 
-
-    input logic [1:0][4:0] reg_source_i,
-    output data_word_t [1:0] foward_result_o, 
-    output logic [1:0] foward_valid_o,
-
 
     /*
      * Register file interface
      */
-    `ifdef FPU output logic is_float_o, `endif 
     output logic [4:0] reg_destination_o,
     output data_word_t writeback_result_o,
     output logic writeback_o
@@ -132,29 +120,58 @@ module back_end (
 //      EXECUTION STAGE
 //====================================================================================
 
+    /* Operands */
+    data_word_t [1:0] operands; 
+
+    /* Destination address */
+    logic [4:0] commit_dest_address;
+
+    /* Data fowarded */
+    data_word_t commit_data, reorder_buf_data;
+    logic rob_valid_data;
+
+    bypass_controller bypass (
+        .reg_src_i       ( src_float_i ),
+        .issue_operand_i ( operand_i   ),
+
+        .commit_reg_dest_i ( commit_dest_address ),
+        .commit_data_i     ( commit_data ),
+
+        .rob_data_i  ( reorder_buf_data ),
+        .rob_valid_i ( rob_valid_data   ),
+
+        .operand_o ( operands )   
+    );
+
+    /* Instruction address of ROB entry readed */
     data_word_t trap_instr_address;
-    logic [4:0] exception_vector;
-    logic exception_generated, instruction_retired;
 
-    data_word_t itu_result, lsu_result, csr_result `ifdef FPU ,fpu_result `endif;
-    instr_packet_t itu_packet, lsu_packet, csr_packet `ifdef FPU ,fpu_packet `endif;
-    logic itu_valid, lsu_valid, csr_valid `ifdef FPU ,fpu_valid `endif;
+    /* Exception */
+    logic [4:0] exception_vector; logic exception_generated;
 
-    logic enable_mul, enable_div, enable_bmu, enable_fpu;
+    /* Result written back */
+    logic instruction_retired;
 
-    logic pipeline_stall, clear_pipeline;
+    /* Unit result data */
+    data_word_t itu_result, lsu_result, csr_result;
+
+    /* Unit packets */
+    instr_packet_t itu_packet, lsu_packet, csr_packet;
+
+    /* Unit result valid */
+    logic itu_valid, lsu_valid, csr_valid;
+
+    /* Pipeline control */
+    logic stall_pipeline, flush_pipeline;
     logic wait_handling;
 
     execution_unit execution (
-        .clk_i        ( clk_i          ),
-        .rst_n_i      ( rst_n_i        ),
-        .kill_instr_i ( clear_pipeline ),
+        .clk_i   ( clk_i          ),
+        .rst_n_i ( rst_n_i        ),
+        .flush_i ( flush_pipeline ),
+        .stall_i ( stall_pipeline ),
 
-        .operand_1_i ( operand_1_i ),
-        .operand_2_i ( operand_2_i ),
-        `ifdef FPU 
-        .operand_3_i ( operand_3_i ), 
-        `endif
+        .operand_i ( operands ),
 
         .data_valid_i ( data_valid_i ),
         .operation_i  ( operation_i  ), 
@@ -163,11 +180,6 @@ module back_end (
 
         .is_cjump_i  ( is_cjump_i  ),
         .is_branch_o ( is_branch_o ),
-
-        .stall_pipeline_i ( pipeline_stall ),
-        `ifdef FPU 
-        .enable_fpu_o ( enable_fpu ), 
-        `endif
 
         .ld_ctrl_channel ( ld_ctrl_channel ),
         .st_ctrl_channel ( st_ctrl_channel ),
@@ -220,42 +232,35 @@ module back_end (
     );
 
 
-    data_word_t itu_result_commit, lsu_result_commit, csr_result_commit `ifdef FPU ,fpu_result_commit `endif;
-    instr_packet_t itu_packet_commit, lsu_packet_commit, csr_packet_commit `ifdef FPU ,fpu_packet_commit `endif;
-    logic  itu_valid_commit, lsu_valid_commit, csr_valid_commit `ifdef FPU ,fpu_valid_commit `endif;
+    data_word_t itu_result_commit, lsu_result_commit, csr_result_commit;
+    instr_packet_t itu_packet_commit, lsu_packet_commit, csr_packet_commit;
+    logic  itu_valid_commit, lsu_valid_commit, csr_valid_commit;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : stage_register
             if (!rst_n_i) begin
                 itu_packet_commit <= NO_OPERATION;
                 lsu_packet_commit <= NO_OPERATION;
                 csr_packet_commit <= NO_OPERATION;
-                `ifdef FPU fpu_packet_commit <= NO_OPERATION; `endif 
 
                 itu_valid_commit <= 1'b0;
                 lsu_valid_commit <= 1'b0;
                 csr_valid_commit <= 1'b0;
-                `ifdef FPU fpu_valid_commit <= 1'b0; `endif 
-            end else if (clear_pipeline) begin 
+            end else if (flush_pipeline) begin 
                 itu_packet_commit <= NO_OPERATION;
                 lsu_packet_commit <= NO_OPERATION;
                 csr_packet_commit <= NO_OPERATION;
-                `ifdef FPU fpu_packet_commit <= NO_OPERATION; `endif 
 
                 itu_valid_commit <= 1'b0;
                 lsu_valid_commit <= 1'b0;
                 csr_valid_commit <= 1'b0;
-                `ifdef FPU fpu_valid_commit <= 1'b0; `endif 
             end else begin
                 itu_packet_commit <= itu_packet;
                 lsu_packet_commit <= lsu_packet;
                 csr_packet_commit <= csr_packet;
-                `ifdef FPU fpu_packet_commit <= fpu_packet; `endif 
 
                 itu_valid_commit <= itu_valid;
                 lsu_valid_commit <= lsu_valid;
                 csr_valid_commit <= csr_valid;
-
-                `ifdef FPU fpu_valid_commit <= fpu_valid; `endif
             end
         end : stage_register
 
@@ -263,7 +268,6 @@ module back_end (
             itu_result_commit <= itu_result;
             lsu_result_commit <= lsu_result;
             csr_result_commit <= csr_result;
-            `ifdef FPU fpu_result_commit <= fpu_result; `endif 
         end : result_register
 
 
@@ -276,9 +280,9 @@ module back_end (
     rob_entry_t reorder_buffer_packet;
 
     commit_stage commit (
-        .clk_i        ( clk_i          ),
-        .rst_n_i      ( rst_n_i        ),
-        .kill_instr_i ( clear_pipeline ),
+        .clk_i   ( clk_i          ),
+        .rst_n_i ( rst_n_i        ),
+        .flush_i ( flush_pipeline ),
 
         .itu_result_i     ( itu_result_commit ),
         .itu_ipacket_i    ( itu_packet_commit ),
@@ -302,7 +306,7 @@ module back_end (
         .rob_tag_o   ( reorder_buffer_tag    ),
         .rob_entry_o ( reorder_buffer_packet ),
 
-        .stall_pipe_o ( pipeline_stall )
+        .stall_pipe_o ( stall_pipeline )
     ); 
 
 
@@ -379,7 +383,8 @@ module back_end (
         .is_waiting_handling_o ( wait_handling          ),
 
         .pipeline_empty_i ( pipeline_empty_i ),
-        .clear_pipeline_o ( clear_pipeline   ),
+        .flush_o ( flush_pipeline   ),
+        .stall_o (  )
 
         .return_instr_i        ( machine_return_instr_i ),
         .jump_address_i        ( operand_1_i            ),
@@ -390,9 +395,9 @@ module back_end (
         .resume_execution_pc_o ( resume_execution_pc_o  )
     ); 
 
-    assign clear_pipeline_o = clear_pipeline;
+    assign flush_pipeline_o = flush_pipeline;
 
-    assign reorder_buffer_clear = clear_pipeline;
+    assign reorder_buffer_clear = flush_pipeline;
 
 endmodule : back_end
 
