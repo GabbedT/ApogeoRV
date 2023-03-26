@@ -256,141 +256,6 @@ package apogeo_operations_pkg;
 
 
 //====================================================================================
-//      FLOATING POINT UNIT
-//==================================================================================== 
-
-    /* Valid unit */
-    typedef struct packed {
-        /* Fused Multiply Add */
-        logic FMA;
-
-        /* Divide */
-        logic DIV;
-
-        /* Square Root */
-        logic SQRT;
-
-        /* Compare */
-        logic CMP;
-
-        /* Convert */
-        logic CVT;
-
-        /* Miscellanous */
-        logic MISC;
-    } fpu_valid_t;
-
-
-    /* FPADD unit operations */
-    typedef enum logic {
-        FADD, FSUB
-    } fpadd_uop_t;
-
-
-    /* Fused multiply add operation */
-    typedef struct packed {
-        /* Specifies if the operation is 
-         * fused */
-        logic is_fused;
-        
-        /* Specifies if the result of the 
-         * multiplier needs to be inverted */
-        logic invert_product;
-
-        /* Which operation to execute */
-        enum logic {FP_ADD, FP_MUL} operation;
-
-        /* Specifies the operation on the 
-         * floating point adder */
-        fpadd_uop_t fpadd_operation;
-    } fmadd_uop_t;
-
-
-    /* Comparison operation */
-    typedef enum logic [1:0] {
-        /* Equals */
-        FP_EQ,
-
-        /* Less than */
-        FP_LT, 
-
-        /* Greater than */
-        FP_GT 
-    } fcmp_uop_t;
-
-
-    /* Conversion operation */
-    typedef enum logic {
-        FLOAT2INT, INT2FLOAT
-    } fcvt_uop_t;
-
-
-    /* Misc operations */
-    typedef enum logic [2:0] {
-        /* Move from one reg file to another */
-        FMV,
-
-        /* Classify float number */
-        FCLASS,
-
-        /* Sign injection operations */
-        FSGNJ, FSGNJN, FSGNJX 
-    } fmisc_uop_t;
-
-
-    /* Rounding modes */
-    typedef enum logic [2:0] {
-        /* Round to Nearest, ties to Even */
-        RNE, 
-
-        /* Round towards Zero */
-        RTZ, 
-
-        /* Round Down (towards -infinity) */
-        RDN,
-
-        /* Round Up (towards +infinity) */
-        RUP, 
-
-        /* Round to Nearest, ties to Max Magnitude */
-        RMM,
-
-        /* No Round (not used) */
-        NRD, 
-
-        /* Dynamic rounding mode */
-        DYN   
-    } rnd_uop_t;
-
-
-    /* FPU operations */
-    typedef struct packed { 
-        union packed {
-            fmadd_uop_t FMA;
-
-            struct packed {
-                fcmp_uop_t opcode;
-                logic      equal_cmp;
-                logic      set_flag;
-            } CMP;
-
-            struct packed {
-                fcvt_uop_t  opcode;
-                logic       int_is_signed;
-                logic [1:0] padding;
-            } CVT;
-
-            struct packed {
-                fmisc_uop_t opcode;
-                logic       padding;
-            } MISC;
-        } unit_uop;
-        
-        rnd_uop_t round_uop;
-    } fpu_uop_t;
-
-
-//====================================================================================
 //      CONTROL STATUS REGISTERS
 //==================================================================================== 
 
@@ -414,8 +279,6 @@ package apogeo_operations_pkg;
         itu_valid_t ITU;
         lsu_valid_t LSU;
         logic       CSR;
-        
-        `ifdef FPU fpu_valid_t FPU; `endif 
     } exu_valid_t;
 
 
@@ -446,7 +309,7 @@ package apogeo_operations_pkg;
     endfunction : max 
 
 
-    localparam MAX_BITS = max($bits(itu_uop_t), $bits(lsu_uop_t), $bits(csr_uop_t) `ifdef FPU , $bits(fpu_uop_t) `endif);
+    localparam MAX_BITS = max($bits(itu_uop_t), $bits(lsu_uop_t), $bits(csr_uop_t));
 
 
     typedef union packed {
@@ -467,14 +330,6 @@ package apogeo_operations_pkg;
 
             logic [MAX_BITS - $bits(csr_uop_t):0] padding;
         } CSR; 
-
-        `ifdef FPU 
-            struct packed {
-                fpu_uop_t subunit; 
-
-                logic [MAX_BITS - $bits(fpu_uop_t):0] padding;
-            } FPU; 
-        `endif 
     } exu_uop_t;
 
 endpackage : apogeo_operations_pkg

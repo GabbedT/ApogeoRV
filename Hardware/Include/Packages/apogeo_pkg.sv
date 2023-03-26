@@ -12,8 +12,8 @@ package rv32_instructions_pkg;
 
     /* Index vectors */
     localparam ITU = 0;
-    localparam LSU = 0;
-    localparam CSR = 0;
+    localparam LSU = 1;
+    localparam CSR = 2;
 
 
 //====================================================================================
@@ -50,11 +50,6 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
-        `ifdef FPU
-            /* Is a floating point operation */
-            logic is_float;
-        `endif
-
         /* Has generated a trap */
         logic trap_generated;
 
@@ -79,11 +74,6 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
-        `ifdef FPU
-            /* Is a floating point operation */
-            logic is_float;
-        `endif
-
         /* Has generated an trap */
         logic trap_generated;
 
@@ -102,8 +92,6 @@ package rv32_instructions_pkg;
 
     function rob_entry_t packet_convert(input instr_packet_t packet, input data_word_t result);
         automatic rob_entry_t rob_packet;
-
-        `ifdef FPU rob_packet.is_float = packet.is_float; `endif 
 
         rob_packet.trap_generated = packet.trap_generated;
         rob_packet.trap_vector = packet.trap_vector;

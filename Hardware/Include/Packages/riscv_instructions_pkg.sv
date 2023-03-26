@@ -172,18 +172,6 @@ package riscv32;
 
 
     typedef struct packed {
-        logic [4:0] reg_src_3;
-        logic [1:0] funct2;
-        logic [4:0] reg_src_2;
-        logic [4:0] reg_src_1;
-        logic [2:0] funct3; 
-        logic [4:0] reg_dest;
-        logic [4:0] opcode;
-        logic [1:0] padding;
-    } R4_type_t;
-
-
-    typedef struct packed {
         logic [11:0] immediate; /* [11:0] */
         logic [4:0] reg_src_1;
         logic [2:0] funct3; 
@@ -238,7 +226,6 @@ package riscv32;
 
     typedef union packed {
         R_type_t  R;
-        R4_type_t R4;
         I_type_t  I;
         S_type_t  S;
         B_type_t  B;
