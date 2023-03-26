@@ -57,8 +57,12 @@ module commit_buffer #(
     output data_word_t result_o,
     output instr_packet_t ipacket_o,
 
+    /* Invalidate data */
+    input logic invalidate_i,
+    input logic [4:0] invalid_reg_i,
+
     /* Foward data */
-    input logic [1:0][4:0] foward_reg_src_i,
+    input logic [1:0][4:0] foward_src_i,
     output data_word_t [1:0] foward_result_o,
     output logic [1:0] foward_valid_o,
 
@@ -155,7 +159,7 @@ module commit_buffer #(
         end : register1_write_port
 
     /* Read port */
-    assign foward_result_o[0] = (foward_reg_src_i[0] == '0) ? '0 : foward_register_1[foward_reg_src_i[0]];
+    assign foward_result_o[0] = (foward_src_i[0] == '0) ? '0 : foward_register_1[foward_src_i[0]];
 
 
     logic [$bits(data_word_t) - 1:0] foward_register_2 [BUFFER_DEPTH - 1:0];
@@ -167,7 +171,7 @@ module commit_buffer #(
         end : register2_write_port
 
     /* Read port */
-    assign foward_result_o[1] = (foward_reg_src_i[1] == '0) ? '0 : foward_register_2[foward_reg_src_i[1]];
+    assign foward_result_o[1] = (foward_src_i[1] == '0) ? '0 : foward_register_2[foward_src_i[1]];
 
 
 
@@ -195,6 +199,13 @@ module commit_buffer #(
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
                 end 
 
+                if (invalidate_i) begin
+                    /* If another buffer is pushing a register, it has
+                     * the most recent value, this must be invalidated
+                     * since is old */
+                    valid_register[invalid_reg_i] <= 1'b0;
+                end 
+
                 if (read_i & (tag_register[ipacket_o.reg_dest] == ipacket_o.rob_tag)) begin
                     /* If the instruction that wrote the result in the foward register
                      * is being pulled from the buffer, invalidate the result */
@@ -204,8 +215,8 @@ module commit_buffer #(
         end : register_valid_write_port
 
     /* Read port */
-    assign foward_valid_o[0] = (foward_reg_src_i[0] == '0) ? 1'b1 : valid_register[foward_reg_src_i[0]];
-    assign foward_valid_o[1] = (foward_reg_src_i[1] == '0) ? 1'b1 : valid_register[foward_reg_src_i[1]];
+    assign foward_valid_o[0] = (foward_src_i[0] == '0) ? 1'b1 : valid_register[foward_src_i[0]];
+    assign foward_valid_o[1] = (foward_src_i[1] == '0) ? 1'b1 : valid_register[foward_src_i[1]];
 
 endmodule : commit_buffer
 
