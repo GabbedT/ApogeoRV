@@ -30,6 +30,7 @@ module commit_stage (
     output rob_entry_t rob_entry_o,
 
     /* Foward data */
+    input logic [1:0][4:0] reg_src_i,
     output data_word_t [1:0] foward_data_o,
     output logic [1:0] foward_valid_o
 );
@@ -39,41 +40,69 @@ module commit_stage (
 //====================================================================================
 
     /* Arithmetic / Logic instructions buffer */
-    instr_packet_t [2:0] ipacket_write, ipacket_read;
-    data_word_t [2:0] result_write, result_read;
+    instr_packet_t [1:0] ipacket_write, ipacket_read;
+    data_word_t [1:0] result_write, result_read;
 
     /* Status */
-    logic [2:0] buffer_full, buffer_empty, data_valid;
+    logic [1:0] buffer_full, buffer_empty, data_valid;
 
     /* Control */
-    logic [2:0] push_buffer, pull_buffer;
+    logic [1:0] push_buffer, pull_buffer;
 
+    /* Foward data */
+    data_word_t [1:0][1:0] foward_data;
+    logic [1:0][1:0] foward_valid;
+
+    /* Register invalidation address */
+    logic [1:0][4:0] invalid_address;
 
 //====================================================================================
 //      ITU COMMIT BUFFERS
 //====================================================================================
 
+    /* Arithmetic / Logic result from the execution unit gets reduced, 
+     * every clock cycle no more than 1 unit must have produced a valid 
+     * result, otherwise the reduced result become corrupted. The LSU 
+     * has a separated channel since it's a variable latency unit. */
+
+    assign ipacket_write[ITU] = ipacket_i[CSR] | ipacket_i[ITU];
+    assign result_write[ITU] = result_i[CSR] | result_i[ITU];
+    assign data_valid[ITU] = data_valid_i[CSR] | data_valid_i[ITU];
+
+
     /* Push when data is valid */
     assign push_buffer[ITU] = data_valid[ITU];
 
-    commit_buffer #(8) itu_buffer (
-        .clk_i     ( clk_i              ),
-        .rst_n_i   ( rst_n_i            ),
-        .flush_i   ( flush_i            ),
-        .write_i   ( push_buffer[ITU]   ),
-        .read_i    ( pull_buffer[ITU]   ),
-        .result_i  ( result_write[ITU]  ),
-        .ipacket_i ( ipacket_write[ITU] ),
-        .result_o  ( result_read[ITU]   ),
-        .ipacket_o ( ipacket_read[ITU]  ),
-        .full_o    ( buffer_full[ITU]   ),
-        .empty_o   ( buffer_empty[ITU]  )
+    assign invalid_address[LSU] = ipacket_write[LSU].reg_dest;
+
+    commit_buffer #(4) itu_buffer (
+        .clk_i           ( clk_i                ),
+        .rst_n_i         ( rst_n_i              ),
+        .flush_i         ( flush_i              ),
+        .write_i         ( push_buffer[ITU]     ),
+        .read_i          ( pull_buffer[ITU]     ),
+        .result_i        ( result_write[ITU]    ),
+        .ipacket_i       ( ipacket_write[ITU]   ),
+        .result_o        ( result_read[ITU]     ),
+        .ipacket_o       ( ipacket_read[ITU]    ),
+        .invalidate_i    ( push_buffer[LSU]     ),
+        .invalid_reg_i   ( invalid_address[LSU] ),
+        .foward_src_i    ( reg_src_i            ),
+        .foward_result_o ( foward_data[ITU]     ),
+        .foward_valid_o  ( foward_valid[ITU]    ),
+        .full_o          ( buffer_full[ITU]     ),
+        .empty_o         ( buffer_empty[ITU]    )
     );
 
     `ifdef TEST_DESIGN
+        /* Buffer must never overflow */
         assert property @(posedge clk_i) buffer_full[ITU] |-> !push_buffer[ITU];
-
         assert property @(posedge clk_i) buffer_empty[ITU] |-> !pull_buffer[ITU];
+
+        /* Only one unit must produce a valid result every clock cycle */
+        assert property @(posedge clk_i) $onehot0({data_valid_i[CSR], data_valid_i[ITU]});
+        assert property @(posedge clk_i) $onehot0({(ipacket_i[CSR] != '0), (ipacket_i[ITU] != '0)});
+        assert property @(posedge clk_i) $onehot0({(result_i[CSR] != '0), (result_i[ITU] != '0)});
     `endif 
 
 
@@ -81,30 +110,37 @@ module commit_stage (
 //      LSU COMMIT BUFFERS
 //====================================================================================
 
-    assign lsu_ipacket_write[LSU] = ipacket_i[LSU];
-    assign lsu_result_write[LSU] = result_i[LSU];
+    assign ipacket_write[LSU] = ipacket_i[LSU];
+    assign result_write[LSU] = result_i[LSU];
 
     /* Push when data is valid */
-    assign lsu_push_buffer[LSU] = data_valid_i[LSU];
+    assign push_buffer[LSU] = data_valid_i[LSU];
+
+    assign invalid_address[ITU] = ipacket_write[ITU].reg_dest;
 
     commit_buffer #(4) lsu_buffer (
-        .clk_i     ( clk_i                  ),
-        .rst_n_i   ( rst_n_i                ),
-        .flush_i   ( flush_i                ),
-        .write_i   ( lsu_push_buffer[LSU]   ),
-        .read_i    ( lsu_pull_buffer[LSU]   ),
-        .result_i  ( lsu_result_write[LSU]  ),
-        .ipacket_i ( lsu_ipacket_write[LSU] ),
-        .result_o  ( lsu_result_read[LSU]   ),
-        .ipacket_o ( lsu_ipacket_read[LSU]  ),
-        .full_o    ( lsu_buffer_full[LSU]   ),
-        .empty_o   ( lsu_buffer_empty[LSU]  )
+        .clk_i           ( clk_i                ),
+        .rst_n_i         ( rst_n_i              ),
+        .flush_i         ( flush_i              ),
+        .write_i         ( push_buffer[LSU]     ),
+        .read_i          ( pull_buffer[LSU]     ),
+        .result_i        ( result_write[LSU]    ),
+        .ipacket_i       ( ipacket_write[LSU]   ),
+        .result_o        ( result_read[LSU]     ),
+        .ipacket_o       ( ipacket_read[LSU]    ),
+        .invalidate_i    ( push_buffer[ITU]     ),
+        .invalid_reg_i   ( invalid_address[ITU] ),
+        .foward_src_i    ( reg_src_i            ),
+        .foward_result_o ( foward_data[LSU]     ),
+        .foward_valid_o  ( foward_valid[LSU]    ),
+        .full_o          ( buffer_full[LSU]     ),
+        .empty_o         ( buffer_empty[LSU]    )
     );
 
     `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) lsu_buffer_full[LSU] |-> !lsu_push_buffer[LSU];
+        assert property @(posedge clk_i) buffer_full[LSU] |-> !push_buffer[LSU];
 
-        assert property @(posedge clk_i) lsu_buffer_empty[LSU] |-> !lsu_pull_buffer[LSU];
+        assert property @(posedge clk_i) buffer_empty[LSU] |-> !pull_buffer[LSU];
     `endif 
 
 
@@ -158,7 +194,7 @@ module commit_stage (
 
                     /* Go to next buffer, give priority 
                      * to the next one */
-                    if (!lsu_buffer_empty[LSU]) begin
+                    if (!buffer_empty[LSU]) begin
                         state_NXT = BUFFER2;
                     end 
                 end
@@ -167,12 +203,12 @@ module commit_stage (
                  * LSU Buffer turn
                  */
                 BUFFER2: begin
-                    if (!lsu_buffer_empty[LSU]) begin
+                    if (!buffer_empty[LSU]) begin
                         /* If the buffer is not empty read the value */
-                        lsu_pull_buffer[LSU] = 1'b1;
+                        pull_buffer[LSU] = 1'b1;
                         rob_write_o = 1'b1;
-                        rob_entry_o = packet_convert(lsu_ipacket_read[LSU], lsu_result_read[LSU]);
-                        rob_tag_o = lsu_ipacket_read[LSU].rob_tag;
+                        rob_entry_o = packet_convert(ipacket_read[LSU], result_read[LSU]);
+                        rob_tag_o = ipacket_read[LSU].rob_tag;
                     end else begin
                         if (data_valid_i[LSU]) begin
                             /* Don't push the value and foward it */
@@ -191,32 +227,39 @@ module commit_stage (
             endcase 
         end : next_state_logic
 
-    assign stall_o = buffer_full[ITU] | lsu_buffer_full[LSU];
+    assign stall_o = buffer_full[ITU] | buffer_full[LSU];
 
 
 //====================================================================================
-//      REDUCTION LOGIC
+//      FOWARD LOGIC
 //====================================================================================
 
-    /* Arithmetic / Logic result from the execution unit gets reduced, 
-     * every clock cycle no more than 1 unit must have produced a valid 
-     * result, otherwise the reduced result become corrupted. The LSU 
-     * has a separated channel since it's a variable latency unit. */
+    logic [1:0][1:0] register_match;
 
-    assign ipacket_write[ITU] = ipacket_i[CSR] | ipacket_i[ITU];
+    assign register_match[ITU][0] = (ipacket_write[ITU].reg_dest == reg_src_i[0]);
+    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == reg_src_i[1]);
 
-    assign result_write[ITU] = result_i[CSR] | result_i[ITU];
+    assign register_match[LSU][0] = (ipacket_write[LSU].reg_dest == reg_src_i[0]);
+    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == reg_src_i[1]);
 
-    assign data_valid[ITU] = data_valid_i[CSR] | data_valid_i[ITU];
-    
-
-    `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) $onehot0({data_valid_i[CSR], data_valid_i[ITU]});
-
-        assert property @(posedge clk_i) $onehot0({(ipacket_i[CSR] != '0), (ipacket_i[ITU] != '0)});
-
-        assert property @(posedge clk_i) $onehot0({(result_i[CSR] != '0), (result_i[ITU] != '0)});
-    `endif 
+        always_comb begin 
+            /* Priority is given to new arrived data instead of old
+             * data in buffers */
+            for (int i = 0; i < 2; ++i) begin 
+                if (register_match[ITU][i] | register_match[LSU][i]) begin
+                    /* For each register source only one of the pipes can 
+                     * match the register destination because no duplicate
+                     * register destination can be in flight in the execution
+                     * pipeline */
+                    foward_data_o[i] = (register_match[ITU][i] & result_write[ITU]) | (register_match[LSU][i] & result_write[LSU]);
+                    foward_valid_o[i] = (data_valid_i != '0);
+                end else begin
+                    /* Take data from buffers */
+                    foward_data_o[i] = (foward_valid[ITU][i] & foward_data[ITU][i]) | (foward_valid[LSU][i] & foward_data[LSU][i]);
+                    foward_valid_o[i] = foward_valid[ITU][i] | foward_valid[LSU][i];
+                end 
+            end 
+        end
 
 endmodule : commit_stage
 
