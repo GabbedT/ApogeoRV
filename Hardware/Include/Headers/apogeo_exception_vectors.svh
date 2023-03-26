@@ -50,7 +50,7 @@
 `define U_SYSTEM_CALL 8
 `define M_SYSTEM_CALL 11
 
-/* Integer divide by zero */
-`define DIVIDE_BY_ZERO 16
+/* WFI set hart to sleep */
+`define SLEEP 16
 
 `endif 

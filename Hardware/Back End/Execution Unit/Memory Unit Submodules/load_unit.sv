@@ -149,7 +149,7 @@ module load_unit (
             /* Default value */
             data_sliced = '0;
 
-            case (operation.opcode)
+            case (operation.uop)
                 /* Load byte */
                 LDB: begin 
                     if (operation.signed_load) begin

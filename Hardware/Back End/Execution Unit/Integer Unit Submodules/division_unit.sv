@@ -55,6 +55,7 @@ module division_unit (
     input logic clk_i,
     input logic clk_en_i,
     input logic rst_n_i,
+    input logic clear_i,
 
     /* Operands */
     input data_word_t dividend_i,
@@ -172,17 +173,17 @@ module division_unit (
     logic       div_data_valid, div_idle, divide_by_zero;
 
     non_restoring_divider #(DATA_WIDTH) divider (
-        .clk_i            ( clk_i          ),
-        .clk_en_i         ( clk_en_i       ),
-        .rst_n_i          ( rst_n_i        ),
-        .dividend_i       ( div_dividend   ),
-        .divisor_i        ( div_divisor    ),
-        .data_valid_i     ( data_valid     ),
-        .quotient_o       ( quotient       ),
-        .remainder_o      ( remainder      ),
-        .divide_by_zero_o ( divide_by_zero ),
-        .data_valid_o     ( div_data_valid ),
-        .idle_o           ( div_idle       )
+        .clk_i            ( clk_i             ),
+        .clk_en_i         ( clk_en_i          ),
+        .rst_n_i          ( rst_n_i | clear_i ),
+        .dividend_i       ( div_dividend      ),
+        .divisor_i        ( div_divisor       ),
+        .data_valid_i     ( data_valid        ),
+        .quotient_o       ( quotient          ),
+        .remainder_o      ( remainder         ),
+        .divide_by_zero_o ( divide_by_zero    ),
+        .data_valid_o     ( div_data_valid    ),
+        .idle_o           ( div_idle          )
     );
 
 

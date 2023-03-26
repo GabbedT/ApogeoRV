@@ -54,6 +54,7 @@ module bit_manipulation_unit (
     input logic clk_i,
     input logic clk_en_i, 
     input logic rst_n_i,
+    input logic clear_i,
 
     /* Operands */
     input data_word_t operand_A_i,
@@ -470,6 +471,8 @@ module bit_manipulation_unit (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_valid_stage_register
             if (!rst_n_i) begin
+                data_valid_o <= 1'b0;
+            end else if (clear_i) begin 
                 data_valid_o <= 1'b0;
             end else if (clk_en_i) begin
                 data_valid_o <= data_valid_i;

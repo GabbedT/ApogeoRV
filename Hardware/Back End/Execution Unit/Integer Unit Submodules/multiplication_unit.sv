@@ -59,6 +59,7 @@ module multiplication_unit #(
     input logic clk_i,
     input logic clk_en_i,
     input logic rst_n_i,
+    input logic clear_i,
 
     /* Operands */
     input data_word_t multiplicand_i,
@@ -150,6 +151,8 @@ module multiplication_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : data_valid_stage_register
             if (!rst_n_i) begin 
                 data_valid_stg0 <= 1'b0;
+            end else if (clear_i) begin 
+                data_valid_stg0 <= 1'b0;
             end else if (clk_en_i) begin 
                 data_valid_stg0 <= data_valid_i;
             end
@@ -228,7 +231,9 @@ module multiplication_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mul_data_valid_pipe <= '0;
-            end else if `ifdef FPGA (clk_en_i) `endif begin 
+            end else if (clear_i) begin 
+                mul_data_valid_pipe <= '0;
+            end else if (clk_en_i) begin 
                 if (CORE_STAGES == 0) begin 
                     mul_data_valid_pipe <= data_valid_stg0;
                 end else begin 
@@ -249,7 +254,11 @@ module multiplication_unit #(
                 `ifdef ASIC 
                     last_stage_data_valid <= mul_data_valid;
                 `elsif FPGA 
-                    last_stage_data_valid <= mul_data_valid_pipe[CORE_STAGES];
+                    if (clear_i) begin 
+                        last_stage_data_valid <= 1'b0;
+                    end else begin 
+                        last_stage_data_valid <= mul_data_valid_pipe[CORE_STAGES];
+                    end
                 `endif 
             end
         end

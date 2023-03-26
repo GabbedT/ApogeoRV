@@ -52,12 +52,12 @@ module integer_unit (
     /* Pipeline control */
     input logic clk_i,
     input logic rst_n_i,
-    input logic kill_instr_i,
+    input logic flush_i,
 
     /* Enable / Disable extension */
     input logic enable_mul,
     input logic enable_div,
-    input logic enable_bmu,
+    `ifdef BMU input logic enable_bmu, `endif
 
     /* Instruction jump is compressed */
     input logic is_cjump_i,
@@ -83,7 +83,7 @@ module integer_unit (
 
     /* General instruction packet and valid bit */
     output instr_packet_t ipacket_o,
-    output logic          data_valid_o,
+    output logic data_valid_o,
 
     /* Sequential functional units status for scheduling */
     output logic div_idle_o
@@ -98,15 +98,14 @@ module integer_unit (
     logic       alu_valid, branch_taken, is_branch;
 
     arithmetic_logic_unit alu (
-        .operand_A_i  ( operand_1_i            ),
-        .operand_B_i  ( operand_2_i            ),
-        .instr_addr_i ( ipacket_i.instr_addr   ),
-        .operation_i  ( operation_i.ALU.opcode ),
-        .data_valid_i ( data_valid_i.ALU       ),
-        .is_cjump_i   ( is_cjump_i             ),
-        .result_o     ( alu_result             ),
-        .is_branch_o  ( is_branch              ),
-        .data_valid_o ( alu_valid              )
+        .operand_A_i      ( operand_1_i            ),
+        .operand_B_i      ( operand_2_i            ),
+        .operation_i      ( operation_i.ALU.opcode ),
+        .data_valid_i     ( data_valid_i.ALU       ),
+        .is_cjump_i       ( is_cjump_i             ),
+        .result_o         ( alu_result             ),
+        .is_branch_o      ( is_branch              ),
+        .data_valid_o     ( alu_valid              )
     );
 
 
@@ -143,6 +142,7 @@ module integer_unit (
         .clk_i        ( clk_i                   ),
         .clk_en_i     ( enable_bmu              ),
         .rst_n_i      ( rst_n_i                 ),
+        .clear_i      ( kill_instr_i           ),
         .operand_A_i  ( operand_1_i             ),
         .operand_B_i  ( operand_2_i             ),
         .operation_i  ( operation_i.BMU.opcode  ),
@@ -188,6 +188,7 @@ module integer_unit (
         .clk_i          ( clk_i                  ),
         .clk_en_i       ( enable_mul             ),
         .rst_n_i        ( rst_n_i                ),
+        .clear_i        ( kill_instr_i           ),
         .multiplicand_i ( operand_1_i            ),
         .multiplier_i   ( operand_2_i            ),
         .data_valid_i   ( data_valid_i.MUL       ),
@@ -235,6 +236,7 @@ module integer_unit (
         .clk_i            ( clk_i                  ),
         .clk_en_i         ( enable_div             ),
         .rst_n_i          ( rst_n_i                ),
+        .clear_i          ( kill_instr_i           ),
         .dividend_i       ( operand_1_i            ),
         .divisor_i        ( operand_2_i            ),
         .data_valid_i     ( data_valid_i.DIV       ),
@@ -259,25 +261,11 @@ module integer_unit (
         end : div_stage_register
 
 
-    /* Exception logic */
-    instr_packet_t exc_div_ipacket;
-
-        always_comb begin : division_exception_logic
-            /* Default value */
-            exc_div_ipacket = div_ipacket;
-
-            if (divide_by_zero & div_valid) begin
-                exc_div_ipacket.trap_vector = `DIVIDE_BY_ZERO;
-                exc_div_ipacket.trap_generated = 1'b1;
-            end
-        end : division_exception_logic
-
-
     instr_packet_t div_final_ipacket;
     data_word_t    div_result_out;
 
     assign div_result_out = div_valid ? div_result : '0;
-    assign div_final_ipacket = div_valid ? exc_div_ipacket : '0;
+    assign div_final_ipacket = div_valid ? div_ipacket : '0;
 
 
 //====================================================================================

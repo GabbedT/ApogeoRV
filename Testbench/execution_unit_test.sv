@@ -15,12 +15,6 @@ module execution_unit_test;
     logic rst_n_i = 1'b0;
     logic kill_instr_i = 1'b0;
 
-    /* Enable units */
-    logic mul_enable_i = 1'b1;
-    logic div_enable_i = 1'b1;
-    logic bmu_enable_i = 1'b1;
-    logic fpu_enable_i = 1'b1;  
-
     /* Operands */
     data_word_t operand_1_i = '0;
     data_word_t operand_2_i = '0;
@@ -29,8 +23,6 @@ module execution_unit_test;
     /* Valid operations signals */
     exu_valid_t data_valid_i = '0;
     exu_uop_t   operation_i = '0; 
-    logic       csr_write_i = 1'b0;
-    logic       csr_read_i = 1'b0;
 
     /* Packet that carries instruction informations */
     instr_packet_t ipacket_i = '0;
@@ -40,6 +32,13 @@ module execution_unit_test;
 
     /* Branch control */
     logic is_branch_o;
+
+    /* Global interrupt enable */
+    logic glb_interrupt_enable_o;
+
+    /* Units enable */
+    logic stall_pipeline_i = 1'b0;
+    `ifdef FPU logic enable_fpu_o; `endif 
 
     load_controller_interface ld_ctrl_channel();
     store_controller_interface st_ctrl_channel();
@@ -55,10 +54,11 @@ module execution_unit_test;
     data_word_t str_buf_fowarded_data_i = '0;
 
     /* Program counter that caused the trap */
-    data_word_t trap_pc_i = '0;
+    data_word_t trap_instruction_pc_i = '0,
+    data_word_t trap_instruction_pc_o,
 
     /* Vector cause */
-    logic [4:0] interrupt_vector_i = '0;
+    logic [7:0] interrupt_vector_i = '0;
     logic [4:0] exception_vector_i = '0;
 
     /* Interrupt and exception signals */
@@ -66,7 +66,7 @@ module execution_unit_test;
     logic exception_i = 1'b0;
 
     /* Address to load the PC in case of trap */
-    data_word_t trap_pc_address_o;
+    data_word_t handler_pc_address_o;
 
     /* Interrupt mode */
     logic handling_mode_o;
@@ -283,6 +283,16 @@ module execution_unit_test;
     endtask : issue_float_operation
 
 
+    task issue_csr_operation(input csr_uop_t operation, input logic [11:0] address, input data_word_t write_data);
+        operation_i.CSR.opcode <= operation;
+        operand_1_i <= write_data;
+        operand_2_i <= {'0, address};
+        data_valid_i.CSR <= 1'b1;
+        @(posedge clk_i);
+        data_valid_i.CSR <= 1'b0;
+    endtask : issue_csr_operation
+
+
     function void printFaultyIntegerPackets();
         int size = itu_faulty_packet.size();
 
@@ -317,57 +327,100 @@ module execution_unit_test;
         rst_n_i <= 1'b1;
 
         fork
-            begin : store_controller 
-                forever begin 
-                    pull_channel.pull_request <= 1'b0;
-                    st_ctrl_channel.done <= 1'b0;
+            // begin : store_controller 
+            //     forever begin 
+            //         pull_channel.pull_request <= 1'b0;
+            //         st_ctrl_channel.done <= 1'b0;
 
-                    if (st_ctrl_channel.request) begin
-                        store_ctrl_idle_i <= 1'b0;
-                        @(posedge clk_i);
-                        store_ctrl_idle_i <= 1'b0;
+            //         if (st_ctrl_channel.request) begin
+            //             store_ctrl_idle_i <= 1'b0;
+            //             @(posedge clk_i);
+            //             store_ctrl_idle_i <= 1'b0;
 
-                        repeat(10) @(posedge clk_i);
-                        systemMemory.store_data(pull_channel.packet.address, pull_channel.packet.data, int'(pull_channel.packet.store_width));
-                        st_ctrl_channel.done <= 1'b1;
-                    end else if (!pull_channel.empty) begin
-                        store_ctrl_idle_i <= 1'b0;
-                        pull_channel.pull_request <= 1'b1;
-                        @(posedge clk_i);
-                        $display("[%0t] Pulled data from store buffer: 0x%h", $time(), pull_channel.packet.data);
-                        store_ctrl_idle_i <= 1'b0;
-                        pull_channel.pull_request <= 1'b0;
+            //             repeat(10) @(posedge clk_i);
+            //             systemMemory.store_data(pull_channel.packet.address, pull_channel.packet.data, int'(pull_channel.packet.store_width));
+            //             st_ctrl_channel.done <= 1'b1;
+            //         end else if (!pull_channel.empty) begin
+            //             store_ctrl_idle_i <= 1'b0;
+            //             pull_channel.pull_request <= 1'b1;
+            //             @(posedge clk_i);
+            //             $display("[%0t] Pulled data from store buffer: 0x%h", $time(), pull_channel.packet.data);
+            //             store_ctrl_idle_i <= 1'b0;
+            //             pull_channel.pull_request <= 1'b0;
 
-                        systemMemory.store_data(pull_channel.packet.address, pull_channel.packet.data, int'(pull_channel.packet.store_width));
-                        repeat(10) @(posedge clk_i);
-                        st_ctrl_channel.done <= 1'b1;
-                        $display("[%0t] Data stored!", $time());
-                    end
+            //             systemMemory.store_data(pull_channel.packet.address, pull_channel.packet.data, int'(pull_channel.packet.store_width));
+            //             repeat(10) @(posedge clk_i);
+            //             st_ctrl_channel.done <= 1'b1;
+            //             $display("[%0t] Data stored!", $time());
+            //         end
 
-                    @(posedge clk_i);
-                end
-            end : store_controller
+            //         @(posedge clk_i);
+            //     end
+            // end : store_controller
 
-            begin : load_controller
-                forever begin 
-                    ld_ctrl_channel.valid <= 1'b0;
-                    ld_ctrl_channel.data <= '0;
+            // begin : load_controller
+            //     forever begin 
+            //         ld_ctrl_channel.valid <= 1'b0;
+            //         ld_ctrl_channel.data <= '0;
 
-                    if (ld_ctrl_channel.request) begin
-                        repeat(10) @(posedge clk_i);
+            //         if (ld_ctrl_channel.request) begin
+            //             repeat(10) @(posedge clk_i);
 
-                        ld_ctrl_channel.valid <= 1'b1;
-                        ld_ctrl_channel.data <= systemMemory.load_data(ld_ctrl_channel.address, systemMemory.WORD, 1'b0);
-                        @(posedge clk_i);
-                        ld_ctrl_channel.valid <= 1'b0;
-                    end else begin
-                        @(posedge clk_i);
-                    end
-                end
-            end : load_controller
+            //             ld_ctrl_channel.valid <= 1'b1;
+            //             ld_ctrl_channel.data <= systemMemory.load_data(ld_ctrl_channel.address, systemMemory.WORD, 1'b0);
+            //             @(posedge clk_i);
+            //             ld_ctrl_channel.valid <= 1'b0;
+            //         end else begin
+            //             @(posedge clk_i);
+            //         end
+            //     end
+            // end : load_controller
 
             begin : test_code
+                /* FPU CSR */
+                issue_csr_operation(CSR_SET, 12'h001, '0);
+                issue_csr_operation(CSR_SET, 12'h002, '0);
+                issue_csr_operation(CSR_SET, 12'h003, '0);
+
+                /* Counters */
+                issue_csr_operation(CSR_SET, 12'hC00, '0);
+                issue_csr_operation(CSR_SET, 12'hC80, '0);
+                issue_csr_operation(CSR_SET, 12'hC02, '0);
+                issue_csr_operation(CSR_SET, 12'hC82, '0);
+                issue_csr_operation(CSR_SET, 12'hC03, '0);
+                issue_csr_operation(CSR_SET, 12'hC83, '0);
+                issue_csr_operation(CSR_SET, 12'hC04, '0);
+                issue_csr_operation(CSR_SET, 12'hC84, '0);
+                issue_csr_operation(CSR_SET, 12'hC05, '0);
+                issue_csr_operation(CSR_SET, 12'hC85, '0);
+                issue_csr_operation(CSR_SET, 12'hC06, '0);
+                issue_csr_operation(CSR_SET, 12'hC86, '0);
                 
+                /* Timer */
+                issue_load(LDW, `TIMER_START);
+                issue_load(LDW, `TIMER_END);
+
+                /* Try accessing machine register in U mode */
+                issue_csr_operation(CSR_SET, 12'hF11, '0);
+                exception_i <= 1'b1;
+                @(posedge clk_i); 
+                exception_i <= 1'b0;
+
+                /* Machine information */
+                issue_csr_operation(CSR_SET, 12'hF11, '0);
+                issue_csr_operation(CSR_SET, 12'hF12, '0);
+                issue_csr_operation(CSR_SET, 12'hF13, '0);
+                issue_csr_operation(CSR_SET, 12'hF14, '0);
+
+                /* Trap Setup */
+                issue_csr_operation(CSR_SET, 12'h300, '0);
+                issue_csr_operation(CSR_SET, 12'h301, '0);
+                issue_csr_operation(CSR_SET, 12'h302, '0);
+                issue_csr_operation(CSR_SET, 12'h303, '0);
+                issue_csr_operation(CSR_SET, 12'h304, '0);
+                issue_csr_operation(CSR_SET, 12'h305, '0);
+                issue_csr_operation(CSR_SET, 12'h306, '0);
+                issue_csr_operation(CSR_SET, 12'h310, '0);
             end : test_code
         join_any 
 

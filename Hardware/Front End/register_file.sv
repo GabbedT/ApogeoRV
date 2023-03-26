@@ -3,17 +3,17 @@
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
+`include "../Include/Packages/apogeo_pkg.sv"
+
 module register_file (
     input logic clk_i,
 
     /* Select floating point register file */
-    `ifdef FPU input logic src_float_sel_i, `endif 
-    `ifdef FPU input logic dest_float_sel_i, `endif 
+    `ifdef FPU input logic [2:1] src_is_float_i, `endif 
+    `ifdef FPU input logic dest_is_float_i, `endif 
 
     /* Addresses */
-    input logic [4:0] read_address_1_i,
-    input logic [4:0] read_address_2_i,
-    `ifdef FPU input logic [4:0] read_address_3_i, `endif 
+    input logic [2:1][4:0] read_address_i,
     input logic [4:0] write_address_i,
 
     /* Commands */
@@ -22,11 +22,8 @@ module register_file (
     /* Data from writeback stage */
     input logic [31:0] write_data_i,
 
-
     /* Data read to execute */
-    output logic [31:0] read_data_1_o,
-    output logic [31:0] read_data_2_o
-    `ifdef FPU , output logic [31:0] read_data_3_o `endif
+    output logic [2:1][31:0] read_data_o
 );
 
 //====================================================================================
@@ -41,7 +38,7 @@ module register_file (
 
         /* Bank 0 */
         always_ff @(posedge clk_i) begin : integer_write_port0
-            `ifdef FPU if (!dest_float_sel_i) begin `endif
+            `ifdef FPU if (!dest_is_float_i) begin `endif
                 if (write_i) begin
                     iregister[0][write_address_i] <= write_data_i;
                 end
@@ -50,12 +47,12 @@ module register_file (
 
     logic [31:0] ioperand_1;
 
-    assign ioperand_1 = (read_address_1_i == '0) ? '0 : iregister[0][read_address_1_i];
+    assign ioperand_1 = (read_address_1_i == '0) ? '0 : iregister[0][read_address_i[1]];
 
 
         /* Bank 1 */
         always_ff @(posedge clk_i) begin : integer_write_port1
-            `ifdef FPU if (!dest_float_sel_i) begin `endif 
+            `ifdef FPU if (!dest_is_float_i) begin `endif 
                 if (write_i) begin
                     iregister[1][write_address_i] <= write_data_i;
                 end
@@ -64,23 +61,20 @@ module register_file (
 
     logic [31:0] ioperand_2;
 
-    assign ioperand_2 = (read_address_2_i == '0) ? '0 : iregister[1][read_address_2_i];
+    assign ioperand_2 = (read_address_i[2] == '0) ? '0 : iregister[1][read_address_i[2]];
 
 
 //====================================================================================
 //      FLOATING POINT REGISTER FILE
 //====================================================================================
 
-    /* It's possible to use banking also for the floating point register file, this
-     * time with 3 banks since RISCV F extension supports 3 operands operations */
-
     `ifdef FPU 
 
-    logic [31:0] fregister [2:0][31:0];
+    logic [31:0] fregister [1:0][31:0];
 
         /* Bank 0 */
         always_ff @(posedge clk_i) begin : floating_point_write_port0
-            if (dest_float_sel_i) begin 
+            if (dest_is_float_i) begin 
                 if (write_i) begin
                     fregister[0][write_address_i] <= write_data_i;
                 end
@@ -89,12 +83,12 @@ module register_file (
 
     logic [31:0] foperand_1;
 
-    assign foperand_1 = fregister[0][read_address_1_i];
+    assign foperand_1 = fregister[0][read_address_i[1]];
 
 
         /* Bank 1 */
         always_ff @(posedge clk_i) begin : floating_point_write_port1
-            if (dest_float_sel_i) begin 
+            if (dest_is_float_i) begin 
                 if (write_i) begin
                     fregister[1][write_address_i] <= write_data_i;
                 end
@@ -103,21 +97,7 @@ module register_file (
 
     logic [31:0] foperand_2; 
 
-    assign foperand_2 = fregister[1][read_address_2_i];
-
-
-        /* Bank 2 */
-        always_ff @(posedge clk_i) begin : floating_point_write_port2
-            if (dest_float_sel_i) begin 
-                if (write_i) begin
-                    fregister[2][write_address_i] <= write_data_i;
-                end
-            end 
-        end : floating_point_write_port2
-
-    logic [31:0] foperand_3; 
-    
-    assign foperand_3 = fregister[2][read_address_3_i];
+    assign foperand_2 = fregister[1][read_address_i[2]];
 
     `endif 
 
@@ -129,21 +109,23 @@ module register_file (
     `ifdef FPU 
 
         always_comb begin
-            if (src_float_sel_i) begin
-                read_data_1_o = foperand_1;
-                read_data_2_o = foperand_2;
-                read_data_3_o = foperand_3;
+            if (src_is_float_i[1]) begin
+                read_data_o[1] = foperand_1;
             end else begin
-                read_data_1_o = ioperand_1;
-                read_data_2_o = ioperand_2;
-                read_data_3_o = '0;
+                read_data_o[1] = ioperand_1;
+            end
+
+            if (src_is_float_i[2]) begin
+                read_data_o[2] = foperand_2;
+            end else begin
+                read_data_o[2] = ioperand_2;
             end
         end
 
     `else 
 
-        assign read_data_1_o = ioperand_1;
-        assign read_data_2_o = ioperand_2;
+        assign read_data_o[1] = ioperand_1;
+        assign read_data_o[2] = ioperand_2;
 
     `endif 
 

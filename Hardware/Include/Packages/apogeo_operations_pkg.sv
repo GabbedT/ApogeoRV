@@ -5,6 +5,7 @@
 
 package apogeo_operations_pkg;
 
+
 //====================================================================================
 //      INTEGER EXECUTION UNIT
 //====================================================================================
@@ -20,7 +21,7 @@ package apogeo_operations_pkg;
 
 
         ADD,
-        SLTI, SLTU,
+        SLT, SLTU,
         SLL, SRL, SRA,
         AND, OR, XOR
     } alu_uop_t;
@@ -73,52 +74,56 @@ package apogeo_operations_pkg;
     } bmu_logic_uop_t;
 
 
+    typedef union packed {
+
+        struct packed {
+            bmu_shadd_uop_t opcode;
+            
+            logic padding;
+        } SHADD;
+
+        struct packed {
+            bmu_count_uop_t opcode;
+
+            logic padding;
+        } BITC;
+
+        struct packed {
+            bmu_compare_uop_t opcode;
+
+            logic padding;
+        } CMP;
+
+        struct packed {
+            bmu_extension_uop_t opcode;
+
+            logic padding;
+        } EXT;
+ 
+        struct packed {
+            bmu_rotate_uop_t opcode;
+
+            logic [1:0] padding;
+        } ROT;
+
+        struct packed {
+            bmu_byte_uop_t opcode;
+
+            logic [1:0] padding;
+        } OPBYTE;
+
+        struct packed {
+            bmu_logic_uop_t opcode;
+        } OPLOGIC;
+
+    } bmu_operation_t;
+
+
     /* Pack all those operations in three bits 
      * and let the unit interpret those differently */
     typedef struct packed {
-        union packed {
-
-            struct packed {
-                bmu_shadd_uop_t opcode;
-                
-                logic padding;
-            } SHADD;
-
-            struct packed {
-                bmu_count_uop_t opcode;
-
-                logic padding;
-            } BITC;
-
-            struct packed {
-                bmu_compare_uop_t opcode;
-
-                logic padding;
-            } CMP;
-
-            struct packed {
-                bmu_extension_uop_t opcode;
-
-                logic padding;
-            } EXT;
- 
-            struct packed {
-                bmu_rotate_uop_t opcode;
-
-                logic [1:0] padding;
-            } ROT;
-
-            struct packed {
-                bmu_byte_uop_t opcode;
-
-                logic [1:0] padding;
-            } OPBYTE;
-
-            struct packed {
-                bmu_logic_uop_t opcode;
-            } OPLOGIC;
-
-        } select;
+        /* Select operation */
+        bmu_operation_t select;
 
         /* Valid BMU operation type */
         bmu_op_type_t op_type;
@@ -205,18 +210,20 @@ package apogeo_operations_pkg;
         logic STU; 
     } lsu_valid_t;
 
+    typedef enum logic [1:0] {
+        /* Load byte */
+        LDB,
+            
+        /* Load half word */
+        LDH, 
+            
+        /* Load word */
+        LDW
+    } ldu_opcode_t;
+
     /* Load unit operations */
     typedef struct packed {
-        enum logic [1:0] {
-            /* Load byte */
-            LDB,
-            
-            /* Load half word */
-            LDH, 
-            
-            /* Load word */
-            LDW
-        } opcode;
+        ldu_opcode_t uop;
 
         logic signed_load;
     } ldu_uop_t;

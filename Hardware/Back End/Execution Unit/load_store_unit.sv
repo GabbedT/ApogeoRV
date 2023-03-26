@@ -52,7 +52,7 @@
 module load_store_unit (
     input logic clk_i,
     input logic rst_n_i,
-    input logic kill_instr_i,
+    input logic flush_i,
     input logic prv_level_i,
 
     /* Instruction packet */
@@ -91,7 +91,7 @@ module load_store_unit (
      */
 
     /* Store buffer main interface */
-    store_buffer_push_interface.master st_buf_channel,
+    store_buffer_push_interface.master str_buf_channel,
 
     /* Store buffer fowarding nets */
     input logic       str_buf_address_match_i,
@@ -129,7 +129,7 @@ module load_store_unit (
         .operation_i       ( operation_i.STU.opcode     ),
         .data_accepted_i   ( stu_data_accepted          ),
 
-        .st_buf_channel ( st_buf_channel ),
+        .str_buf_channel ( str_buf_channel ),
 
         .st_ctrl_channel   ( st_ctrl_channel   ),
         .store_ctrl_idle_i ( store_ctrl_idle_i ),
@@ -154,7 +154,7 @@ module load_store_unit (
         end
 
         always_ff @(posedge clk_i) begin
-            if (kill_instr_i) begin
+            if (flush_i) begin
                 stu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.STU) begin
                 stu_ipacket <= stu_exception_packet;
@@ -209,7 +209,7 @@ module load_store_unit (
         end
 
         always_ff @(posedge clk_i) begin
-            if (kill_instr_i) begin
+            if (flush_i) begin
                 ldu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.LDU) begin
                 ldu_ipacket <= ldu_exception_packet;

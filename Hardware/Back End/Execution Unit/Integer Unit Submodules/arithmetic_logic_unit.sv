@@ -50,9 +50,6 @@ module arithmetic_logic_unit (
     input data_word_t operand_A_i,
     input data_word_t operand_B_i,
 
-    /* Instruction address */
-    input data_word_t instr_addr_i,
-
     /* Operation to execute */
     input alu_uop_t operation_i,
 
@@ -159,7 +156,7 @@ module arithmetic_logic_unit (
 
                 XOR: result_o = xor_result;
 
-                SLTI: result_o = is_less_than_s;
+                SLT: result_o = is_less_than_s;
 
                 SLTU: result_o = is_less_than_u;
 
@@ -169,7 +166,7 @@ module arithmetic_logic_unit (
 
                 SRA: result_o = arithmetic_sh_right_result;
 
-                JAL: result_o = (is_cjump_i) ? (instr_addr_i + 3'd2) : (instr_addr_i + 3'd4);
+                JAL: result_o = (is_cjump_i) ? (operand_A_i + 3'd2) : (operand_A_i + 3'd4);
 
                 BEQ: result_o = is_equal;
 

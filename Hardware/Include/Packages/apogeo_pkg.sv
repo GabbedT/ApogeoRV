@@ -5,12 +5,15 @@
 
 package rv32_instructions_pkg;
 
+
 //====================================================================================
 //      PARAMETERS
 //====================================================================================
 
-    /* Exception vector */
-    localparam DIVIDE_BY_ZERO = 4'b0000;
+    /* Index vectors */
+    localparam ITU = 0;
+    localparam LSU = 0;
+    localparam CSR = 0;
 
 
 //====================================================================================
@@ -52,7 +55,7 @@ package rv32_instructions_pkg;
             logic is_float;
         `endif
 
-        /* Has generated an trap */
+        /* Has generated a trap */
         logic trap_generated;
 
         /* Exception vector */
