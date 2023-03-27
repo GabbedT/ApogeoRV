@@ -8,12 +8,8 @@
 module register_file (
     input logic clk_i,
 
-    /* Select floating point register file */
-    `ifdef FPU input logic [2:1] src_is_float_i, `endif 
-    `ifdef FPU input logic dest_is_float_i, `endif 
-
     /* Addresses */
-    input logic [2:1][4:0] read_address_i,
+    input logic [1:0][4:0] read_address_i,
     input logic [4:0] write_address_i,
 
     /* Commands */
@@ -23,7 +19,7 @@ module register_file (
     input logic [31:0] write_data_i,
 
     /* Data read to execute */
-    output logic [2:1][31:0] read_data_o
+    output logic [1:0][31:0] read_data_o
 );
 
 //====================================================================================
@@ -38,96 +34,22 @@ module register_file (
 
         /* Bank 0 */
         always_ff @(posedge clk_i) begin : integer_write_port0
-            `ifdef FPU if (!dest_is_float_i) begin `endif
-                if (write_i) begin
-                    iregister[0][write_address_i] <= write_data_i;
-                end
-            `ifdef FPU end `endif
+            if (write_i) begin
+                iregister[0][write_address_i] <= write_data_i;
+            end
         end : integer_write_port0
 
-    logic [31:0] ioperand_1;
-
-    assign ioperand_1 = (read_address_1_i == '0) ? '0 : iregister[0][read_address_i[1]];
+    assign read_data_o[0] = (read_address_i[0] == '0) ? '0 : iregister[0][read_address_i[0]];
 
 
         /* Bank 1 */
         always_ff @(posedge clk_i) begin : integer_write_port1
-            `ifdef FPU if (!dest_is_float_i) begin `endif 
-                if (write_i) begin
-                    iregister[1][write_address_i] <= write_data_i;
-                end
-            `ifdef FPU end `endif
+            if (write_i) begin
+                iregister[1][write_address_i] <= write_data_i;
+            end
         end : integer_write_port1
 
-    logic [31:0] ioperand_2;
-
-    assign ioperand_2 = (read_address_i[2] == '0) ? '0 : iregister[1][read_address_i[2]];
-
-
-//====================================================================================
-//      FLOATING POINT REGISTER FILE
-//====================================================================================
-
-    `ifdef FPU 
-
-    logic [31:0] fregister [1:0][31:0];
-
-        /* Bank 0 */
-        always_ff @(posedge clk_i) begin : floating_point_write_port0
-            if (dest_is_float_i) begin 
-                if (write_i) begin
-                    fregister[0][write_address_i] <= write_data_i;
-                end
-            end 
-        end : floating_point_write_port0
-
-    logic [31:0] foperand_1;
-
-    assign foperand_1 = fregister[0][read_address_i[1]];
-
-
-        /* Bank 1 */
-        always_ff @(posedge clk_i) begin : floating_point_write_port1
-            if (dest_is_float_i) begin 
-                if (write_i) begin
-                    fregister[1][write_address_i] <= write_data_i;
-                end
-            end 
-        end : floating_point_write_port1
-
-    logic [31:0] foperand_2; 
-
-    assign foperand_2 = fregister[1][read_address_i[2]];
-
-    `endif 
-
-
-//====================================================================================
-//      OUTPUT LOGIC
-//====================================================================================  
-
-    `ifdef FPU 
-
-        always_comb begin
-            if (src_is_float_i[1]) begin
-                read_data_o[1] = foperand_1;
-            end else begin
-                read_data_o[1] = ioperand_1;
-            end
-
-            if (src_is_float_i[2]) begin
-                read_data_o[2] = foperand_2;
-            end else begin
-                read_data_o[2] = ioperand_2;
-            end
-        end
-
-    `else 
-
-        assign read_data_o[1] = ioperand_1;
-        assign read_data_o[2] = ioperand_2;
-
-    `endif 
+    assign read_data_o[1] = (read_address_i[1] == '0) ? '0 : iregister[1][read_address_i[1]];
 
 endmodule : register_file
 
