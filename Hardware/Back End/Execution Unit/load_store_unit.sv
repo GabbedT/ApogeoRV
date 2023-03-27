@@ -148,8 +148,8 @@ module load_store_unit (
             stu_exception_packet = instr_packet_i;
 
             if (stu_illegal_access) begin
-                stu_exception_packet.trap_vector = `STORE_ACCESS_FAULT;
-                stu_exception_packet.trap_generated = 1'b1;
+                stu_exception_packet.exception_vector = `STORE_ACCESS_FAULT;
+                stu_exception_packet.exception_generated = 1'b1;
             end
         end
 
@@ -203,8 +203,8 @@ module load_store_unit (
             ldu_exception_packet = instr_packet_i;
 
             if (ldu_illegal_access) begin
-                ldu_exception_packet.trap_vector = `LOAD_ACCESS_FAULT;
-                ldu_exception_packet.trap_generated = 1'b1;
+                ldu_exception_packet.exception_vector = `LOAD_ACCESS_FAULT;
+                ldu_exception_packet.exception_generated = 1'b1;
             end
         end
 
