@@ -67,10 +67,8 @@ module execution_unit (
     input instr_packet_t ipacket_i,
 
     /* Instruction jump is compressed */
-    input logic is_cjump_i,
-
-    /* Branch control */
-    output logic is_branch_o,
+    input logic compressed_i,
+    input logic branch_i,
 
     /* Global interrupt enable */
     output logic glb_interrupt_enable_o,
@@ -92,7 +90,7 @@ module execution_unit (
      */
 
     /* Store buffer main interface */
-    store_buffer_push_interface.master st_buf_channel,
+    store_buffer_push_interface.master str_buf_channel,
 
     /* Store buffer fowarding nets */
     input logic       str_buf_address_match_i,
@@ -116,7 +114,7 @@ module execution_unit (
     input logic exception_i,
 
     /* Address to load the PC in case of trap */
-    output data_word_t handler_pc_address_o,
+    output data_word_t handler_pc_o,
 
     /* Privilege control */
     input logic machine_return_instr_i,
@@ -162,8 +160,7 @@ module execution_unit (
         .enable_bmu   ( bmu_enable               ),
         `endif 
         
-        .is_cjump_i   ( is_cjump_i               ),
-        .is_branch_o  ( is_branch_o              ),
+        .compressed_i ( compressed_i             ),
         .ipacket_i    ( ipacket_i                ),
         .operation_i  ( operation_i.ITU.subunit  ),
         .data_valid_i ( data_valid_i.ITU         ),
@@ -198,7 +195,7 @@ module execution_unit (
         .ld_ctrl_channel         ( ld_ctrl_channel         ),
         .st_ctrl_channel         ( st_ctrl_channel         ),
         .store_ctrl_idle_i       ( store_ctrl_idle_i       ),
-        .st_buf_channel          ( st_buf_channel          ),
+        .str_buf_channel         ( str_buf_channel          ),
         .str_buf_address_match_i ( str_buf_address_match_i ),
         .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
         .instr_packet_o          ( ipacket_o[LSU]          ),
@@ -215,11 +212,11 @@ module execution_unit (
 
         always_comb begin
             case (operation_i.CSR.opcode) 
-                CSR_SWAP: csr_data_write = operand_1_i;
+                CSR_SWAP: csr_data_write = operand_i[0];
 
-                CSR_SET: csr_data_write = operand_1_i | csr_data_read;
+                CSR_SET: csr_data_write = operand_i[0] | csr_data_read;
 
-                CSR_CLEAR: csr_data_write = ~operand_1_i & csr_data_read;
+                CSR_CLEAR: csr_data_write = ~operand_i[0] & csr_data_read;
 
                 default: csr_data_write = csr_data_read;
             endcase 
@@ -230,29 +227,24 @@ module execution_unit (
 
     assign time_csr_interrupt = timer_interrupt & glb_interrupt_enable_o;
 
-    control_status_registers CSR (
-        .clk_i                 ( clk_i                 ),
-        .rst_n_i               ( rst_n_i               ),
-        .csr_access_i          ( data_valid_i.CSR      ),
-        .csr_address_i         ( operand_2_i[11:0]     ),
-        .csr_data_write_i      ( csr_data_write        ),
-        .csr_data_read_o       ( csr_data_read         ),
-        .illegal_privilege_o   ( illegal_privilege     ),
-        .illegal_instruction_o ( illegal_instruction   ),
-        .illegal_csr_access_o  ( illegal_csr           ),
-        .instruction_retired_i ( instruction_retired_i ),
-        .data_store_i          ( data_valid_i.LSU.STU  ),
-        .data_load_i           ( data_valid_i.LSU.LDU  ),
-        .branch_i              ( is_branch_o           ),
-        .branch_mispredicted_i ( branch_mispredicted_i ),
-
-        .enable_mul ( csr_mul_enable ),
-        .enable_div ( csr_div_enable ), 
-
-        `ifdef BMU 
-        .enable_bmu ( csr_bmu_enable ), 
-        `endif 
-
+    control_status_registers CSRU (
+        .clk_i                  ( clk_i                 ),
+        .rst_n_i                ( rst_n_i               ),
+        .csr_access_i           ( data_valid_i.CSR      ),
+        .csr_address_i          ( operand_i[1][11:0]    ),
+        .csr_data_write_i       ( csr_data_write        ),
+        .csr_data_read_o        ( csr_data_read         ),
+        .illegal_privilege_o    ( illegal_privilege     ),
+        .illegal_instruction_o  ( illegal_instruction   ),
+        .illegal_csr_access_o   ( illegal_csr           ),
+        .instruction_retired_i  ( instruction_retired_i ),
+        .data_store_i           ( data_valid_i.LSU.STU  ),
+        .data_load_i            ( data_valid_i.LSU.LDU  ),
+        .branch_i               ( branch_i              ),
+        .branch_mispredicted_i  ( branch_mispredicted_i ),
+        .enable_mul_o           ( csr_mul_enable        ),
+        .enable_div_o           ( csr_div_enable        ), 
+        `ifdef BMU.enable_bmu_o ( csr_bmu_enable ), `endif 
         .trap_instruction_pc_i  ( trap_instruction_pc_i  ),
         .trap_instruction_pc_o  ( trap_instruction_pc_o  ),
         .interrupt_vector_i     ( interrupt_vector_i     ),
@@ -260,7 +252,7 @@ module execution_unit (
         .exception_vector_i     ( exception_vector_i     ),
         .interrupt_request_i    ( interrupt_request_i    ),
         .exception_i            ( exception_i            ),
-        .handler_pc_address_o   ( handler_pc_address_o   ),
+        .handler_pc_o           ( handler_pc_o           ),
         .glb_int_enabled_o      ( glb_interrupt_enable_o ),
         .machine_return_instr_i ( machine_return_instr_i ),
         .current_privilege_o    ( current_privilege      )
@@ -279,7 +271,8 @@ module execution_unit (
 
                 if (illegal_privilege | illegal_csr | illegal_instruction) begin
                     /* Low privilege access on an higher privilege CSR */
-                    ipacket_o[CSR].trap_vector = `INSTR_ILLEGAL;
+                    ipacket_o[CSR].exception_vector = `INSTR_ILLEGAL;
+                    ipacket_o[CSR].exception_generated = 1'b1;
                 end 
 
                 result_o[CSR] = csr_data_read;
