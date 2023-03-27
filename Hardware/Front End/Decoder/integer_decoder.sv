@@ -16,7 +16,6 @@ module integer_decoder (
 
     /* Privilege level for system call */
     input logic priv_level_i,
-    output logic handler_return_o,
 
     /* Micro instructions */
     output itu_valid_t itu_unit_valid_o,
@@ -32,6 +31,7 @@ module integer_decoder (
 
     /* Calculate branch target in issue stage
      * and set PC */
+    input logic compressed_i,
     output logic is_jump_o,
     output logic link_o,
 
@@ -184,8 +184,6 @@ module integer_decoder (
         csr_unit_valid_o = '0;
         csr_unit_uop_o = CSR_SWAP;
 
-        handler_return_o = 1'b0;
-
         is_jump_o = 1'b0;
         is_fence_o = 1'b0;
         is_memory_o = 1'b0;
@@ -248,12 +246,13 @@ module integer_decoder (
 
             riscv32::JALR: begin
                 /* Add the instruction immediate to register */
-                build_alu_packet(JAL);
+                build_alu_packet(ADD);
 
                 /* Registers */
                 reg_src_o[1] = instr_i.I.reg_src_1[1];
 
                 /* Immediates */
+                build_immediate(1, compressed_i ? 32'd2 : 32'd4);
                 build_I_immediate(2, 1'b1);
 
                 /* Immediate is not passed into the 
@@ -327,11 +326,6 @@ module integer_decoder (
                 /* Immediates */
                 build_I_immediate(2, 1'b1); /* Offset */
 
-                /* Immediate is not passed into the 
-                 * execute stage but are only used for
-                 * address calculation */
-                is_immediate_o[2] = 1'b0;
-
                 is_memory_o = 1'b1;
                 address_operand_o[1] = riscv32::REGISTER;
                 address_operand_o[2] = riscv32::IMMEDIATE;
@@ -357,11 +351,6 @@ module integer_decoder (
 
                 /* Immediates */
                 build_S_immediate(2, 1'b1); /* Offset */
-
-                /* Immediate is not passed into the 
-                 * execute stage but are only used for
-                 * address calculation */
-                is_immediate_o[2] = 1'b0;
 
                 is_memory_o = 1'b1;
                 address_operand_o[1] = riscv32::REGISTER;
@@ -685,8 +674,8 @@ module integer_decoder (
                             if ({instr_i[28], instr_i[22]} == '1) begin 
                                 /* Wait For Interrupt instruction WFI */
                                 nop_instruction();
-                                exception_generated = 1'b1;
-                                exception_vector_o = ((instr_i[19:7] == '0) & (instr_i[31:20] == 12'b000100000101)) ? `SLEEP : `INSTR_ILLEGAL;
+                                exception_generated = ((instr_i[19:7] != '0) | (instr_i[31:20] != 12'b000100000101)) | (priv_level_i == USER_MODE);
+                                exception_vector_o = exception_generated ? `SLEEP : `INSTR_ILLEGAL;
                             end else begin 
                                 /* Environment Breakpoint instruction EBREAK */
                                 nop_instruction();
@@ -698,7 +687,8 @@ module integer_decoder (
                                 /* Machine Return instruction MRET */
                                 nop_instruction();
                                 handler_return_o = 1'b1;
-                                exception_generated = (instr_i[19:7] == '0) & (instr_i[31:20] == 12'b001100000010);
+                                exception_generated = (instr_i[19:7] != '0) | (instr_i[31:20] != 12'b001100000010);
+                                exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `HANDLER_RETURN;
                             end else begin
                                 /* System Call instruction ECALL */
                                 nop_instruction();
