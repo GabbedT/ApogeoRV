@@ -74,7 +74,7 @@ module store_unit (
     input logic data_accepted_i,
         
     /* Store buffer channel */
-    store_buffer_push_interface.master st_buf_channel,
+    store_buffer_push_interface.master str_buf_channel,
 
     /* Memory controller store channel */
     store_controller_interface.master st_ctrl_channel,
@@ -118,8 +118,8 @@ module store_unit (
 
     /* Sampled when a valid operation is supplied to provide a stable
      * output */
-    data_word_t   store_address_CRT, store_address_NXT;
-    data_word_t   store_data_CRT, store_data_NXT;
+    data_word_t store_address_CRT, store_address_NXT;
+    data_word_t store_data_CRT, store_data_NXT;
     store_width_t store_width_CRT, store_width_NXT;
 
         always_ff @(posedge clk_i) begin 
@@ -164,8 +164,8 @@ module store_unit (
             store_width_NXT = store_width_CRT;
             store_address_NXT = store_address_CRT;
 
-            st_buf_channel.push_request = 1'b0;
-            st_buf_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
+            str_buf_channel.push_request = 1'b0;
+            str_buf_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
             st_ctrl_channel.request = 1'b0;
             st_ctrl_channel.data = store_data_CRT;
@@ -197,14 +197,16 @@ module store_unit (
                                 end
 
                                 2'b11: begin
-                                    if (!st_buf_channel.full) begin
-                                        state_NXT = WAIT_ACCEPT;
+                                    if (!str_buf_channel.full) begin
+                                        if (!data_accepted_i) begin
+                                            state_NXT = WAIT_ACCEPT;
+                                        end
                                     end else begin
                                         state_NXT = WAIT_BUFFER;
                                     end
                                         
                                     /* Don't push data if the buffer is full */
-                                    st_buf_channel.push_request = !st_buf_channel.full;
+                                    str_buf_channel.push_request = !str_buf_channel.full;
 
                                     `ifdef TEST_DESIGN
                                         $display("[Store Unit][%0t] Requesting a push to the store buffer...", $time());
@@ -233,7 +235,7 @@ module store_unit (
 
                     accessable_NXT = accessable;
 
-                    st_buf_channel.packet = {store_data_i, store_address_i, store_width_t'(operation_i)};
+                    str_buf_channel.packet = {store_data_i, store_address_i, store_width_t'(operation_i)};
 
                     st_ctrl_channel.data = store_data_i;
                     st_ctrl_channel.address = store_address_i;
@@ -271,9 +273,9 @@ module store_unit (
 
 
                 WAIT_BUFFER: begin
-                    st_buf_channel.push_request = !st_buf_channel.full; 
+                    str_buf_channel.push_request = !str_buf_channel.full; 
 
-                    if (!st_buf_channel.full) begin 
+                    if (!str_buf_channel.full) begin 
                         data_valid_o = 1'b1;
 
                         if (data_accepted_i) begin
@@ -320,7 +322,7 @@ module store_unit (
 
     `ifdef TEST_DESIGN
         /* Push request must be deasserted after accepting the request (buffer not full) */
-        buffer_push_check: assert property (@(posedge clk_i) st_buf_channel.push_request & !st_buf_channel.full |=> !st_buf_channel.push_request);
+        buffer_push_check: assert property (@(posedge clk_i) str_buf_channel.push_request & !str_buf_channel.full |=> !str_buf_channel.push_request);
 
         /* Check that the illegal access exception is detected */
         illegal_access_check: assert property (@(posedge clk_i) !accessable |=> illegal_access_o);
