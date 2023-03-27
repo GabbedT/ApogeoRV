@@ -30,7 +30,7 @@ module commit_stage (
     output rob_entry_t rob_entry_o,
 
     /* Foward data */
-    input logic [1:0][4:0] reg_src_i,
+    input logic [1:0][4:0] foward_src_i,
     output data_word_t [1:0] foward_data_o,
     output logic [1:0] foward_valid_o
 );
@@ -87,7 +87,7 @@ module commit_stage (
         .ipacket_o       ( ipacket_read[ITU]    ),
         .invalidate_i    ( push_buffer[LSU]     ),
         .invalid_reg_i   ( invalid_address[LSU] ),
-        .foward_src_i    ( reg_src_i            ),
+        .foward_src_i    ( foward_src_i         ),
         .foward_result_o ( foward_data[ITU]     ),
         .foward_valid_o  ( foward_valid[ITU]    ),
         .full_o          ( buffer_full[ITU]     ),
@@ -130,7 +130,7 @@ module commit_stage (
         .ipacket_o       ( ipacket_read[LSU]    ),
         .invalidate_i    ( push_buffer[ITU]     ),
         .invalid_reg_i   ( invalid_address[ITU] ),
-        .foward_src_i    ( reg_src_i            ),
+        .foward_src_i    ( foward_src_i         ),
         .foward_result_o ( foward_data[LSU]     ),
         .foward_valid_o  ( foward_valid[LSU]    ),
         .full_o          ( buffer_full[LSU]     ),
@@ -236,11 +236,11 @@ module commit_stage (
 
     logic [1:0][1:0] register_match;
 
-    assign register_match[ITU][0] = (ipacket_write[ITU].reg_dest == reg_src_i[0]);
-    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == reg_src_i[1]);
+    assign register_match[ITU][0] = (ipacket_write[ITU].reg_dest == foward_src_i[0]);
+    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == foward_src_i[1]);
 
-    assign register_match[LSU][0] = (ipacket_write[LSU].reg_dest == reg_src_i[0]);
-    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == reg_src_i[1]);
+    assign register_match[LSU][0] = (ipacket_write[LSU].reg_dest == foward_src_i[0]);
+    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == foward_src_i[1]);
 
         always_comb begin 
             /* Priority is given to new arrived data instead of old
