@@ -6,20 +6,15 @@
 `include "../Include/Headers/apogeo_configuration.svh"
 
 module bypass_controller (
-    /* Register source */
-    input logic [1:0][4:0] reg_src_i,
-
     /* Operands from issue stage */
     input data_word_t [1:0] issue_operand_i,
 
     /* Result from commit stage */ 
     input data_word_t commit_data_i,
-    input logic [4:0] commit_reg_dest_i,
+    input logic [1:0] commit_valid_i,
 
-    /* Operands from reorder buffer stage */ 
+    /* Result from reorder buffer */ 
     input data_word_t [1:0] rob_data_i,
-
-    /* Valid entry found in reorder buffer */
     input logic [1:0] rob_valid_i,
 
     /* Operands supplied to the execution unit */
@@ -37,11 +32,9 @@ module bypass_controller (
         
         for (i = 0; i < 2; ++i) begin 
             always_comb begin : fowarding_logic 
-                commit_reg_match[i] = (commit_reg_dest_i == reg_src_i[i]);
-
                 /* Prior stages have the priority over later stages since they hold 
                  * the most recent value */
-                casez ({commit_reg_match[i], rob_valid_i[i]})
+                casez ({commit_valid_i[i], rob_valid_i[i]})
                     2'b1?: operand_o[i] = commit_data_i;
 
                     2'b01: operand_o[i] = rob_data_i[i];
