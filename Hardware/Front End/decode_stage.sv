@@ -14,10 +14,6 @@
     `include "Decoder/bit_manipulation_decoder.sv"
 `endif 
 
-`ifdef FPU 
-    `include "Decoder/floating_point_decoder.sv"
-`endif
-
 module decode_stage (
     /* Instruction supplied by the fetch 
      * buffer */
@@ -58,15 +54,8 @@ module decode_stage (
     output logic invert_operand_2_o,
 
     /* Registers */
-    `ifdef FPU 
-        output logic [2:0][4:0] reg_src_o,
-        output logic [4:0] reg_dest_o,
-        output logic [2:0] src_is_float_o,
-        output logic dest_is_float_o,
-    `else  
-        output logic [1:0][4:0] reg_src_o,
-        output logic [4:0] reg_dest_o,
-    `endif 
+    output logic [1:0][4:0] reg_src_o,
+    output logic [4:0] reg_dest_o,
 
     /* Micro instructions */
     output exu_valid_t exu_valid_o,
@@ -261,7 +250,7 @@ module decode_stage (
     `ifdef FPU assign exu_uop_o.FPU.subunit = fpu_uop_fdec; `endif
 
     assign exception_generated_o = exc_gen_idec `ifdef BMU | exc_gen_bdec `endif `ifdef FPU | exc_gen_fdec `endif;
-    assign Compressed instruction */exception_vector_o = exc_vect_idec `ifdef BMU | exc_vect_bdec `endif `ifdef FPU | exc_vect_fdec `endif;
+    assign exception_vector_o = exc_vect_idec `ifdef BMU | exc_vect_bdec `endif `ifdef FPU | exc_vect_fdec `endif;
 
     assign compressed_o = compressed_i;
 
