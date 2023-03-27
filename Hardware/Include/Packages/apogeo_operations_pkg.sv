@@ -16,11 +16,11 @@ package apogeo_operations_pkg;
 
     typedef enum logic [3:0] {
         /* Jump instructions */
-        JAL, BEQ, BNE, BGE, 
+        BEQ, BNE, BGE, 
         BLT, BLTU, BGEU,
 
 
-        ADD,
+        ADD, SUB,
         SLT, SLTU,
         SLL, SRL, SRA,
         AND, OR, XOR
@@ -283,7 +283,7 @@ package apogeo_operations_pkg;
 
 
     /* Determine the max number of bits for padding */
-    function int max(input int itu_size, input int lsu_size, input int csr_size `ifdef FPU , input int fpu_size `endif);
+    function int max(input int itu_size, input int lsu_size, input int csr_size);
         automatic int max_size = 0;
 
         if (itu_size > max_size) begin
@@ -297,12 +297,6 @@ package apogeo_operations_pkg;
         if (csr_size > max_size) begin
             max_size = csr_size;
         end
-
-        `ifdef FPU 
-            if (fpu_size > max_size) begin
-                max_size = fpu_size;
-            end
-        `endif 
         
         $display("MAX SIZE = %d", max_size);
         return max_size;
