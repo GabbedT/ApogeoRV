@@ -59,14 +59,11 @@ module arithmetic_logic_unit (
     /* Jump instruction is compressed so store
      * in the register the instruction address
      * incremented by only 2 */
-    input logic is_cjump_i,
+    input logic compressed_i,
 
     /* Result and valid bits */
     output data_word_t result_o,
-    output logic       data_valid_o,
-
-    /* Branch logic */
-    output logic is_branch_o
+    output logic data_valid_o
 );
 
 //====================================================================================
@@ -77,9 +74,10 @@ module arithmetic_logic_unit (
      *  ADDI, ADD, SUB, LUI, AUIPC, JAL, JALR
      */
 
-    data_word_t adder_result;
+    data_word_t add_result, sub_result;
 
-    assign adder_result = operand_A_i + operand_B_i;
+    assign add_result = operand_A_i + operand_B_i;
+    assign sub_result = operand_A_i - operand_B_i;
 
 
 //====================================================================================
@@ -148,7 +146,9 @@ module arithmetic_logic_unit (
 
         always_comb begin : output_assignment
             case (operation_i)
-                ADD: result_o = adder_result;
+                ADD: result_o = add_result;
+
+                SUB: result_o = sub_result;
 
                 AND: result_o = and_result;
 
@@ -166,8 +166,6 @@ module arithmetic_logic_unit (
 
                 SRA: result_o = arithmetic_sh_right_result;
 
-                JAL: result_o = (is_cjump_i) ? (operand_A_i + 3'd2) : (operand_A_i + 3'd4);
-
                 BEQ: result_o = is_equal;
 
                 BNE: result_o = !is_equal;
@@ -183,12 +181,6 @@ module arithmetic_logic_unit (
                 default: result_o = '0;
             endcase
         end : output_assignment
-
-    /* Micro operation has encoded the jumps in the first 7 numbers.
-     * If the result is not 0 and a branch is detected then it's taken.
-     * Note that in JAL and JALR instructions, the result is always
-     * not 0 */
-    assign is_branch_o = (operation_i <= 4'd7) & data_valid_i;
 
 endmodule : arithmetic_logic_unit
 
