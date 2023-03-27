@@ -25,9 +25,6 @@
 //      CORE CONFIG
 //====================================================================================
 
-    /* Enable floating point unit and F extension */
-    `define FPU 
-
     /* Enable bit manipulation unit and B extension */
     `define BMU
 
