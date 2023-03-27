@@ -60,10 +60,7 @@ module integer_unit (
     `ifdef BMU input logic enable_bmu, `endif
 
     /* Instruction jump is compressed */
-    input logic is_cjump_i,
-
-    /* Branch control */
-    output logic is_branch_o,
+    input logic compressed_i,
 
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
@@ -98,14 +95,13 @@ module integer_unit (
     logic       alu_valid, branch_taken, is_branch;
 
     arithmetic_logic_unit alu (
-        .operand_A_i      ( operand_1_i            ),
-        .operand_B_i      ( operand_2_i            ),
-        .operation_i      ( operation_i.ALU.opcode ),
-        .data_valid_i     ( data_valid_i.ALU       ),
-        .is_cjump_i       ( is_cjump_i             ),
-        .result_o         ( alu_result             ),
-        .is_branch_o      ( is_branch              ),
-        .data_valid_o     ( alu_valid              )
+        .operand_A_i  ( operand_1_i            ),
+        .operand_B_i  ( operand_2_i            ),
+        .operation_i  ( operation_i.ALU.opcode ),
+        .data_valid_i ( data_valid_i.ALU       ),
+        .compressed_i ( compressed_i           ),
+        .result_o     ( alu_result             ),
+        .data_valid_o ( alu_valid              )
     );
 
 
@@ -115,7 +111,7 @@ module integer_unit (
     assign alu_result_out = alu_valid ? alu_result : '0;
     
         always_comb begin
-            if (kill_instr_i) begin
+            if (flush_i) begin
                 alu_final_ipacket = NO_OPERATION;
             end else begin
                 if (alu_valid) begin
@@ -125,8 +121,6 @@ module integer_unit (
                 end
             end
         end
-
-    assign is_branch_o = is_branch & alu_valid;
 
 
 //====================================================================================
@@ -142,7 +136,7 @@ module integer_unit (
         .clk_i        ( clk_i                   ),
         .clk_en_i     ( enable_bmu              ),
         .rst_n_i      ( rst_n_i                 ),
-        .clear_i      ( kill_instr_i           ),
+        .clear_i      ( flush_i                ),
         .operand_A_i  ( operand_1_i             ),
         .operand_B_i  ( operand_2_i             ),
         .operation_i  ( operation_i.BMU.opcode  ),
@@ -158,7 +152,7 @@ module integer_unit (
     instr_packet_t bmu_ipacket;
 
         always_ff @(posedge clk_i) begin : bmu_stage_register
-            if (kill_instr_i) begin
+            if (flush_i) begin
                 bmu_ipacket <= NO_OPERATION;
             end else begin
                 bmu_ipacket <= ipacket_i;
@@ -188,7 +182,7 @@ module integer_unit (
         .clk_i          ( clk_i                  ),
         .clk_en_i       ( enable_mul             ),
         .rst_n_i        ( rst_n_i                ),
-        .clear_i        ( kill_instr_i           ),
+        .clear_i        ( flush_i                  ),
         .multiplicand_i ( operand_1_i            ),
         .multiplier_i   ( operand_2_i            ),
         .data_valid_i   ( data_valid_i.MUL       ),
@@ -205,7 +199,7 @@ module integer_unit (
 
         always_ff @(posedge clk_i) begin : mul_stage_register
             if (enable_mul) begin
-                if (kill_instr_i) begin
+                if (flush_i) begin
                     for (int i = 0; i <= IMUL_STAGES; ++i) begin
                         mul_ipacket[i] <= NO_OPERATION;
                     end 
@@ -236,7 +230,7 @@ module integer_unit (
         .clk_i            ( clk_i                  ),
         .clk_en_i         ( enable_div             ),
         .rst_n_i          ( rst_n_i                ),
-        .clear_i          ( kill_instr_i           ),
+        .clear_i          ( flush_i                ),
         .dividend_i       ( operand_1_i            ),
         .divisor_i        ( operand_2_i            ),
         .data_valid_i     ( data_valid_i.DIV       ),
@@ -253,7 +247,7 @@ module integer_unit (
     instr_packet_t div_ipacket;
 
         always_ff @(posedge clk_i) begin : div_stage_register 
-            if (kill_instr_i) begin
+            if (flush_i) begin
                 div_ipacket <= NO_OPERATION;
             end else if (data_valid_i.DIV) begin
                 div_ipacket <= ipacket_i;
