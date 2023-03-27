@@ -15,6 +15,14 @@ package rv32_instructions_pkg;
     localparam LSU = 1;
     localparam CSR = 2;
 
+    /* Privilege level */
+    localparam MACHINE_MODE = 1'b1;
+    localparam USER_MODE = 1'b0;
+
+    /* Branch prediction */
+    localparam TAKEN = 1'b1;
+    localparam NOT_TAKEN = 1'b0;
+
 
 //====================================================================================
 //      COMMON TYPES
@@ -51,10 +59,10 @@ package rv32_instructions_pkg;
 
     typedef struct packed {
         /* Has generated a trap */
-        logic trap_generated;
+        logic exception_generated;
 
         /* Exception vector */
-        logic [4:0] trap_vector;
+        logic [4:0] exception_vector;
 
         /* Instruction address */
         logic [31:0] instr_addr;
