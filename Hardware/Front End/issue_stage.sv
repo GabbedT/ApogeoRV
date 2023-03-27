@@ -3,35 +3,24 @@
 
 `include "../Include/Packages/apogeo_pkg.sv"
 `include "../Include/Packages/apogeo_operations_pkg.sv"
+`include "../Include/Packages/riscv_instructions_pkg.sv"
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
 `include "register_file.sv"
-`include "bypass_controller.sv"
 `include "scheduler.sv"
 
 module issue_stage (
     input logic clk_i, 
     input logic rst_n_i, 
     input logic stall_i,
-    input logic clear_i,
-    output logic stall_frontend_o,
+    input logic flush_i,
+    output logic stall_issue_o,
 
     /* Writeback data */
     input logic writeback_i,
-    `ifdef FPU input logic writeback_float_i, `endif 
     input logic [4:0] writeback_register_i,
     input data_word_t writeback_data_i,
-
-    /* Commit data */
-    input data_word_t commit_result_i,
-    input logic [4:0] commit_register_i,
-
-    /* Reorder buffer data */ 
-    input data_word_t rob_operand_1_i,
-    input data_word_t rob_operand_2_i,
-    input logic rob_valid_1_i,
-    input logic rob_valid_2_i,
 
     /* Packet that carries instruction informations */
     output instr_packet_t ipacket_o,
@@ -49,8 +38,9 @@ module issue_stage (
 
     /* Instruction is a jump and require 
      * to set the PC to the BTA */
-    input logic jump_i,
-    output logic jump_o,
+    input logic branch_i,
+    output logic branch_o,
+    output data_word_t branch_address_o,
 
     /* Instruction is fence, stall 
      * the front end until the 
@@ -59,26 +49,15 @@ module issue_stage (
 
     /* Memory operation */
     input logic memory_i,
-    input logic [2:1] address_operand_i,
-    output data_word_t branch_address_o,
-
-    /* Trap handler return */
-    input logic handler_return_i,
-    output logic handler_return_o,
+    input logic [1:0] address_operand_i,
 
     /* Immediates */
     input data_word_t [1:0] immediate_i,
     input logic [1:0] imm_valid_i,
 
-    /* Source registers */
-    `ifdef FPU 
-        input logic [3:1] src_is_float_i,  
-        input logic [3:1][4:0] src_reg_i,
-    `endif
-
-    /* Destination register */
-    `ifdef FPU input logic dest_is_float_i, `endif 
-    input logic [4:0] dest_addr_i, 
+    /* Registers */
+    input logic [1:0][4:0] src_reg_i,
+    input logic [4:0] dest_reg_i, 
 
     /* Functional units operations */
     input exu_valid_t unit_valid_i,
@@ -89,114 +68,139 @@ module issue_stage (
     /* Functional units status */
     input logic stu_idle_i,
     input logic ldu_idle_i,
-    `ifdef FPU input logic fpdiv_idle_i, `endif 
-    `ifdef FPU input logic fpsqrt_idle_i, `endif 
 
     /* Operands supplied */
-    `ifdef FPU 
-        output data_word_t [3:1] operand_o 
-    `else 
-        output data_word_t [2:1] operand_o 
-    `endif 
+    output data_word_t [1:0] operand_o 
 );
+
+//====================================================================================
+//      REGISTER FILE
+//====================================================================================
+
+    data_word_t [1:0] register_data;
+
+    register_file reg_file (
+        .clk_i ( clk_i ),
+
+        .write_address_i ( writeback_register_i ),
+        .write_i         ( writeback_i          ),
+        .write_data_i    ( writeback_data_i     ),
+
+        .read_address_i ( src_reg_i     ),
+        .read_data_o    ( register_data )
+    );
+
 
 //====================================================================================
 //      ADDRESS CALCULATION LOGIC
 //====================================================================================
 
     data_word_t computed_address, operand_A, operand_B;
-    data_word_t [2:1] source_operand;
 
         always_comb begin
-            if (address_operand_i[1] == riscv32::IMMEDIATE) begin
-                operand_A = immediate_i[1];
+            if (address_operand_i[0] == riscv32::IMMEDIATE) begin
+                operand_A = immediate_i[0];
             end else begin
-                operand_A = source_operand[1];
+                operand_A = register_data[0];
             end
 
-            if (address_operand_i[2] == riscv32::IMMEDIATE) begin
-                operand_A = immediate_i[2];
+            if (address_operand_i[1] == riscv32::IMMEDIATE) begin
+                operand_B = immediate_i[1];
             end else begin
-                operand_A = source_operand[2];
+                operand_B = register_data[1];
             end
         end
 
     assign computed_address = operand_A + operand_B;
 
-    assign branch_address_o = computed_address;
+
+//====================================================================================
+//      SCHEDULER
+//====================================================================================
+
+    logic issue_instruction, pipeline_empty;
+
+    scheduler scoreboard (
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+        .flush_i ( flush_i ),
+        .stall_i ( stall_i ),
+
+        .stu_idle_i ( stu_idle_i ),
+        .ldu_idle_i ( ldu_idle_i ),
+
+        .src_reg_i  ( src_reg_i  ),
+        .dest_reg_i ( dest_reg_i ),
+
+        .csr_unit_i ( unit_valid_i.CSR ),
+        .itu_unit_i ( unit_valid_i.ITU ),
+        .lsu_unit_i ( unit_valid_i.LSU ),
+
+        .pipeline_empty_o    ( pipeline_empty    ),
+        .issue_instruction_o ( issue_instruction )
+    );
 
 
 //====================================================================================
-//      THIRD OPERAND FETCH FSM
+//      OPERAND SELECTION LOGIC
 //====================================================================================
 
-    logic issue;
-
-    `ifdef FPU 
-
-    logic [4:0] operand_3_addr_CRT, operand_3_addr_NXT;
-    data_word_t operand_1_CRT, operand_1_NXT, operand_2_CRT, operand_2_NXT; 
-
-        always_ff @(posedge clk_i) begin 
-            operand_3_addr_CRT <= operand_3_addr_NXT;
-            operand_2_CRT <= operand_2_NXT;
-            operand_1_CRT <= operand_1_NXT;
-        end 
-
-
-    typedef enum logic {IDLE, READ} fsm_state_t;
-
-    fsm_state_t state_CRT, state_NXT;
-
-        always_ff @(posedge clk_i) begin : state_register
-            if (!rst_n_i) begin
-                state_CRT <= IDLE;
-            end else if (!stall_i) begin
-                state_CRT <= state_NXT;
-            end
-        end : state_register
-
-    
-    logic [4:0] reg_address;
-    logic wait_third_operand;
-
-        always_comb begin : fsm_logic
-            /* Default Values */
-            operand_3_addr_NXT = operand_3_addr_CRT;
-            operand_2_NXT = operand_2_CRT;
-            operand_1_NXT = operand_1_CRT;
-            state_NXT = state_CRT;
-
-            wait_third_operand = 1'b0;
-            reg_address = src_reg_i[1];
-
-            case (state_CRT)
-                IDLE: begin
-                    if (src_is_float_i[3] & issue) begin
-                        /* If the third operand is valid stall the
-                         * front end for 1 clock cycle and save the
-                         * operands data */
-                        wait_third_operand = 1'b1;
-
-                        operand_1_NXT = source_operand[1];
-                        operand_2_NXT = source_operand[2];
-                        operand_3_addr_NXT = src_reg_i[3];
-
-                        state_NXT = READ;
+        always_comb begin
+            if (memory_i) begin
+                /* First operand is the address, second
+                 * operand is data to store */
+                operand_o[0] = computed_address;
+                operand_o[1] = register_data[1];
+            end else begin
+                /* Select between immediate or register */
+                for (int i = 0; i < 2; ++i) begin
+                    if (imm_valid_i[i]) begin
+                        operand_o[i] = immediate_i[i];
+                    end else begin
+                        operand_o[i] = register_data[i];
                     end
                 end
+            end
+        end
 
-                READ: begin
-                    /* Read the third operand and release the front
-                     * end stall, issue immediately */
-                    reg_address = operand_3_addr_CRT;
 
-                    state_NXT = IDLE;
-                end
-            endcase 
-        end : fsm_logic
+//====================================================================================
+//      ROB TAG GENERATION
+//====================================================================================
 
-    `endif 
+    logic [5:0] generated_tag;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : tag_counter
+            if (!rst_n_i) begin
+                generated_tag <= 6'b0;
+            end else if (flush_i) begin
+                generated_tag <= 6'b0;
+            end else if (stall_i & stall_issue_o) begin
+                generated_tag <= generated_tag + 1'b1;
+            end
+        end : tag_counter
+
+
+//====================================================================================
+//      OUTPUT LOGIC
+//====================================================================================
+
+    assign unit_valid_o = unit_valid_i;
+    assign unit_uop_o = unit_uop_i;
+    assign compressed_o = compressed_i;
+    assign branch_o = branch_i;
+
+    assign branch_address_o = computed_address;
+
+    /* If there's a dependency or fence is executed and pipeline is not empty then stall */
+    assign stall_issue_o = !issue_instruction | (fence_i & !pipeline_empty);
+
+    /* Packet generation */
+    assign ipacket_o.exception_generated = exception_generated_i; 
+    assign ipacket_o.exception_vector = exception_vector_i; 
+    assign ipacket_o.instr_addr = instr_address_i;
+    assign ipacket_o.rob_tag = generated_tag;
+    assign ipacket_o.reg_dest = dest_reg_i;
 
 endmodule : issue_stage 
 
