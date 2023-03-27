@@ -53,4 +53,7 @@
 /* WFI set hart to sleep */
 `define SLEEP 16
 
+/* Machine handler return */
+`define HANDLER_RETURN 17
+
 `endif 
