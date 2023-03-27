@@ -64,12 +64,8 @@ module reorder_buffer (
     input logic write_i,
     input logic read_i,
 
-    /* Used to recover the tag in case 
-     * of instruction kill */
-    output logic [5:0] read_tag_o,
-
     /* Issue interface */
-    input logic [1:0][4:0] reg_src_i,
+    input logic [1:0][4:0] foward_src_i,
     output logic [1:0][31:0] foward_data_o, 
     output logic [1:0] foward_valid_o,
 
@@ -97,8 +93,6 @@ module reorder_buffer (
                 read_ptr <= read_ptr + 1'b1;
             end
         end
-
-    assign read_tag_o = read_ptr;
 
 
 //====================================================================================
@@ -157,8 +151,8 @@ module reorder_buffer (
         end : register_write_port
 
     /* Read port */
-    assign foward_data_o[0] = (reg_src_i[0] == '0) ? '0 : foward_register[0][reg_src_i[0]];
-    assign foward_data_o[1] = (reg_src_i[1] == '0) ? '0 : foward_register[1][reg_src_i[1]];
+    assign foward_data_o[0] = (foward_src_i[0] == '0) ? '0 : foward_register[0][foward_src_i[0]];
+    assign foward_data_o[1] = (foward_src_i[1] == '0) ? '0 : foward_register[1][foward_src_i[1]];
 
 
     /* Register the last packet that wrote the foward register */
@@ -194,8 +188,8 @@ module reorder_buffer (
         end : register_valid_write_port
 
     /* Read port */
-    assign foward_valid_o[0] = (reg_src_i[0] == '0) ? 1'b1 : valid_register[reg_src_i[0]];
-    assign foward_valid_o[1] = (reg_src_i[1] == '0) ? 1'b1 : valid_register[reg_src_i[1]];
+    assign foward_valid_o[0] = (foward_src_i[0] == '0) ? 1'b1 : valid_register[foward_src_i[0]];
+    assign foward_valid_o[1] = (foward_src_i[1] == '0) ? 1'b1 : valid_register[foward_src_i[1]];
 
 endmodule : reorder_buffer
 
