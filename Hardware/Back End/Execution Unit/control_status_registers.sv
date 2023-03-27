@@ -72,9 +72,9 @@ module control_status_registers (
     input logic branch_i,
     input logic branch_mispredicted_i,
     
-    output logic enable_mul,
-    output logic enable_div, 
-    `ifdef BMU output logic enable_bmu, `endif 
+    output logic enable_mul_o,
+    output logic enable_div_o, 
+    `ifdef BMU output logic enable_bmu_o, `endif 
 
 
     /* Program counter that caused the trap */
@@ -91,7 +91,7 @@ module control_status_registers (
     input logic exception_i,
 
     /* Address to load the PC in case of trap */
-    output data_word_t handler_pc_address_o,
+    output data_word_t handler_pc_o,
 
     /* Interrupt mode */
     output logic glb_int_enabled_o,
@@ -131,11 +131,11 @@ module control_status_registers (
 
     assign misa_csr = {2'd1, 10'b0, 7'b0, M_extension, 3'b0, 1'b1, 2'b0, 1'b0, 2'b0, 1'b1, `ifdef BMU B_extension `else 1'b0 `endif, 1'b0};
 
-    assign enable_mul = M_extension;
-    assign enable_div = M_extension;
+    assign enable_mul_o = M_extension;
+    assign enable_div_o = M_extension;
 
     `ifdef BMU 
-    assign enable_bmu = B_extension;
+    assign enable_bmu_o = B_extension;
     `endif 
 
 
@@ -248,16 +248,16 @@ module control_status_registers (
      * the BASE field plus four times the interrupt cause number */
     always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
         if (!rst_n_i) begin
-            handler_pc_address_o <= '0;
+            handler_pc_o <= '0;
         end else if (mtvec_csr.MODE == DIRECT_MODE) begin
             /* Aligned pc */
-            handler_pc_address_o <= {mtvec_csr.BASE, 2'b0};
+            handler_pc_o <= {mtvec_csr.BASE, 2'b0};
         end else if (mtvec_csr.MODE == VECTORED_MODE) begin
             /* BASE + (CAUSE * 4) */
             if (interrupt_request_i) begin
-                handler_pc_address_o <= {mtvec_csr.BASE, 2'b0} + (interrupt_vector_i << 2);
+                handler_pc_o <= {mtvec_csr.BASE, 2'b0} + (interrupt_vector_i << 2);
             end else begin
-                handler_pc_address_o <= {mtvec_csr.BASE, 2'b0};
+                handler_pc_o <= {mtvec_csr.BASE, 2'b0};
             end
         end
     end
