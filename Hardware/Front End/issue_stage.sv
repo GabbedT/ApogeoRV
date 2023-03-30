@@ -66,6 +66,7 @@ module issue_stage (
     output exu_uop_t unit_uop_o,
 
     /* Functional units status */
+    input logic div_idle_i,
     input logic stu_idle_i,
     input logic ldu_idle_i,
 
@@ -126,6 +127,7 @@ module issue_stage (
         .flush_i ( flush_i ),
         .stall_i ( stall_i ),
 
+        .div_idle_i ( div_idle_i ),
         .stu_idle_i ( stu_idle_i ),
         .ldu_idle_i ( ldu_idle_i ),
 

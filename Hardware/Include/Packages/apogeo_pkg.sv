@@ -83,10 +83,10 @@ package rv32_instructions_pkg;
 
     typedef struct packed {
         /* Has generated an trap */
-        logic trap_generated;
+        logic exception_generated;
 
         /* Exception vector */
-        logic [4:0] trap_vector;
+        logic [4:0] exception_vector;
 
         /* Instruction address */
         logic [31:0] instr_addr;
@@ -101,8 +101,8 @@ package rv32_instructions_pkg;
     function rob_entry_t packet_convert(input instr_packet_t packet, input data_word_t result);
         automatic rob_entry_t rob_packet;
 
-        rob_packet.trap_generated = packet.trap_generated;
-        rob_packet.trap_vector = packet.trap_vector;
+        rob_packet.exception_generated = packet.exception_generated;
+        rob_packet.exception_vector = packet.exception_vector;
         rob_packet.instr_addr = packet.instr_addr;
         rob_packet.result = result;
         rob_packet.reg_dest = packet.reg_dest;

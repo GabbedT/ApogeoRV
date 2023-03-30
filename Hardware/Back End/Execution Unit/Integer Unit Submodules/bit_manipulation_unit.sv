@@ -117,19 +117,19 @@ module bit_manipulation_unit (
 //====================================================================================
 
     /* ANDN logic */
-    data_word_t andn_result, andn_result_out;
+    data_word_t andn_result;
 
     assign andn_result = operand_A_i & (~operand_B_i);
 
 
     /* ORN logic */
-    data_word_t orn_result, orn_result_out;
+    data_word_t orn_result;
 
     assign orn_result = operand_A_i | (~operand_B_i);
 
 
     /* XNOR logic */
-    data_word_t xnor_result, xnor_result_out;
+    data_word_t xnor_result;
 
     assign xnor_result = ~(operand_A_i ^ operand_B_i);
 

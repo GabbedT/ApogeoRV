@@ -42,7 +42,7 @@ module back_end (
     input logic branch_i,
     output logic branch_o,
     input data_word_t branch_address_i,
-    input data_word_t branch_address_o,
+    output data_word_t branch_address_o,
     input logic mispredicted_i,
     output logic prediction_o,
 

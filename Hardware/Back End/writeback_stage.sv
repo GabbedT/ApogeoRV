@@ -63,18 +63,18 @@ module writeback_stage (
 
     assign rob_read_o = rob_valid_i;
 
-    assign write_o = rob_valid_i & !rob_entry_i.trap_generated;
+    assign write_o = rob_valid_i & !rob_entry_i.exception_generated;
 
     assign reg_dest_o = rob_entry_i.reg_dest;
     assign result_o = rob_entry_i.result;
 
-    assign exception_generated_o = rob_valid_i & rob_entry_i.trap_generated;
-    assign exception_vector_o = rob_entry_i.trap_vector;
+    assign exception_generated_o = rob_valid_i & rob_entry_i.exception_generated;
+    assign exception_vector_o = rob_entry_i.exception_vector;
 
     assign exception_iaddress_o = rob_entry_i.instr_addr;
 
-    assign sleep_o = (rob_entry_i.trap_vector == `SLEEP);
-    assign mreturn_o = (rob_entry_i.trap_vector == `HANDLER_RETURN);
+    assign sleep_o = (rob_entry_i.exception_vector == `SLEEP);
+    assign mreturn_o = (rob_entry_i.exception_vector == `HANDLER_RETURN);
 
 endmodule : writeback_stage
 

@@ -25,9 +25,6 @@ module bypass_controller (
 //      OPERAND 1
 //====================================================================================
 
-
-    logic [1:0] commit_reg_match;
-
     generate genvar i;  
         
         for (i = 0; i < 2; ++i) begin 
