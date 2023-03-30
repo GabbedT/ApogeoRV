@@ -69,10 +69,8 @@ module commit_stage (
     assign result_write[ITU] = result_i[CSR] | result_i[ITU];
     assign data_valid[ITU] = data_valid_i[CSR] | data_valid_i[ITU];
 
-
-    /* Push when data is valid */
-    assign push_buffer[ITU] = data_valid[ITU];
-
+    /* Invalidate the data if the other buffer is pushing a result
+     * as it is becoming the most recent data */
     assign invalid_address[LSU] = ipacket_write[LSU].reg_dest;
 
     commit_buffer #(4) itu_buffer (
@@ -113,9 +111,8 @@ module commit_stage (
     assign ipacket_write[LSU] = ipacket_i[LSU];
     assign result_write[LSU] = result_i[LSU];
 
-    /* Push when data is valid */
-    assign push_buffer[LSU] = data_valid_i[LSU];
-
+    /* Invalidate the data if the other buffer is pushing a result
+     * as it is becoming the most recent data */
     assign invalid_address[ITU] = ipacket_write[ITU].reg_dest;
 
     commit_buffer #(4) lsu_buffer (
@@ -167,6 +164,7 @@ module commit_stage (
             state_NXT = state_CRT;
 
             pull_buffer = '0;
+            push_buffer = '0;
 
             rob_entry_o = '0;
             rob_write_o = 1'b0;
@@ -178,6 +176,9 @@ module commit_stage (
                  */
                 BUFFER1: begin
                     if (!buffer_empty[ITU]) begin
+                        /* Push data if it's valid during buffer read */
+                        push_buffer[ITU] = data_valid[ITU];
+
                         /* If the buffer is not empty read the value */
                         pull_buffer[ITU] = 1'b1;
                         rob_write_o = 1'b1;
@@ -186,11 +187,15 @@ module commit_stage (
                     end else begin
                         if (data_valid[ITU]) begin
                             /* Don't push the value and foward it */
+                            push_buffer[ITU] = 1'b0;
                             rob_write_o = 1'b1;
                             rob_entry_o = packet_convert(ipacket_write[ITU], result_write[ITU]);
                             rob_tag_o = ipacket_write[ITU].rob_tag;
                         end
                     end
+
+                    /* Push data in the other buffer if it's valid */
+                    push_buffer[LSU] = data_valid_i[LSU];
 
                     /* Go to next buffer, give priority 
                      * to the next one */
@@ -204,6 +209,9 @@ module commit_stage (
                  */
                 BUFFER2: begin
                     if (!buffer_empty[LSU]) begin
+                        /* Push data if it's valid during buffer read */
+                        push_buffer[ITU] = data_valid[ITU];
+
                         /* If the buffer is not empty read the value */
                         pull_buffer[LSU] = 1'b1;
                         rob_write_o = 1'b1;
@@ -212,11 +220,15 @@ module commit_stage (
                     end else begin
                         if (data_valid_i[LSU]) begin
                             /* Don't push the value and foward it */
+                            push_buffer[LSU] = 1'b0;
                             rob_write_o = 1'b1;
                             rob_entry_o = packet_convert(ipacket_i[LSU], result_i[LSU]);
                             rob_tag_o = ipacket_i[LSU].rob_tag;
                         end
                     end
+
+                    /* Push data in the other buffer if it's valid */
+                    push_buffer[ITU] = data_valid_i[ITU];
 
                     /* Go to next buffer, give priority 
                      * to the next one */
