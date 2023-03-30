@@ -35,12 +35,12 @@ module back_end_test();
     logic prediction_o;
 
     /* Memory interface */
-    load_controller_interface.master ld_ctrl_channel();
-    store_controller_interface.master st_ctrl_channel();
-    logic store_ctrl_idle_i = '0;
+    load_controller_interface ld_ctrl_channel();
+    store_controller_interface st_ctrl_channel();
+    logic store_ctrl_idle_i = '1;
 
     /* Store buffer interface */
-    store_buffer_push_interface.master str_buf_channel();
+    store_buffer_push_interface str_buf_channel();
 
     /* Store buffer fowarding nets */
     logic str_buf_address_match_i = '0;
@@ -79,29 +79,97 @@ module back_end_test();
     back_end dut (.*);
 
 
-    logic [5:0] generated_tag;
+    logic issue; exu_valid_t data_valid;
+
+    scheduler scb (
+        .clk_i      ( clk_i      ),
+        .rst_n_i    ( rst_n_i    ),
+        .flush_i    ( flush_o    ),
+        .stall_i    ( stall_o    ),
+        .div_idle_i ( div_idle_o ),
+        .stu_idle_i ( stu_idle_o ),
+        .ldu_idle_i ( ldu_idle_o ),
+
+        .src_reg_i  ( reg_src_i          ),
+        .dest_reg_i ( ipacket_i.reg_dest ),
+
+        .csr_unit_i ( data_valid.CSR ),
+        .itu_unit_i ( data_valid.ITU ),
+        .lsu_unit_i ( data_valid.LSU ),
+
+        .pipeline_empty_o    (       ),
+        .issue_instruction_o ( issue )
+    );
+
+    // initial begin
+    //     rst_n_i <= 1'b0;
+    //     data_valid <= '0;
+    //     @(posedge clk_i);
+    //     rst_n_i <= 1'b1;
+    //     @(posedge clk_i);
+
+    //     data_valid.ITU.BMU <= 1'b1;
+    //     @(posedge clk_i);
+    //     data_valid.ITU.BMU <= 1'b0;
+    //     data_valid.ITU.ALU <= 1'b1;
+    //     repeat(5) @(posedge clk_i);
+    //     $finish;
+    // end
+
+
+    logic [5:0] generated_tag; logic [4:0] reg_destination; logic start;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : tag_counter
             if (!rst_n_i) begin
                 generated_tag <= 6'b0;
+                reg_destination <= 5'b0;
             end else if (flush_o) begin
                 generated_tag <= 6'b0;
-            end else if (stall_o) begin
+                reg_destination <= 5'b0;
+            end else if (!stall_o & issue & start) begin
                 generated_tag <= generated_tag + 1'b1;
+                reg_destination <= $random();
             end
         end : tag_counter
 
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pipe_register
+            if (!rst_n_i) begin
+                data_valid_i <= '0;
+            end else if (flush_o | !issue) begin
+                data_valid_i <= '0;
+            end else if (!stall_o) begin
+                data_valid_i <= data_valid;
+            end
+        end : pipe_register 
+
     initial begin
         rst_n_i <= 1'b0;
+        start <= 1'b0;
+
+        data_valid <= '0;
+        ipacket_i.rob_tag <= '0;
+        ipacket_i.reg_dest <= '0;
+        reg_src_i <= $random();  
         @(posedge clk_i);
         rst_n_i <= 1'b1;
         @(posedge clk_i);
+        start <= 1'b1;
 
-        for (int i = 0; i < 32; ++i) begin
-            reg_source_i[0] <= i;
-            reg_source_i[1] <= i;
+        for (int i = 0; i < 1000; ++i) begin
+            ipacket_i.rob_tag <= generated_tag;
+            ipacket_i.reg_dest <= reg_destination;
+            reg_src_i <= $random();  
+
+            operand_i[0] <= $random();  
+            operand_i[1] <= $random();  
+
+            data_valid.ITU <= 1 << $urandom_range(0, 3); 
+            operation_i <= $random();
             @(posedge clk_i);
         end
+
+        repeat(100) @(posedge clk_i);
+
         $finish;
     end
 
