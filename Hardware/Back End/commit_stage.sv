@@ -94,13 +94,13 @@ module commit_stage (
 
     `ifdef TEST_DESIGN
         /* Buffer must never overflow */
-        assert property @(posedge clk_i) buffer_full[ITU] |-> !push_buffer[ITU];
-        assert property @(posedge clk_i) buffer_empty[ITU] |-> !pull_buffer[ITU];
+        assert property (@(posedge clk_i) buffer_full[ITU] |-> !push_buffer[ITU]);
+        assert property (@(posedge clk_i) buffer_empty[ITU] |-> !pull_buffer[ITU]);
 
         /* Only one unit must produce a valid result every clock cycle */
-        assert property @(posedge clk_i) $onehot0({data_valid_i[CSR], data_valid_i[ITU]});
-        assert property @(posedge clk_i) $onehot0({(ipacket_i[CSR] != '0), (ipacket_i[ITU] != '0)});
-        assert property @(posedge clk_i) $onehot0({(result_i[CSR] != '0), (result_i[ITU] != '0)});
+        assert property (@(posedge clk_i) $onehot0({data_valid_i[CSR], data_valid_i[ITU]}));
+        assert property (@(posedge clk_i) $onehot0({(ipacket_i[CSR] != '0), (ipacket_i[ITU] != '0)}));
+        assert property (@(posedge clk_i) $onehot0({(result_i[CSR] != '0), (result_i[ITU] != '0)}));
     `endif 
 
 
@@ -135,9 +135,9 @@ module commit_stage (
     );
 
     `ifdef TEST_DESIGN
-        assert property @(posedge clk_i) buffer_full[LSU] |-> !push_buffer[LSU];
+        assert property (@(posedge clk_i) buffer_full[LSU] |-> !push_buffer[LSU]);
 
-        assert property @(posedge clk_i) buffer_empty[LSU] |-> !pull_buffer[LSU];
+        assert property (@(posedge clk_i) buffer_empty[LSU] |-> !pull_buffer[LSU]);
     `endif 
 
 
