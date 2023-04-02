@@ -56,11 +56,6 @@ module scheduler (
     input logic flush_i,
     input logic stall_i,
 
-    /* Functional units status */
-    input logic div_idle_i,
-    input logic stu_idle_i,
-    input logic ldu_idle_i,
-
     /* Registers addresses */
     input logic [1:0][4:0] src_reg_i,
     input logic [4:0] dest_reg_i,
@@ -415,7 +410,7 @@ module scheduler (
 
     assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif;
-    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
+    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_executing) | (lsu_unit_i.STU & stu_executing);
 
 
 //====================================================================================
@@ -425,7 +420,7 @@ module scheduler (
     assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard);
 
     /* If no unit is executing, then the pipeline is empty */
-    assign pipeline_empty_o = !((|mul_executing) | div_executing | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i);
+    assign pipeline_empty_o = !((|mul_executing) | div_executing | `ifdef BMU (|bmu_executing) `endif | stu_executing | ldu_executing);
 
 endmodule : scheduler
 
