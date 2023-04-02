@@ -60,15 +60,10 @@ module issue_stage (
     input logic [4:0] dest_reg_i, 
 
     /* Functional units operations */
-    input exu_valid_t unit_valid_i,
-    input exu_uop_t unit_uop_i,
-    output exu_valid_t unit_valid_o,
-    output exu_uop_t unit_uop_o,
-
-    /* Functional units status */
-    input logic div_idle_i,
-    input logic stu_idle_i,
-    input logic ldu_idle_i,
+    input exu_valid_t exu_valid_i,
+    input exu_uop_t exu_uop_i,
+    output exu_valid_t exu_valid_o,
+    output exu_uop_t exu_uop_o,
 
     /* Operands supplied */
     output data_word_t [1:0] operand_o 
@@ -127,16 +122,12 @@ module issue_stage (
         .flush_i ( flush_i ),
         .stall_i ( stall_i ),
 
-        .div_idle_i ( div_idle_i ),
-        .stu_idle_i ( stu_idle_i ),
-        .ldu_idle_i ( ldu_idle_i ),
-
         .src_reg_i  ( src_reg_i  ),
         .dest_reg_i ( dest_reg_i ),
 
-        .csr_unit_i ( unit_valid_i.CSR ),
-        .itu_unit_i ( unit_valid_i.ITU ),
-        .lsu_unit_i ( unit_valid_i.LSU ),
+        .csr_unit_i ( exu_valid_i.CSR ),
+        .itu_unit_i ( exu_valid_i.ITU ),
+        .lsu_unit_i ( exu_valid_i.LSU ),
 
         .pipeline_empty_o    ( pipeline_empty    ),
         .issue_instruction_o ( issue_instruction )
@@ -177,7 +168,7 @@ module issue_stage (
                 generated_tag <= 6'b0;
             end else if (flush_i) begin
                 generated_tag <= 6'b0;
-            end else if (stall_i & stall_issue_o) begin
+            end else if (!(stall_i | stall_issue_o)) begin
                 generated_tag <= generated_tag + 1'b1;
             end
         end : tag_counter
@@ -187,8 +178,8 @@ module issue_stage (
 //      OUTPUT LOGIC
 //====================================================================================
 
-    assign unit_valid_o = unit_valid_i;
-    assign unit_uop_o = unit_uop_i;
+    assign exu_valid_o = exu_valid_i;
+    assign exu_uop_o = exu_uop_i;
     assign compressed_o = compressed_i;
     assign branch_o = branch_i;
 
