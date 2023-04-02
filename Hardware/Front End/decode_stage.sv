@@ -19,11 +19,10 @@ module decode_stage (
      * buffer */
     input riscv32::instruction_t instr_i,
     input data_word_t instr_address_i,
-    input data_word_t instr_address_o,
+    output data_word_t instr_address_o,
 
     /* Privilege level for system call */
     input logic priv_level_i,
-    output logic handler_return_o,
 
     /* Immediate */
     output data_word_t [1:0] immediate_o,
@@ -31,7 +30,7 @@ module decode_stage (
 
     /* Instruction is a jump and require 
      * to set the PC to the BTA */
-    output logic jump_o,
+    output logic branch_o,
 
     /* Require the current PC + 4 to be 
      * passed as operand */
@@ -39,7 +38,7 @@ module decode_stage (
 
     /* Compressed instruction */
     input logic compressed_i,
-    input logic compressed_o,
+    output logic compressed_o,
 
     /* Calculate memory address (base + offset) 
      * and use as first operand for the units */
@@ -49,9 +48,6 @@ module decode_stage (
     /* Stall the front end until the execution
      * pipeline is empty */
     output logic fence_o,
-
-    /* Invert operand for subtraction */
-    output logic invert_operand_2_o,
 
     /* Registers */
     output logic [1:0][4:0] reg_src_o,
@@ -84,7 +80,6 @@ module decode_stage (
     /* Immediates */
     data_word_t [1:0] immediate_idec;
     logic [1:0] is_immediate_idec;
-    logic [1:0] address_operand_idec;
 
     /* Flags */
     logic is_memory_idec, exc_gen_idec; 
@@ -100,7 +95,6 @@ module decode_stage (
         .instr_address_i ( instr_address_i ),
 
         .priv_level_i     ( priv_level_i     ),
-        .handler_return_o ( handler_return_o ),
 
         .itu_unit_valid_o ( itu_valid_idec ),
         .itu_unit_uop_o   ( itu_uop_idec   ),
@@ -109,14 +103,14 @@ module decode_stage (
         .csr_unit_valid_o ( csr_valid_idec ),
         .csr_unit_uop_o   ( csr_uop_idec   ),
 
-        .immediate_o        ( immediate_idec       ),
-        .imm_valid_o     ( is_immediate_idec    ),
-        .jump_o             ( jump_o            ),
-        .link_o             ( link_o               ),
-        .memory_o        ( is_memory_idec       ),
-        .address_operand_o  ( address_operand_idec ),
-        .fence_o         ( fence_o           ),
-        .invert_operand_2_o ( invert_operand_2_o   ),
+        .immediate_o       ( immediate_idec       ),
+        .imm_valid_o       ( is_immediate_idec    ),
+        .address_operand_o ( address_operand_o ),
+
+        .branch_o ( branch_o ),
+        .link_o   ( link_o   ),
+        .memory_o ( memory_o ),
+        .fence_o  ( fence_o  ),
 
         .reg_src_o  ( reg_src_idec  ),
         .reg_dest_o ( reg_dest_idec ),
@@ -151,17 +145,17 @@ module decode_stage (
     /* Exception vector */
     logic [4:0] exc_vect_bdec;
 
-    bit_manipulation_decoder bit_manipulation_decoder (
+    bit_manipulation_decoder bdecoder (
         .instr_i ( instr_i ),
 
-        .immediate_o    ( immediate_bdec    ),
+        .immediate_o ( immediate_bdec    ),
         .imm_valid_o ( is_immediate_bdec ),
 
         .reg_src_o  ( reg_src_bdec  ),
         .reg_dest_o ( reg_dest_bdec ),
 
-        .bmu_unit_valid_o ( bmu_valid_bdec ),
-        .bmu_unit_uop_o   ( bmu_uop_bdec   ),
+        .unit_valid_o ( bmu_valid_bdec ),
+        .unit_uop_o   ( bmu_uop_bdec   ),
 
         .exception_generated_o ( exc_gen_bdec  ),
         .exception_vector_o    ( exc_vect_bdec )
@@ -171,88 +165,54 @@ module decode_stage (
 
 
 //====================================================================================
-//      FLOATING POINT DECODER
-//====================================================================================
-
-    `ifdef FPU 
-
-    /* Valid unit */
-    fpu_valid_t fpu_valid_fdec; 
-    lsu_valid_t lsu_valid_fdec;
-
-    /* Unit micro instruction */ 
-    fpu_uop_t fpu_uop_fdec;
-    lsu_uop_t lsu_uop_fdec;
-
-    /* Address offset */
-    data_word_t offset_fdec;
-
-    /* Flags */
-    logic is_memory_fdec, exc_gen_fdec; 
-
-    /* Registers */
-    logic [2:0][4:0] reg_src_fdec; logic [4:0] reg_dest_fdec;
-    logic [2:0] src_is_float_fdec; logic dest_is_float_fdec;
-
-    /* Exception vector */
-    logic [4:0] exc_vect_fdec;
-
-    floating_point_decoder floating_point_decoder (
-        .instr_i ( instr_i ),
-
-        .offset_o ( offset_fdec ),
-
-        .src_is_float_o  ( src_is_float_o  ),
-        .reg_src_o       ( reg_src_fdec    ),
-        .dest_is_float_o ( dest_is_float_o ),
-        .reg_dest_o      ( reg_dest_fdec   ),
-
-        .memory_o ( is_memory_fdec ),
-
-        .fpu_unit_valid_o ( fpu_valid_fdec ),
-        .fpu_unit_uop_o   ( fpu_uop_fdec   ),
-        .lsu_unit_valid_o ( lsu_valid_fdec ),
-        .lsu_unit_uop_o   ( lsu_uop_fdec   ),
-
-        .exception_generated_o ( exc_gen_fdec ),
-        .exception_vector_o    ( exc_vect_fdec  )
-    ); 
-
-    `endif 
-
-
-//====================================================================================
 //      OUTPUT LOGIC
 //====================================================================================
 
-    assign immediate_o[0] = immediate_idec[0] `ifdef BMU | immediate_bdec `endif `ifdef FPU | offset_fdec `endif;
+    assign immediate_o[0] = immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
     assign immediate_o[1] = immediate_idec[1];
 
     assign imm_valid_o[0] = is_immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
     assign imm_valid_o[1] = is_immediate_idec[1];
 
-    assign memory_o = is_memory_idec `ifdef FPU | is_memory_fdec `endif;
+    assign reg_src_o[0] = reg_src_idec[0] `ifdef BMU | reg_src_bdec[0] `endif;
+    assign reg_src_o[1] = reg_src_idec[1] `ifdef BMU | reg_src_bdec[1] `endif;
 
-    assign reg_src_o[0] = reg_src_idec[0] `ifdef BMU | reg_src_bdec[0] `endif `ifdef FPU | reg_src_fdec[0] `endif;
-    assign reg_src_o[1] = reg_src_idec[1] `ifdef BMU | reg_src_bdec[1] `endif `ifdef FPU | reg_src_fdec[1] `endif;
-    `ifdef FPU assign reg_src_o[2] = reg_src_fdec[2]; `endif
-
-    assign reg_dest_o = reg_dest_idec `ifdef BMU | reg_dest_bdec `endif `ifdef FPU | reg_dest_fdec `endif;
+    assign reg_dest_o = reg_dest_idec `ifdef BMU | reg_dest_bdec `endif;
 
     assign exu_valid_o.ITU = itu_valid_idec `ifdef BMU | {1'b0, bmu_valid_bdec, 2'b0} `endif; 
-    assign exu_valid_o.LSU = lsu_valid_idec `ifdef FPU | lsu_valid_fdec `endif;
+    assign exu_valid_o.LSU = lsu_valid_idec;
     assign exu_valid_o.CSR = csr_valid_idec;
-    `ifdef FPU assign exu_valid_o.FPU = fpu_valid_fdec; `endif
 
-    assign exu_uop_o.ITU.subunit = itu_uop_idec `ifdef BMU | bmu_uop_bdec `endif; 
-    assign exu_uop_o.LSU.subunit = lsu_uop_idec `ifdef FPU | lsu_valid_fdec `endif;
-    assign exu_uop_o.CSR.opcode = csr_uop_idec;
-    `ifdef FPU assign exu_uop_o.FPU.subunit = fpu_uop_fdec; `endif
+    exu_uop_t itu_uop, lsu_uop, csr_uop;
 
-    assign exception_generated_o = exc_gen_idec `ifdef BMU | exc_gen_bdec `endif `ifdef FPU | exc_gen_fdec `endif;
-    assign exception_vector_o = exc_vect_idec `ifdef BMU | exc_vect_bdec `endif `ifdef FPU | exc_vect_fdec `endif;
+    assign itu_uop.ITU.subunit = itu_uop_idec `ifdef BMU | bmu_uop_bdec `endif; 
+    assign itu_uop.ITU.padding = '0; 
+    assign lsu_uop.LSU.subunit = lsu_uop_idec;
+    assign lsu_uop.LSU.padding = '0;
+    assign csr_uop.CSR.opcode = csr_uop_idec;
+    assign csr_uop.CSR.padding = '0;
+
+    assign exu_uop_o = itu_uop | lsu_uop | csr_uop;
+
+    assign exception_generated_o = exc_gen_idec `ifdef BMU & exc_gen_bdec `endif;
+    
+    `ifdef BMU 
+        always_comb begin 
+            if (exc_gen_idec) begin    
+                exception_vector_o = exc_vect_idec;
+            end else if (exc_gen_bdec) begin
+                exception_vector_o = exc_vect_bdec;
+            end else begin
+                exception_vector_o = '0;
+            end
+        end
+    `else 
+        assign exception_vector_o = exc_vect_idec;
+    `endif 
 
     assign compressed_o = compressed_i;
+
+    assign instr_address_o = instr_address_i;
 
 endmodule : decode_stage
 

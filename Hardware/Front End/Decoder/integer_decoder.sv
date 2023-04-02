@@ -4,9 +4,12 @@
 `include "../../Include/Headers/apogeo_exception_vectors.svh"
 `include "../../Include/Headers/apogeo_configuration.svh"
 
+`include "../../Include/test_include.svh"
+
 `include "../../Include/Packages/riscv_instructions_pkg.sv"
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Packages/apogeo_operations_pkg.sv"
+
 
 module integer_decoder (
     /* Instruction supplied by the fetch 
@@ -27,25 +30,22 @@ module integer_decoder (
 
     /* Immediate */
     output data_word_t [2:1] immediate_o,
-    output logic [2:1] is_immediate_o,
+    output logic [2:1] imm_valid_o,
 
     /* Calculate branch target in issue stage
      * and set PC */
     input logic compressed_i,
-    output logic is_jump_o,
+    output logic branch_o,
     output logic link_o,
 
     /* Calculate memory address (base + offset) 
      * and use as first operand for the units */
-    output logic is_memory_o,
+    output logic memory_o,
     output logic [2:1] address_operand_o,
 
     /* Stall the front end until the execution
      * pipeline is empty */
-    output logic is_fence_o,
-
-    /* Invert operand for subtraction */
-    output logic invert_operand_2_o,
+    output logic fence_o,
 
     /* Registers */
     output logic [2:1][4:0] reg_src_o,
@@ -59,6 +59,11 @@ module integer_decoder (
 //====================================================================================
 //      FUNCTIONS
 //====================================================================================
+
+    function void print(input string operation);
+        $display("Decoded %s instruction!", operation);
+    endfunction : print
+
 
     /*
      *  Execution unit packets build 
@@ -122,12 +127,12 @@ module integer_decoder (
 
     function void build_immediate(input int index, input logic [31:0] data);
         immediate_o[index] = data;
-        is_immediate_o[index] = 1'b1;
+        imm_valid_o[index] = 1'b1;
     endfunction : build_immediate 
     
     function void build_U_immediate(input int index);
         immediate_o[index][31:12] = instr_i.U.immediate;  
-        is_immediate_o[index] = 1'b1;
+        imm_valid_o[index] = 1'b1;
     endfunction : build_U_immediate 
 
     function void build_B_immediate(input int index);
@@ -135,7 +140,7 @@ module integer_decoder (
         immediate_o[index][4:1] = instr_i.B.immediate2;  
         immediate_o[index][10:5] = instr_i.B.immediate3;  
         immediate_o[index][31:12] = $signed(instr_i.B.immediate4);
-        is_immediate_o[index] = 1'b1;
+        imm_valid_o[index] = 1'b1;
     endfunction : build_B_immediate 
 
     function void build_J_immediate(input int index);
@@ -143,12 +148,12 @@ module integer_decoder (
         immediate_o[index][11] = instr_i.J.immediate2; 
         immediate_o[index][19:12] = instr_i.J.immediate1; 
         immediate_o[index][20] = instr_i.J.immediate4; 
-        is_immediate_o[index] = 1'b1;
+        imm_valid_o[index] = 1'b1;
     endfunction : build_J_immediate 
 
     function void build_I_immediate(input int index, input logic is_signed);
         immediate_o[index][11:0] = is_signed ? $signed(instr_i.I.immediate) : instr_i.I.immediate;
-        is_immediate_o[index] = 1'b1;
+        imm_valid_o[index] = 1'b1;
     endfunction : build_I_immediate
 
     function void build_S_immediate(input int index, input logic is_signed);
@@ -163,7 +168,7 @@ module integer_decoder (
 
     logic exception_generated;
 
-    function void illegal_instruction();
+    function void exception_generated = 1'b1;
         exception_generated = 1'b1;
         exception_vector_o = `INSTR_ILLEGAL;
     endfunction : illegal_instruction
@@ -172,7 +177,7 @@ module integer_decoder (
     always_comb begin : decoder_logic
         /* Default values */
         immediate_o = '0;
-        is_immediate_o = '0; 
+        imm_valid_o = '0; 
 
         reg_src_o = '0;
         reg_dest_o = '0;
@@ -184,14 +189,13 @@ module integer_decoder (
         csr_unit_valid_o = '0;
         csr_unit_uop_o = CSR_SWAP;
 
-        is_jump_o = 1'b0;
-        is_fence_o = 1'b0;
-        is_memory_o = 1'b0;
+        branch_o = 1'b0;
+        fence_o = 1'b0;
+        memory_o = 1'b0;
         link_o = 1'b0;
-        invert_operand_2_o = 1'b0;
         address_operand_o = '0;
 
-        exception_vector_o = '0; 
+        exception_vector_o = `INSTR_ILLEGAL; 
         exception_generated = 1'b0;
 
         case (instr_i[6:2])
@@ -207,6 +211,8 @@ module integer_decoder (
 
                 /* Immediates */
                 build_U_immediate(1);
+
+                `ifdef TEST_DESIGN print("LUI"); `endif 
             end
 
             riscv32::AUIPC: begin
@@ -219,11 +225,13 @@ module integer_decoder (
                 /* Immediates */
                 build_immediate(1, instr_address_i); 
                 build_U_immediate(2);
+
+                `ifdef TEST_DESIGN print("AUIPC"); `endif 
             end
 
             riscv32::JAL: begin
                 /* Add the instruction immediate to PC */
-                build_alu_packet(JAL);
+                build_alu_packet(ADD);
                 
                 /* Registers */
                 reg_dest_o = instr_i.J.reg_dest;
@@ -235,13 +243,15 @@ module integer_decoder (
                 /* Immediates are not passed into the 
                  * execute stage but are only used for
                  * address calculation */
-                is_immediate_o = '0;
+                imm_valid_o = '0;
 
                 /* Control */
-                is_jump_o = 1'b1;
+                branch_o = 1'b1;
                 link_o = 1'b1;
                 address_operand_o[1] = riscv32::IMMEDIATE;
                 address_operand_o[2] = riscv32::IMMEDIATE;
+
+                `ifdef TEST_DESIGN print("JAL"); `endif 
             end
 
             riscv32::JALR: begin
@@ -252,36 +262,67 @@ module integer_decoder (
                 reg_src_o[1] = instr_i.I.reg_src_1[1];
 
                 /* Immediates */
-                build_immediate(1, compressed_i ? 32'd2 : 32'd4);
+                if (compressed_i) begin 
+                    build_immediate(1, 32'd2);
+                end else begin
+                    build_immediate(1, 32'd4);
+                end
+                
                 build_I_immediate(2, 1'b1);
 
                 /* Immediate is not passed into the 
                  * execute stage but are only used for
                  * address calculation */
-                is_immediate_o[2] = 1'b0;
+                imm_valid_o[2] = 1'b0;
 
                 /* Control */
-                is_jump_o = 1'b1;
+                branch_o = 1'b1;
                 link_o = 1'b1;
                 address_operand_o[1] = riscv32::REGISTER;
                 address_operand_o[2] = riscv32::IMMEDIATE;
+
+                `ifdef TEST_DESIGN print("JALR"); `endif 
             end
 
             riscv32::BRANCH: begin 
                 case (instr_i.B.funct3)
-                    riscv32::BEQ: build_alu_packet(BEQ); 
+                    riscv32::BEQ: begin
+                        build_alu_packet(BEQ);
 
-                    riscv32::BNE: build_alu_packet(BNE); 
+                        `ifdef TEST_DESIGN print("BEQ"); `endif 
+                    end 
 
-                    riscv32::BLT: build_alu_packet(BLT); 
+                    riscv32::BNE: begin
+                        build_alu_packet(BNE);
 
-                    riscv32::BGE: build_alu_packet(BGE); 
+                        `ifdef TEST_DESIGN print("BNE"); `endif 
+                    end 
 
-                    riscv32::BLTU: build_alu_packet(BLTU); 
+                    riscv32::BLT: begin
+                        build_alu_packet(BLT);
 
-                    riscv32::BGEU: build_alu_packet(BGEU); 
+                        `ifdef TEST_DESIGN print("BLT"); `endif 
+                    end 
 
-                    default: illegal_instruction();
+                    riscv32::BGE: begin
+                        build_alu_packet(BGE);
+
+                        `ifdef TEST_DESIGN print("BGE"); `endif 
+                    end 
+
+                    riscv32::BLTU: begin
+                        build_alu_packet(BLTU);
+
+                        `ifdef TEST_DESIGN print("BLTU"); `endif 
+                    end 
+
+                    riscv32::BGEU: begin
+                        build_alu_packet(BGEU);
+
+                        `ifdef TEST_DESIGN print("BGEU"); `endif 
+                    end 
+
+                    default: exception_generated = 1'b1;
                 endcase
 
                 /* Registers */
@@ -296,27 +337,42 @@ module integer_decoder (
                 /* Immediates are not passed into the 
                  * execute stage but are only used for
                  * address calculation */
-                is_immediate_o = '0;
+                imm_valid_o = '0;
 
                 /* Control */
-                is_jump_o = 1'b1;
+                branch_o = 1'b1;
                 address_operand_o[1] = riscv32::IMMEDIATE;
                 address_operand_o[2] = riscv32::IMMEDIATE;
             end 
 
             riscv32::LOAD: begin
                 case (instr_i.I.funct3)
-                    riscv32::LB: build_ldu_packet(LDB, 1'b1); 
+                    riscv32::LB: begin
+                        build_ldu_packet(LDB, 1'b1); 
+                        `ifdef TEST_DESIGN print("LB"); `endif 
+                    end
 
-                    riscv32::LH: build_ldu_packet(LDH, 1'b1); 
+                    riscv32::LH: begin
+                        build_ldu_packet(LDH, 1'b1); 
+                        `ifdef TEST_DESIGN print("LH"); `endif 
+                    end
 
-                    riscv32::LW: build_ldu_packet(LDW, 1'b0); 
+                    riscv32::LW: begin
+                        build_ldu_packet(LDW, 1'b0); 
+                        `ifdef TEST_DESIGN print("LW"); `endif 
+                    end
 
-                    riscv32::LBU: build_ldu_packet(LDB, 1'b0); 
+                    riscv32::LBU: begin
+                        build_ldu_packet(LDB, 1'b0); 
+                        `ifdef TEST_DESIGN print("LBU"); `endif 
+                    end
 
-                    riscv32::LHU: build_ldu_packet(LDH, 1'b0); 
+                    riscv32::LHU: begin
+                        build_ldu_packet(LDH, 1'b0); 
+                        `ifdef TEST_DESIGN print("LHU"); `endif 
+                    end
 
-                    default: illegal_instruction();
+                    default: exception_generated = 1'b1;
                 endcase 
 
                 /* Registers */
@@ -326,23 +382,34 @@ module integer_decoder (
                 /* Immediates */
                 build_I_immediate(2, 1'b1); /* Offset */
 
-                is_memory_o = 1'b1;
+                memory_o = 1'b1;
                 address_operand_o[1] = riscv32::REGISTER;
                 address_operand_o[2] = riscv32::IMMEDIATE;
 
                 exception_generated = (instr_i.I.reg_dest == riscv32::X0);
-                exception_vector_o = `INSTR_ILLEGAL;
             end
 
             riscv32::STORE: begin
                 case (instr_i.S.funct3)
-                    riscv32::SB: build_stu_packet(STB);
+                    riscv32::SB: begin
+                        build_stu_packet(STB);
 
-                    riscv32::SH: build_stu_packet(STH); 
+                        `ifdef TEST_DESIGN print("SB"); `endif 
+                    end
 
-                    riscv32::SW: build_stu_packet(STW);  
+                    riscv32::SH: begin
+                        build_stu_packet(STH);
 
-                    default: illegal_instruction();
+                        `ifdef TEST_DESIGN print("SH"); `endif 
+                    end 
+
+                    riscv32::SW: begin
+                        build_stu_packet(STW);
+
+                        `ifdef TEST_DESIGN print("SW"); `endif 
+                    end  
+
+                    default: exception_generated = 1'b1;
                 endcase 
 
                 /* Registers */
@@ -352,7 +419,7 @@ module integer_decoder (
                 /* Immediates */
                 build_S_immediate(2, 1'b1); /* Offset */
 
-                is_memory_o = 1'b1;
+                memory_o = 1'b1;
                 address_operand_o[1] = riscv32::REGISTER;
                 address_operand_o[2] = riscv32::IMMEDIATE;
             end
@@ -368,6 +435,8 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b1);
+
+                        `ifdef TEST_DESIGN print("ADDI"); `endif 
                     end
 
                     riscv32::SLTI: begin
@@ -379,6 +448,8 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b1);
+
+                        `ifdef TEST_DESIGN print("SLTI"); `endif 
                     end
 
                     riscv32::SLTIU: begin
@@ -390,6 +461,8 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b1);
+
+                        `ifdef TEST_DESIGN print("SLTIU"); `endif 
                     end
 
                     riscv32::XORI: begin
@@ -401,10 +474,12 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b1);
+
+                        `ifdef TEST_DESIGN print("XORI"); `endif 
                     end
 
                     riscv32::ORI: begin
-                        build_alu_packet(XOR); 
+                        build_alu_packet(OR); 
 
                         /* Registers */
                         reg_src_o[1] = instr_i.I.reg_src_1; 
@@ -412,10 +487,12 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b1);
+
+                        `ifdef TEST_DESIGN print("ORI"); `endif 
                     end
 
                     riscv32::ANDI: begin
-                        build_alu_packet(XOR); 
+                        build_alu_packet(AND); 
 
                         /* Registers */
                         reg_src_o[1] = instr_i.I.reg_src_1; 
@@ -423,6 +500,8 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b1);
+
+                        `ifdef TEST_DESIGN print("ANDI"); `endif 
                     end
 
                     riscv32::SLLI: begin
@@ -434,6 +513,10 @@ module integer_decoder (
 
                         /* Immediates */
                         build_I_immediate(2, 1'b0);
+
+                        exception_generated = (instr_i.R.funct7 != '0);
+
+                        `ifdef TEST_DESIGN print("SLLI"); `endif 
                     end
 
                     riscv32::SRI: begin
@@ -445,6 +528,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("SRAI"); `endif 
                         end else begin
                             /* Logic */
                             build_alu_packet(SRL); 
@@ -453,10 +538,14 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("SRLI"); `endif 
                         end
+
+                        exception_generated = (instr_i.R.funct7[4:0] != '0) | instr_i.R.funct7[6];
                     end
 
-                    default: illegal_instruction();
+                    default: exception_generated = 1'b1;
                 endcase 
             end
 
@@ -471,6 +560,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("MUL"); `endif 
                         end
 
                         riscv32::MULH: begin
@@ -480,6 +571,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("MULH"); `endif 
                         end
 
                         riscv32::MULHSU: begin
@@ -489,6 +582,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("MULHSU"); `endif 
                         end
 
                         riscv32::MULHU: begin
@@ -498,6 +593,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("MULHU"); `endif 
                         end
 
                         riscv32::DIV: begin
@@ -507,6 +604,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("DIV"); `endif 
                         end
 
                         riscv32::DIVU: begin
@@ -516,6 +615,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("DIVU"); `endif 
                         end
 
                         riscv32::REM: begin
@@ -525,6 +626,8 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("REM"); `endif 
                         end
 
                         riscv32::REMU: begin
@@ -534,27 +637,33 @@ module integer_decoder (
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            `ifdef TEST_DESIGN print("REMU"); `endif 
                         end
 
-                        default: illegal_instruction();
+                        default: exception_generated = 1'b1;
                     endcase 
 
                     exception_generated = instr_i[31:25] != 7'b0000001;
-                    exception_vector_o = `INSTR_ILLEGAL;
                 end else begin 
                     case (instr_i.R.funct3) 
                         riscv32::ADD: begin
-                            build_alu_packet(ADD);
+                            if (instr_i.R.funct7[5]) begin
+                                build_alu_packet(SUB);
+
+                                `ifdef TEST_DESIGN print("SUB"); `endif 
+                            end else begin 
+                                build_alu_packet(ADD);
+
+                                `ifdef TEST_DESIGN print("ADD"); `endif 
+                            end
 
                             /* Registers */
                             reg_src_o[1] = instr_i.R.reg_src_1; 
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            invert_operand_2_o = instr_i.R.funct7[5]; 
-
-                            exception_generated = (instr_i[29:25] != '0) & instr_i[31];
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7[4:0] != '0) | instr_i.R.funct7[6];
                         end
 
                         riscv32::SLL: begin
@@ -565,8 +674,9 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i[31:25] != '0;
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7 != '0);
+
+                            `ifdef TEST_DESIGN print("SLL"); `endif 
                         end
 
                         riscv32::SLT: begin
@@ -577,8 +687,9 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i[31:25] != '0;
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7 != '0);
+
+                            `ifdef TEST_DESIGN print("SLT"); `endif 
                         end
 
                         riscv32::SLTU: begin
@@ -589,8 +700,9 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i[31:25] != '0;
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7 != '0);
+
+                            `ifdef TEST_DESIGN print("SLTU"); `endif 
                         end
 
                         riscv32::XOR: begin
@@ -601,8 +713,9 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i[31:25] != '0;
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7 != '0);
+
+                            `ifdef TEST_DESIGN print("XOR"); `endif 
                         end
 
                         riscv32::SR: begin
@@ -613,6 +726,8 @@ module integer_decoder (
                                 reg_src_o[1] = instr_i.R.reg_src_1; 
                                 reg_src_o[2] = instr_i.R.reg_src_2; 
                                 reg_dest_o = instr_i.R.reg_dest;
+
+                                `ifdef TEST_DESIGN print("SRA"); `endif 
                             end else begin
                                 build_alu_packet(SRL);
 
@@ -620,10 +735,11 @@ module integer_decoder (
                                 reg_src_o[1] = instr_i.R.reg_src_1; 
                                 reg_src_o[2] = instr_i.R.reg_src_2; 
                                 reg_dest_o = instr_i.R.reg_dest;
+
+                                `ifdef TEST_DESIGN print("SRL"); `endif 
                             end
 
-                            exception_generated = (instr_i[29:25] != '0) & instr_i[31];
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7[4:0] != '0) | instr_i.R.funct7[6];
                         end
 
                         riscv32::OR: begin
@@ -634,8 +750,9 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i[31:25] != '0;
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7 != '0);
+
+                            `ifdef TEST_DESIGN print("OR"); `endif 
                         end
 
                         riscv32::AND: begin
@@ -646,18 +763,19 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i[31:25] != '0;
-                            exception_vector_o = `INSTR_ILLEGAL;
+                            exception_generated = (instr_i.R.funct7 != '0);
+
+                            `ifdef TEST_DESIGN print("AND"); `endif 
                         end
 
-                        default: illegal_instruction();
+                        default: exception_generated = 1'b1;
                     endcase 
                 end
             end
 
             riscv32::FENCE: begin
                 nop_instruction();
-                is_fence_o = 1'b1;
+                fence_o = 1'b1;
 
                 /* Registers */
                 reg_src_o[1] = riscv32::X0; 
@@ -665,6 +783,8 @@ module integer_decoder (
                 reg_dest_o = riscv32::X0;
 
                 exception_generated = (instr_i[14:12] != '0);
+
+                `ifdef TEST_DESIGN print("FENCE"); `endif 
             end
 
             riscv32::SYSTEM: begin
@@ -675,25 +795,32 @@ module integer_decoder (
                                 /* Wait For Interrupt instruction WFI */
                                 nop_instruction();
                                 exception_generated = ((instr_i[19:7] != '0) | (instr_i[31:20] != 12'b000100000101)) | (priv_level_i == USER_MODE);
-                                exception_vector_o = exception_generated ? `SLEEP : `INSTR_ILLEGAL;
+                                exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `SLEEP;
+
+                                `ifdef TEST_DESIGN print("SLEEP"); `endif 
                             end else begin 
                                 /* Environment Breakpoint instruction EBREAK */
                                 nop_instruction();
                                 exception_generated = 1'b1;
                                 exception_vector_o = ((instr_i[19:7] == '0) & (instr_i[31:21] == '0) & instr_i[20]) ? `BREAKPOINT : `INSTR_ILLEGAL;
+
+                                `ifdef TEST_DESIGN print("EBREAK"); `endif 
                             end 
                         end else begin
                             if (instr_i[29]) begin
                                 /* Machine Return instruction MRET */
                                 nop_instruction();
-                                handler_return_o = 1'b1;
                                 exception_generated = (instr_i[19:7] != '0) | (instr_i[31:20] != 12'b001100000010);
                                 exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `HANDLER_RETURN;
+
+                                `ifdef TEST_DESIGN print("MRET"); `endif 
                             end else begin
                                 /* System Call instruction ECALL */
                                 nop_instruction();
                                 exception_generated = 1'b1;
-                                exception_vector_o = (instr_i[31:7] == '0) ? (priv_level_i ? `U_SYSTEM_CALL : `M_SYSTEM_CALL) : `INSTR_ILLEGAL;
+                                exception_vector_o = (instr_i[31:7] == '0) ? (priv_level_i ? `M_SYSTEM_CALL : `U_SYSTEM_CALL) : `INSTR_ILLEGAL;
+
+                                `ifdef TEST_DESIGN print("ECALL"); `endif 
                             end
                         end
                     end
@@ -701,55 +828,63 @@ module integer_decoder (
                     riscv32::CSRRW: begin
                         build_csr_packet(CSR_SWAP);
 
-                        if (instr_i.I.funct3[2]) begin
-                            /* Immediate */
-                            immediate_o[1] = instr_i.I.reg_src_1; 
-                            is_immediate_o[1] = 1'b1;
-                        end else begin
-                            /* Registers */
-                            reg_src_o[1] = instr_i.I.reg_src_1; 
-                            is_immediate_o[1] = 1'b0;
-                        end
-
+                        reg_src_o[1] = instr_i.I.reg_src_1;
                         reg_dest_o = instr_i.I.reg_dest; 
+
+                        `ifdef TEST_DESIGN print("CSRRW"); `endif 
                     end
 
                     riscv32::CSRRS: begin
                         build_csr_packet(CSR_SET);
 
                         reg_src_o[1] = instr_i.I.reg_src_1;
-                        immediate_o[1] = instr_i.I.reg_src_1; 
+                        reg_dest_o = instr_i.I.reg_dest;  
 
-                        if (instr_i.I.funct3[2]) begin
-                            /* Immediate */
-                            is_immediate_o[1] = 1'b1;
-                        end else begin
-                            /* Registers */
-                            is_immediate_o[1] = 1'b0;
-                        end
-
-                        reg_dest_o = instr_i.I.reg_dest; 
+                        `ifdef TEST_DESIGN print("CSRRS"); `endif
                     end
 
                     riscv32::CSRRC: begin
                         build_csr_packet(CSR_CLEAR);
 
                         /* Operations with 0 as operand shall not write any CSR */
-                        immediate_o[1] = (instr_i.I.reg_src_1 == riscv32::X0) ? '1 : instr_i.I.reg_src_1; 
                         reg_src_o[1] = instr_i.I.reg_src_1; 
-
-                        if (instr_i.I.funct3[2]) begin
-                            /* Immediate */
-                            is_immediate_o[1] = 1'b1;
-                        end else begin
-                            /* Registers */
-                            is_immediate_o[1] = (instr_i.I.reg_src_1 == riscv32::X0);
-                        end
-
                         reg_dest_o = instr_i.I.reg_dest; 
+
+                        `ifdef TEST_DESIGN print("CSRRC"); `endif 
                     end
 
-                    default: illegal_instruction();
+                    riscv32::CSRRWI: begin
+                        build_csr_packet(CSR_SWAP);
+
+                        immediate_o[1] = instr_i.I.reg_src_1;
+                        imm_valid_o[1] = 1'b1;
+                        reg_dest_o = instr_i.I.reg_dest;
+
+                        `ifdef TEST_DESIGN print("CSRRWI"); `endif  
+                    end
+
+                    riscv32::CSRRSI: begin
+                        build_csr_packet(CSR_SET);
+
+                        immediate_o[1] = instr_i.I.reg_src_1; 
+                        imm_valid_o[1] = 1'b1;
+                        reg_dest_o = instr_i.I.reg_dest; 
+
+                        `ifdef TEST_DESIGN print("CSRRSI"); `endif 
+                    end
+
+                    riscv32::CSRRCI: begin
+                        build_csr_packet(CSR_CLEAR);
+
+                        /* Operations with 0 as operand shall not write any CSR */
+                        immediate_o[1] = (instr_i.I.reg_src_1 == riscv32::X0) ? '1 : instr_i.I.reg_src_1; 
+                        imm_valid_o[1] = 1'b1;
+                        reg_dest_o = instr_i.I.reg_dest;
+
+                        `ifdef TEST_DESIGN print("CSRRCI"); `endif  
+                    end
+
+                    default: exception_generated = 1'b1;
                 endcase 
             end
         endcase
