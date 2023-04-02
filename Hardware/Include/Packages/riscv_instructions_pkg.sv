@@ -14,7 +14,7 @@ package riscv32;
 
     /* Opcodes */
     localparam LUI = 5'b01101; 
-    localparam AUIPC = 5'b00101;
+    localparam AUIPC = 5'b00101; 
     localparam JAL = 5'b11011;
     localparam JALR = 5'b11001; 
     localparam BRANCH = 5'b11000; 
@@ -70,9 +70,12 @@ package riscv32;
     localparam SLL = 3'b001;
 
     /* CSR */
-    localparam CSRRW = 2'b01;
-    localparam CSRRS = 2'b10;
-    localparam CSRRC = 2'b11;
+    localparam CSRRW = 3'b001;
+    localparam CSRRS = 3'b010;
+    localparam CSRRC = 3'b011;
+    localparam CSRRWI = 3'b101;
+    localparam CSRRSI = 3'b110;
+    localparam CSRRCI = 3'b111;
 
     /* Multiplication */
     localparam MUL = 3'b000;
@@ -102,7 +105,7 @@ package riscv32;
     localparam CPOP = 3'b010;
     
     /* Extend */
-    localparam SEXTB = 3'b100;
+    localparam SEXTB = 3'b100; 
     localparam SEXTH = 3'b101;
     localparam ZEXTH = 4'b0010;
     
@@ -115,10 +118,10 @@ package riscv32;
     localparam MIN = 4'b0011;
     localparam MINU = 5'b00101;
     localparam MAX = 2'b00;
-    localparam MAXU = 4'b0101;
+    localparam MAXU = 1'b0;
     
     /* Logic */
-    localparam ANDN = 4'b1000;
+    localparam ANDN = 1'b1;
     localparam XNOR = 4'b1000; 
     localparam ORN = 2'b10;
     
@@ -130,30 +133,6 @@ package riscv32;
     /* Byte */
     localparam REV8 = 3'b111;
     localparam ORCB = 3'b011;
-
-    /* Floating point arithmetic */
-    localparam FPLOAD = 3'b000;
-    localparam FPSTORE = 3'b010;
-    localparam FPFUSED = 3'b100;
-    localparam FPARITHM = 3'b101;
-
-    localparam FMADD = 2'b00;
-    localparam FMSUB = 2'b01;
-    localparam FNMADD = 2'b10;
-    localparam FNMSUB = 2'b11;
-
-    localparam FADD = 5'b00000;
-    localparam FSUB = 5'b00001;
-    localparam FMUL = 5'b00010;
-    localparam FDIV = 5'b00011;
-    localparam FSQRT = 5'b01011;
-    localparam FSGNJ = 5'b00100;
-    localparam FMINMAX = 5'b00101;
-    localparam FCVTWS = 5'b11000;
-    localparam FCVTSW = 5'b11010;
-    localparam FMVXW = 5'b11100;
-    localparam FMVWX = 5'b11110;
-    localparam FCMP = 5'b10100;
     
 
 //====================================================================================
