@@ -36,6 +36,8 @@ module bit_manipulation_decoder (
 //      FUNCTIONS
 //====================================================================================
 
+    bmu_uop_t unit_uop; logic unit_valid;
+
     function void print(input string operation);
         $display("Decoded %s instruction!", operation);
     endfunction : print
@@ -51,9 +53,9 @@ module bit_manipulation_decoder (
 //      DECODING LOGIC
 //====================================================================================
 
-    bmu_operation_t bmu_operation; bmu_uop_t unit_uop;
+    bmu_operation_t bmu_operation; 
 
-    logic exception_generated, unit_valid;
+    logic exception_generated;
 
     always_comb begin : decoder_logic
         /* Default Values */

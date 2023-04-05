@@ -175,7 +175,7 @@ If an immediate is extended, the extension goes always from bit 12
   * **C.SUB    => SUB rd', rd', rs2'**
 
 * Illegal Instruction 
-  * **ALL 0s**
+  * **NOP**
 
 * NOP 
   * (imm != 0 -> HINT)

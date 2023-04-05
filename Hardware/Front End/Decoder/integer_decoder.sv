@@ -168,12 +168,6 @@ module integer_decoder (
 
     logic exception_generated;
 
-    function void exception_generated = 1'b1;
-        exception_generated = 1'b1;
-        exception_vector_o = `INSTR_ILLEGAL;
-    endfunction : illegal_instruction
-
-
     always_comb begin : decoder_logic
         /* Default values */
         immediate_o = '0;

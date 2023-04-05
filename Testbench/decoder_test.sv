@@ -18,7 +18,7 @@ module decoder_test;
 
     /* Instruction is a jump and require 
      * to set the PC to the BTA */
-    logic jump_o;
+    logic branch_o;
 
     /* Require the current PC + 4 to be 
      * passed as operand */
@@ -50,7 +50,7 @@ module decoder_test;
     logic [4:0] exception_vector_o;
 
     /* Instruction RAM */
-    logic [31:0] iRAM [0:53];
+    logic [31:0] iRAM [0:149];
 
     decode_stage dut (.*);
 
@@ -60,9 +60,9 @@ module decoder_test;
     always #5 clk <= !clk;
 
     initial begin
-        $readmemh("basic.hex", iRAM);
+        $readmemh("vectorTest.hex", iRAM);
 
-        for (int i = 0; i < 54; ++i) begin
+        for (int i = 0; i < 150; ++i) begin
             instr_address_i <= instr_address_i + 1;
             instr_i <= iRAM[i];
             @(posedge clk); 
