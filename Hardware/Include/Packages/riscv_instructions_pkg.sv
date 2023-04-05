@@ -133,6 +133,42 @@ package riscv32;
     /* Byte */
     localparam REV8 = 3'b111;
     localparam ORCB = 3'b011;
+
+    /* Compressed */
+
+    /* Arithmetic */
+    localparam CADDI4SPN = 2'b00;
+    localparam CADDI16SP = 5'd2;
+    localparam CADD = 3'b000;
+    localparam CSUB = 2'b00;
+    localparam CNOP = 5'b0;
+    localparam CLI = 3'b010;
+    localparam CMV = 3'b100;
+
+    /* Memory */
+    localparam CLW = 2'b10;
+    localparam CSW = 2'b11;
+    localparam CLWSP = 3'b010;
+    localparam CSWSP = 3'b110;
+    
+    /* Logic */
+    localparam CSRLI = 2'b00;
+    localparam CSRAI = 2'b01;
+    localparam CANDI = 2'b10;
+    localparam CXOR = 2'b01;
+    localparam COR = 2'b10;
+    localparam CAND = 2'b11;
+    localparam CSLLI = 3'b000;
+
+    /* Branch */
+    localparam CJAL = 3'b001;
+    localparam CJ = 3'b101;
+    localparam CJR = 3'b110;
+    localparam CBEQZ = 3'b110;
+    localparam CBNEZ = 3'b111;
+    localparam CEBREAK = 3'b011;
+    localparam CJALR = 3'b001;
+
     
 
 //====================================================================================
@@ -204,13 +240,103 @@ package riscv32;
 
 
     typedef union packed {
-        R_type_t  R;
-        I_type_t  I;
-        S_type_t  S;
-        B_type_t  B;
-        U_type_t  U;
-        J_type_t  J;
+        R_type_t R;
+        I_type_t I;
+        S_type_t S;
+        B_type_t B;
+        U_type_t U;
+        J_type_t J;
     } instruction_t; 
+
+
+//====================================================================================
+//      COMPRESSED INSTRUCTIONS
+//====================================================================================
+
+    typedef struct packed {
+        logic [3:0] funct4;
+        logic [4:0] reg_ds1;
+        logic [4:0] reg_src_2;
+    } CR_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic immediate2;
+        logic [4:0] reg_ds1;
+        logic [4:0] immediate1;
+    } CI_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic [5:0] immediate;
+        logic [4:0] reg_src_2;
+    } CSS_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic [7:0] immediate;
+        logic [2:0] reg_dest;
+    } CIW_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic [2:0] immediate2;
+        logic [2:0] reg_src_1;
+        logic [1:0] immediate1;
+        logic [2:0] reg_dest;
+    } CL_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic [2:0] immediate2;
+        logic [2:0] reg_src_1;
+        logic [1:0] immediate1;
+        logic [2:0] reg_src_2;
+    } CS_type_t;
+
+
+    typedef struct packed {
+        logic [5:0] funct6;
+        logic [2:0] reg_ds1;
+        logic [1:0] funct2;
+        logic [2:0] reg_src_2;
+    } CA_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic [2:0] offset2;
+        logic [2:0] reg_src_1;
+        logic [4:0] offset1;
+    } CB_type_t;
+
+
+    typedef struct packed {
+        logic [2:0] funct3;
+        logic [10:0] jmp_target;
+    } CJ_type_t;
+
+
+    typedef struct packed {
+        union packed {
+            CR_type_t  CR;
+            CI_type_t  CI;
+            CSS_type_t CSS;
+            CIW_type_t CIW;
+            CL_type_t  CL;
+            CS_type_t  CS;
+            CA_type_t  CA;
+            CB_type_t  CB;
+            CJ_type_t  CJ;
+        } itype;
+
+        logic [1:0] opcode;
+    } cinstruction_t;
 
 endpackage : riscv32 
 
