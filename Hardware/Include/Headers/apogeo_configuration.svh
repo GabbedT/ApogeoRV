@@ -25,6 +25,9 @@
 //      CORE CONFIG
 //====================================================================================
 
+    /* Instruction buffer size */
+    `define IBUFFER_SIZE 8
+
     /* Enable bit manipulation unit and B extension */
     `define BMU
 
