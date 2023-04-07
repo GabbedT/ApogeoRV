@@ -168,7 +168,7 @@ module issue_stage (
                 generated_tag <= 6'b0;
             end else if (flush_i) begin
                 generated_tag <= 6'b0;
-            end else if (!(stall_i | stall_issue_o)) begin
+            end else if (!(stall_i | stall_issue_o) & issue_instruction) begin
                 generated_tag <= generated_tag + 1'b1;
             end
         end : tag_counter

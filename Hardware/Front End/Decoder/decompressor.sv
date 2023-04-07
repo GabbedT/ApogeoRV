@@ -47,7 +47,7 @@ module decompressor (
 
                         exception_generated_o = (compressed_i.CIW.immediate == '0);
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.ADDI4SPN", "ADDI"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ADDI4SPN", "ADDI"); `endif 
                     end
 
                     riscv32::CLW: begin
@@ -59,7 +59,7 @@ module decompressor (
                         decompressed_o.I.funct3 = 3'b010;
                         decompressed_o.I.opcode = riscv32::LOAD;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.LW", "LW"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.LW", "LW"); `endif 
                     end
 
                     riscv32::CSW: begin
@@ -71,7 +71,7 @@ module decompressor (
                         decompressed_o.S.funct3 = 3'b010;
                         decompressed_o.S.opcode = riscv32::STORE;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.SW", "SW"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.SW", "SW"); `endif 
                     end
 
                     default: exception_generated_o = 1'b1;
@@ -92,7 +92,7 @@ module decompressor (
 
                             exception_generated_o = (compressed_i.itype.CI.reg_ds1 != '0) | ({compressed_i[12], compressed_i[6:2]} != '0);
 
-                            `ifdef TEST_DESIGN if (!exception_generated) print("C.NOP", "NOP"); `endif 
+                            `ifdef TEST_DESIGN if (!exception_generated_o) print("C.NOP", "NOP"); `endif 
                         end else begin
                             /* C.ADDI: Expands into ADDI rd, rd, nzimm[5:0] */
                             decompressed_o.I.immediate = $signed({compressed_i[12], compressed_i[6:2]});
@@ -104,7 +104,7 @@ module decompressor (
 
                             exception_generated_o = (compressed_i.itype.CI.reg_ds1 == '0) | ({compressed_i[12], compressed_i[6:2]} == '0);
 
-                            `ifdef TEST_DESIGN if (!exception_generated) print("C.ADDI", "ADDI"); `endif  
+                            `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ADDI", "ADDI"); `endif  
                         end
                     end
 
@@ -117,7 +117,7 @@ module decompressor (
                         decompressed_o.U.reg_dest = 5'd1;
                         decompressed_o.U.opcode = riscv32::JAL;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.JAL", "JAL"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.JAL", "JAL"); `endif 
                     end
 
                     riscv32::CLI: begin
@@ -131,7 +131,7 @@ module decompressor (
 
                         exception_generated_o = (compressed_i.itype.CI.reg_ds1 == '0);
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.LI", "ADDI"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.LI", "ADDI"); `endif 
                     end
 
                     3'b011: begin
@@ -147,7 +147,7 @@ module decompressor (
 
                             exception_generated_o = (compressed_i.itype.CI.reg_ds1 == '0);
 
-                            `ifdef TEST_DESIGN if (!exception_generated) print("C.ADDI16SP", "ADDI"); `endif 
+                            `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ADDI16SP", "ADDI"); `endif 
                         end else begin
                             /* C.LUI: Expands into LUI rd, nzimm[17:12] */
                             decompressed_o.U.immediate = $signed({compressed_i.itype.CI.immediate2, compressed_i.itype.CI.immediate1});
@@ -157,7 +157,7 @@ module decompressor (
 
                             exception_generated_o = (compressed_i.itype.CI.reg_ds1 < 5'd3) | ({compressed_i.itype.CI.immediate2, compressed_i.itype.CI.immediate1} == '0); 
 
-                            `ifdef TEST_DESIGN if (!exception_generated) print("C.LUI", "LUI"); `endif 
+                            `ifdef TEST_DESIGN if (!exception_generated_o) print("C.LUI", "LUI"); `endif 
                         end
                     end
 
@@ -176,7 +176,7 @@ module decompressor (
 
                                 exception_generated_o = compressed_i[12];
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.SRLI", "SRLI"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.SRLI", "SRLI"); `endif 
                             end
 
                             riscv32::CSRAI: begin
@@ -192,7 +192,7 @@ module decompressor (
 
                                 exception_generated_o = compressed_i[12];
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.SRAI", "SRAI"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.SRAI", "SRAI"); `endif 
                             end
 
                             riscv32::CANDI: begin
@@ -205,7 +205,7 @@ module decompressor (
                                 decompressed_o.I.funct3 = 3'b111;
                                 decompressed_o.I.opcode = riscv32::IMM_ARITHM;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.ANDI", "ANDI"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ANDI", "ANDI"); `endif 
                             end
 
                             2'b11: begin
@@ -222,7 +222,7 @@ module decompressor (
                                         decompressed_o.R.funct7 = 7'b0100000;
                                         decompressed_o.R.opcode = riscv32::REG_ARITHM;
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("C.SUB", "SUB"); `endif 
+                                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.SUB", "SUB"); `endif 
                                     end
 
                                     riscv32::CXOR: begin
@@ -235,7 +235,7 @@ module decompressor (
                                         decompressed_o.R.funct7 = 7'b0000000;
                                         decompressed_o.R.opcode = riscv32::REG_ARITHM;
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("C.XOR", "XOR"); `endif 
+                                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.XOR", "XOR"); `endif 
                                     end
 
                                     riscv32::COR: begin
@@ -248,7 +248,7 @@ module decompressor (
                                         decompressed_o.R.funct7 = 7'b0000000;
                                         decompressed_o.R.opcode = riscv32::REG_ARITHM;
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("C.OR", "OR"); `endif 
+                                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.OR", "OR"); `endif 
                                     end
 
                                     riscv32::CAND: begin
@@ -261,7 +261,7 @@ module decompressor (
                                         decompressed_o.R.funct7 = 7'b0000000;
                                         decompressed_o.R.opcode = riscv32::REG_ARITHM;
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("C.AND", "AND"); `endif 
+                                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.AND", "AND"); `endif 
                                     end
 
                                     default: exception_generated_o = 1'b1;
@@ -282,7 +282,7 @@ module decompressor (
                         decompressed_o.U.reg_dest = 5'd0;
                         decompressed_o.U.opcode = riscv32::JAL;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.CJ", "JAL"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.CJ", "JAL"); `endif 
                     end
 
                     riscv32::CBEQZ: begin
@@ -298,7 +298,7 @@ module decompressor (
                         decompressed_o.B.funct3 = 3'b0;
                         decompressed_o.B.opcode = riscv32::BRANCH;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.BEQZ", "BEQ"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.BEQZ", "BEQ"); `endif 
                     end
 
                     riscv32::CBNEZ: begin
@@ -314,7 +314,7 @@ module decompressor (
                         decompressed_o.B.funct3 = 3'b001;
                         decompressed_o.B.opcode = riscv32::BRANCH;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.BNEZ", "BNE"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.BNEZ", "BNE"); `endif 
                     end
 
                     default: exception_generated_o = 1'b1;
@@ -336,7 +336,7 @@ module decompressor (
 
                         exception_generated_o = compressed_i[12];
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.SLLI", "SLLI"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.SLLI", "SLLI"); `endif 
                     end
 
                     riscv32::CLWSP: begin
@@ -349,7 +349,7 @@ module decompressor (
                         decompressed_o.I.funct3 = 3'b010;
                         decompressed_o.I.opcode = riscv32::LOAD;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.LWSP", "LW"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.LWSP", "LW"); `endif 
                     end
 
                     riscv32::CSWSP: begin
@@ -362,7 +362,7 @@ module decompressor (
                         decompressed_o.S.funct3 = 3'b010;
                         decompressed_o.S.opcode = riscv32::STORE;
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("C.SWSP", "SW"); `endif 
+                        `ifdef TEST_DESIGN if (!exception_generated_o) print("C.SWSP", "SW"); `endif 
                     end
 
                     3'b100: begin
@@ -379,7 +379,7 @@ module decompressor (
 
                                 exception_generated_o = (compressed_i.itype.CR.reg_ds1 == '0) | (compressed_i.itype.CR.reg_src_2 != '0);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.JR", "JALR"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.JR", "JALR"); `endif 
                             end
 
                             riscv32::CJALR: begin
@@ -394,7 +394,7 @@ module decompressor (
 
                                 exception_generated_o = (compressed_i.itype.CR.reg_ds1 == '0) & (compressed_i.itype.CR.reg_src_2 != '0);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.JALR", "JALR"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.JALR", "JALR"); `endif 
                             end
 
                             riscv32::CMV: begin
@@ -409,7 +409,7 @@ module decompressor (
 
                                 exception_generated_o = (compressed_i.itype.CR.reg_ds1 != '0) & (compressed_i.itype.CR.reg_src_2 != '0);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.MV", "ADD"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.MV", "ADD"); `endif 
                             end
 
                             riscv32::CADD: begin
@@ -424,7 +424,7 @@ module decompressor (
 
                                 exception_generated_o = (compressed_i.itype.CR.reg_ds1 != '0) & (compressed_i.itype.CR.reg_src_2 != '0);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.ADD", "ADD"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ADD", "ADD"); `endif 
                             end
 
                             riscv32::CEBREAK: begin
@@ -432,7 +432,7 @@ module decompressor (
                                 decompressed_o[20] = 1'b1;
                                 decompressed_o.R.opcode = riscv32::SYSTEM;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("C.EBREAK", "EBREAK"); `endif 
+                                `ifdef TEST_DESIGN if (!exception_generated_o) print("C.EBREAK", "EBREAK"); `endif 
                             end
 
                             default: exception_generated_o = 1'b1;
