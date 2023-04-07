@@ -1,5 +1,3 @@
-# Control Status Registers
-
 ## Index
 
 * [Introduction](#introduction)
@@ -19,11 +17,9 @@
     * [Scratch](#scratch-register)
     * [Time Register](#time-register)
 * [User Mode CSRs](#user-mode-csrs)
-    * [Floating Point](#floating-point-csr)
 
 ---
 
-&nbsp;
 
 ## Introduction
 
@@ -47,7 +43,6 @@ A CSR with *X* mode can only be accessed by an instruction in *Y* mode that have
 
 &nbsp;
 
-&nbsp;
 
 ## CSR List
 
@@ -101,7 +96,6 @@ MACHINE
 
 &nbsp;
 
-&nbsp;
 
 ## CSR Unit
 
@@ -121,7 +115,6 @@ The following paragraphs will provide a description of the CSRs implemented in t
 
 &nbsp;
 
-&nbsp;
 
 ## Machine Mode CSRs
 
@@ -132,15 +125,13 @@ Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. 
 Bits    | Name | Access Mode | Description | Default Value |
 ---     | ---  | ---         | ---         | ---   | 
 [31:30] | Machine XLEN       | RO  | Encodes the native base integer ISA | 1 |
-[25:0]  | Extensions         | RW  | Read implemented extensions and disable M - F extensions | 0x141126
+[25:0]  | Extensions         | RW  | Read implemented extensions and disable M - B extensions | 0x141126
 
-&nbsp;
 
 ### ID CSRs
 
 CSRs like **mvendorid**, **marchid**, **mimpid** and **mhartid** privide a simple mechanism to identify the CPU core. They are all *read-only* registers and will return a 0 except for *marchid* CSR. A read to that will return the value: **0x41504F47** (APOG in ASCII) 
 
-&nbsp;
 
 ### Status CSR
 
@@ -156,7 +147,6 @@ The bits that are not present in the table will return a 0 if read.
 
 Some bit fields are not implemented because of the lack of features like virtual memory and endianness memory operation (B extension has REV8 instruction to reverse the byte order) to keep the complexity low.
 
-&nbsp;
 
 ### Trap-Vector CSR 
 
@@ -170,7 +160,6 @@ Bits    | Name | Access Mode | Description  | Default Value |
 [31:2]  | BASE | RW          | Base address | 0x00000000 
 [1:0]   | MODE | RW          | Exception handling mode | 0 | 
 
-&nbsp;
 
 ### Interrupt Status CSRs
 
@@ -198,13 +187,11 @@ Bits    | Name | Access Mode | Description  | Default Value |
 
 The pending bits are *read only* and can only be cleared by performing special operation. To clear the timer interrupt pending bit for example, it's necessary to manually change the *timer compare register* or change the *timer value*. For the external interrupt, the hardware will take care of it by running an acknowledge cycle to announce the interrupt controller that the core is going to service the request.
 
-&nbsp;
 
 ### Exception Program Counter CSR
 
 When an exception is taken into M-mode, the PC of the interrupting instruction is saved into **mepc** register, later is restored to continue executing the program.
 
-&nbsp;
 
 ### Exception Cause CSR
 
@@ -251,7 +238,6 @@ Code  | Description                    | Priority         |
 
 *Page faults* are not valid exceptions since no virtual memory is implemented as well as *breakpoint* exceptions (no debug support).
 
-&nbsp;
 
 ### Hardware Performance Monitor CSRs
 
@@ -279,7 +265,6 @@ With the cache enabled, 4 more events are added:
 
 The codes of the events goes from 0 (machine cycle) to 7 (branch encountered) or 10 (instruction cache hits).
 
-&nbsp;
 
 ### Counter-Enable CSR
 
@@ -291,7 +276,6 @@ Bits    | Name | Access Mode | Description  | Default Value |
 [2]     | IR   | RW          | Enable access to *instret* CSR | 0 |
 [0]     | CY   | RW          | Enable access to *cycle* CSR | 0 | 
 
-&nbsp;
 
 ### Counter-Inhibit CSR
 
@@ -304,13 +288,11 @@ Bits    | Name | Access Mode | Description  | Default Value |
 [0]     | CY   | RW          | Enable increment the counter of *cycle* CSR | 0 | 
 
 
-&nbsp;
 
 ### Scratch Register
 
 The **mscratch** register is used to store temporary information by M-mode code, typically, it is used to hold a pointer to a machine-mode hart-local context space and swapped with a user register upon entry to an M-mode trap handler.
 
-&nbsp;
 
 ### Time Register
 
@@ -334,57 +316,8 @@ The software should always write first to the lower 32 bits of any register and 
 
 &nbsp;
 
-&nbsp;
-
 ## User Mode CSRs
 
 The user mode CSRs are mostly **shadows of the M-mode CSRs**, that means a read of a particular CSR, will target a machine mode CSR. The **M-mode performance counters** are all accessable by U-level code *only if the relative bit of mcounteren CSR is asserted*. 
 
 There are some registers that can be accessed freely by U-level code without checking the *mcounteren* CSR. We have already talked about the **time** and **timecmp** in the previous paragraph.
-
-
-### Floating Point CSR
-
-If the *F extension* (floating point) is implemented, three new CSRs can be accessed. Two of them are simply a shadow of one of the field of the main CSR:
-
-Address | Name | Privilege | Access Mode | Description |
----     | ---  | ---       | ---         | ---         |
-0x001   | fflags | U | RW  | Floating-Point Accrued Exceptions. 
-0x002   | frm    | U | RW  | Floating-Point Rounding Mode.
-0x003   | fcsr   | U | RW  | Floating-Point Control and Status Register (frm + fflags).
-
-&nbsp;
-
-The **fcsr** register is composed of:
-
-Bits  | Name   | Access Mode | Description          | Default Value |
----   | ---    | ---         | ---                  | ---           | 
-[7:5] | frm    | RW          | Rounding mode        | 0             |
-[4:0] | fflags | RW          | Floating-Point flags | 0             |
-
-&nbsp;
-
-The **fflags** CSR, hold all the floating point exceptions, it's written everytime a floating point operation is completed. Since the RISCV specification doesn't require rising an exception every time a bit is set in this CSR, the software should check this to ensure that everything was completed correctly.
-
-Bits | Name | Access Mode | Description            | Default Value |
----  | ---  | ---         | ---                    | ---           | 
-[4]  | NV   | RW          | Invalid operation flag | 0             |
-[3]  | DZ   | RW          | Divide by zero flag    | 0             |
-[2]  | OF   | RW          | Overflow flag          | 0             |
-[1]  | UF   | RW          | Underflow flag         | 0             |
-[0]  | NX   | RW          | Inexact                | 0             | 
-
-&nbsp;
-
-The **frm** CSR, hold the current rounding mode of the system, that is static or dynamic mode. Static mode is fixed for all the instructions that are currently executing. Dynamic mode is based on the current instruction which hold three bits to specify this.
-
-Rounding Mode | Description                                         | Default Value |
----           | ---                                                 | ---           | 
-000           | Round to Nearest, ties to Even                      | 0 |
-001           | Round towards Zero                                  | 0 |
-010           | Round Down (towards $-\infty$)                      | 0 |
-011           | Round Up (towards $+\infty$)                        | 0 |
-100           | Round to Nearest, ties to Max Magnitude             | 0 |
-101           | Invalid                                             | 0 |
-110           | Invalid                                             | 0 |
-111           | Dynamic rounding mode, check the instruction field  | 0 |
