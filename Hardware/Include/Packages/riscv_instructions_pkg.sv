@@ -146,7 +146,7 @@ package riscv32;
     localparam CMV = 3'b100;
 
     /* Memory */
-    localparam CLW = 2'b10;
+    localparam CLW = 2'b01;
     localparam CSW = 2'b11;
     localparam CLWSP = 3'b010;
     localparam CSWSP = 3'b110;
@@ -167,7 +167,7 @@ package riscv32;
     localparam CBEQZ = 3'b110;
     localparam CBNEZ = 3'b111;
     localparam CEBREAK = 3'b011;
-    localparam CJALR = 3'b001;
+    localparam CJALR = 3'b010;
 
     
 
