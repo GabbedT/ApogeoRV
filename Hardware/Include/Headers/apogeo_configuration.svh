@@ -73,6 +73,6 @@
     `define DATA_CACHE_ASSOCIATIVITY 2
 
     /* Total number of entries in the store buffer (A power of 2) */
-    `define ST_BUF_DEPTH 4
+    `define ST_BUF_DEPTH 8
 
 `endif 
