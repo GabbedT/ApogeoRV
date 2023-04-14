@@ -9,7 +9,7 @@
 interface store_buffer_push_interface;
 
 //=========================================================
-// NETS 
+//      NETS 
 //=========================================================
 
     /* Buffer full */
@@ -23,7 +23,7 @@ interface store_buffer_push_interface;
 
 
 //=========================================================
-// MODPORTS 
+//      MODPORTS 
 //=========================================================
 
     modport master (
@@ -46,7 +46,7 @@ endinterface : store_buffer_push_interface
 interface store_buffer_pull_interface;
 
 //=========================================================
-// NETS 
+//      NETS 
 //=========================================================
 
     /* Buffer empty */
@@ -60,7 +60,7 @@ interface store_buffer_pull_interface;
 
 
 //=========================================================
-// MODPORTS 
+//      MODPORTS 
 //=========================================================
 
     modport master (
