@@ -65,10 +65,10 @@ USER
 . . . | 
 0xC86    | hpmcounter6h | U | RO | Upper 32 bits of hpmcounter6.
 MACHINE
-0xF11     | mvendorid | M | R0 | Vendor ID.
-0xF12     | marchid | M | R0 | Architecture ID.
-0xF13     | mimpid | M | R0 | Implementation ID.
-0xF14     | mhartid | M | R0 | Hardware thread ID.
+0xF11     | mvendorid | M | RO | Vendor ID.
+0xF12     | marchid | M | RO | Architecture ID.
+0xF13     | mimpid | M | RO | Implementation ID.
+0xF14     | mhartid | M | RO | Hardware thread ID.
 0x300     | mstatus    | M | RW | Machine status register.
 0x301     | misa    | M | RW | ISA and extensions
 0x304     | mie    | M | RW | Machine interrupt-enable register.
@@ -91,6 +91,9 @@ MACHINE
 0x323     | mhpmevent3    | M | RW | Machine performance-monitoring event selector.
 ...
 0x326     | mhpmevent6    | M | RW | Machine performance-monitoring event selector.
+0x7C0     | bbufconfig    | M | RW | Burst buffer configuration
+0x7C1     | bbufbase    | M | RW | Burst buffer base address
+0xF00     | bbufstatus    | M | RO | Burst buffer status
 
 ---
 
@@ -311,6 +314,40 @@ BASE + 3 | timecmph | RW          | Higher 32 bits of the *timecmp* CSR | 0 |
 
 The software should always write first to the lower 32 bits of any register and then proceed to the higher 32 bits to prevent any bug.
 
+
+### Burst Buffer Configuration Register
+
+The **bbufconfig** register is used to configure the store operations associated with the *burst buffer*. It's a *R/W* platform specific control register and it's specific for this microarchitecture. 
+
+Bits    | Name | Access Mode | Description  | Default Value |
+---     | ---  | ---         | ---          | ---   | 
+[13:4]  | THR  | RW          | Threshold value, if the size of the burst buffer reach this value, an operation is initiated | 1024 | 
+[3:2]   | WD   | RW          | Operation width | 0 |
+[1]     | OP   | RW          | AXI store operation | 0 |
+[0]     | SEL  | RW          | Enable the use of the burst buffer instead of store buffer | 0 | 
+
+Apogeo support the following AXI burst operations: 
+
+Code  | Description |
+---   | ---         |
+0     | **FIXED**: All the entries in the buffer has the same address. Useful to fill I/O buffers. | 
+1     | **INCR**: Each entry has an address that is equal to the previous entry plus the size of the transfer.
+
+Apogeo support the following transfer size: 
+
+Code  | Description |
+---   | ---         |
+0     | BYTE | 
+1     | HALFWORD | 
+2     | WORD | 
+
+### Burst Buffer Base Address Register
+
+The **bbufbase** register that holds the base address of the burst transaction. In **FIXED mode**, the address is the same for each entry of the buffer. In **INC mode** the address is valid only for the first entry pushed, the following will have the base address incremented by the size of a single tranfer.
+
+### Burst Buffer Status Register
+
+The **bbstatus** register holds the current capacity of the *burst buffer*, this is encoded in the first 10 bits of the register.
 
 ---
 
