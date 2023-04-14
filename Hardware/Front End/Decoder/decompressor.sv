@@ -28,11 +28,13 @@ module decompressor (
     always_comb begin : decompression_logic
         /* Default value */
         decompressed_o[31:2] = '0;
-        exception_generated_o = 1'b0;
+        exception_generated_o = (compressed_i == '0);
 
         case (compressed_i.opcode)
             2'b00: begin
-                case (compressed_i.itype.CIW.funct3)
+                exception_generated_o = compressed_i.itype.CIW.funct3[0];
+
+                case (compressed_i.itype.CIW.funct3[2:1])
                     riscv32::CADDI4SPN: begin
                         /* Expanded into ADDI rd, x2, imm */
                         decompressed_o.I.immediate = {'0, compressed_i[10:8], compressed_i[12:11], 
@@ -45,7 +47,7 @@ module decompressor (
                         decompressed_o.I.funct3 = '0;
                         decompressed_o.I.opcode = riscv32::IMM_ARITHM;
 
-                        exception_generated_o = (compressed_i.CIW.immediate == '0);
+                        exception_generated_o = (compressed_i.itype.CIW.immediate == '0);
 
                         `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ADDI4SPN", "ADDI"); `endif 
                     end
@@ -233,7 +235,7 @@ module decompressor (
 
                                         decompressed_o.R.funct3 = 3'b100;
                                         decompressed_o.R.funct7 = 7'b0000000;
-                                        decompressed_o.R.opcode = riscv32::REG_ARITHM;
+                                        decompressed_o.R.opcode = riscv32::REG_ARITHM; 
 
                                         `ifdef TEST_DESIGN if (!exception_generated_o) print("C.XOR", "XOR"); `endif 
                                     end
@@ -344,7 +346,7 @@ module decompressor (
                         decompressed_o.I.immediate = {'0, compressed_i[3:2], compressed_i[12], compressed_i[6:5], 2'b0} << 2;
 
                         decompressed_o.I.reg_src_1 = 5'd2;
-                        decompressed_o.I.reg_dest = compressed_i.itype.CL.reg_dest;
+                        decompressed_o.I.reg_dest = compressed_i.itype.CI.reg_ds1;
 
                         decompressed_o.I.funct3 = 3'b010;
                         decompressed_o.I.opcode = riscv32::LOAD;
@@ -377,8 +379,6 @@ module decompressor (
                                 decompressed_o.I.funct3 = '0;
                                 decompressed_o.I.opcode = riscv32::JALR;
 
-                                exception_generated_o = (compressed_i.itype.CR.reg_ds1 == '0) | (compressed_i.itype.CR.reg_src_2 != '0);
-
                                 `ifdef TEST_DESIGN if (!exception_generated_o) print("C.JR", "JALR"); `endif 
                             end
 
@@ -391,8 +391,6 @@ module decompressor (
 
                                 decompressed_o.I.funct3 = '0;
                                 decompressed_o.I.opcode = riscv32::JALR;
-
-                                exception_generated_o = (compressed_i.itype.CR.reg_ds1 == '0) & (compressed_i.itype.CR.reg_src_2 != '0);
 
                                 `ifdef TEST_DESIGN if (!exception_generated_o) print("C.JALR", "JALR"); `endif 
                             end
@@ -407,8 +405,6 @@ module decompressor (
                                 decompressed_o.R.funct7 = '0;
                                 decompressed_o.R.opcode = riscv32::REG_ARITHM;
 
-                                exception_generated_o = (compressed_i.itype.CR.reg_ds1 != '0) & (compressed_i.itype.CR.reg_src_2 != '0);
-
                                 `ifdef TEST_DESIGN if (!exception_generated_o) print("C.MV", "ADD"); `endif 
                             end
 
@@ -421,8 +417,6 @@ module decompressor (
                                 decompressed_o.R.funct3 = '0;
                                 decompressed_o.R.funct7 = '0;
                                 decompressed_o.R.opcode = riscv32::REG_ARITHM;
-
-                                exception_generated_o = (compressed_i.itype.CR.reg_ds1 != '0) & (compressed_i.itype.CR.reg_src_2 != '0);
 
                                 `ifdef TEST_DESIGN if (!exception_generated_o) print("C.ADD", "ADD"); `endif 
                             end
