@@ -268,7 +268,17 @@ package apogeo_operations_pkg;
 
         /* Clear bits */
         CSR_CLEAR
-    } csr_uop_t; 
+    } csr_opcode_t; 
+
+
+    typedef struct packed {
+        /* Operation */
+        csr_opcode_t opcode; 
+
+        /* Command */
+        logic write;
+        logic read;
+    } csr_uop_t;
 
 
 //====================================================================================
@@ -320,7 +330,7 @@ package apogeo_operations_pkg;
         } LSU;
 
         struct packed {
-            csr_uop_t opcode;
+            csr_uop_t subunit;
 
             logic [MAX_BITS - $bits(csr_uop_t):0] padding;
         } CSR; 
