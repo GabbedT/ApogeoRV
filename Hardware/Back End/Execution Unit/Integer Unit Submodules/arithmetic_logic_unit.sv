@@ -30,10 +30,10 @@
 // VERSION : 1.0 
 // DESCRIPTION : Arithmetic Logic Unit of the CPU, the module is fully combinational 
 //               and every instruction executed is single cycle. It can execute every
-//               RV32I instruction and optionally RV32 C extension instruction. The 
-//               input pin `operand_B_i` holds the immediate encoded in the instruction.
-//               Branches instruction write the outcome on the result, to not overwrite
-//               registers, the branches have all the register destination as X0. 
+//               RV32I instruction. The input pin `operand_B_i` holds the immediate 
+//               encoded in the instruction. Branches instruction write the outcome 
+//               on the result, to not overwrite registers, the branches have all the 
+//               register destination as X0. 
 // ------------------------------------------------------------------------------------
 
 
@@ -55,11 +55,6 @@ module arithmetic_logic_unit (
 
     /* Inputs are valid */
     input logic data_valid_i,
-
-    /* Jump instruction is compressed so store
-     * in the register the instruction address
-     * incremented by only 2 */
-    input logic compressed_i,
 
     /* Result and valid bits */
     output data_word_t result_o,

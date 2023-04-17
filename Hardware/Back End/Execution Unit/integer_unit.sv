@@ -59,9 +59,6 @@ module integer_unit (
     input logic enable_div,
     `ifdef BMU input logic enable_bmu, `endif
 
-    /* Instruction jump is compressed */
-    input logic compressed_i,
-
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
 
@@ -99,7 +96,6 @@ module integer_unit (
         .operand_B_i  ( operand_2_i            ),
         .operation_i  ( operation_i.ALU.opcode ),
         .data_valid_i ( data_valid_i.ALU       ),
-        .compressed_i ( compressed_i           ),
         .result_o     ( alu_result             ),
         .data_valid_o ( alu_valid              )
     );

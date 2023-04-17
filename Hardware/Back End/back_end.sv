@@ -36,15 +36,16 @@ module back_end (
 
     /* Instruction jump is compressed */
     input logic compressed_i,
-    output logic compressed_o,
 
     /* Branch control */
     input logic branch_i,
     output logic branch_o,
+    input logic jump_i,
+    output logic jump_o,
     input data_word_t branch_address_i,
     output data_word_t branch_address_o,
     input logic mispredicted_i,
-    output logic prediction_o,
+    output logic branch_outcome_o,
 
     /* Memory interface */
     load_controller_interface.master ld_ctrl_channel,
@@ -109,21 +110,21 @@ module back_end (
 
 
     exu_valid_t bypass_valid; 
-    logic bypass_branch, bypass_compressed, flush_pipeline;
+    logic bypass_branch, bypass_jump, flush_pipeline;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
             if (!rst_n_i) begin
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
-                bypass_compressed <= 1'b0;
+                bypass_jump <= 1'b0;
             end else if (flush_pipeline | mispredicted_i) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
-                bypass_compressed <= 1'b0;
+                bypass_jump <= 1'b0;
             end else begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
-                bypass_compressed <= compressed_i;
+                bypass_jump <= jump_i;
             end
         end : bypass_stage_register
 
@@ -174,7 +175,6 @@ module back_end (
         .operation_i  ( bypass_operation  ), 
         .ipacket_i    ( bypass_ipacket    ),
 
-        .compressed_i ( bypass_compressed ),
         .branch_i     ( bypass_branch     ),
 
         .ld_ctrl_channel   ( ld_ctrl_channel   ),
@@ -206,12 +206,12 @@ module back_end (
     );
 
     /* If bit is set it's a branch taken */
-    assign prediction_o = result[0];
+    assign branch_outcome_o = result[0];
 
     assign branch_address_o = bypass_branch_address;
 
     assign branch_o = bypass_branch;
-    assign compressed_o = bypass_compressed;
+    assign jump_o = bypass_jump;
 
 
     /* Pipeline registers */

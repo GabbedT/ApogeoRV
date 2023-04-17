@@ -66,8 +66,7 @@ module execution_unit (
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
 
-    /* Instruction jump is compressed */
-    input logic compressed_i,
+    /* Instruction is branch */
     input logic branch_i,
 
     /* Global interrupt enable */
@@ -95,6 +94,14 @@ module execution_unit (
     /* Store buffer fowarding nets */
     input logic       str_buf_address_match_i,
     input data_word_t str_buf_fowarded_data_i,
+
+    /* Burst buffer */
+    input logic [9:0] burst_buffer_size_i,
+    output data_word_t burst_base_addr_o,
+    output logic [9:0] burst_threshold_o,
+    output logic [1:0] burst_width_o,
+    output logic burst_operation_o,
+    output logic buffer_select_o,
 
 
     /*
@@ -160,7 +167,6 @@ module execution_unit (
         .enable_bmu   ( bmu_enable               ),
         `endif 
         
-        .compressed_i ( compressed_i             ),
         .ipacket_i    ( ipacket_i                ),
         .operation_i  ( operation_i.ITU.subunit  ),
         .data_valid_i ( data_valid_i.ITU         ),
@@ -208,10 +214,16 @@ module execution_unit (
 //      CONTROL AND STATUS REGISTERS 
 //====================================================================================
 
+    logic csr_write, csr_read;
+
+    assign csr_write = operation_i.CSR.subunit.write & data_valid_i.CSR;
+    assign csr_read = operation_i.CSR.subunit.read & data_valid_i.CSR;
+
+
     data_word_t csr_data_write, csr_data_read;
 
         always_comb begin
-            case (operation_i.CSR.opcode) 
+            case (operation_i.CSR.subunit.opcode) 
                 CSR_SWAP: csr_data_write = operand_i[0];
 
                 CSR_SET: csr_data_write = operand_i[0] | csr_data_read;
@@ -223,20 +235,20 @@ module execution_unit (
         end
 
 
-    logic illegal_privilege, illegal_csr, illegal_instruction, time_csr_interrupt;
+    logic illegal_csr_access, time_csr_interrupt;
 
     assign time_csr_interrupt = timer_interrupt & glb_interrupt_enable_o;
+
 
     control_status_registers CSRU (
         .clk_i                  ( clk_i                 ),
         .rst_n_i                ( rst_n_i               ),
-        .csr_access_i           ( data_valid_i.CSR      ),
+        .csr_write_access_i     ( csr_write             ),
+        .csr_read_access_i      ( csr_read              ),
         .csr_address_i          ( operand_i[1][11:0]    ),
         .csr_data_write_i       ( csr_data_write        ),
         .csr_data_read_o        ( csr_data_read         ),
-        .illegal_privilege_o    ( illegal_privilege     ),
-        .illegal_instruction_o  ( illegal_instruction   ),
-        .illegal_csr_access_o   ( illegal_csr           ),
+        .illegal_csr_access_o   ( illegal_csr_access    ),
         .instruction_retired_i  ( instruction_retired_i ),
         .data_store_i           ( data_valid_i.LSU.STU  ),
         .data_load_i            ( data_valid_i.LSU.LDU  ),
@@ -245,6 +257,12 @@ module execution_unit (
         .enable_mul_o           ( csr_mul_enable        ),
         .enable_div_o           ( csr_div_enable        ), 
         `ifdef BMU.enable_bmu_o ( csr_bmu_enable ), `endif 
+        .burst_buffer_size_i    ( burst_buffer_size_i   ),
+        .burst_base_addr_o      ( burst_base_addr_o     ),
+        .burst_threshold_o      ( burst_threshold_o     ),
+        .burst_width_o          ( burst_width_o         ),
+        .burst_operation_o      ( burst_operation_o     ),
+        .buffer_select_o        ( buffer_select_o       ),
         .trap_instruction_pc_i  ( trap_instruction_pc_i  ),
         .trap_instruction_pc_o  ( trap_instruction_pc_o  ),
         .interrupt_vector_i     ( interrupt_vector_i     ),
@@ -269,7 +287,7 @@ module execution_unit (
             if (data_valid_i.CSR) begin
                 ipacket_o[CSR] = ipacket_i;
 
-                if (illegal_privilege | illegal_csr | illegal_instruction) begin
+                if (illegal_csr_access) begin
                     /* Low privilege access on an higher privilege CSR */
                     ipacket_o[CSR].exception_vector = `INSTR_ILLEGAL;
                     ipacket_o[CSR].exception_generated = 1'b1;
