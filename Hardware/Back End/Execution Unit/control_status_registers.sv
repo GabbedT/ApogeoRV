@@ -51,7 +51,8 @@ module control_status_registers (
     input logic rst_n_i,
 
     /* Commands */ 
-    input logic csr_access_i,
+    input logic csr_write_access_i,
+    input logic csr_read_access_i,
 
     /* CSR address */
     input csr_address_t csr_address_i,
@@ -61,8 +62,6 @@ module control_status_registers (
     output data_word_t csr_data_read_o,
 
     /* CSR access exception */
-    output logic illegal_privilege_o,
-    output logic illegal_instruction_o,
     output logic illegal_csr_access_o,
 
     /* Performance monitor events */
@@ -89,6 +88,14 @@ module control_status_registers (
     input logic interrupt_request_i,
     input logic timer_interrupt_i,
     input logic exception_i,
+
+    /* Burst buffer */
+    input logic [9:0] burst_buffer_size_i,
+    output data_word_t burst_base_addr_o,
+    output logic [9:0] burst_threshold_o,
+    output logic [1:0] burst_width_o,
+    output logic burst_operation_o,
+    output logic buffer_select_o,
 
     /* Address to load the PC in case of trap */
     output data_word_t handler_pc_o,
@@ -118,7 +125,7 @@ module control_status_registers (
                 `endif 
 
                 M_extension <= 1'b1;
-            end else if (csr_enable.misa & csr_access_i) begin 
+            end else if (csr_enable.misa & csr_write_access_i) begin 
                 `ifdef BMU 
                     B_extension <= csr_data_write_i[1];
                 `endif 
@@ -177,8 +184,6 @@ module control_status_registers (
 
     assign current_privilege_o = privilege_level[1];
 
-    assign illegal_privilege_o = csr_access_i & (csr_address_i.privilege != privilege_level);
-
 
         /* MIE is a global interrupt enable bits for machine mode interrupt.
          * If a trap is taken, interrupts at that privilege level and lower
@@ -206,7 +211,7 @@ module control_status_registers (
                 /* Restore privilege status */
                 mstatus_csr.MPIE <= 1'b1;
                 mstatus_csr.MPP <= USER;
-            end else if (csr_enable.mstatus & csr_access_i) begin 
+            end else if (csr_enable.mstatus & csr_write_access_i) begin 
                 /* Write CSR */
                 mstatus_csr.MIE <= csr_data_write_i[3];
             end
@@ -237,7 +242,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mtvec_csr <= '0;
-            end else if (csr_enable.mtvec & csr_access_i) begin 
+            end else if (csr_enable.mtvec & csr_write_access_i) begin 
                 mtvec_csr <= csr_data_write_i;
             end
         end
@@ -281,7 +286,7 @@ module control_status_registers (
             if (!rst_n_i) begin 
                 mie_csr.MEIE <= 1'b1; 
                 mie_csr.MTIE <= 1'b1; 
-            end else if (csr_enable.mie & csr_access_i) begin 
+            end else if (csr_enable.mie & csr_write_access_i) begin 
                 mie_csr.MEIE <= csr_data_write_i[11]; 
                 mie_csr.MTIE <= csr_data_write_i[7]; 
             end
@@ -327,7 +332,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mcounthinibit_register
             if (!rst_n_i) begin 
                 mcountinhibit_csr <= 5'b0;
-            end else if (csr_enable.mcountinhibit & csr_access_i) begin 
+            end else if (csr_enable.mcountinhibit & csr_write_access_i) begin 
                 mcountinhibit_csr <= {csr_data_write_i[6:2], csr_data_write_i[0]};
             end
         end : mcounthinibit_register
@@ -342,7 +347,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mcounteren_register
             if (!rst_n_i) begin 
                 mcounteren_csr <= 5'b0;
-            end else if (csr_enable.mcountinhibit & csr_access_i) begin 
+            end else if (csr_enable.mcountinhibit & csr_write_access_i) begin 
                 mcounteren_csr <= {csr_data_write_i[6:2], csr_data_write_i[0]};
             end
         end : mcounteren_register
@@ -382,7 +387,7 @@ module control_status_registers (
                 end
             end else begin 
                 for (int i = 0; i < 4; ++i) begin
-                    if (csr_enable.mhpmevent[i] & csr_access_i) begin
+                    if (csr_enable.mhpmevent[i] & csr_write_access_i) begin
                         mhpmevent_csr[i] <= csr_data_write_i[2:0];
                     end
                 end
@@ -427,10 +432,10 @@ module control_status_registers (
                 end
             end else begin 
                 for (int i = 0; i < 4; ++i) begin
-                    if (csr_access_i & csr_enable.mhpmcounter[0][i]) begin
+                    if (csr_write_access_i & csr_enable.mhpmcounter[0][i]) begin
                         /* Write low bits */
                         mhpmcounter_csr[i][31:0] <= csr_data_write_i;
-                    end else if (csr_access_i & csr_enable.mhpmcounter[1][i]) begin
+                    end else if (csr_write_access_i & csr_enable.mhpmcounter[1][i]) begin
                         /* Write high bits */
                         mhpmcounter_csr[i][63:32] <= csr_data_write_i;
                     end else if (event_trigger[i] & !mcountinhibit_csr[i + 2]) begin
@@ -457,7 +462,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mscratch_csr <= '0;
-            end else if (csr_enable.mscratch & csr_access_i) begin 
+            end else if (csr_enable.mscratch & csr_write_access_i) begin 
                 mscratch_csr <= csr_data_write_i;
             end
         end
@@ -511,6 +516,59 @@ module control_status_registers (
 
 
 //====================================================================================
+//      BURST BUFFER CONFIG REGISTER
+//====================================================================================
+
+    /* Burst buffer configuration CSR */
+    bufconfig_t bufconfig_csr; 
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : buf_config_register
+            if (!rst_n_i) begin 
+                bufconfig_csr.THR <= '1; 
+                bufconfig_csr.WD <= '0;
+                bufconfig_csr.OP <= 1'b0;
+                bufconfig_csr.SEL <= 1'b0; 
+            end else if (csr_enable.bufconfig & csr_write_access_i) begin
+                bufconfig_csr <= csr_data_write_i[13:0]; 
+            end
+        end : buf_config_register
+
+    assign burst_threshold_o = bufconfig_csr.THR; 
+    assign burst_width_o = bufconfig_csr.WD;
+    assign burst_operation_o = bufconfig_csr.OP; 
+
+    assign buffer_select_o = bufconfig_csr.SEL;
+
+
+//====================================================================================
+//      BURST BUFFER BASE ADDRESS REGISTER
+//====================================================================================
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : base_address_register
+            if (!rst_n_i) begin 
+                burst_base_addr_o <= '0;
+            end else if (csr_enable.bufbase & csr_write_access_i) begin
+                burst_base_addr_o <= csr_data_write_i; 
+            end
+        end : base_address_register
+
+
+//====================================================================================
+//      BURST BUFFER STATUS REGISTER
+//====================================================================================
+
+    logic [9:0] bufstatus_csr;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : buffer_status_register
+            if (!rst_n_i) begin 
+                bufstatus_csr <= '0;
+            end else begin
+                bufstatus_csr <= burst_buffer_size_i; 
+            end
+        end : buffer_status_register
+
+
+//====================================================================================
 //      DECODE LOGIC
 //====================================================================================
 
@@ -525,13 +583,13 @@ module control_status_registers (
 
             case (csr_address_i.access_mode)
                 READ_ONLY: begin
-                    illegal_instruction = csr_access_i;
+                    illegal_instruction = csr_write_access_i;
 
                     case (csr_address_i.privilege)
                         /* Most significant nibble: 0xF */
                         MACHINE: begin
                             /* Current privilege is USER */
-                            illegal_instruction = privilege_level[1];
+                            illegal_instruction = privilege_level[1] & csr_read_access_i;
 
                             if ((csr_address_i.index[7:5] == '0) & (csr_address_i.index[4:3] == 2'b10)) begin
                                 case (csr_address_i.index[2:0])
@@ -545,7 +603,9 @@ module control_status_registers (
 
                                     default: non_existing_csr = 1'b1;
                                 endcase
-                            end else begin
+                            end else if (csr_address_i.index == '0) begin
+                                csr_data_read_o = bufstatus_csr;
+                            end else begin 
                                 non_existing_csr = 1'b1;
                             end
                         end
@@ -791,13 +851,30 @@ module control_status_registers (
                     endcase 
                 end
 
+                READ_WRITE2: begin
+                    if (csr_address_i.privilege == MACHINE) begin 
+                        /* Current privilege is USER */
+                        illegal_instruction = privilege_level[1];
+
+                        if (csr_address_i.index == 8'hC0) begin
+                            csr_data_read_o = bufconfig_csr;
+                            csr_enable.bufconfig = 1'b1;
+                        end else if (csr_address_i.index == 8'hC1) begin
+                            csr_data_read_o = burst_base_addr_o;
+                            csr_enable.bufbase = 1'b1;
+                        end else begin
+                            non_existing_csr = 1'b1;
+                        end
+                    end else begin
+                        non_existing_csr = 1'b1;
+                    end
+                end
+
                 default: non_existing_csr = 1'b1;
             endcase 
         end
 
-    assign illegal_csr_access_o = non_existing_csr & csr_access_i;
-
-    assign illegal_instruction_o = illegal_instruction & csr_access_i;
+    assign illegal_csr_access_o = (non_existing_csr | illegal_instruction) & (csr_write_access_i | csr_read_access_i);
 
 endmodule : control_status_registers
 
