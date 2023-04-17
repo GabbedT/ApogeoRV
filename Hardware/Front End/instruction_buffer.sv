@@ -21,9 +21,6 @@ module instruction_buffer #(
      * of the shift */
     input logic compressed_i,
 
-    /* Enable the shift */
-    input logic instr_issued_i,
-
     /* Instruction fetched */
     output logic [31:0] fetched_instr_o,
 
@@ -52,7 +49,7 @@ module instruction_buffer #(
             end else if (load_bundle) begin
                 /* Buffer is now full */
                 buffer_size <= '1;
-            end else if (!stall_i & instr_issued_i) begin
+            end else if (!stall_i) begin
                 if (compressed_i) begin
                     buffer_size <= buffer_size - 'd1;
                 end else begin
@@ -78,7 +75,7 @@ module instruction_buffer #(
                 for (int i = 0; i < `IBUFFER_SIZE; ++i) begin 
                     instruction_buffer[i] <= instr_bundle_i[i];
                 end
-            end else if (!stall_i & instr_issued_i) begin
+            end else if (!stall_i) begin
                 for (int i = 1; i < `IBUFFER_SIZE; ++i) begin 
                     if (compressed_i) begin
                         instruction_buffer[i][0] <= instruction_buffer[i - 1][1];
