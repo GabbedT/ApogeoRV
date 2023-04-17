@@ -34,6 +34,10 @@
     /* Enable or disable cache */
     //`define CACHE_SYSTEM
 
+    `define BRANCH_PREDICTOR_DEPTH 1024
+
+    `define BRANCH_TARGET_BUFFER_DEPTH 1024
+
 
 //====================================================================================
 //      MULTIPLIER CONFIG
