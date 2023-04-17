@@ -28,6 +28,7 @@ module decompressor (
     always_comb begin : decompression_logic
         /* Default value */
         decompressed_o[31:2] = '0;
+        decompressed_o[1:0] = '1;
         exception_generated_o = (compressed_i == '0);
 
         case (compressed_i.opcode)
@@ -441,8 +442,6 @@ module decompressor (
         endcase 
 
     end : decompression_logic 
-
-    assign decompressed_o[1:0] = '1;
     
 endmodule : decompressor
 
