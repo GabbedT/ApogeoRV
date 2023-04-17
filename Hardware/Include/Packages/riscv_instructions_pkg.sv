@@ -7,7 +7,9 @@ package riscv32;
 //      PARAMETERS 
 //====================================================================================
 
-    localparam X0 = '0;
+    localparam NOP = 32'h00000013;
+
+    localparam X0 = '0; 
 
     localparam REGISTER = 1'b0;
     localparam IMMEDIATE = 1'b1;
