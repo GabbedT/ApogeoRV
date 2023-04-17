@@ -80,6 +80,7 @@ package control_status_registers_pkg;
     localparam READ_ONLY  = 2'b11;
     localparam READ_WRITE0 = 2'b00;
     localparam READ_WRITE1 = 2'b10;
+    localparam READ_WRITE2 = 2'b01;
 
     /* CSR address */
     typedef struct packed {
@@ -169,6 +170,9 @@ package control_status_registers_pkg;
         logic mcounteren;
         logic mcountinhibit;
         logic mscratch;
+        logic bufconfig;
+        logic bufbase;
+        logic bufstatus;
     } csr_enable_t;
 
 
@@ -190,6 +194,15 @@ package control_status_registers_pkg;
         logic        UF;
         logic        NX;
     } fcsr_t;
+
+
+    /* Burst buffer config */
+    typedef struct packed {
+        logic [9:0] THR;
+        logic [1:0] WD; 
+        logic OP; 
+        logic SEL;
+    } bufconfig_t;
 
 endpackage : control_status_registers_pkg
 

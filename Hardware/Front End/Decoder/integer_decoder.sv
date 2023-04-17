@@ -34,9 +34,8 @@ module integer_decoder (
 
     /* Calculate branch target in issue stage
      * and set PC */
-    input logic compressed_i,
     output logic branch_o,
-    output logic link_o,
+    output logic jump_o,
 
     /* Calculate memory address (base + offset) 
      * and use as first operand for the units */
@@ -101,9 +100,9 @@ module integer_decoder (
 
 
     /* Control Status Register Unit */
-    function void build_csr_packet(input csr_uop_t operation);
+    function void build_csr_packet(input csr_opcode_t operation, input logic write, input logic read);
         csr_unit_valid_o = 1'b1; 
-        csr_unit_uop_o = operation; 
+        csr_unit_uop_o = {operation, write, read}; 
     endfunction : build_csr_packet
 
 
@@ -186,7 +185,7 @@ module integer_decoder (
         branch_o = 1'b0;
         fence_o = 1'b0;
         memory_o = 1'b0;
-        link_o = 1'b0;
+        jump_o = 1'b0;
         address_operand_o = '0;
 
         exception_vector_o = `INSTR_ILLEGAL; 
@@ -240,8 +239,8 @@ module integer_decoder (
                 imm_valid_o = '0;
 
                 /* Control */
-                branch_o = 1'b1;
-                link_o = 1'b1;
+                branch_o = 1'b0;
+                jump_o = 1'b1;
                 address_operand_o[1] = riscv32::IMMEDIATE;
                 address_operand_o[2] = riscv32::IMMEDIATE;
 
@@ -256,12 +255,6 @@ module integer_decoder (
                 reg_src_o[1] = instr_i.I.reg_src_1[1];
 
                 /* Immediates */
-                if (compressed_i) begin 
-                    build_immediate(1, 32'd2);
-                end else begin
-                    build_immediate(1, 32'd4);
-                end
-                
                 build_I_immediate(2, 1'b1);
 
                 /* Immediate is not passed into the 
@@ -270,8 +263,8 @@ module integer_decoder (
                 imm_valid_o[2] = 1'b0;
 
                 /* Control */
-                branch_o = 1'b1;
-                link_o = 1'b1;
+                branch_o = 1'b0;
+                jump_o = 1'b1;
                 address_operand_o[1] = riscv32::REGISTER;
                 address_operand_o[2] = riscv32::IMMEDIATE;
 
@@ -820,7 +813,11 @@ module integer_decoder (
                     end
 
                     riscv32::CSRRW: begin
-                        build_csr_packet(CSR_SWAP);
+                        if (instr_i.I.reg_dest == '0) begin 
+                            build_csr_packet(CSR_SWAP, 1'b1, 1'b0);
+                        end else begin
+                            build_csr_packet(CSR_SWAP, 1'b1, 1'b1);
+                        end
 
                         reg_src_o[1] = instr_i.I.reg_src_1;
                         reg_dest_o = instr_i.I.reg_dest; 
@@ -829,7 +826,11 @@ module integer_decoder (
                     end
 
                     riscv32::CSRRS: begin
-                        build_csr_packet(CSR_SET);
+                        if (instr_i.I.reg_src_1 == '0) begin 
+                            build_csr_packet(CSR_SET, 1'b0, 1'b1);
+                        end else begin
+                            build_csr_packet(CSR_SET, 1'b1, 1'b1);
+                        end
 
                         reg_src_o[1] = instr_i.I.reg_src_1;
                         reg_dest_o = instr_i.I.reg_dest;  
@@ -838,7 +839,11 @@ module integer_decoder (
                     end
 
                     riscv32::CSRRC: begin
-                        build_csr_packet(CSR_CLEAR);
+                        if (instr_i.I.reg_src_1 == '0) begin 
+                            build_csr_packet(CSR_CLEAR, 1'b0, 1'b1);
+                        end else begin
+                            build_csr_packet(CSR_CLEAR, 1'b1, 1'b1);
+                        end
 
                         /* Operations with 0 as operand shall not write any CSR */
                         reg_src_o[1] = instr_i.I.reg_src_1; 
@@ -848,7 +853,11 @@ module integer_decoder (
                     end
 
                     riscv32::CSRRWI: begin
-                        build_csr_packet(CSR_SWAP);
+                        if (instr_i.I.reg_dest == '0) begin 
+                            build_csr_packet(CSR_SWAP, 1'b1, 1'b0);
+                        end else begin
+                            build_csr_packet(CSR_SWAP, 1'b1, 1'b1);
+                        end
 
                         immediate_o[1] = instr_i.I.reg_src_1;
                         imm_valid_o[1] = 1'b1;
@@ -858,7 +867,11 @@ module integer_decoder (
                     end
 
                     riscv32::CSRRSI: begin
-                        build_csr_packet(CSR_SET);
+                        if (instr_i.I.reg_src_1 == '0) begin 
+                            build_csr_packet(CSR_SET, 1'b0, 1'b1);
+                        end else begin
+                            build_csr_packet(CSR_SET, 1'b1, 1'b1);
+                        end
 
                         immediate_o[1] = instr_i.I.reg_src_1; 
                         imm_valid_o[1] = 1'b1;
@@ -868,7 +881,11 @@ module integer_decoder (
                     end
 
                     riscv32::CSRRCI: begin
-                        build_csr_packet(CSR_CLEAR);
+                        if (instr_i.I.reg_src_1 == '0) begin 
+                            build_csr_packet(CSR_CLEAR, 1'b0, 1'b1);
+                        end else begin
+                            build_csr_packet(CSR_CLEAR, 1'b1, 1'b1);
+                        end
 
                         /* Operations with 0 as operand shall not write any CSR */
                         immediate_o[1] = (instr_i.I.reg_src_1 == riscv32::X0) ? '1 : instr_i.I.reg_src_1; 

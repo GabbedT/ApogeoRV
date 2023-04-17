@@ -89,12 +89,9 @@ module burst_buffer #(
         always_ff @(posedge clk_i) begin : read_data_port
             if (pull_i) begin
                 /* Pull data */
-                data_o = data_buffer[pull_ptr];
+                data_o <= data_buffer[pull_ptr];
             end
         end : read_data_port
-
-    // /* Pull read port */
-    // assign data_o = data_buffer[pull_ptr];
 
 
 //====================================================================================

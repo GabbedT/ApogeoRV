@@ -58,12 +58,8 @@ module store_buffer #(
     store_buffer_push_interface.slave push_channel,
     store_buffer_pull_interface.slave pull_channel,
 
-    /* Operation tag */
-    input logic [5:0] tag_i,
-
     /* Validate */
     input logic valid_i,
-    input logic [5:0] valid_tag_i,
 
     /* Foward data nets */
     input data_word_t foward_address_i,
