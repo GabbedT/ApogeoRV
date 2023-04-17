@@ -91,9 +91,9 @@ MACHINE
 0x323     | mhpmevent3    | M | RW | Machine performance-monitoring event selector.
 ...
 0x326     | mhpmevent6    | M | RW | Machine performance-monitoring event selector.
-0x7C0     | bbufconfig    | M | RW | Burst buffer configuration
-0x7C1     | bbufbase    | M | RW | Burst buffer base address
-0xF00     | bbufstatus    | M | RO | Burst buffer status
+0x7C0     | bufconfig    | M | RW | Burst buffer configuration
+0x7C1     | bufbase    | M | RW | Burst buffer base address
+0xF00     | bufstatus    | M | RO | Burst buffer status
 
 ---
 
@@ -317,7 +317,7 @@ The software should always write first to the lower 32 bits of any register and 
 
 ### Burst Buffer Configuration Register
 
-The **bbufconfig** register is used to configure the store operations associated with the *burst buffer*. It's a *R/W* platform specific control register and it's specific for this microarchitecture. 
+The **bufconfig** register is used to configure the store operations associated with the *burst buffer*. It's a *R/W* platform specific control register and it's specific for this microarchitecture. 
 
 Bits    | Name | Access Mode | Description  | Default Value |
 ---     | ---  | ---         | ---          | ---   | 
@@ -343,11 +343,11 @@ Code  | Description |
 
 ### Burst Buffer Base Address Register
 
-The **bbufbase** register that holds the base address of the burst transaction. In **FIXED mode**, the address is the same for each entry of the buffer. In **INC mode** the address is valid only for the first entry pushed, the following will have the base address incremented by the size of a single tranfer.
+The **bufbase** register that holds the base address of the burst transaction. In **FIXED mode**, the address is the same for each entry of the buffer. In **INC mode** the address is valid only for the first entry pushed, the following will have the base address incremented by the size of a single tranfer.
 
 ### Burst Buffer Status Register
 
-The **bbstatus** register holds the current capacity of the *burst buffer*, this is encoded in the first 10 bits of the register.
+The **bstatus** register holds the current capacity of the *burst buffer*, this is encoded in the first 10 bits of the register.
 
 ---
 

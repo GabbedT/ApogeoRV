@@ -11,3 +11,5 @@ Add empty in ROB and Commit buffer for fence and bring the status to issue stage
 Add stall on CSR operations.
 
 Add tag in store buffer
+
+Add misprediction logic
