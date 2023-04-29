@@ -16,6 +16,7 @@ module branch_predictor (
     /* Branch info */
     input data_word_t instr_address_i,
     input data_word_t branch_target_addr_i, 
+    input logic executed_i,
     input logic outcome_i,
     input logic branch_i,
     input logic jump_i,
@@ -37,6 +38,7 @@ module branch_predictor (
         .clk_i          ( clk_i           ),   
         .rst_n_i        ( rst_n_i         ),
         .predict_i      ( make_prediction ),
+        .executed_i     ( executed_i      ),
         .outcome_i      ( outcome_i       ),
         .index_i        ( predictor_index ),
         .prediction_o   ( prediction_o    ),
