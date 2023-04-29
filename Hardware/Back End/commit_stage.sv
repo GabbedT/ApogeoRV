@@ -13,6 +13,7 @@ module commit_stage (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
+    input logic stall_i,
     output logic stall_o,
 
     /* Result */
@@ -153,7 +154,7 @@ module commit_stage (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= BUFFER1;
-            end else begin
+            end else if (!stall_i) begin
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -181,14 +182,15 @@ module commit_stage (
 
                         /* If the buffer is not empty read the value */
                         pull_buffer[ITU] = 1'b1;
-                        rob_write_o = 1'b1;
+                        rob_write_o = !stall_i;
                         rob_entry_o = packet_convert(ipacket_read[ITU], result_read[ITU]);
                         rob_tag_o = ipacket_read[ITU].rob_tag;
                     end else begin
                         if (data_valid[ITU]) begin
                             /* Don't push the value and foward it */
                             push_buffer[ITU] = 1'b0;
-                            rob_write_o = 1'b1;
+
+                            rob_write_o = !stall_i;
                             rob_entry_o = packet_convert(ipacket_write[ITU], result_write[ITU]);
                             rob_tag_o = ipacket_write[ITU].rob_tag;
                         end
@@ -213,15 +215,16 @@ module commit_stage (
                         push_buffer[ITU] = data_valid[ITU];
 
                         /* If the buffer is not empty read the value */
-                        pull_buffer[LSU] = 1'b1;
-                        rob_write_o = 1'b1;
+                        pull_buffer[ITU] = 1'b1;
+                        rob_write_o = !stall_i;
                         rob_entry_o = packet_convert(ipacket_read[LSU], result_read[LSU]);
                         rob_tag_o = ipacket_read[LSU].rob_tag;
                     end else begin
                         if (data_valid_i[LSU]) begin
                             /* Don't push the value and foward it */
                             push_buffer[LSU] = 1'b0;
-                            rob_write_o = 1'b1;
+                            
+                            rob_write_o = !stall_i;
                             rob_entry_o = packet_convert(ipacket_i[LSU], result_i[LSU]);
                             rob_tag_o = ipacket_i[LSU].rob_tag;
                         end
