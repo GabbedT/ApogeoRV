@@ -77,12 +77,12 @@ module execution_unit (
      * Memory controller interface 
      */
 
-    load_controller_interface.master ld_ctrl_channel,
-    store_controller_interface.master st_ctrl_channel,
+    load_interface.master load_channel,
+    store_interface.master store_channel,
 
-    /* Controller idle */
-    input logic store_ctrl_idle_i,
-
+    /* Data cachable */
+    output logic store_cachable_o,
+    output logic load_cachable_o,
 
     /* 
      * Store buffer interface 
@@ -189,7 +189,6 @@ module execution_unit (
         .clk_i                   ( clk_i                   ),
         .rst_n_i                 ( rst_n_i                 ),
         .flush_i                 ( flush_i                 ),
-        .prv_level_i             ( current_privilege       ),
         .instr_packet_i          ( ipacket_i               ),
         .data_valid_i            ( data_valid_i.LSU        ),
         .address_i               ( operand_i[0]            ),
@@ -198,10 +197,11 @@ module execution_unit (
         .timer_interrupt_o       ( timer_interrupt         ),
         .ldu_idle_o              ( ldu_idle_o              ),
         .stu_idle_o              ( stu_idle_o              ),
-        .ld_ctrl_channel         ( ld_ctrl_channel         ),
-        .st_ctrl_channel         ( st_ctrl_channel         ),
-        .store_ctrl_idle_i       ( store_ctrl_idle_i       ),
-        .str_buf_channel         ( str_buf_channel          ),
+        .load_channel            ( load_channel            ),
+        .store_channel           ( store_channel           ),
+        .load_cachable_o         ( load_cachable_o         ),
+        .store_cachable_o        ( store_cachable_o        ),
+        .str_buf_channel         ( str_buf_channel         ),
         .str_buf_address_match_i ( str_buf_address_match_i ),
         .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
         .instr_packet_o          ( ipacket_o[LSU]          ),

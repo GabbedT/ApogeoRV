@@ -44,7 +44,6 @@
 
 `include "../../../Include/Packages/apogeo_pkg.sv"
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
 `include "../../../Include/Packages/Execution Unit/control_status_registers_pkg.sv"
 
 `include "../../../Include/Interfaces/memory_controller_interface.sv"
@@ -69,14 +68,14 @@ module load_unit (
     input ldu_uop_t operation_i,
 
     /* Memory controller load channel */
-    load_controller_interface.master ld_ctrl_channel,
+    load_interface.master load_channel,
 
     /* Store controller fowarding nets */
-    input logic       stu_address_match_i,
+    input logic stu_address_match_i,
     input data_word_t stu_fowarded_data_i,
 
     /* Store buffer fowarding nets */
-    input logic       str_buf_address_match_i,
+    input logic str_buf_address_match_i,
     input data_word_t str_buf_fowarded_data_i,
     
     /* Data loaded from memory */   
@@ -85,8 +84,8 @@ module load_unit (
     /* Functional unit status */
     output logic idle_o,
 
-    /* Privilege access error */
-    output logic illegal_access_o,
+    /* Data can be loaded from cache */
+    output logic cachable_o,
 
     /* Data is valid */
     output logic data_valid_o
@@ -97,19 +96,18 @@ module load_unit (
 //      DATAPATH
 //====================================================================================
 
-    logic timer_access, illegal_priv_access;
+    logic timer_access, cachable;
 
     assign timer_access = (load_address_i > (`TIMER_START - 1)) & (load_address_i < (`TIMER_END - 1));
 
-    /* Access IO in user mode is illegal */
-    assign illegal_priv_access = ((load_address_i > `TIMER_END - 1) & (load_address_i < `IO_END - 1)) & !prv_level_i;
-
+    assign cachable = (load_address_i > (`IO_END - 1));
 
     /* Load data from cache or memory */
-    data_word_t load_data_CRT, load_data_NXT;
+    data_word_t load_data_CRT, load_data_NXT; logic cachable_CRT, cachable_NXT;
 
         always_ff @(posedge clk_i) begin
             load_data_CRT <= load_data_NXT;
+            cachable_CRT <= cachable_NXT;
         end
 
 
@@ -139,7 +137,7 @@ module load_unit (
     /* During WAIT, load_data_CRT is the buffer data */
     data_word_t data_selected;
 
-    assign data_selected = match_CRT ? load_data_CRT : ld_ctrl_channel.data;
+    assign data_selected = match_CRT ? load_data_CRT : load_channel.data;
 
 
     /* Select a subword */
@@ -174,9 +172,6 @@ module load_unit (
                 end
             endcase
         end
-
-
-    assign ld_ctrl_channel.address = load_address_i;
     
 
 //====================================================================================
@@ -198,34 +193,31 @@ module load_unit (
 
         always_comb begin : fsm_logic
             /* Default values */
-            match_NXT = match_CRT;
             load_data_NXT = load_data_CRT;
+            cachable_NXT = cachable_CRT;
+            match_NXT = match_CRT;
             state_NXT = state_CRT;
 
-            ld_ctrl_channel.request = 1'b0;
+            load_channel.request = 1'b0;
+            load_channel.address = load_address; 
             
             idle_o = 1'b0;
             data_valid_o = 1'b0;
             data_loaded_o = '0;
-            illegal_access_o = 1'b0;
 
             case (state_CRT)
 
-                /* 
-                 *  The FSM stays idle until a valid operation
-                 *  is supplied to the unit. The data can be
-                 *  fowarded from store buffer or from the 
-                 *  store unit if it's waiting the store 
-                 *  controller. If no fowarding is done, the
-                 *  unit issue a load request
-                 */ 
+                /* The FSM stays idle until a valid operation *
+                 * is supplied to the unit. The data can be   *
+                 * fowarded from store buffer or from the     *
+                 * store unit if it's waiting the store       *
+                 * controller. If no fowarding is done, the   *
+                 * unit issue a load request                  */ 
                 IDLE: begin
                     idle_o = 1'b1;
+                    cachable_o = cachable;
                     
-                    if (illegal_priv_access) begin
-                        idle_o = 1'b0;
-                        illegal_access_o = 1'b1;
-                    end if (valid_operation_i) begin
+                    if (valid_operation_i) begin
                         state_NXT = WAIT;
                         idle_o = 1'b0;
 
@@ -239,19 +231,21 @@ module load_unit (
                             load_data_NXT = stu_fowarded_data_i;
                             match_NXT = 1'b1;
                         end else begin 
-                            ld_ctrl_channel.request = 1'b1;
+                            load_channel.request = 1'b1;
+                            cachable_NXT = cachable; 
                         end
                     end
+
+                    load_channel.address = load_address_i;
                 end
 
 
-                /* 
-                 *  Waits for memory to supply data, 
-                 */
+                /* Waits for memory to supply data */
                 WAIT: begin
-                    /* Valid signal is the OR between the signal from controller
-                     * and the signal from the memory interface */
-                    if (ld_ctrl_channel.valid | match_CRT) begin
+                    /* Valid signal is the OR between the signal from 
+                     * cache controller and the signal from the memory 
+                     * interface */
+                    if (load_channel.valid | match_CRT) begin
                         state_NXT = IDLE;
                         match_NXT = 1'b0;
 
@@ -261,6 +255,7 @@ module load_unit (
 
                     load_data_NXT = data_sliced;
                     data_loaded_o = data_sliced;
+                    cachable_o = cachable_CRT; 
                 end   
             endcase
         end : fsm_logic

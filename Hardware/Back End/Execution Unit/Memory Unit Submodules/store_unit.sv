@@ -30,9 +30,9 @@
 // VERSION : 1.0 
 // DESCRIPTION : This module communicates with the store buffer and the memory controller.
 //               If the address of the store indicates that the data to be stored is
-//               bufferable, then the store controller pushes the data inside the store
+//               cachable, then the store controller pushes the data inside the store
 //               buffer and then wait for the arbiter to accept the operation. If the 
-//               data is not bufferable the a store request is issued to the memory 
+//               data is not cachable then a store request is issued directly to the memory 
 //               controller. This has priority over any store request from the store 
 //               buffer.
 // --------------------------------------------------------------------------------------
@@ -45,7 +45,7 @@
 
 `include "../../../Include/Packages/apogeo_pkg.sv"
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
 `include "../../../Include/Interfaces/memory_controller_interface.sv"
 `include "../../../Include/Interfaces/store_buffer_interface.sv"
@@ -56,7 +56,6 @@ module store_unit (
     /* Register control */
     input logic clk_i,
     input logic rst_n_i,
-    input logic prv_level_i,
 
     /* Inputs are valid */
     input logic valid_operation_i,
@@ -77,8 +76,7 @@ module store_unit (
     store_buffer_push_interface.master str_buf_channel,
 
     /* Memory controller store channel */
-    store_controller_interface.master st_ctrl_channel,
-    input logic store_ctrl_idle_i,
+    store_interface.master store_channel,
 
     /* Write memory mapped timer */
     output logic timer_write_o,
@@ -89,6 +87,9 @@ module store_unit (
     /* Illegal memory access exception */
     output logic illegal_access_o,
 
+    /* Data can be stored in cache */
+    output logic cachable_o,
+
     /* Data is valid */
     output logic data_valid_o
 );
@@ -98,16 +99,17 @@ module store_unit (
 //====================================================================================
 
     /* Check address properties to determine the operation */
-    logic bufferable, accessable, timer_access;
+    logic cachable, accessable, timer_access;
     
     assign timer_access = (store_address_i > (`TIMER_START - 1)) & (store_address_i < (`TIMER_END - 1));
 
-    /* If not bufferable the data has priority over other entries in queue */
-    assign bufferable = store_address_i > (`IO_END - 1);
 
-    /* Legal access to the memory region: cannot write into boot region, access to IO is enabled only by M mode instruction 
-     * except for timer access */
-    assign accessable = (store_address_i > (`BOOT_END - 1)) & ((((store_address_i > `TIMER_END - 1) & (store_address_i < `IO_END - 1)) & prv_level_i) | timer_access);
+    /* If not cachable the data must skip the store buffer */
+    assign cachable = store_address_i > (`IO_END - 1);
+
+
+    /* Legal access to the memory region: cannot write into boot region */
+    assign accessable = (store_address_i > (`BOOT_END - 1));
 
     logic accessable_CRT, accessable_NXT;
 
@@ -167,12 +169,13 @@ module store_unit (
             str_buf_channel.push_request = 1'b0;
             str_buf_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
-            st_ctrl_channel.request = 1'b0;
-            st_ctrl_channel.data = store_data_CRT;
-            st_ctrl_channel.address = store_address_CRT;
-            st_ctrl_channel.width = store_width_CRT;
+            store_channel.request = 1'b0;
+            store_channel.data = store_data_CRT;
+            store_channel.address = store_address_CRT;
+            store_channel.width = store_width_CRT;
 
             idle_o = 1'b0;
+            cachable_o = 1'b1;
             data_valid_o = 1'b0;
             timer_write_o = 1'b0;
 
@@ -180,6 +183,7 @@ module store_unit (
 
                 IDLE: begin
                     idle_o = 1'b1;
+                    cachable_o = cachable;
 
                     if (valid_operation_i) begin
                         idle_o = 1'b0;
@@ -187,7 +191,7 @@ module store_unit (
                         if (timer_access) begin
                             timer_write_o = 1'b1;
                         end else begin 
-                            casez ({accessable, bufferable})
+                            casez ({accessable, cachable_o})
                                 2'b0?: begin
                                     state_NXT = WAIT_ACCEPT;
 
@@ -215,10 +219,7 @@ module store_unit (
 
                                 2'b10: begin
                                     state_NXT = WAIT_MEMORY;
-                                    
-                                    if (store_ctrl_idle_i) begin
-                                        st_ctrl_channel.request = 1'b1;
-                                    end
+                                    store_channel.request = 1'b1;
 
                                     `ifdef TEST_DESIGN
                                         $display("[Store Unit][%0t] Waiting memory store...", $time());
@@ -237,14 +238,14 @@ module store_unit (
 
                     str_buf_channel.packet = {store_data_i, store_address_i, store_width_t'(operation_i)};
 
-                    st_ctrl_channel.data = store_data_i;
-                    st_ctrl_channel.address = store_address_i;
-                    st_ctrl_channel.width = store_width_t'(operation_i);
+                    store_channel.data = store_data_i;
+                    store_channel.address = store_address_i;
+                    store_channel.width = store_width_t'(operation_i);
                 end
 
 
                 WAIT_MEMORY: begin
-                    if (st_ctrl_channel.done) begin 
+                    if (store_channel.done) begin 
                         data_valid_o = 1'b1;
 
                         if (data_accepted_i) begin
@@ -268,7 +269,8 @@ module store_unit (
                         `endif
                     end
 
-                    st_ctrl_channel.request = store_ctrl_idle_i;
+                    store_channel.request = !store_channel.done;
+                    cachable_o = 1'b0;
                 end
 
 

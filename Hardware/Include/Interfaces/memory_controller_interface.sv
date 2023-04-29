@@ -6,26 +6,11 @@
 `include "../Packages/apogeo_pkg.sv"
 `include "../Packages/Execution Unit/load_store_unit_pkg.sv"
 
-
-/* 
- * Main interface that groups all the channels 
- */
-interface memory_controller_interface();
-
-    /* Load channel */
-    load_controller_interface load();
-
-    /* Store channel */
-    store_controller_interface store();
-
-endinterface : memory_controller_interface
-
-
 /* 
  * Subinterface that holds all the signals for
  * the load controller channel 
  */
-interface load_controller_interface();
+interface load_interface();
 
 //=========================================================
 //      NETS 
@@ -64,14 +49,14 @@ interface load_controller_interface();
         output valid
     );
 
-endinterface : load_controller_interface
+endinterface : load_interface
 
 
 /* 
  * Subinterface that holds all the signals for
  * the store controller channel 
  */
-interface store_controller_interface();
+interface store_interface();
 
 //=========================================================
 //      NETS 
@@ -111,6 +96,6 @@ interface store_controller_interface();
         output done
     ); 
 
-endinterface : store_controller_interface
+endinterface : store_interface
 
 `endif 

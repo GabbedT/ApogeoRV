@@ -30,7 +30,15 @@
 // VERSION : 1.0 
 // DESCRIPTION : This module manages the arbitration of the memory units, the load unit
 //               has priority over the store unit because, the loaded value might 
-//               be needed immediately, while the stored value is not. 
+//               be needed immediately, while the stored value is not. For the loads  
+//               this module communicate directly with the cache and with the memory 
+//               controller, for the stores it communicate with the store buffer 
+//               (connected with the cache) and with the memory controller.
+//               The bit `cachable` is sent to not access the cache and to multiplex
+//               the operation issued by the cache and the operation issued by the 
+//               load / store unit.
+//               Inside this module there's also a memory mapped timer defined by the
+//               RISCV specifications.
 // ------------------------------------------------------------------------------------
 
 `ifndef LOAD_STORE_UNIT_SV
@@ -53,7 +61,6 @@ module load_store_unit (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
-    input logic prv_level_i,
 
     /* Instruction packet */
     input instr_packet_t instr_packet_i,
@@ -80,11 +87,13 @@ module load_store_unit (
      * Memory controller interface 
      */
 
-    load_controller_interface.master ld_ctrl_channel,
-    store_controller_interface.master st_ctrl_channel,
+    load_interface.master load_channel,
+    store_interface.master store_channel,
 
-    /* Controller idle */
-    input logic store_ctrl_idle_i,
+    /* Data cachable */
+    output logic store_cachable_o,
+    output logic load_cachable_o,
+
 
     /* 
      * Store buffer interface 
@@ -94,7 +103,7 @@ module load_store_unit (
     store_buffer_push_interface.master str_buf_channel,
 
     /* Store buffer fowarding nets */
-    input logic       str_buf_address_match_i,
+    input logic str_buf_address_match_i,
     input data_word_t str_buf_fowarded_data_i,
 
 
@@ -120,24 +129,23 @@ module load_store_unit (
     logic stu_data_accepted, stu_illegal_access, stu_data_valid, stu_timer_write;
 
     store_unit stu (
-        .clk_i             ( clk_i                      ),
-        .rst_n_i           ( rst_n_i                    ),
-        .prv_level_i       ( prv_level_i                ),
-        .valid_operation_i ( data_valid_i.STU           ),
-        .store_data_i      ( data_i                     ),
-        .store_address_i   ( address_i                  ),
-        .operation_i       ( operation_i.STU.opcode     ),
-        .data_accepted_i   ( stu_data_accepted          ),
+        .clk_i             ( clk_i                  ),
+        .rst_n_i           ( rst_n_i                ),
+        .valid_operation_i ( data_valid_i.STU       ),
+        .store_data_i      ( data_i                 ),
+        .store_address_i   ( address_i              ),
+        .operation_i       ( operation_i.STU.opcode ),
+        .data_accepted_i   ( stu_data_accepted      ),
 
         .str_buf_channel ( str_buf_channel ),
 
-        .st_ctrl_channel   ( st_ctrl_channel   ),
-        .store_ctrl_idle_i ( store_ctrl_idle_i ),
+        .store_channel ( store_channel ),
 
         .timer_write_o ( stu_timer_write ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
+        .cachable_o       ( store_cachable_o   ), 
         .data_valid_o     ( stu_data_valid     )
     );
 
@@ -171,19 +179,18 @@ module load_store_unit (
 
     logic address_match;
 
-    assign address_match = (st_ctrl_channel.address == address_i) & !stu_idle_o;
+    assign address_match = (store_channel.address == address_i) & !stu_idle_o;
 
     load_unit ldu (
         .clk_i             ( clk_i                  ),
         .rst_n_i           ( rst_n_i                ),
-        .prv_level_i       ( prv_level_i            ),
         .valid_operation_i ( data_valid_i.LDU       ),
         .load_address_i    ( address_i              ),
         .operation_i       ( operation_i.LDU.opcode ),
         
         .timer_data_i ( timer_data ),
 
-        .ld_ctrl_channel ( ld_ctrl_channel ),
+        .load_channel ( load_channel ),
 
         .stu_address_match_i ( address_match ),
         .stu_fowarded_data_i ( data_i        ),
@@ -191,28 +198,19 @@ module load_store_unit (
         .str_buf_address_match_i ( str_buf_address_match_i ),
         .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
 
-        .data_loaded_o    ( loaded_data        ),
-        .idle_o           ( ldu_idle_o         ),
-        .data_valid_o     ( ldu_data_valid     ),
-        .illegal_access_o ( ldu_illegal_access )
+        .data_loaded_o    ( loaded_data     ),
+        .cachable_o       ( load_cachable_o ),
+        .idle_o           ( ldu_idle_o      ),
+        .data_valid_o     ( ldu_data_valid  ) 
     ); 
 
-    instr_packet_t ldu_ipacket, ldu_exception_packet;
-
-        always_comb begin
-            ldu_exception_packet = instr_packet_i;
-
-            if (ldu_illegal_access) begin
-                ldu_exception_packet.exception_vector = `LOAD_ACCESS_FAULT;
-                ldu_exception_packet.exception_generated = 1'b1;
-            end
-        end
+    instr_packet_t ldu_ipacket;
 
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
                 ldu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.LDU) begin
-                ldu_ipacket <= ldu_exception_packet;
+                ldu_ipacket <= instr_packet_i;
             end
         end
     
@@ -225,12 +223,12 @@ module load_store_unit (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
 
-        .write_i         ( stu_timer_write              ),
-        .write_data_i    ( st_ctrl_channel.data         ),
-        .write_address_i ( st_ctrl_channel.address[1:0] ),
+        .write_i         ( stu_timer_write            ),
+        .write_data_i    ( store_channel.data         ),
+        .write_address_i ( store_channel.address[1:0] ),
 
-        .read_address_i ( ld_ctrl_channel.address[1:0] ),
-        .read_data_o    ( timer_data                   ),
+        .read_address_i ( load_channel.address[1:0] ),
+        .read_data_o    ( timer_data                ),
 
         .timer_interrupt_o ( timer_interrupt_o )
     );

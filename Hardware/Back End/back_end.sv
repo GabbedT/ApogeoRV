@@ -48,9 +48,10 @@ module back_end (
     output logic branch_outcome_o,
 
     /* Memory interface */
-    load_controller_interface.master ld_ctrl_channel,
-    store_controller_interface.master st_ctrl_channel,
-    input logic store_ctrl_idle_i,
+    load_interface.master load_channel,
+    store_interface.master store_channel,
+    output logic store_cachable_o,
+    output logic load_cachable_o,
 
     /* Store buffer interface */
     store_buffer_push_interface.master str_buf_channel,
@@ -80,6 +81,9 @@ module back_end (
     output logic div_idle_o,
     output logic ldu_idle_o,
     output logic stu_idle_o,
+
+    /* Sleep */
+    output logic core_sleep_o,
 
     /* Writeback data */
     output logic [4:0] reg_destination_o,
@@ -121,7 +125,7 @@ module back_end (
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
-            end else begin
+            end else if (!core_sleep_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
@@ -135,10 +139,12 @@ module back_end (
     data_word_t bypass_branch_address;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
-            bypass_ipacket <= ipacket_i;
-            bypass_operation <= operation_i;
-            bypass_operands <= fowarded_operands;
-            bypass_branch_address <= branch_address_i;
+            if (!core_sleep_o) begin 
+                bypass_ipacket <= ipacket_i;
+                bypass_operation <= operation_i;
+                bypass_operands <= fowarded_operands;
+                bypass_branch_address <= branch_address_i;
+            end 
         end : bypass_operands_stage_register
 
 
@@ -164,11 +170,11 @@ module back_end (
     logic stall_pipeline, buffer_full;
     logic wait_handling, handler_return;
 
-    execution_unit execution (
-        .clk_i   ( clk_i                        ),
-        .rst_n_i ( rst_n_i                      ),
-        .flush_i ( flush_pipeline               ),
-        .stall_i ( stall_pipeline | buffer_full ),
+    execution_unit execute_stage (
+        .clk_i   ( clk_i                                       ),
+        .rst_n_i ( rst_n_i                                     ),
+        .flush_i ( flush_pipeline                              ),
+        .stall_i ( stall_pipeline | buffer_full | core_sleep_o ),
 
         .operand_i    ( bypass_operands   ),
         .data_valid_i ( bypass_valid      ),
@@ -177,9 +183,10 @@ module back_end (
 
         .branch_i     ( bypass_branch     ),
 
-        .ld_ctrl_channel   ( ld_ctrl_channel   ),
-        .st_ctrl_channel   ( st_ctrl_channel   ),
-        .store_ctrl_idle_i ( store_ctrl_idle_i ),
+        .load_channel     ( load_channel     ),
+        .store_channel    ( store_channel    ),
+        .load_cachable_o  ( load_cachable_o  ),
+        .store_cachable_o ( store_cachable_o ),
 
         .str_buf_channel         ( str_buf_channel         ),
         .str_buf_address_match_i ( str_buf_address_match_i ),
@@ -226,14 +233,16 @@ module back_end (
             end else if (flush_pipeline) begin 
                 packet_commit <= {NO_OPERATION, NO_OPERATION, NO_OPERATION};
                 valid_commit <= '0;
-            end else begin
+            end else if (!core_sleep_o) begin
                 packet_commit <= ipacket;
                 valid_commit <= valid;
             end
         end : commit_stage_register
 
         always_ff @(posedge clk_i) begin : commit_result_register
-            result_commit <= result;
+            if (!core_sleep_o) begin 
+                result_commit <= result;
+            end
         end : commit_result_register
 
 
@@ -249,6 +258,7 @@ module back_end (
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_pipeline ),
+        .stall_i ( core_sleep_o   ),
         .stall_o ( buffer_full    ),
 
         .result_i     ( result_commit ),
@@ -333,6 +343,8 @@ module back_end (
 
     assign flush_o = flush_pipeline;
     assign stall_o = stall_pipeline | buffer_full;
+
+    assign core_sleep_o = core_sleep;
 
     assign reorder_buffer_clear = flush_pipeline;
 
