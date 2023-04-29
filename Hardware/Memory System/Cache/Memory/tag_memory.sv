@@ -28,71 +28,57 @@
 // --------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : The tag memory holds the last address bits. Tag is later used when cache
-//               is accessed to determine if the access is an hit or a miss. The memory
-//               block has two ports: one read only and the other one both read and write
+// DESCRIPTION : The tag memory holds the address bits not used to index the cache. Tag 
+//               is later used when cache is accessed to determine if the access is an 
+//               hit or a miss. The memory block has two read ports and one write port. 
+//               All the ports are syncronous
 // --------------------------------------------------------------------------------------
 
-`ifndef DATA_TAG_MEMORY_SV
-    `define DATA_TAG_MEMORY_SV
+`ifndef TAG_MEMORY_SV
+    `define TAG_MEMORY_SV
 
-`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+module tag_memory #(
+    /* Cache address */
+    parameter ADDR_WIDTH = 32, 
 
-module data_tag_memory (
+    /* Tag size for hit check */
+    parameter TAG_SIZE = 32
+) (
     input logic clk_i,
 
-    /* 
-     * Port 0 (R / W) interface 
-     */
+    /* Write port */ 
+    input logic [ADDR_WIDTH - 1:0] read_write_address_i,
+    input logic [TAG_SIZE - 1:0] write_tag_i,
+    input logic write_i,
 
-    /* Read / Write address */
-    input data_cache_index_t port0_address_i,
-
-    /* Data to write */
-    input logic [TAG_SIZE - 1:0] port0_tag_i,
-
-    /* Read / Write request */
-    input logic port0_write_i,
-    input logic port0_read_i,
-
-    /* Data read */
-    output logic [TAG_SIZE - 1:0] port0_tag_o,
-
-    /* 
-     * Port 1 (R) interface 
-     */
-
-    /* Read address */
-    input data_cache_index_t port1_address_i,
-
-    /* Read request */
-    input logic port1_read_i, 
-
-    /* Data read */
-    output logic [TAG_SIZE - 1:0] port1_tag_o
+    /* Read ports */
+    input logic [1:0] read_i,
+    input logic [ADDR_WIDTH - 1:0] read_address_i,
+    output logic [1:0][TAG_SIZE - 1:0] read_tag_o
 );
 
-//----------//
-//  MEMORY  //
-//----------//
+//====================================================================================
+//      MEMORY
+//====================================================================================
 
-    logic [TAG_SIZE - 1:0] tag_memory [CACHE_DEPTH - 1:0];
+    localparam CACHE_DEPTH = 2 ** ADDR_WIDTH;
 
-        always_ff @(posedge clk_i) begin : tag_memory_port0
-            if (port0_write_i) begin
-                tag_memory[port0_address_i] <= port0_tag_i;
-            end else if (port0_read_i) begin
-                port0_tag_o <= tag_memory[port0_address_i];
+    logic [TAG_SIZE - 1:0] memory [CACHE_DEPTH - 1:0];
+
+        always_ff @(posedge clk_i) begin : read_write_port
+            if (write_i) begin
+                memory[read_write_address_i] <= write_tag_i;
+            end else if (read_i[0]) begin
+                read_tag_o[0] <= memory[read_write_address_i];
             end
-        end : tag_memory_port0
+        end : read_write_port
 
-        always_ff @(posedge clk_i) begin : tag_memory_port1
-            if (port1_read_i) begin
-                port1_tag_o <= tag_memory[port1_address_i];
-            end
-        end : tag_memory_port1
+        always_ff @(posedge clk_i) begin : read_port
+            if (read_i[1]) begin  
+                read_tag_o[1] = memory[read_address_i];
+            end 
+        end : read_port
 
-
-endmodule : data_tag_memory
+endmodule : tag_memory
 
 `endif 

@@ -21,85 +21,68 @@
 // SOFTWARE.
 // ------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------
-// FILE NAME : data_memory_bank.sv
+// FILE NAME : data_bank.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
 // ------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : Memory bank for data cache which compose a slice of the cache block
-//               in a way. The memory has 2 ports, one read only (for load unit), the
-//               other one is write only (for store unit).
+// DESCRIPTION : Memory bank for data cache which composes a slice of the cache block
+//               The memory has 2 ports, one read only (for loads), the other one
+//               is write only (for stores).
 //               Since RISCV support store of byte multiples (byte, half-word, word)
 //               the memory has a signal to enable the bytes to write.
 //               Both reads and writes happens on the positive edge of the clock.
-//               Parameters for memory size and net size are defined into 
-//               `data_memory_pkg.sv`
 // ------------------------------------------------------------------------------------
 
-`ifndef DATA_MEMORY_BANK_SV
-    `define DATA_MEMORY_BANK_SV
+`ifndef DATA_BANK_SV
+    `define DATA_BANK_SV
 
-`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
 
-module data_memory_bank (
+module data_bank #(
+    /* Cache address */
+    parameter ADDR_WIDTH = 32
+) (
     input logic clk_i,
 
-    /* 
-     * Port 0 (W) interface 
-     */
+    /* Write port */
+    input logic [3:0] byte_write_i,
+    input logic [ADDR_WIDTH - 1:0] write_address_i,
+    input data_word_t write_data_i,
+    input logic write_i,
 
-    /* Byte write select */
-    input data_cache_byte_write_t port0_byte_write_i,
-
-    /* Write address */
-    input data_cache_index_t port0_address_i,
-
-    /* Data to write */
-    input data_cache_data_t port0_data_i,
-
-    /* Write request */
-    input logic port0_write_i,
-
-    /* 
-     * Port 1 (R) interface 
-     */
-
-    /* Read address */
-    input data_cache_index_t port1_address_i,
-
-    /* Read request */
-    input logic port1_read_i,  
-
-    /* Data read */        
-    output data_cache_data_t port1_data_o
+    /* Read port */
+    input logic [ADDR_WIDTH - 1:0] read_address_i,
+    input logic read_i,  
+    output data_word_t read_data_o
 );
 
-//----------//
-//  MEMORY  //
-//----------//
+//====================================================================================
+//      MEMORY
+//====================================================================================
 
-    logic [PORT_WIDTH - 1:0] data_cache [CACHE_DEPTH - 1:0];
+    localparam CACHE_DEPTH = 2 ** ADDR_WIDTH;
 
-    localparam BYTE_WIDTH = 8;
+    logic [31:0] bank_memory [CACHE_DEPTH - 1:0];
 
-        always_ff @(posedge clk_i) begin : bank_port0
-            if (port0_write_i) begin 
-                for (int i = 0; i < PORT_BYTES; ++i) begin : byte_write_logic
-                    if (port0_byte_write_i[i]) begin
-                        data_cache[port0_address_i][i * BYTE_WIDTH +: BYTE_WIDTH] <= port0_data_i[i * BYTE_WIDTH +: BYTE_WIDTH];
+        always_ff @(posedge clk_i) begin : bank_write_port
+            if (write_i) begin 
+                for (int i = 0; i < 4; ++i) begin : byte_write_logic
+                    if (byte_write_i[i]) begin
+                        bank_memory[write_address_i][(i * 8)+:8] <= write_data_i[(i * 8)+:8];
                     end
                 end : byte_write_logic
             end
-        end : bank_port0
+        end : bank_write_port
 
-        always_ff @(posedge clk_i) begin : bank_port1
-            if (port1_read_i) begin 
-                port1_data_o <= data_cache[port1_address_i];
+        always_ff @(posedge clk_i) begin : bank_read_port
+            if (read_i) begin 
+                read_data_o <= bank_memory[read_address_i];
             end 
-        end : bank_port1
+        end : bank_read_port
 
-endmodule : data_memory_bank
+endmodule : data_bank
 
 `endif 

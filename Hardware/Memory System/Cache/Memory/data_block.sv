@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : data_cache_block.sv
+// FILE NAME : data_block.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -36,114 +36,100 @@
 //               bank have byte write
 // --------------------------------------------------------------------------------------
 
-`ifndef DATA_CACHE_BLOCK_SV
-    `define DATA_CACHE_BLOCK_SV
+`ifndef DATA_BLOCK_SV
+    `define DATA_BLOCK_SV
 
-`include "data_memory_bank.sv"
+`include "data_bank.sv"
 
-`include "../../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
 
-module data_cache_block (
+module data_block #(
+    /* Cache address */
+    parameter ADDR_WIDTH = 32,
+
+    /* Bank number */
+    parameter BANK_ADDRESS = 4
+) (
     input logic clk_i,
 
-    /* 
-     * Port 0 (W) interface 
-     */
-    
-    /* Byte write select */
-    input data_cache_byte_write_t port0_byte_write_i,
+    /* Write port */
+    input logic [BANK_ADDRESS - 1:0] write_bank_i,
+    input logic [ADDR_WIDTH - 1:0] write_address_i,
+    input logic [3:0] byte_write_i,
+    input logic write_i,
+    input data_word_t write_data_i,
 
-    /* Select the data memory bank */
-    input bank_select_t port0_bank_select_i,
-
-    /* Write address */
-    input data_cache_index_t port0_address_i,
-
-    /* Write request */
-    input logic port0_write_i,
-
-    /* Data write */
-    input data_cache_data_t port0_data_i,
-
-    /* 
-     * Port 1 (R) interface 
-     */
-    
-    /* Select the data memory bank */
-    input bank_select_t port1_bank_select_i,
-
-    /* Read address */
-    input data_cache_index_t port1_address_i,
-
-    /* Read request */
-    input logic port1_read_i,
-
-    /* Data read */
-    output data_cache_data_t port1_data_o
+    /* Read port */
+    input logic [BANK_ADDRESS - 1:0] read_bank_i,
+    input logic [ADDR_WIDTH - 1:0] read_address_i,
+    input logic read_i,
+    output data_word_t read_data_o
 );
 
-//----------------//
-//  DECODE LOGIC  //
-//----------------//
+//====================================================================================
+//      DECODE LOGIC
+//====================================================================================
 
-    logic [CACHE_CHIP - 1:0] port0_enable, port1_enable;
+    localparam BANK_NUMBER = 2 ** BANK_ADDRESS;
+
+    logic [BANK_NUMBER - 1:0] write_enable, read_enable;
 
         always_comb begin 
             /* Default values */
-            port0_enable = 'b0;
-            port1_enable = 'b0;
+            write_enable = 'b0;
+            read_enable = 'b0;
 
-            for (int i = 0; i < CACHE_CHIP; ++i) begin : decode_logic
-                if (port0_bank_select_i == i) begin
-                    port0_enable[i] = 1'b1;
+            for (int i = 0; i < BANK_NUMBER; ++i) begin : decode_logic
+                if (write_bank_i == i) begin
+                    write_enable[i] = 1'b1;
                 end
 
-                if (port1_bank_select_i == i) begin
-                    port1_enable[i] = 1'b1;
+                if (read_bank_i == i) begin
+                    read_enable[i] = 1'b1;
                 end
             end : decode_logic
         end
 
 
-//----------//
-//  MEMORY  //
-//----------//
+//====================================================================================
+//      MEMORY
+//====================================================================================
 
     /* Memory chip output data */
-    logic [CACHE_CHIP - 1:0][PORT_WIDTH - 1:0] port1_data_read;
+    logic [BANK_NUMBER - 1:0][31:0] read_data;
 
     genvar i;
 
     /* Generate N chip of 32 bit wide to match the block width */
     generate
-        for (i = 0; i < CACHE_CHIP; ++i) begin
-            data_memory_bank data_cache_block_bank (
-                .clk_i              ( clk_i                           ),
+        for (i = 0; i < BANK_NUMBER; ++i) begin
+            data_bank #(ADDR_WIDTH) cache_block_bank (
+                .clk_i ( clk_i ),
 
                 /* Port 0 (R / W) interface */
-                .port0_byte_write_i ( port0_byte_write_i              ),
-                .port0_address_i    ( port0_address_i                 ),
-                .port0_data_i       ( port0_data_i                    ),
-                .port0_write_i      ( port0_write_i & port0_enable[i] ),
+                .byte_write_i    ( byte_write_i              ),
+                .write_address_i ( write_address_i           ),
+                .write_data_i    ( write_data_i              ),
+                .write_i         ( write_i & write_enable[i] ),
 
                 /* Port 1 (R) interface */
-                .port1_address_i    ( port1_address_i                 ),
-                .port1_data_o       ( port1_data_read[i]              ),
-                .port1_read_i       ( port1_read_i & port1_enable[i]  )  
+                .read_address_i ( read_address_i          ),
+                .read_i         ( read_i & read_enable[i] ),
+                .read_data_o    ( read_data[i]            ) 
             );
         end
     endgenerate
 
     /* Since data arrives after 1 clock cycle, the active chip address needs to be stored */
-    logic [CHIP_ADDR - 1:0] port1_read_data_select;
+    logic [$clog2(BANK_NUMBER) - 1:0] data_select;
 
         always_ff @(posedge clk_i) begin
-            port1_read_data_select <= port1_bank_select_i;
+            data_select <= read_bank_i;
         end
 
     /* Output assignment */
-    assign port1_data_o = port1_data_read[port1_read_data_select];
+    assign read_data_o = read_data[data_select];
 
-endmodule : data_cache_block
+endmodule : data_block
 
 `endif 
