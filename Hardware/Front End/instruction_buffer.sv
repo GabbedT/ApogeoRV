@@ -6,7 +6,7 @@
 module instruction_buffer #(
     /* The request get issued when the size of the
      * buffer reach this limit */
-    parameter REQUEST_LIMIT = 3
+    parameter REQUEST_LIMIT = 1
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -15,7 +15,8 @@ module instruction_buffer #(
 
     /* Bundle coming from instruction cache / memory controller */
     input logic [`IBUFFER_SIZE - 1:0][31:0] instr_bundle_i,
-    input logic valid_i,
+    input logic [$clog2(2 * `IBUFFER_SIZE):0] bundle_size_i,
+    input logic load_i,
 
     /* Instruction is compressed or not, determine the lenght
      * of the shift */
@@ -38,18 +39,17 @@ module instruction_buffer #(
 
     /* The buffer size counter consider the number of compressed instructions, while the
      * bundle size consider the number of 32 bit instructions */
-    logic load_bundle;
-    logic [$clog2(2 * `IBUFFER_SIZE) - 1:0] buffer_size; 
+    logic [$clog2(2 * `IBUFFER_SIZE):0] buffer_size; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : size_counter
             if (!rst_n_i) begin
                 buffer_size <= '0;
             end else if (flush_i) begin
                 buffer_size <= '0;
-            end else if (load_bundle) begin
+            end else if (load_i) begin
                 /* Buffer is now full */
-                buffer_size <= '1;
-            end else if (!stall_i) begin
+                buffer_size <= bundle_size_i;
+            end else if (!stall_i & (buffer_size != '0)) begin
                 if (compressed_i) begin
                     buffer_size <= buffer_size - 'd1;
                 end else begin
@@ -61,8 +61,6 @@ module instruction_buffer #(
     assign buffer_empty_o = (buffer_size == '0);
     assign instr_request_o = (buffer_size <= REQUEST_LIMIT);
 
-    assign load_bundle = valid_i & instr_request_o;
-
 
 //====================================================================================
 //      BUFFER MEMORY
@@ -71,7 +69,7 @@ module instruction_buffer #(
     logic [`IBUFFER_SIZE - 1:0][1:0][15:0] instruction_buffer;
 
         always_ff @(posedge clk_i) begin : instruction_buffer_logic
-            if (load_bundle) begin
+            if (load_i) begin
                 for (int i = 0; i < `IBUFFER_SIZE; ++i) begin 
                     instruction_buffer[i] <= instr_bundle_i[i];
                 end

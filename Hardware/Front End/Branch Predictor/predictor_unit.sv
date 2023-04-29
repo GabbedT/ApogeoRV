@@ -11,6 +11,7 @@ module predictor_unit #(
     input logic predict_i,
 
     /* Branch info */
+    input logic executed_i,
     input logic outcome_i,
 
     /* Branch target address */
@@ -88,7 +89,7 @@ module predictor_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 branch_history_table <= '0;
-            end else if (predict_i) begin
+            end else if (executed_i) begin
                 branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 1:1], outcome_i};
             end
         end 
@@ -115,10 +116,13 @@ module predictor_unit #(
             end
 
             /* Mispredicted if different */
-            mispredicted_o = outcome_i ^ fifo_read_data.prediction; 
+            mispredicted_o = (outcome_i ^ fifo_read_data.prediction) & executed_i; 
         end
 
-    assign pull = predict_i; assign write = predict_i;
+    /* Read FIFO and update branch status when it has been executed and 
+     * its condition evaluated */
+     
+    assign pull = executed_i; assign write = executed_i;
 
     /* If high bit of the status is set then prediction is taken */
     assign prediction_o = branch_status_read[1][1];
@@ -133,7 +137,7 @@ module predictor_unit #(
     logic [1:0] predictor_table [1:0][0:TABLE_SIZE - 1]; 
 
         always_ff @(posedge clk_i) begin : table_write_port
-            if (push) begin
+            if (write) begin
                 /* Push data */
                 predictor_table[0][fifo_read_data.index] <= branch_status_write;
                 predictor_table[1][fifo_read_data.index] <= branch_status_write;
