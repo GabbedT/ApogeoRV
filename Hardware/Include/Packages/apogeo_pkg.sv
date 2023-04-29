@@ -42,16 +42,6 @@ package rv32_instructions_pkg;
         logic [3:0][7:0] word8;
     } data_word_t;
 
-    /* Register file address */
-    typedef struct packed {
-        /* Select between integer and floating 
-         * point register file */
-        enum logic {INT, FLOAT} reg_type;
-
-        /* Register address */
-        logic [4:0] index;
-    } regfile_address_t;
-
 
 //====================================================================================
 //      INSTRUCTION PACKET
