@@ -33,7 +33,7 @@ module front_end (
     input logic executed_i,
     input logic branch_i,
     input logic jump_i,
-    input logic outcome_i,
+    input logic taken_i,
     input data_word_t branch_target_addr_i,
     input data_word_t instr_address_i,
 
@@ -41,6 +41,10 @@ module front_end (
     input logic writeback_i,
     input logic [4:0] writeback_register_i, 
     input data_word_t writeback_data_i,
+
+    /* LSU status */
+    input logic ldu_idle_i,
+    input logic stu_idle_i,
 
     /* To backend */
     output logic compressed_o,
@@ -58,7 +62,7 @@ module front_end (
 //====================================================================================
 
     /* The program counter points at the head of the instruction buffer */
-    data_word_t program_counter, branch_target_address; logic branch_buffer_hit, compressed, buffer_empty, request, block_pc;
+    data_word_t program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, buffer_empty, block_pc;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
@@ -70,7 +74,7 @@ module front_end (
                     program_counter <= handler_pc_i; 
                 end else if (mispredicted) begin
                     /* Recover PC from misprediction */
-                    if (outcome_i) begin
+                    if (taken_i) begin
                         program_counter <= branch_target_addr_i;
                     end else begin
                         program_counter <= compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
@@ -100,7 +104,7 @@ module front_end (
         .instr_address_i      ( instr_address_i       ),
         .branch_target_addr_i ( branch_target_addr_i  ), 
         .executed_i           ( executed_i            ),
-        .outcome_i            ( outcome_i             ),
+        .taken_i              ( taken_i               ),
         .branch_i             ( branch_i              ),
         .jump_i               ( jump_i                ),
         .branch_target_addr_o ( branch_target_address ),
@@ -138,14 +142,14 @@ module front_end (
 //      INSTRUCTION FETCH STAGE
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_OUTCOME, WAIT_MEMORY} fsm_states_t; 
+    typedef enum logic [1:0] {IDLE, WAIT_OUTCOME, CACHE_OUTCOME, WAIT_MEMORY} fsm_states_t; 
 
     fsm_states_t state_CRT, state_NXT; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= IDLE;
-            end else if (!stall & !stall_i) begin
+            end else begin
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -159,10 +163,11 @@ module front_end (
 
             block_pc = 1'b0; 
             inject_nop = 1'b0; 
+            load_buffer = 1'b0;
 
-            icache_channel.access = request & !icache_channel.hit;
-            icache_channel.request = request;
-            icache_channel.address = request ? next_program_counter : pcgen_branch_address; 
+            icache_channel.access = 1'b0;
+            icache_channel.request = 1'b0;
+            icache_channel.address = '0; 
 
             case (state_CRT)
 
@@ -176,34 +181,49 @@ module front_end (
                  *  */ 
                 IDLE: begin
                     if (pcgen_mispredicted) begin
+                        state_NXT = CACHE_OUTCOME;
+
                         icache_channel.request = 1'b1; 
 
-                        if (!icache_channel.hit) begin
-                            state_NXT = WAIT_MEMORY; 
-
-                            block_pc = 1'b1;
-                        end
-
-                        if (outcome_i) begin 
+                        if (taken_i) begin 
                             /* If it was taken load the BTA */
                             icache_channel.address = branch_target_addr_i; 
                         end else begin
                             /* If it was not taken, continue from the next instruction */
                             icache_channel.address = compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
                         end
-                    end else if (pcgen_branch_hit) begin
-                        if (pcgen_prediction) begin
-                            /* Predict taken */
-                            icache_channel.request = 1'b1; 
-                            icache_channel.address = pcgen_branch_address;
+                    end else if (pcgen_branch_hit & pcgen_prediction) begin
+                        state_NXT = CACHE_OUTCOME;
 
-                            if (!icache_channel.hit) begin
-                                state_NXT = WAIT_OUTCOME;
+                        /* Predict taken */
+                        icache_channel.request = 1'b1; 
+                        icache_channel.address = pcgen_branch_address;
+                    end else if (instr_request) begin
+                        state_NXT = CACHE_OUTCOME;
 
-                                block_pc = 1'b1; 
-                            end
-                        end 
-                    end 
+                        icache_channel.request = 1'b1; 
+
+                        /* Next instruction */
+                        icache_channel.address = compressed_i ? (program_counter + 'd2) : (program_counter + 'd4);
+                    end
+                end
+
+
+                /* Cache returns an hit or a miss. If hit is registred, *
+                 * the instructions are loaded into the instruction     *
+                 * buffer If a miss is registred, wait for the outcome  *
+                 * of the branch to not  access the memory wastefully.  */
+                CACHE_OUTCOME: begin
+                    if (icache_channel.hit) begin
+                        state_NXT = IDLE;
+
+                        load_buffer = 1'b1;
+                    end else begin
+                        state_NXT = WAIT_OUTCOME; 
+
+                        block_pc = 1'b1;
+                        inject_nop = 1'b1;
+                    end
                 end
 
 
@@ -229,7 +249,7 @@ module front_end (
                     block_pc = 1'b1; 
 
                     if (executed_i) begin
-                        if (outcome_i) begin
+                        if (taken_i) begin
                             state_NXT = WAIT_MEMORY; 
 
                             icache_channel.access = 1'b1;
@@ -243,10 +263,9 @@ module front_end (
         end
 
 
-    data_word_t buffer_instruction, fetched_instruction; logic [`IBUFFER_SIZE - 2:0][31:0] loaded_bundle; logic load_buffer;
+    data_word_t buffer_instruction, fetched_instruction; logic [`IBUFFER_SIZE - 2:0][31:0] loaded_bundle; logic load_buffer, request;
 
     assign loaded_bundle = icache_channel.instr_bundle[`IBUFFER_SIZE - 1:1];
-    assign load_buffer = icache_channel.bundle_size != '0;
 
     instruction_buffer instr_buffer (
         .clk_i           ( clk_i                      ),
@@ -258,16 +277,16 @@ module front_end (
         .load_i          ( load_buffer                ),
         .compressed_i    ( compressed                 ),
         .fetched_instr_o ( buffer_instruction         ),
-        .instr_request_o ( request                    ),
+        .instr_request_o ( instr_request              ),
         .buffer_empty_o  ( buffer_empty               )
     ); 
-    
+
     /* Request on threshold hit on instruction buffer or if a prediction is taken */
-    assign instr_request_o = (request != '0) | (branch_buffer_hit & predict); 
+    assign instr_request_o = instr_request | (branch_buffer_hit & predict); 
 
     /* On threshold hit on instruction buffer request the next instruction after the 
      * head of the buffer, otherwise request the BTA */
-    assign request_address_o = (request != '0) ? next_program_counter : branch_target_address;
+    assign request_address_o = instr_request ? next_program_counter : branch_target_address;
     
     /* Foward instruction from cache instead of waiting 1 clock cycle for buffer loading */
     assign fetched_instruction = load_buffer ? icache_channel.instr_bundle[0] : buffer_instruction;
@@ -480,6 +499,9 @@ module front_end (
 
         .src_reg_i  ( dc_stage_reg_source      ),
         .dest_reg_i ( dc_stage_reg_destination ), 
+
+        .ldu_idle_i ( ldu_idle_i ),
+        .stu_idle_i ( stu_idle_i ),
 
         .exu_valid_i ( dc_stage_exu_valid     ),
         .exu_uop_i   ( dc_stage_exu_operation ),
