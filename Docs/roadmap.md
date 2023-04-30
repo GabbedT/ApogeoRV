@@ -2,13 +2,9 @@ Test pipeline from decode to writeback under normal conditions
 
 Test exceptions and interrupts
 
-Add fetch unit
-
 Verify entire pipeline 
 
 Add AXI interface for memory operations
-
-Add cache 
 
 Custom instructions / csr: 
 * Store block (CSR): block store memory interface, wait until the buffer reach a capacity defined in the CSR register
