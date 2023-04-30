@@ -219,20 +219,33 @@ module load_unit (
                     
                     if (valid_operation_i) begin
                         state_NXT = WAIT;
-                        idle_o = 1'b0;
 
                         if (str_buf_address_match_i) begin
                             load_data_NXT = str_buf_fowarded_data_i;
                             match_NXT = 1'b1;
+
+                            /* Idle status is declared before to enhance 
+                             * scheduler performance */
+                            idle_o = 1'b1;
                         end else if (timer_access) begin
                             load_data_NXT = timer_data_i;
                             match_NXT = 1'b1;
+
+                            /* Idle status is declared before to enhance 
+                             * scheduler performance */
+                            idle_o = 1'b1;
                         end else if (stu_address_match_i) begin
                             load_data_NXT = stu_fowarded_data_i;
                             match_NXT = 1'b1;
+
+                            /* Idle status is declared before to enhance 
+                             * scheduler performance */
+                            idle_o = 1'b1;
                         end else begin 
                             load_channel.request = 1'b1;
                             cachable_NXT = cachable; 
+
+                            idle_o = 1'b0;
                         end
                     end
 

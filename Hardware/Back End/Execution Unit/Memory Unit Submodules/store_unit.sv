@@ -195,6 +195,10 @@ module store_unit (
                                 2'b0?: begin
                                     state_NXT = WAIT_ACCEPT;
 
+                                    /* Idle status is declared before to enhance 
+                                     * scheduler performance */
+                                    idle_o = 1'b1;
+
                                     `ifdef TEST_DESIGN
                                         $display("[Store Unit][%0t] Accessing illegal memory region!", $time());
                                     `endif
@@ -205,6 +209,10 @@ module store_unit (
                                         if (!data_accepted_i) begin
                                             state_NXT = WAIT_ACCEPT;
                                         end
+
+                                        /* Idle status is declared before to enhance 
+                                         * scheduler performance */
+                                        idle_o = 1'b1;
                                     end else begin
                                         state_NXT = WAIT_BUFFER;
                                     end
@@ -248,10 +256,12 @@ module store_unit (
                     if (store_channel.done) begin 
                         data_valid_o = 1'b1;
 
+                        /* Idle status is declared before to enhance 
+                         * scheduler performance */
+                        idle_o = 1'b1;
+
                         if (data_accepted_i) begin
                             state_NXT = IDLE;
-
-                            idle_o = 1'b1;
 
                             `ifdef TEST_DESIGN
                                 $display("[Store Unit][%0t] Operation accepted!", $time());
@@ -280,6 +290,10 @@ module store_unit (
                     if (!str_buf_channel.full) begin 
                         data_valid_o = 1'b1;
 
+                        /* Idle status is declared before to enhance 
+                         * scheduler performance */
+                        idle_o = 1'b1;
+
                         if (data_accepted_i) begin
                             state_NXT = IDLE;
 
@@ -301,11 +315,13 @@ module store_unit (
 
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
+
+                    /* Idle status is declared before to enhance 
+                     * scheduler performance */
+                    idle_o = 1'b1;
                     
                     if (data_accepted_i) begin
                         state_NXT = IDLE;
-
-                        idle_o = 1'b1;
 
                         `ifdef TEST_DESIGN
                             $display("[Store Unit][%0t] Operation accepted!", $time());
