@@ -65,6 +65,10 @@ module scoreboard (
     input itu_valid_t itu_unit_i,
     input lsu_valid_t lsu_unit_i,
 
+    /* LSU status */
+    input logic ldu_idle_i, 
+    input logic stu_idle_i, 
+
     /* Issue command */
     output logic pipeline_empty_o,
     output logic issue_instruction_o
@@ -157,9 +161,9 @@ module scoreboard (
         for (i = 0; i < MUL_LATENCY; ++i) begin 
             always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mul_status_register
                 if (!rst_n_i) begin
-                    mul_latency_cnt[i] <= '1;
+                    mul_latency_cnt[i] <= '0;
                 end else if (flush_i) begin
-                    mul_latency_cnt[i] <= '1;
+                    mul_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
                     if (issue_next_cycle(itu_unit_i.MUL) & mul_stage[i]) begin
                         /* If the current stage counter is selected 
@@ -238,9 +242,9 @@ module scoreboard (
         for (i = 0; i < BMU_LATENCY; ++i) begin 
             always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bmu_status_register
                 if (!rst_n_i) begin
-                    bmu_latency_cnt[i] <= '1;
+                    bmu_latency_cnt[i] <= '0;
                 end else if (flush_i) begin
-                    bmu_latency_cnt[i] <= '1;
+                    bmu_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
                     if (issue_next_cycle(itu_unit_i.BMU) & bmu_stage[i]) begin
                         /* If the current stage counter is selected 
@@ -328,27 +332,23 @@ module scoreboard (
 //      LDU SCHEDULING LOGIC
 //==================================================================================== 
 
-    logic ldu_raw_hazard, ldu_executing;
-    logic [31:0] ldu_register_dest;
+    logic block_ldu_issue; 
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : ldu_status_register
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                ldu_executing <= 1'b0;
-            end else if (flush_i) begin
-                ldu_executing <= 1'b0;
+                block_ldu_issue <= 1'b0;
             end else if (!stall_i) begin
-                if (issue_next_cycle(lsu_unit_i.LDU)) begin
-                    ldu_executing <= 1'b1;
-                end else if (div_latency_cnt != '0) begin
-                    /* Keep decrementing the latency counter until the
-                     * unit produces a valid result */
-                    ldu_executing <= 1'b1;
+                if (issue_next_cycle(lsu_unit_i.LDU)) begin 
+                    block_ldu_issue <= 1'b1;
                 end else begin
-                    /* The unit has finished */
-                    ldu_executing <= 1'b0;
+                    block_ldu_issue <= 1'b0;
                 end
             end
-        end : ldu_status_register
+        end 
+
+
+    logic ldu_raw_hazard;
+    logic [31:0] ldu_register_dest;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : ldu_destination_register
             if (!rst_n_i) begin
@@ -360,34 +360,30 @@ module scoreboard (
             end
         end : ldu_destination_register
 
-    assign ldu_raw_hazard = ((src_reg_i[0] == ldu_register_dest) | (dest_reg_i == ldu_register_dest)) & ldu_executing & (ldu_register_dest != '0);
+    assign ldu_raw_hazard = block_ldu_issue | ((src_reg_i[0] == ldu_register_dest) | (dest_reg_i == ldu_register_dest)) & !ldu_idle_i & (ldu_register_dest != '0);
 
 
 //====================================================================================
 //      STU SCHEDULING LOGIC
 //==================================================================================== 
 
-    logic stu_raw_hazard, stu_executing;
-    logic [31:0] stu_register_dest;
+    logic block_stu_issue; 
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : stu_status_register
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                stu_executing <= 1'b0;
-            end else if (flush_i) begin
-                stu_executing <= 1'b0;
+                block_stu_issue <= 1'b0;
             end else if (!stall_i) begin
-                if (issue_next_cycle(lsu_unit_i.STU)) begin
-                    stu_executing <= 1'b1;
-                end else if (div_latency_cnt != '0) begin
-                    /* Keep decrementing the latency counter until the
-                     * unit produces a valid result */
-                    stu_executing <= 1'b1;
+                if (issue_next_cycle(lsu_unit_i.STU)) begin 
+                    block_stu_issue <= 1'b1;
                 end else begin
-                    /* The unit has finished */
-                    stu_executing <= 1'b0;
+                    block_stu_issue <= 1'b0;
                 end
             end
-        end : stu_status_register
+        end 
+
+
+    logic stu_raw_hazard;
+    logic [31:0] stu_register_dest;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : stu_destination_register
             if (!rst_n_i) begin
@@ -399,7 +395,7 @@ module scoreboard (
             end
         end : stu_destination_register
 
-    assign stu_raw_hazard = ((src_reg_i[0] == stu_register_dest) | (dest_reg_i == stu_register_dest)) & stu_executing & (stu_register_dest != '0); 
+    assign stu_raw_hazard = block_stu_issue | ((src_reg_i[0] == stu_register_dest) | (dest_reg_i == stu_register_dest)) & !stu_idle_i & (stu_register_dest != '0); 
 
 
 //====================================================================================
@@ -410,7 +406,7 @@ module scoreboard (
 
     assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif;
-    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_executing) | (lsu_unit_i.STU & stu_executing);
+    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
 
 
 //====================================================================================
@@ -420,7 +416,7 @@ module scoreboard (
     assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard);
 
     /* If no unit is executing, then the pipeline is empty */
-    assign pipeline_empty_o = !((|mul_executing) | div_executing | `ifdef BMU (|bmu_executing) `endif | stu_executing | ldu_executing);
+    assign pipeline_empty_o = !((|mul_executing) | div_executing | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i);
 
 endmodule : scoreboard
 

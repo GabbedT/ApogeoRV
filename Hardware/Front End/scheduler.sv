@@ -59,6 +59,10 @@ module scheduler (
     input logic [1:0][4:0] src_reg_i,
     input logic [4:0] dest_reg_i, 
 
+    /* LSU status */
+    input logic ldu_idle_i,
+    input logic stu_idle_i,
+
     /* Functional units operations */
     input exu_valid_t exu_valid_i,
     input exu_uop_t exu_uop_i,
@@ -128,6 +132,9 @@ module scheduler (
         .csr_unit_i ( exu_valid_i.CSR ),
         .itu_unit_i ( exu_valid_i.ITU ),
         .lsu_unit_i ( exu_valid_i.LSU ),
+
+        .ldu_idle_i ( ldu_idle_i ),
+        .stu_idle_i ( stu_idle_i ),
 
         .pipeline_empty_o    ( pipeline_empty    ),
         .issue_instruction_o ( issue_instruction )
