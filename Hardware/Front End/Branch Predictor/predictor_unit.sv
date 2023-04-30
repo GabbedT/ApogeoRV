@@ -1,3 +1,47 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------
+// FILE NAME : predictor_unit.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : The predictor unit is a Gshare branch predictor that uses a combinat
+//               ion of the global branch history and a branch pattern to predict the
+//               outcome of a branch. When the BTB register an hit and the branch is
+//               indirect, the corresponding BTA is used as an index. That index is 
+//               then XORed with the branch history table which holds the outcome of 
+//               the most recent branches. The hashed value is then used to index the
+//               predictor table which holds a 2 bit value for each entry to determine
+//               the probability that the branch is taken / not taken. 
+//               The predictions are saved into a FIFO buffer which is read when the 
+//               outcome of the branch is determined later, using the information 
+//               saved the predictor can signal a misprediction or a correct prediction
+//               and update the table accordingly.
+// ------------------------------------------------------------------------------------
+
 `ifndef PREDICTOR_SV
     `define PREDICTOR_SV
 
@@ -12,7 +56,7 @@ module predictor_unit #(
 
     /* Branch info */
     input logic executed_i,
-    input logic outcome_i,
+    input logic taken_i,
 
     /* Branch target address */
     input logic [$clog2(TABLE_SIZE) - 1:0] index_i,
@@ -57,8 +101,6 @@ module predictor_unit #(
 //      FIFO MEMORY
 //====================================================================================
 
-    localparam TAKEN = 1; localparam NOT_TAKEN = 0;
-
     typedef struct packed {
         logic prediction; 
         logic [$clog2(TABLE_SIZE) - 1:0] index;
@@ -69,6 +111,12 @@ module predictor_unit #(
     /* Implemented with a memory with 1W and 2R ports 
      * to avoid conflicts between fowarding and pulling */
     logic [$bits(predictor_t) - 1:0] data_buffer [BUFFER_DEPTH - 1:0];
+
+    initial begin
+        for (int i = 0; i < BUFFER_DEPTH; ++i) begin
+            data_buffer[i] = '0;
+        end
+    end
 
         always_ff @(posedge clk_i) begin : fifo_write_port
             if (push) begin
@@ -90,7 +138,7 @@ module predictor_unit #(
             if (!rst_n_i) begin
                 branch_history_table <= '0;
             end else if (executed_i) begin
-                branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 1:1], outcome_i};
+                branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 1:1], taken_i};
             end
         end 
 
@@ -107,21 +155,18 @@ module predictor_unit #(
     logic [1:0][1:0] branch_status_read, branch_status_write; logic write;
 
         always_comb begin 
-            if (outcome_i == TAKEN) begin
+            if (taken_i) begin
                 branch_status_write = (branch_status_read[0] == '1) ? branch_status_read[0] : (branch_status_read[0] + 1'b1);
-            end else if (outcome_i == NOT_TAKEN) begin
-                branch_status_write = (branch_status_read[0] == '1) ? branch_status_read[0] : (branch_status_read[0] - 1'b1);
             end else begin
-                branch_status_write = '0;
-            end
+                branch_status_write = (branch_status_read[0] == '1) ? branch_status_read[0] : (branch_status_read[0] - 1'b1);
+            end 
 
             /* Mispredicted if different */
-            mispredicted_o = (outcome_i ^ fifo_read_data.prediction) & executed_i; 
+            mispredicted_o = (outcome_i != fifo_read_data.prediction) & executed_i; 
         end
 
     /* Read FIFO and update branch status when it has been executed and 
      * its condition evaluated */
-     
     assign pull = executed_i; assign write = executed_i;
 
     /* If high bit of the status is set then prediction is taken */
@@ -136,6 +181,13 @@ module predictor_unit #(
 
     logic [1:0] predictor_table [1:0][0:TABLE_SIZE - 1]; 
 
+    initial begin
+        for (int i = 0; i < TABLE_SIZE; ++i) begin
+            predictor_table[0][i] = '0;
+            predictor_table[1][i] = '0;
+        end
+    end
+
         always_ff @(posedge clk_i) begin : table_write_port
             if (write) begin
                 /* Push data */
@@ -144,7 +196,10 @@ module predictor_unit #(
             end
         end : table_write_port
 
+    /* Port used to read branch status for misprediction logic */
     assign branch_status_read[0] = predictor_table[0][fifo_read_data.index];
+
+    /* Port used to predict the branch */
     assign branch_status_read[1] = predictor_table[1][hashed_index];
 
 endmodule : predictor_unit
