@@ -12,7 +12,7 @@ interface instruction_cache_interface;
     logic [`IBUFFER_SIZE - 1:0][31:0] instr_bundle;
 
     /* Tag the corresponding instruction in bundle as valid */
-    logic [$clog2(2 * `IBUFFER_SIZE):0] bundle_size;
+    logic [$clog2(2 * `IBUFFER_SIZE) - 1:0] bundle_size;
 
     /* Request a fetch */
     logic request;
