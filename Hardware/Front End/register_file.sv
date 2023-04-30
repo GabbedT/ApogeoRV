@@ -29,8 +29,15 @@ module register_file (
     /* Since FPGAs usually doesn't implements distributed ram with 1W and 2R (independent)
      * ports, it's possible to model this behaviour using 2 banks that writes the same data
      * every time a write request arrives. This means that we have 2 banks with duplicate data */
-
     logic [31:0] iregister [1:0][31:0];
+
+    initial begin
+        for (int i = 0; i < 32; ++i) begin
+            iregister[0][i] = '0;
+            iregister[1][i] = '0;
+        end
+    end 
+
 
         /* Bank 0 */
         always_ff @(posedge clk_i) begin : integer_write_port0
