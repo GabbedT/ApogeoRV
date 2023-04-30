@@ -4,7 +4,7 @@
 `include "../Headers/apogeo_configuration.svh"
 
 `include "../Packages/apogeo_pkg.sv"
-`include "../Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../Packages/Execution Unit/store_unit_pkg.sv"
 
 interface store_buffer_push_interface;
 

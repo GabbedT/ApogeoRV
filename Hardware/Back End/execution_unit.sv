@@ -39,7 +39,7 @@
 `include "../Include/Headers/apogeo_configuration.svh"
 `include "../Include/Headers/apogeo_exception_vectors.svh"
 
-`include "../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../Include/Packages/Execution Unit/store_unit_pkg.sv"
 `include "../Include/Packages/apogeo_operations_pkg.sv"
 `include "../Include/Packages/apogeo_pkg.sv"
 

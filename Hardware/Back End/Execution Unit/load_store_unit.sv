@@ -50,7 +50,7 @@
 
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../Include/Packages/Execution Unit/load_store_unit_pkg.sv"
+`include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
 `include "../../Include/Interfaces/memory_controller_interface.sv"
 `include "../../Include/Interfaces/store_buffer_interface.sv"
