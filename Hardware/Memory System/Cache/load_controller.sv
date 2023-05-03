@@ -60,11 +60,11 @@ module load_controller #(
 //====================================================================================
 
     data_word_t address_CRT, address_NXT; 
-    data_word_t requested_CRT, requested_NXT;
+    data_word_t requested_data_CRT, requested_data_NXT;
     logic [TAG_SIZE - 1:0] tag_CRT, tag_NXT;
 
         always_ff @(posedge clk_i) begin
-            requested_CRT <= requested_NXT;
+            requested_data_CRT <= requested_data_NXT;
             address_CRT <= address_NXT; 
             tag_CRT <= tag_NXT;
         end
@@ -100,8 +100,8 @@ module load_controller #(
 
         always_comb begin
             /* Default values */
+            requested_data_NXT = requested_data_CRT;
             word_counter_NXT = word_counter_CRT;
-            requested_NXT = requested_CRT;
             address_NXT = address_CRT;
             state_NXT = state_CRT;
             tag_NXT = tag_CRT;
@@ -125,8 +125,9 @@ module load_controller #(
             case (state_CRT)
 
                 /* FSM waits for LDU request, and sends a cache read *
-                 * command as soon as the request arrives. Data and  *
-                 * status bits are requested from cache.             */
+                 * command as soon as the request arrives. Data,     *
+                 * status bits and tag are requested from cache to   *
+                 * determine if the read was an hit or a miss.       */
                 IDLE: begin
                     if (request_i) begin
                         state_NXT = OUTCOME;
@@ -180,7 +181,7 @@ module load_controller #(
                 /* The controller reads a block slice every cycle,     * 
                  * starting from the base of the block. By pipelining  * 
                  * the read requests it can feed the memory controller *
-                 * with a word every cycle. Once the entrie block is   * 
+                 * with a word every cycle. Once the entire block is   * 
                  * transferred, the controller requests a load from    *
                  * the new address                                     */
                 WRITE_BACK: begin
@@ -229,11 +230,13 @@ module load_controller #(
                         end
 
                         /* Save requested data */
-                        requested_NXT = memory_data_i;
+                        if (address_CRT[$clog2(BLOCK_SIZE) + 1:2] == word_counter_CRT) begin 
+                            requested_data_NXT = memory_data_i;
+                        end
                     end else begin
                         state_NXT = IDLE; 
 
-                        data_o = requested_CRT;
+                        data_o = requested_data_CRT;
                         valid_o = 1'b1; 
                     end
 
