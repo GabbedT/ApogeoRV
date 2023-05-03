@@ -67,6 +67,12 @@ module data_bank #(
 
     logic [31:0] bank_memory [CACHE_DEPTH - 1:0];
 
+    initial begin
+        for (int i = 0; i < CACHE_DEPTH; ++i) begin
+            bank_memory[i] = '0;
+        end
+    end
+
         always_ff @(posedge clk_i) begin : bank_write_port
             if (write_i) begin 
                 for (int i = 0; i < 4; ++i) begin : byte_write_logic
