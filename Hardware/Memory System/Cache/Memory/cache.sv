@@ -56,6 +56,7 @@ module cache #(
     /* Write port */
     input data_word_t read_write_address_i,
     input enable_t write_i,
+    input logic [3:0] byte_write_i,
     input data_word_t write_data_i,
     input status_packet_t status_i,
 
@@ -92,13 +93,10 @@ module cache #(
 //      WRITE ADDRESS
 //====================================================================================
 
-    cache_address_t write_address; logic [3:0] byte_select;
+    cache_address_t write_address;
     
     /* Cast the addresses */
     assign write_address = read_write_address_i[31:2];
-
-    /* One hot encoding */
-    assign byte_select = 1'b1 << read_write_address_i[1:0]; 
 
 
 //====================================================================================
@@ -117,7 +115,7 @@ module cache #(
     data_block #(CACHE_ADDRESS, BANK_ADDRESS) cache_block (
         .clk_i ( clk_i ),
 
-        .byte_write_i    ( byte_select               ),
+        .byte_write_i    ( byte_write_i              ),
         .write_bank_i    ( write_address.bank_select ),
         .write_address_i ( write_address.index       ),
         .write_i         ( write_i.data              ),
@@ -171,8 +169,8 @@ module cache #(
             compare_tag <= {read_address.tag, write_address.tag};
         end
 
-    assign hit_o[0] = (compare_tag[0] == read_tag[0]) & read_i[0].tag;
-    assign hit_o[1] = (compare_tag[1] == read_tag[1]) & read_i[1].tag;
+    assign hit_o[0] = (compare_tag[0] == read_tag[0]) & status_o[0].valid;
+    assign hit_o[1] = (compare_tag[1] == read_tag[1]) & status_o[1].valid;
 
     assign read_tag_o = read_tag[1]; 
 
