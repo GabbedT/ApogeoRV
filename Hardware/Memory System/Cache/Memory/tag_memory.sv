@@ -65,6 +65,12 @@ module tag_memory #(
 
     logic [TAG_SIZE - 1:0] memory [CACHE_DEPTH - 1:0];
 
+    initial begin
+        for (int i = 0; i < CACHE_DEPTH; ++i) begin
+            memory[i] = 1'b0;
+        end
+    end
+
         always_ff @(posedge clk_i) begin : read_write_port
             if (write_i) begin
                 memory[read_write_address_i] <= write_tag_i;

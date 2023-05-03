@@ -93,6 +93,12 @@ module status_memory #(
 
     logic dirty_memory [CACHE_DEPTH - 1:0];
 
+    initial begin
+        for (int i = 0; i < CACHE_DEPTH; ++i) begin
+            dirty_memory[i] = 1'b0;
+        end
+    end
+
         always_ff @(posedge clk_i) begin : dirty_read_write_port
             if (write_dirty_i) begin
                 dirty_memory[read_write_address_i] <= dirty_i;
