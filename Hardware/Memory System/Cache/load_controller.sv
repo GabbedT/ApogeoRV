@@ -4,12 +4,19 @@
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Packages/cache_pkg.sv"
 
+`include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
+
+`include "../../Include/Interfaces/memory_controller_interface.sv"
+
 module load_controller #(
-    /* Cache block size */
-    parameter BLOCK_SIZE = 128, 
+    /* Cache block */
+    parameter OFFSET = 2, 
 
     /* Cache tag size */
-    parameter TAG_SIZE = 16
+    parameter TAG = 16, 
+
+    /* Cache index size */
+    parameter INDEX = 12
 ) (
     input logic clk_i,
     input logic rst_n_i, 
@@ -20,57 +27,55 @@ module load_controller #(
     output data_word_t data_o,
     output logic valid_o,
 
-    /* Shared */
-    output data_word_t address_o,
-    output data_word_t store_data_o,
-
     /* Memory load interface */ 
-    input logic load_done_i,
-    input data_word_t memory_data_i,
-    output logic load_request_o, 
+    load_interface.master load_channel,
 
     /* Memory store interface */
-    input logic store_done_i,
-    output logic store_request_o,
+    store_interface.master store_channel,
 
     /* Cache hit */ 
     input logic cache_hit_i,
 
     /* Block tag */
-    input logic [TAG_SIZE - 1:0] cache_tag_i,
+    input logic [TAG - 1:0] cache_tag_i,
 
     /* Status bits of a block */
-    input status_packet_t cache_status_i,
+    input logic cache_dirty_i,
     output status_packet_t cache_status_o,
 
-    /* Data loaded */
+    /* Cache address shared between ports */
+    output data_word_t cache_address_o,
+
+    /* Data to cache */
     input data_word_t cache_data_i,
+    output data_word_t cache_data_o,
 
     /* Enable operation on cache data */
-    output enable_t enable_read_o,
-    output enable_t enable_write_o,
-
-    /* Cache requests */ 
-    output logic cache_load_request_o,
-    output logic cache_store_request_o
+    output enable_t cache_read_o,
+    output enable_t cache_write_o
 ); 
 
 //====================================================================================
 //      DATAPATH
 //====================================================================================
 
-    data_word_t address_CRT, address_NXT; 
-    data_word_t requested_data_CRT, requested_data_NXT;
-    logic [TAG_SIZE - 1:0] tag_CRT, tag_NXT;
+    typedef struct packed {
+        logic [TAG - 1:0] tag; 
+        logic [INDEX - 1:0] index; 
+        logic [OFFSET - 1:0] offset; 
+    } cache_address_t;
+
+    cache_address_t cache_address; assign cache_address = address_i[31:2];
+
+
+    data_word_t requested_data_NXT, requested_data_CRT;
 
         always_ff @(posedge clk_i) begin
             requested_data_CRT <= requested_data_NXT;
-            address_CRT <= address_NXT; 
-            tag_CRT <= tag_NXT;
         end
 
 
-    logic [$clog2(BLOCK_SIZE) - 1:0] word_counter_CRT, word_counter_NXT;
+    logic [OFFSET:0] word_counter_CRT, word_counter_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : counter
             if (!rst_n_i) begin
@@ -102,25 +107,20 @@ module load_controller #(
             /* Default values */
             requested_data_NXT = requested_data_CRT;
             word_counter_NXT = word_counter_CRT;
-            address_NXT = address_CRT;
             state_NXT = state_CRT;
-            tag_NXT = tag_CRT;
 
-            store_request_o = 1'b0; 
-            cache_store_request_o = 1'b0; 
-            cache_load_request_o = 1'b0;
-            load_request_o = 1'b0;
+            load_channel.request = 1'b0; 
+            store_channel.request = 1'b0;
 
-            data_o = '0; 
-            store_data_o = '0;  
-            address_o = '0;
+            cache_write_o = 1'b0;
+            cache_read_o = 1'b0;
 
-            valid_o = 1'b0;
-
-            enable_read_o = '0;
-            enable_write_o = '0;
-
+            cache_data_o  = '0;
+            cache_address_o = '0;
             cache_status_o = '0; 
+
+            data_o = '0;
+            valid_o = '0;
 
             case (state_CRT)
 
@@ -132,14 +132,13 @@ module load_controller #(
                     if (request_i) begin
                         state_NXT = OUTCOME;
 
-                        cache_load_request_o = 1'b1; 
+                        /* Read cache */
+                        cache_read_o = '1; 
                     end
 
-                    enable_read_o = '1; 
-                    address_o = address_i; 
+                    cache_address_o = address_i; 
 
                     /* Save address for later use */
-                    address_NXT = address_i;  
                     word_counter_NXT = '0; 
                 end
 
@@ -149,31 +148,27 @@ module load_controller #(
                  * dirty, a new block can be allocated, else the block *
                  * needs to be written back first.                     */
                 OUTCOME: begin
-                    if (cache_hit_i & cache_status_i.valid) begin
+                    if (cache_hit_i) begin
                         state_NXT = IDLE;
 
                         data_o = cache_data_i;
                         valid_o = 1'b1;
                     end else begin
-                        if (cache_status_i.dirty) begin
+                        if (cache_dirty_i) begin
                             state_NXT = WRITE_BACK;
 
                             /* Read only data */
-                            enable_read_o.data = 1'b1;
-                            cache_load_request_o = 1'b1;
+                            cache_read_o.data = 1'b1;
 
                             /* Start from block base */
-                            address_o = {address_CRT[31:$clog2(BLOCK_SIZE)], word_counter_CRT, 2'b0}; 
-                            
-                            /* Save tag of the allocated block */
-                            tag_NXT = cache_tag_i; 
+                            cache_address_o = {cache_tag_i, cache_address.index, word_counter_CRT, 2'b0}; 
 
                             /* Increment word counter */
                             word_counter_NXT = word_counter_CRT + 1'b1; 
                         end else begin
                             state_NXT = ALLOCATE;
                             
-                            load_request_o = 1'b1;
+                            load_channel.request = 1'b1;
                         end
                     end
                 end
@@ -185,28 +180,33 @@ module load_controller #(
                  * transferred, the controller requests a load from    *
                  * the new address                                     */
                 WRITE_BACK: begin
-                    if (word_counter_CRT == ($clog2(BLOCK_SIZE) - 1)) begin
-                        /* Allocate new block once the old one has been
-                         * written back to memory */
-                        if (store_done_i) begin 
-                            state_NXT = ALLOCATE;
-
-                            load_request_o = 1'b1; 
-                            
-                            /* Reset word counter */ 
-                            word_counter_NXT = '0; 
-                        end 
-                    end else begin
-                        /* Request a store to memory controller */
-                        store_request_o = 1'b1;
+                    if (!word_counter_CRT[OFFSET] & word_counter_CRT[OFFSET - 1:0] != '0) begin
+                        /* Read only data sequentially */
+                        cache_read_o.data = 1'b1;
+                        cache_address_o = {cache_tag_i, cache_address.index, word_counter_CRT, 2'b0}; 
 
                         /* Increment word counter */
-                        word_counter_NXT = word_counter_CRT + 1'b1; 
+                        word_counter_NXT = word_counter_CRT + 1'b1;
+
+                        /* Request a store to memory controller */
+                        store_channel.request = 1'b1;
+                    end else if (word_counter_CRT[OFFSET] & word_counter_CRT[OFFSET - 1:0] == '0) begin
+                        /* Send store request for the last data. Don't read
+                         * any more words after writing back all the block */
+                        word_counter_NXT = word_counter_CRT + 1'b1;
+                        store_channel.request = 1'b1;
                     end
 
-                    /* Store data to its address */
-                    address_o = {tag_CRT, address_CRT[(TAG_SIZE + $clog2(BLOCK_SIZE) + 2):$clog2(BLOCK_SIZE) + 2], word_counter_CRT, 2'b0}; 
-                    store_data_o = cache_data_i; 
+                    /* Allocate new block once the old one has been
+                     * written back to memory */
+                    if (store_channel.done) begin 
+                        state_NXT = ALLOCATE;
+                        
+                        load_channel.request = 1'b1; 
+                        
+                        /* Reset word counter */ 
+                        word_counter_NXT = '0; 
+                    end 
                 end 
 
                 /* When the memory interface has data ready, write to *
@@ -214,33 +214,32 @@ module load_controller #(
                  * so it happens in 1 clock cycle until the block is  *
                  * completely filled.                                 */
                 ALLOCATE: begin
-                    if (load_done_i) begin
+                    if (load_channel.valid) begin
                         /* Increment word counter */
                         word_counter_NXT = word_counter_CRT + 1'b1; 
-                        store_data_o = memory_data_i; 
 
-                        /* Store to cache */
-                        cache_store_request_o = 1'b1;
+                        cache_data_o = load_channel.data; 
+                        cache_write_o.data = 1'b1;
 
-                        /* The first time allocate metadata */
-                        if (word_counter_CRT == '0) begin
-                            enable_write_o = '1;
-                        end else begin
-                            enable_write_o.data = 1'b1;
+                        if (word_counter_CRT[OFFSET - 1:0] == '0) begin
+                            /* The first time allocate metadata */
+                            cache_write_o = '1;
+                        end else if (word_counter_CRT[OFFSET - 1:0] == '1) begin
+                            /* Block has been allocated */
+                            state_NXT = IDLE; 
+
+                            data_o = requested_data_CRT;
+                            valid_o = 1'b1; 
+                        end 
+
+                        if (cache_address.offset == word_counter_CRT) begin 
+                            /* Save requested data to foward once the allocation
+                             * is finished */
+                            requested_data_NXT = load_channel.data;
                         end
+                    end 
 
-                        /* Save requested data */
-                        if (address_CRT[$clog2(BLOCK_SIZE) + 1:2] == word_counter_CRT) begin 
-                            requested_data_NXT = memory_data_i;
-                        end
-                    end else begin
-                        state_NXT = IDLE; 
-
-                        data_o = requested_data_CRT;
-                        valid_o = 1'b1; 
-                    end
-
-                    address_o = {address_CRT[31:$clog2(BLOCK_SIZE)], word_counter_CRT, 2'b0}; 
+                    cache_address_o = {cache_address.tag, cache_address.index, word_counter_CRT, 2'b0}; 
 
                     /* Set status to valid and clean */
                     cache_status_o.valid = 1'b1;
@@ -248,6 +247,12 @@ module load_controller #(
                 end
             endcase 
         end
+
+    assign store_channel.address = {cache_tag_i, cache_address.index, word_counter_CRT, 2'b0}; 
+    assign store_channel.data = cache_data_i; 
+    assign store_channel.width = WORD;
+
+    assign load_channel.address = {cache_address, 2'b0};
 
 endmodule : load_controller 
 

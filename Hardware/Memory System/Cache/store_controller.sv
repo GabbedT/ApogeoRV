@@ -3,57 +3,40 @@
 
 `include "../../Include/Packages/apogeo_pkg.sv"
 `include "../../Include/Packages/cache_pkg.sv"
+
 `include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-module store_controller #(
-    /* Cache block size */
-    parameter BLOCK_SIZE = 128, 
+`include "../../Include/Interfaces/memory_controller_interface.sv"
 
-    /* Cache tag size */
-    parameter TAG_SIZE = 16
-) (
+module store_controller (
     input logic clk_i,
     input logic rst_n_i, 
+    input logic halt_i,
 
     /* Store unit interface */
     input logic request_i,
     input store_buffer_entry_t buffer_entry_i,
     output logic valid_o,
 
-    /* Shared */
-    output logic [3:0] byte_write_o,
-    output data_word_t address_o,
-    output data_word_t store_data_o,
-
     /* Memory store interface */ 
-    input logic store_done_i,
-    output logic store_request_o, 
+    store_interface.master store_channel,
 
     /* Cache hit */ 
     input logic cache_hit_i,
 
+    /* Store data */
+    output data_word_t cache_address_o,
+    output data_word_t cache_data_o,
+
     /* Status bits of a block */
+    input logic cache_dirty_i,
     output status_packet_t cache_status_o,
 
     /* Enable operation on cache data */
-    output enable_t enable_read_o,
-    output enable_t enable_write_o,
-
-    /* Cache requests */ 
-    output logic cache_load_request_o,
-    output logic cache_store_request_o
+    output enable_t cache_read_o,
+    output enable_t cache_write_o,
+    output logic [3:0] cache_byte_o
 );
-
-//====================================================================================
-//      DATAPATH
-//====================================================================================
-
-    store_buffer_entry_t store_info_CRT, store_info_NXT;
-
-        always_ff @(posedge clk_i) begin
-            store_info_CRT <= store_info_NXT;
-        end
-
 
 //====================================================================================
 //      FSM LOGIC
@@ -66,7 +49,7 @@ module store_controller #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= IDLE;
-            end else begin
+            end else if (!halt_i) begin
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -74,20 +57,17 @@ module store_controller #(
 
         always_comb begin
             /* Default values */
-            store_info_NXT = store_info_CRT;
             state_NXT = state_CRT;
 
-            cache_load_request_o = 1'b0;
-            cache_store_request_o = 1'b0;
-            store_request_o = 1'b0;
+            store_channel.request = 1'b0;
 
-            enable_read_o = '0;
-            enable_write_o = '0;
+            cache_read_o = '0;
+            cache_write_o = '0;
 
             cache_status_o = '0;
-            byte_write_o = '0; 
-            address_o = '0;
-            store_data_o = '0;
+            cache_byte_o = '0; 
+            cache_data_o = '0;
+
             valid_o = '0; 
 
             case (state_CRT)
@@ -100,72 +80,75 @@ module store_controller #(
                     if (request_i) begin
                         state_NXT = OUTCOME;
 
-                        cache_load_request_o = 1'b1; 
+                        /* Read cache */
+                        cache_read_o = '1; 
                     end
-
-                    enable_read_o = '1; 
-                    address_o = buffer_entry_i.address; 
-
-                    /* Save entry for later use */
-                    store_info_NXT = buffer_entry_i; 
                 end
 
+                /* Cache now has output the outcome of the previous *
+                 * request. On cache hit, the data is simply stored *
+                 * in cache. On cache miss, the corresponding block *
+                 * is invalidated and a store operation to memory   *
+                 * is initiated.                                    */
                 OUTCOME: begin
-                    cache_store_request_o = 1'b1;
-
                     if (cache_hit_i) begin
                         state_NXT = IDLE; 
                         valid_o = 1'b1;
-
+                            
                         /* Write data and update status bits */
-                        enable_write_o.data = 1'b1;
-                        enable_write_o.dirty = 1'b1;
-                        enable_write_o.valid = 1'b1;
+                        cache_write_o.data = 1'b1;
+                        cache_write_o.dirty = 1'b1;
+                        cache_write_o.valid = 1'b1;
 
                         /* Set dirty and valid bit */
                         cache_status_o = '1;
                     end else begin
                         state_NXT = WRITE_THROUGH;
-                        store_request_o = 1'b1; 
+                        store_channel.request = 1'b1; 
 
-                        /* Update valid bit */
-                        enable_write_o.valid = 1'b1;
-                        
-                        /* Invalidate cache block */
-                        cache_status_o.valid = 1'b0; 
+                        if (!cache_dirty_i) begin 
+                            /* Invalidate cache block */
+                            cache_status_o.valid = 1'b0; 
+                            cache_write_o.valid = 1'b1;
+                        end
                     end
 
-                    address_o = store_info_CRT.address; 
-
                     /* Select data to write */
-                    case (store_info_CRT.store_width)
+                    case (buffer_entry_i.store_width)
                         BYTE: begin
-                            byte_write_o = 1'b1 << store_info_CRT.address[1:0]; 
-                            store_data_o = store_info_CRT.data << (8 * store_info_CRT.address[1:0]); 
+                            cache_byte_o = 1'b1 << buffer_entry_i.address[1:0]; 
+                            cache_data_o = buffer_entry_i.data << (8 * buffer_entry_i.address[1:0]); 
                         end 
 
                         HALF_WORD: begin
-                            byte_write_o = store_info_CRT.address[1] ? 4'b1100 : 4'b0011; 
-                            store_data_o = store_info_CRT.data << (16 * store_info_CRT.address[1]); 
-                            address_o[0] = 1'b0;
+                            cache_byte_o = buffer_entry_i.address[1] ? 4'b1100 : 4'b0011; 
+                            cache_data_o = buffer_entry_i.data << (16 * buffer_entry_i.address[1]); 
                         end  
 
                         WORD: begin
-                            byte_write_o = '1;
-                            store_data_o = store_info_CRT.data;
-                            address_o[1:0] = 2'b0;
+                            cache_byte_o = '1;
+                            cache_data_o = buffer_entry_i.data;
                         end 
                     endcase 
                 end
 
+                /* The FSM waits for memory to complete the *
+                 * store operation                          */
                 WRITE_THROUGH: begin
-                    if (store_done_i) begin
+                    if (store_channel.done) begin
                         state_NXT = IDLE;
                         valid_o = 1'b1;
                     end
                 end
+
             endcase 
         end
+
+    assign store_channel.address = buffer_entry_i.address;
+    assign store_channel.width = buffer_entry_i.store_width;
+    assign store_channel.data = cache_data_o;
+
+    assign cache_address_o = buffer_entry_i.address; 
 
 endmodule : store_controller
 
