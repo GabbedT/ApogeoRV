@@ -6,7 +6,6 @@ Verify entire pipeline
 
 Add AXI interface for memory operations
 
-Custom instructions / csr: 
-* Store block (CSR): block store memory interface, wait until the buffer reach a capacity defined in the CSR register
-* Write back data cache: wb all cache 
-* Preload cache: start and and address specified by registers (works on I and D cache)
+Memory load: supply N words in N clock cycles after L amount of clock cycles. Valid signal is kept high until all words are accepted
+
+Add burst / single store / load options
