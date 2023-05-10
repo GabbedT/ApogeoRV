@@ -81,7 +81,7 @@ module tag_memory #(
 
         always_ff @(posedge clk_i) begin : read_port
             if (read_i[1]) begin  
-                read_tag_o[1] = memory[read_address_i];
+                read_tag_o[1] <= memory[read_address_i];
             end 
         end : read_port
 

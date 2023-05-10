@@ -74,21 +74,8 @@ module data_block #(
 
     logic [BANK_NUMBER - 1:0] write_enable, read_enable;
 
-        always_comb begin 
-            /* Default values */
-            write_enable = 'b0;
-            read_enable = 'b0;
-
-            for (int i = 0; i < BANK_NUMBER; ++i) begin : decode_logic
-                if (write_bank_i == i) begin
-                    write_enable[i] = 1'b1;
-                end
-
-                if (read_bank_i == i) begin
-                    read_enable[i] = 1'b1;
-                end
-            end : decode_logic
-        end
+    assign write_enable = 1'b1 << write_bank_i;
+    assign read_enable = 1'b1 << read_bank_i;
 
 
 //====================================================================================
@@ -106,7 +93,7 @@ module data_block #(
             data_bank #(ADDR_WIDTH) cache_block_bank (
                 .clk_i ( clk_i ),
 
-                /* Port 0 (R / W) interface */
+                /* Port 0 (W) interface */
                 .byte_write_i    ( byte_write_i              ),
                 .write_address_i ( write_address_i           ),
                 .write_data_i    ( write_data_i              ),
