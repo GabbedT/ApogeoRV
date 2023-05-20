@@ -21,7 +21,7 @@
 // SOFTWARE.
 // --------------------------------------------------------------------------------------
 // --------------------------------------------------------------------------------------
-// FILE NAME : cache.sv
+// FILE NAME : data_cache.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -31,17 +31,18 @@
 // DESCRIPTION : Cache memory block 
 // --------------------------------------------------------------------------------------
 
-`ifndef CACHE_SV
-    `define CACHE_SV
+`ifndef DATA_CACHE_SV
+    `define DATA_CACHE_SV
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/cache_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
+`include "../../../Include/Packages/cache_pkg.sv"
 
-`include "Memory/data_block.sv"
-`include "Memory/status_memory.sv"
-`include "Memory/tag_memory.sv"
+`include "../Memory/data_block.sv"
+`include "../Memory/dirty_memory.sv"
+`include "../Memory/valid_memory.sv"
+`include "../Memory/tag_memory.sv"
 
-module cache #(
+module data_cache #(
     /* Total cache size in bytes */
     parameter CACHE_SIZE = 2 ** 13,
 
@@ -55,7 +56,7 @@ module cache #(
 
     /* Write port */
     input data_word_t read_write_address_i,
-    input enable_t write_i,
+    input data_enable_t write_i,
     input logic [3:0] byte_write_i,
     input data_word_t write_data_i,
     input status_packet_t status_i,
@@ -66,7 +67,7 @@ module cache #(
     output logic [TAG_SIZE - 1:0] read_tag_o,
 
     /* Ports shared IO */
-    input enable_t [1:0] read_i,
+    input data_enable_t [1:0] read_i,
     output logic [1:0] dirty_o,
     output logic [1:0] hit_o
 );
@@ -109,7 +110,7 @@ module cache #(
 
 
 //====================================================================================
-//      MODULES
+//      CACHE BLOCK
 //====================================================================================
 
     data_block #(INDEX, OFFSET) data_memory (
@@ -119,35 +120,52 @@ module cache #(
         .write_bank_i    ( write_address.bank_select ),
         .write_address_i ( write_address.index       ),
         .write_i         ( write_i.data              ),
-        .write_data_i    ( write_data_i              ),
+        .data_i          ( write_data_i              ),
 
         .read_bank_i    ( read_address.bank_select ),
         .read_address_i ( read_address.index       ),
         .read_i         ( read_i[1].data           ),
-        .read_data_o    ( read_data_o              )
+        .data_o         ( read_data_o              )
     ); 
 
 
+//====================================================================================
+//      STATUS
+//====================================================================================
+
     status_packet_t [1:0] status;
 
-    status_memory #(INDEX) status_memory (
+    dirty_memory #(INDEX) dirty_memory (
         .clk_i ( clk_i ),
 
         .read_write_address_i ( write_address.index ),
-        .valid_i              ( status_i.valid      ),
         .dirty_i              ( status_i.dirty      ),
-        .write_valid_i        ( write_i.valid       ),
-        .write_dirty_i        ( write_i.dirty       ),
+        .write_i              ( write_i.dirty       ),
 
-        .read_valid_i   ( {read_i[1].valid, read_i[0].valid} ),
-        .read_dirty_i   ( {read_i[1].dirty, read_i[0].dirty} ),
+        .read_i         ( {read_i[1].dirty, read_i[0].dirty} ),
         .read_address_i ( read_address.index                 ),
-        .valid_o        ( {status[1].valid, status[0].valid} ),
         .dirty_o        ( {status[1].dirty, status[0].dirty} )
     ); 
 
     assign dirty_o[0] = status[0].dirty; assign dirty_o[1] = status[1].dirty; 
 
+
+    valid_memory #(INDEX) valid_memory (
+        .clk_i ( clk_i ),
+
+        .read_write_address_i ( write_address.index ),
+        .valid_i              ( status_i.valid      ),
+        .write_i              ( write_i.valid       ),
+
+        .read_i         ( {read_i[1].valid, read_i[0].valid} ),
+        .read_address_i ( read_address.index                 ),
+        .valid_o        ( {status[1].valid, status[0].valid} )
+    ); 
+
+
+//====================================================================================
+//      TAG
+//====================================================================================
 
     logic [1:0][TAG_SIZE - 1:0] read_tag;
 
@@ -179,6 +197,6 @@ module cache #(
 
     assign read_tag_o = read_tag[1]; 
 
-endmodule : cache
+endmodule : data_cache
 
 `endif

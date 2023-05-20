@@ -13,7 +13,9 @@
 `include "scheduler.sv"
 `include "Decoder/decompressor.sv"
 
-module front_end (
+module front_end #(
+    parameter INSTRUCTION_BUFFER = 8
+) (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
@@ -21,7 +23,13 @@ module front_end (
     input logic priv_level_i,
 
     /* Cache interface */
-    instruction_cache_interface.fetch_master icache_channel,
+    output logic fetch_o,
+    output logic halt_fetch_o,
+    output data_word_t fetch_address_o,
+    input data_word_t [INSTRUCTION_BUFFER:0] instruction_i, 
+    input logic [$clog2(2 * INSTRUCTION_BUFFER):0] instruction_count_i,
+    input logic fetch_valid_i,
+    input logic fetch_misaligned_i,
 
     /* Interrupt and exception */
     input logic interrupt_i,
@@ -114,7 +122,7 @@ module front_end (
     );
 
     /* Stage nets */
-    logic pcgen_branch_hit, pcgen_mispredicted, pcgen_prediction; data_word_t pcgen_branch_address;
+    logic pcgen_branch_hit, pcgen_mispredicted, pcgen_prediction_taken; data_word_t pcgen_branch_address, pcgen_resolved;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pc_generation_stage_register
             if (!rst_n_i) begin
@@ -122,35 +130,41 @@ module front_end (
 
                 pcgen_branch_hit <= 1'b0; 
                 pcgen_mispredicted <= 1'b0; 
-                pcgen_prediction <= 1'b0; 
+                pcgen_prediction_taken <= 1'b0; 
+                pcgen_resolved <= 1'b0; 
             end else if (flush_i) begin
                 pcgen_branch_address <= '0; 
 
                 pcgen_branch_hit <= 1'b0; 
                 pcgen_mispredicted <= 1'b0; 
-                pcgen_prediction <= 1'b0;  
+                pcgen_prediction_taken <= 1'b0; 
+                pcgen_resolved <= 1'b0; 
             end else if (!stall & !stall_i) begin
                 pcgen_branch_address <= branch_target_address; 
 
                 pcgen_branch_hit <= branch_buffer_hit; 
                 pcgen_mispredicted <= mispredicted; 
-                pcgen_prediction <= predict; 
+                pcgen_prediction_taken <= predict; 
+                pcgen_resolved <= executed_i; 
             end
         end : pc_generation_stage_register
+
 
 //====================================================================================
 //      INSTRUCTION FETCH STAGE
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_OUTCOME, CACHE_OUTCOME, WAIT_MEMORY} fsm_states_t; 
+    typedef enum logic [2:0] {IDLE, WAIT_RESOLVE, CACHE_OUTCOME, WAIT_MEMORY, WAIT_CYCLE} fsm_states_t; 
 
-    fsm_states_t state_CRT, state_NXT; 
+    fsm_states_t state_CRT, state_NXT; logic speculative_CRT, speculative_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= IDLE;
+                speculative_CRT <= 1'b0; 
             end else begin
                 state_CRT <= state_NXT;
+                speculative_CRT <= speculative_NXT;
             end
         end : state_register
 
@@ -160,125 +174,147 @@ module front_end (
         always_comb begin
             /* Default values */
             state_NXT = state_CRT; 
+            speculative_NXT = speculative_CRT; 
 
             block_pc = 1'b0; 
             inject_nop = 1'b0; 
             load_buffer = 1'b0;
 
-            icache_channel.access = 1'b0;
-            icache_channel.request = 1'b0;
-            icache_channel.address = '0; 
+            fetch_o = 1'b0;
+            halt_fetch_o = 1'b0; 
+            fetch_address_o = '0; 
 
             case (state_CRT)
 
-                /* In IDLE state the current instructions in the selected   *
-                 * buffer are not speculative, the PC is in the correct     *
-                 * branch. If a branch is predicted, request a fetch from   *
-                 * instruction cache. If hit is registred, the instructions *
-                 * instructions arrives after 1 clock cycle. If a miss is
-                 * registred, wait for the outcome of the branch to not 
-                 * access the memory wastefully. If a branch is mispredicted
-                 *  */ 
                 IDLE: begin
                     if (pcgen_mispredicted) begin
                         state_NXT = CACHE_OUTCOME;
 
-                        icache_channel.request = 1'b1; 
+                        fetch_o = 1'b1; 
 
                         if (taken_i) begin 
                             /* If it was taken load the BTA */
-                            icache_channel.address = branch_target_addr_i; 
+                            fetch_address_o = branch_target_addr_i; 
                         end else begin
                             /* If it was not taken, continue from the next instruction */
-                            icache_channel.address = compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
+                            fetch_address_o = compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
                         end
-                    end else if (pcgen_branch_hit & pcgen_prediction) begin
+                    end else if (pcgen_branch_hit & pcgen_prediction_taken) begin
                         state_NXT = CACHE_OUTCOME;
 
+                        block_pc = 1'b1;
+                        inject_nop = 1'b1;
+
                         /* Predict taken */
-                        icache_channel.request = 1'b1; 
-                        icache_channel.address = pcgen_branch_address;
+                        fetch_o = 1'b1; 
+                        fetch_address_o = pcgen_branch_address;
+
+                        speculative_NXT = 1'b1;
                     end else if (instr_request) begin
                         state_NXT = CACHE_OUTCOME;
 
-                        icache_channel.request = 1'b1; 
+                        fetch_o = 1'b1; 
 
                         /* Next instruction */
-                        icache_channel.address = compressed_i ? (program_counter + 'd2) : (program_counter + 'd4);
+                        fetch_address_o = compressed_i ? (program_counter + 'd2) : (program_counter + 'd4);
                     end
                 end
 
 
-                /* Cache returns an hit or a miss. If hit is registred, *
-                 * the instructions are loaded into the instruction     *
-                 * buffer If a miss is registred, wait for the outcome  *
-                 * of the branch to not  access the memory wastefully.  */
+                /* After fetch request, cache returns an hit or a miss.  *
+                 * If hit is registred, the instructions are loaded into *
+                 * the instruction buffer If a miss is registred: if the *
+                 * fetch is speculative, stall the pipeline until the    *
+                 * branch is resolved, otherwise wait for the memory to  *
+                 * supply the cache block.                               */  
                 CACHE_OUTCOME: begin
-                    if (icache_channel.hit) begin
+                    if (fetch_valid_i) begin
                         state_NXT = IDLE;
 
                         load_buffer = 1'b1;
                     end else begin
-                        state_NXT = WAIT_OUTCOME; 
+                        if (fetch_misaligned_i) begin
+                            state_NXT = WAIT_CYCLE;
+                        end else begin 
+                            if (speculative_CRT) begin 
+                                state_NXT = WAIT_RESOLVE;
+
+                                halt_fetch_o = 1'b1;
+                            end else begin 
+                                state_NXT = WAIT_MEMORY; 
+                            end
+                        end 
 
                         block_pc = 1'b1;
                         inject_nop = 1'b1;
                     end
                 end
 
-
-                /* Wait until cache controller access memory and retrieve *
-                 * the instructions requested, meanwhile inject NOPs to   *
-                 * insert bubbles into the pipeline                       */
+                
+                /* FSM waits for memory to supply the cache block. While *
+                 * it's waiting, the PC doesn't get incremented. The FSM *
+                 * return to IDLE and load the buffer when the memory    *
+                 * interface has valid data.                             */
                 WAIT_MEMORY: begin
-                    inject_nop = 1'b1; 
+                    if (fetch_valid_i) begin
+                        state_NXT = IDLE;
+
+                        load_buffer = 1'b1;
+                    end
+
                     block_pc = 1'b1;
-
-                    if (icache_channel.bundle_size != '0) begin
-                        state_NXT = IDLE; 
-                    end
-                end
-
-
-                /* If the jump was predicted taken and the BTA was not  *
-                 * inside the cache, an access to the main memory is    *
-                 * needed. To avoid accessing the memory uselessly thus *
-                 * not wasting bandwidth                                */
-                WAIT_OUTCOME: begin
                     inject_nop = 1'b1;
-                    block_pc = 1'b1; 
-
-                    if (executed_i) begin
-                        if (taken_i) begin
-                            state_NXT = WAIT_MEMORY; 
-
-                            icache_channel.access = 1'b1;
-                        end else begin
-                            state_NXT = IDLE; 
-                        end
-                    end
                 end
 
+
+                /* To avoid accessing the memory wastefully, the FSM  *
+                 * waits for the speculative branch to resolve in the *
+                 * execution stage. Meanwhile the instruction cache   *
+                 * gets halted by the FSM. If the branch was actually *
+                 * taken, the halt signal gets deasseted.             */
+                WAIT_RESOLVE: begin
+                    block_pc = 1'b1;
+                    inject_nop = 1'b1;
+                    halt_fetch_o = 1'b1; 
+
+                    if (pcgen_resolved) begin
+                        state_NXT = WAIT_MEMORY; 
+
+                        halt_fetch_o = 1'b0; 
+                    end                   
+                end
+
+
+                /* On misaligned memory accessed, the cache needs one *
+                 * more clock cycle to supply the whole instruction   *
+                 * bundle. The FSM waits and then checks again the    *
+                 * cache operation outcome.                           */
+                WAIT_CYCLE: begin
+                    state_NXT = CACHE_OUTCOME;
+
+                    block_pc = 1'b1;
+                    inject_nop = 1'b1;
+                end
             endcase 
         end
 
 
-    data_word_t buffer_instruction, fetched_instruction; logic [`IBUFFER_SIZE - 2:0][31:0] loaded_bundle; logic load_buffer, request;
+    data_word_t buffer_instruction, fetched_instruction; logic [INSTRUCTION_BUFFER - 1:0][31:0] loaded_bundle; logic load_buffer, request;
 
-    assign loaded_bundle = icache_channel.instr_bundle[`IBUFFER_SIZE - 1:1];
+    assign loaded_bundle = instruction_i[INSTRUCTION_BUFFER:1];
 
-    instruction_buffer instr_buffer (
-        .clk_i           ( clk_i                      ),
-        .rst_n_i         ( rst_n_i                    ),
-        .stall_i         ( stall                      ),
-        .flush_i         ( flush_i                    ),
-        .instr_bundle_i  ( loaded_bundle              ),
-        .bundle_size_i   ( icache_channel.bundle_size ),
-        .load_i          ( load_buffer                ),
-        .compressed_i    ( compressed                 ),
-        .fetched_instr_o ( buffer_instruction         ),
-        .instr_request_o ( instr_request              ),
-        .buffer_empty_o  ( buffer_empty               )
+    instruction_buffer #(INSTRUCTION_BUFFER, 4) instr_buffer (
+        .clk_i           ( clk_i               ),
+        .rst_n_i         ( rst_n_i             ),
+        .stall_i         ( stall               ),
+        .flush_i         ( flush_i             ),
+        .instr_bundle_i  ( loaded_bundle       ),
+        .bundle_size_i   ( instruction_count_i ),
+        .load_i          ( load_buffer         ),
+        .compressed_i    ( compressed          ),
+        .fetched_instr_o ( buffer_instruction  ),
+        .instr_request_o ( instr_request       ),
+        .buffer_empty_o  ( buffer_empty        )
     ); 
 
     /* Request on threshold hit on instruction buffer or if a prediction is taken */
@@ -289,7 +325,7 @@ module front_end (
     assign request_address_o = instr_request ? next_program_counter : branch_target_address;
     
     /* Foward instruction from cache instead of waiting 1 clock cycle for buffer loading */
-    assign fetched_instruction = load_buffer ? icache_channel.instr_bundle[0] : buffer_instruction;
+    assign fetched_instruction = load_buffer ? instruction_i[0] : buffer_instruction;
 
     /* RISCV defines uncompressed instructions with the first two 
      * bits setted */
@@ -327,7 +363,7 @@ module front_end (
             end else if (!stall & !stall_i) begin
                 if (buffer_empty) begin 
                     if_stage_instruction <= riscv32::NOP;
-                    if_stage_program_counter <= '0;
+                    if_stage_program_counter <= program_counter;
                     if_stage_compressed <= 1'b0;
                 end else begin 
                     if_stage_instruction <= compressed ? expanded_instruction : fetched_instruction;

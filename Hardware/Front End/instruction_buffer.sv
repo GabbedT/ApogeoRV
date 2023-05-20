@@ -4,9 +4,12 @@
 `include "../Include/Headers/apogeo_configuration.svh"
 
 module instruction_buffer #(
+    /* Instruction buffer size */
+    parameter BUFFER_SIZE = 8,
+
     /* The request get issued when the size of the
      * buffer reach this limit */
-    parameter REQUEST_LIMIT = 1
+    parameter REQUEST_LIMIT = 4
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -14,8 +17,8 @@ module instruction_buffer #(
     input logic flush_i,
 
     /* Bundle coming from instruction cache / memory controller */
-    input logic [`IBUFFER_SIZE - 2:0][31:0] instr_bundle_i,
-    input logic [$clog2(2 * `IBUFFER_SIZE) - 1:0] bundle_size_i,
+    input logic [BUFFER_SIZE - 1:0][31:0] instr_bundle_i,
+    input logic [$clog2(2 * BUFFER_SIZE):0] bundle_size_i,
     input logic load_i,
 
     /* Instruction is compressed or not, determine the lenght
@@ -39,7 +42,7 @@ module instruction_buffer #(
 
     /* The buffer size counter consider the number of compressed instructions, while the
      * bundle size consider the number of 32 bit instructions */
-    logic [$clog2(2 * `IBUFFER_SIZE) - 1:0] buffer_size; 
+    logic [$clog2(2 * BUFFER_SIZE):0] buffer_size; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : size_counter
             if (!rst_n_i) begin
@@ -59,42 +62,38 @@ module instruction_buffer #(
         end : size_counter
 
     assign buffer_empty_o = (buffer_size == '0);
-    assign instr_request_o = (buffer_size < REQUEST_LIMIT + 1);
+    assign instr_request_o = buffer_size < wewREQUEST_LIMIT;
 
 
 //====================================================================================
 //      BUFFER MEMORY
 //====================================================================================
 
-    logic [`IBUFFER_SIZE - 2:0][1:0][15:0] instruction_buffer;
+    logic [BUFFER_SIZE - 1:0][31:0] instruction_buffer;
 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : instruction_buffer_logic
             if (!rst_n_i) begin 
                 /* Reset */
-                for (int i = 0; i < `IBUFFER_SIZE - 1; ++i) begin 
+                for (int i = 0; i < BUFFER_SIZE; ++i) begin 
                     instruction_buffer[i] <= '0;
                 end
             end else if (load_i) begin
                 /* Load bundle */
-                for (int i = 0; i < `IBUFFER_SIZE - 1; ++i) begin 
+                for (int i = 0; i < BUFFER_SIZE; ++i) begin 
                     instruction_buffer[i] <= instr_bundle_i[i];
                 end
             end else if (!stall_i) begin
                 /* Shift instructions */
-                for (int i = 1; i < `IBUFFER_SIZE - 1; ++i) begin 
-                    if (compressed_i) begin
-                        instruction_buffer[i][0] <= instruction_buffer[i - 1][1];
-                        instruction_buffer[i][1] <= instruction_buffer[i][0];
-                    end else begin
-                        instruction_buffer[i][0] <= instruction_buffer[i - 1][0];
-                        instruction_buffer[i][1] <= instruction_buffer[i - 1][1];
-                    end
+                if (compressed_i) begin 
+                    instruction_buffer <= {instruction_buffer[BUFFER_SIZE - 2:0], 16'b0};
+                end else begin
+                    instruction_buffer <= {instruction_buffer[BUFFER_SIZE - 2:0], 32'b0};
                 end
             end
         end : instruction_buffer_logic
 
-    assign fetched_instr_o = instruction_buffer[`IBUFFER_SIZE - 2];
+    assign fetched_instr_o = instruction_buffer[BUFFER_SIZE - 1];
 
 endmodule : instruction_buffer
 

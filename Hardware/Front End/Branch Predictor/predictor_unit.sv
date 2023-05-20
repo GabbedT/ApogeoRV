@@ -162,7 +162,7 @@ module predictor_unit #(
             end 
 
             /* Mispredicted if different */
-            mispredicted_o = (outcome_i != fifo_read_data.prediction) & executed_i; 
+            mispredicted_o = (taken_i != fifo_read_data.prediction) & executed_i; 
         end
 
     /* Read FIFO and update branch status when it has been executed and 

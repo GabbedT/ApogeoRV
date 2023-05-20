@@ -39,7 +39,7 @@
 `ifndef DATA_BLOCK_SV
     `define DATA_BLOCK_SV
 
-`include "data_bank.sv"
+`include "block_bank.sv"
 
 `include "../../../Include/Packages/apogeo_pkg.sv"
 
@@ -57,13 +57,13 @@ module data_block #(
     input logic [ADDR_WIDTH - 1:0] write_address_i,
     input logic [3:0] byte_write_i,
     input logic write_i,
-    input data_word_t write_data_i,
+    input data_word_t data_i,
 
     /* Read port */
     input logic [BANK_ADDRESS - 1:0] read_bank_i,
     input logic [ADDR_WIDTH - 1:0] read_address_i,
     input logic read_i,
-    output data_word_t read_data_o
+    output data_word_t data_o
 );
 
 //====================================================================================
@@ -90,19 +90,19 @@ module data_block #(
     /* Generate N chip of 32 bit wide to match the block width */
     generate
         for (i = 0; i < BANK_NUMBER; ++i) begin
-            data_bank #(ADDR_WIDTH) cache_block_bank (
+            block_bank #(ADDR_WIDTH, 1) cache_block_bank (
                 .clk_i ( clk_i ),
 
                 /* Port 0 (W) interface */
                 .byte_write_i    ( byte_write_i              ),
                 .write_address_i ( write_address_i           ),
-                .write_data_i    ( write_data_i              ),
+                .data_i          ( data_i                    ),
                 .write_i         ( write_i & write_enable[i] ),
 
                 /* Port 1 (R) interface */
                 .read_address_i ( read_address_i          ),
                 .read_i         ( read_i & read_enable[i] ),
-                .read_data_o    ( read_data[i]            ) 
+                .data_o         ( read_data[i]            ) 
             );
         end
     endgenerate
@@ -115,7 +115,7 @@ module data_block #(
         end
 
     /* Output assignment */
-    assign read_data_o = read_data[data_select];
+    assign data_o = read_data[data_select];
 
 endmodule : data_block
 

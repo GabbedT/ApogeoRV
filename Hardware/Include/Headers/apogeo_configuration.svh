@@ -26,7 +26,7 @@
 //====================================================================================
 
     /* Instruction buffer size */
-    `define IBUFFER_SIZE 8
+    `define INSTRUCTION_BUFFER_SIZE 8
 
     /* Enable bit manipulation unit and B extension */
     `define BMU
@@ -34,9 +34,9 @@
     /* Enable or disable cache */
     //`define CACHE_SYSTEM
 
-    `define BRANCH_PREDICTOR_DEPTH 32
+    `define BRANCH_PREDICTOR_DEPTH 1024
 
-    `define BRANCH_TARGET_BUFFER_DEPTH 32
+    `define BRANCH_TARGET_BUFFER_DEPTH 1024
 
 
 //====================================================================================

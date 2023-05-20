@@ -1,12 +1,12 @@
 `ifndef STORE_CONTROLLER_SV
     `define STORE_CONTROLLER_SV 
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/cache_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
+`include "../../../Include/Packages/cache_pkg.sv"
 
-`include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../../Include/Interfaces/memory_controller_interface.sv"
 
 module store_controller (
     input logic clk_i,
@@ -33,8 +33,8 @@ module store_controller (
     output status_packet_t cache_status_o,
 
     /* Enable operation on cache data */
-    output enable_t cache_read_o,
-    output enable_t cache_write_o,
+    output data_enable_t cache_read_o,
+    output data_enable_t cache_write_o,
     output logic [3:0] cache_byte_o
 );
 

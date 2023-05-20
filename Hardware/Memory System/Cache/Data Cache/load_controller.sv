@@ -1,12 +1,12 @@
 `ifndef LOAD_CONTROLLER_SV
     `define LOAD_CONTROLLER_SV
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/cache_pkg.sv"
+`include "../../../Include/Packages/apogeo_pkg.sv"
+`include "../../../Include/Packages/cache_pkg.sv"
 
-`include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../../Include/Interfaces/memory_controller_interface.sv"
 
 module load_controller #(
     /* Cache block */
@@ -51,8 +51,8 @@ module load_controller #(
     output data_word_t cache_data_o,
 
     /* Enable operation on cache data */
-    output enable_t cache_read_o,
-    output enable_t cache_write_o
+    output data_enable_t cache_read_o,
+    output data_enable_t cache_write_o
 ); 
 
 //====================================================================================
@@ -161,7 +161,7 @@ module load_controller #(
                             cache_read_o.data = 1'b1;
 
                             /* Start from block base */
-                            cache_address_o = {cache_tag_i, cache_address.index, word_counter_CRT, 2'b0}; 
+                            cache_address_o = {cache_tag_i, cache_address.index, word_counter_CRT[OFFSET - 1:0], 2'b0}; 
 
                             /* Increment word counter */
                             word_counter_NXT = word_counter_CRT + 1'b1; 
@@ -183,7 +183,7 @@ module load_controller #(
                     if (!word_counter_CRT[OFFSET] & word_counter_CRT[OFFSET - 1:0] != '0) begin
                         /* Read only data sequentially */
                         cache_read_o.data = 1'b1;
-                        cache_address_o = {cache_tag_i, cache_address.index, word_counter_CRT, 2'b0}; 
+                        cache_address_o = {cache_tag_i, cache_address.index, word_counter_CRT[OFFSET - 1:0], 2'b0}; 
 
                         /* Increment word counter */
                         word_counter_NXT = word_counter_CRT + 1'b1;
@@ -227,8 +227,9 @@ module load_controller #(
                         end else if (word_counter_CRT[OFFSET - 1:0] == '1) begin
                             /* Block has been allocated */
                             state_NXT = IDLE; 
-
-                            data_o = requested_data_CRT;
+                            
+                            /* If the requested data is the last word of the cache block, foward it immediately */
+                            data_o = cache_address.offset == '1 ? load_channel.data : requested_data_CRT;
                             valid_o = 1'b1; 
                         end 
 

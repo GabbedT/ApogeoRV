@@ -39,6 +39,22 @@ module burst_buffer #(
 //      FIFO LOGIC
 //====================================================================================
 
+    /* Flush logic */
+    logic [$clog2(BUFFER_DEPTH) - 1:0] valid_ptr, valid_size;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : valid_pointer_register
+            if (!rst_n_i) begin
+                valid_ptr <= '0;
+                valid_size <= '0; 
+            end else begin 
+                if (valid_i) begin
+                    valid_ptr <= valid_ptr + 1'b1;
+                    valid_size <= valid_size + 1'b1;
+                end
+            end 
+        end : valid_pointer_register
+
+
     /* Write and read pointers */
     logic [$clog2(BUFFER_DEPTH) - 1:0] push_ptr, inc_push_ptr, pull_ptr, inc_pull_ptr, buffer_size;
 
@@ -51,9 +67,11 @@ module burst_buffer #(
                 push_ptr <= '0; 
                 buffer_size <= '0;
             end else if (flush_i) begin
-                pull_ptr <= '0;
-                push_ptr <= '0; 
-                buffer_size <= '0;
+                /* Push pointer is setted to the last 
+                 * validated value */ 
+                push_ptr <= valid_ptr;
+                pull_ptr <= pull_ptr;
+                buffer_size <= valid_size;
             end else begin 
                 /* Increment pointer */
                 if (push_i) begin

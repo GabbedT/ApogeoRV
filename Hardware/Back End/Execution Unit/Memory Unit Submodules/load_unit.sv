@@ -53,7 +53,6 @@ module load_unit (
     /* Register control */
     input logic clk_i,
     input logic rst_n_i,
-    input logic prv_level_i,
 
     /* Inputs are valid */
     input logic valid_operation_i,
@@ -198,7 +197,7 @@ module load_unit (
             match_NXT = match_CRT;
             state_NXT = state_CRT;
 
-            load_channel.request = 1'b0;
+            load_channel.request = 1'b1;
             load_channel.address = load_address; 
             
             idle_o = 1'b0;
@@ -215,6 +214,7 @@ module load_unit (
                  * unit issue a load request                  */ 
                 IDLE: begin
                     idle_o = 1'b1;
+                    load_channel.request = 1'b0; 
                     cachable_o = cachable;
                     
                     if (valid_operation_i) begin
@@ -264,6 +264,7 @@ module load_unit (
 
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;
+                        load_channel.request = 1'b0; 
                     end 
 
                     load_data_NXT = data_sliced;

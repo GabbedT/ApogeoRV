@@ -21,7 +21,7 @@
 // SOFTWARE.
 // ------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------
-// FILE NAME : data_bank.sv
+// FILE NAME : block_bank.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
@@ -36,27 +36,30 @@
 //               Both reads and writes happens on the positive edge of the clock.
 // ------------------------------------------------------------------------------------
 
-`ifndef DATA_BANK_SV
-    `define DATA_BANK_SV
+`ifndef BLOCK_BANK_SV
+    `define BLOCK_BANK_SV
 
 `include "../../../Include/Packages/apogeo_pkg.sv"
 
-module data_bank #(
+module block_bank #(
     /* Cache address */
-    parameter ADDR_WIDTH = 32
+    parameter ADDR_WIDTH = 32,
+
+    /* Enable byte write */
+    parameter BYTE_WRITE = 1
 ) (
     input logic clk_i,
 
     /* Write port */
     input logic [3:0] byte_write_i,
     input logic [ADDR_WIDTH - 1:0] write_address_i,
-    input data_word_t write_data_i,
+    input data_word_t data_i,
     input logic write_i,
 
     /* Read port */
     input logic [ADDR_WIDTH - 1:0] read_address_i,
     input logic read_i,  
-    output data_word_t read_data_o
+    output data_word_t data_o
 );
 
 //====================================================================================
@@ -75,20 +78,24 @@ module data_bank #(
 
         always_ff @(posedge clk_i) begin : bank_write_port
             if (write_i) begin 
-                for (int i = 0; i < 4; ++i) begin : byte_write_logic
-                    if (byte_write_i[i]) begin
-                        bank_memory[write_address_i][(i * 8)+:8] <= write_data_i[(i * 8)+:8];
-                    end
-                end : byte_write_logic
+                if (BYTE_WRITE) begin 
+                    for (int i = 0; i < 4; ++i) begin : byte_write_logic
+                        if (byte_write_i[i]) begin
+                            bank_memory[write_address_i][(i * 8)+:8] <= data_i[(i * 8)+:8];
+                        end
+                    end : byte_write_logic
+                end else begin
+                    bank_memory[write_address_i] <= data_i;
+                end
             end
         end : bank_write_port
 
         always_ff @(posedge clk_i) begin : bank_read_port
             if (read_i) begin 
-                read_data_o <= bank_memory[read_address_i];
+                data_o <= bank_memory[read_address_i];
             end 
         end : bank_read_port
 
-endmodule : data_bank
+endmodule : block_bank
 
 `endif 

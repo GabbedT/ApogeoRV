@@ -21,7 +21,14 @@ package cache_pkg;
         logic dirty;
         logic tag;
         logic data;
-    } enable_t;
+    } data_enable_t;
+
+    /* Access memory chip */
+    typedef struct packed {
+        logic valid;
+        logic tag;
+        logic data;
+    } instruction_enable_t;
 
 endpackage : cache_pkg 
 

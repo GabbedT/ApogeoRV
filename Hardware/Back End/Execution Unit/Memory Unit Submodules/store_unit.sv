@@ -169,7 +169,7 @@ module store_unit (
             str_buf_channel.push_request = 1'b0;
             str_buf_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
-            store_channel.request = 1'b0;
+            store_channel.request = 1'b1;
             store_channel.data = store_data_CRT;
             store_channel.address = store_address_CRT;
             store_channel.width = store_width_CRT;
@@ -183,6 +183,7 @@ module store_unit (
 
                 IDLE: begin
                     idle_o = 1'b1;
+                    store_channel.request = 1'b0;
                     cachable_o = cachable;
 
                     if (valid_operation_i) begin
@@ -255,6 +256,7 @@ module store_unit (
                 WAIT_MEMORY: begin
                     if (store_channel.done) begin 
                         data_valid_o = 1'b1;
+                        store_channel.request = 1'b0;
 
                         /* Idle status is declared before to enhance 
                          * scheduler performance */
@@ -286,6 +288,7 @@ module store_unit (
 
                 WAIT_BUFFER: begin
                     str_buf_channel.push_request = !str_buf_channel.full; 
+                    store_channel.request = 1'b0;
 
                     if (!str_buf_channel.full) begin 
                         data_valid_o = 1'b1;

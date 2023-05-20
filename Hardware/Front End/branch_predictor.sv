@@ -76,7 +76,7 @@ module branch_predictor (
         .rst_n_i        ( rst_n_i         ),
         .predict_i      ( make_prediction ),
         .executed_i     ( executed_i      ),
-        .taken_i        ( outcome_i       ),
+        .taken_i        ( taken_i         ),
         .index_i        ( predictor_index ),
         .prediction_o   ( prediction_o    ),
         .mispredicted_o ( mispredicted_o  )

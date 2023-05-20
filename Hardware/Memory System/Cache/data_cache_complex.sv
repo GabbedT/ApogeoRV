@@ -1,16 +1,16 @@
-`ifndef CACHE_COMPLEX_SV
-    `define CACHE_COMPLEX_SV
+`ifndef DATA_CACHE_COMPLEX_SV
+    `define DATA_CACHE_COMPLEX_SV
 
 `include "../../Include/Packages/cache_pkg.sv"
 `include "../../Include/Packages/apogeo_pkg.sv"
 
 `include "../../Include/Interfaces/memory_controller_interface.sv"
 
-`include "cache.sv"
-`include "load_controller.sv"
-`include "store_controller.sv"
+`include "Data Cache/data_cache.sv"
+`include "Data Cache/load_controller.sv"
+`include "Data Cache/store_controller.sv"
 
-module cache_complex #(
+module data_cache_complex #(
     /* Total cache size in bytes */
     parameter CACHE_SIZE = 2 ** 13,
 
@@ -57,7 +57,7 @@ module cache_complex #(
 
     /* R/W Port nets, the two controllers contend the same port on the write side */
     data_word_t [1:0] cache_address; 
-    enable_t cache_store; 
+    data_enable_t cache_store; 
     data_word_t cache_store_data; logic [3:0] cache_byte_write;
     status_packet_t cache_store_status;
 
@@ -65,9 +65,9 @@ module cache_complex #(
     data_word_t cache_load_data; logic [TAG - 1:0] cache_load_tag;
 
     /* Shared nets */
-    enable_t [1:0] cache_load; logic [1:0] cache_hit, cache_dirty;
+    data_enable_t [1:0] cache_load; logic [1:0] cache_hit, cache_dirty;
 
-    cache #(CACHE_SIZE, BLOCK_SIZE, TAG) memory_cache (
+    data_cache #(CACHE_SIZE, BLOCK_SIZE, TAG) dcache (
         .clk_i ( clk_i ),
 
         .read_write_address_i ( cache_address[0]   ),
@@ -92,7 +92,7 @@ module cache_complex #(
 
     status_packet_t lctrl_status_packet;
     data_word_t lctrl_store_data, lctrl_cache_address;
-    enable_t lctrl_cache_store; 
+    data_enable_t lctrl_cache_store; 
 
     store_interface lctrl_store_channel(); assign lctrl_store_channel.done = store_channel.done;
 
@@ -129,7 +129,7 @@ module cache_complex #(
     logic sctrl_halt, sctrl_port_halt, sctrl_memory_halt; 
     status_packet_t sctrl_status_packet;
     data_word_t sctrl_store_data, sctrl_cache_address;
-    enable_t sctrl_cache_store; logic [3:0] store_byte_write;
+    data_enable_t sctrl_cache_store; logic [3:0] store_byte_write;
 
     store_interface sctrl_store_channel(); assign sctrl_store_channel.done = store_channel.done;
 
@@ -223,6 +223,6 @@ module cache_complex #(
 
     assign store_channel.request = sctrl_store_channel.request | lctrl_store_channel.request;
 
-endmodule : cache_complex 
+endmodule : data_cache_complex 
 
 `endif 

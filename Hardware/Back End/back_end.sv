@@ -36,6 +36,7 @@ module back_end (
 
     /* Instruction jump is compressed */
     input logic compressed_i,
+    output logic compressed_o,
 
     /* Branch control */
     input logic branch_i,
@@ -114,21 +115,24 @@ module back_end (
 
 
     exu_valid_t bypass_valid; 
-    logic bypass_branch, bypass_jump, flush_pipeline;
+    logic bypass_branch, bypass_jump, flush_pipeline, bypass_compressed;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
             if (!rst_n_i) begin
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
+                bypass_compressed <= 1'b0;
             end else if (flush_pipeline | mispredicted_i) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
+                bypass_compressed <= 1'b0; 
             end else if (!core_sleep_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
+                bypass_compressed <= compressed_i;
             end
         end : bypass_stage_register
 
@@ -219,6 +223,7 @@ module back_end (
 
     assign branch_o = bypass_branch;
     assign jump_o = bypass_jump;
+    assign compressed_o = bypass_compressed; 
 
 
     /* Pipeline registers */

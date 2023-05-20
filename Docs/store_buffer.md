@@ -34,6 +34,12 @@ If the pointer has the same value of the pull pointer, then no entry in the buff
 
 During an exception or interrupt, a flush command is sent to the buffer. **The pull pointer value remain the same in this case while the push pointer gets setted to valid pointer value.**
 
+### Rollback 
+
+TODO
+
+---
+&nbsp;
 
 
 ## Burst Buffer 
@@ -47,7 +53,7 @@ Those are store operations that benefit the most from burst based write transact
 
 A secondary buffer is adopted for this task. It's much larger and simpler than the normal store buffer since here value fowarding is not possible, so all the logic is concentrated in store capacity. This implies **RAW hazards that the hardware cannot handle**, the responsability for this is up to the programmer. 
 
-This buffer works tightly with a custom CSR, once the CSR is set up, a store operation is initiated. 
+This buffer works tightly with a custom CSR, once the CSR is set up, a store operation can be initiated. 
 
 ### Correct Functioning
 
@@ -59,11 +65,14 @@ To ensure the correct functionality of the buffer the programmer must:
     * Threshold value.
     * Store operation type (byte, halfword or word).
     * Bus operation type (fixed or incremental).
-    * Stride value.
     * Change buffer select bit.
 * Execute instructions.
 * Ensure that the instructions are not dependent on stored values. 
 * Check the CSR and wait until the buffer is empty.
 * Clear the bit on CSR allows subsequent stores to push data into the burst buffer if not needed anymore.
 
-After all those steps, the normal execution can resume. 
+After all those steps, the normal execution can resume.
+
+### Rollback 
+
+TODO
