@@ -1,1 +1,1 @@
-# RV32-Apogeo
+# ApogeoCore
