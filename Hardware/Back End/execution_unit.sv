@@ -43,18 +43,27 @@
 `include "../Include/Packages/apogeo_operations_pkg.sv"
 `include "../Include/Packages/apogeo_pkg.sv"
 
-`include "../Include/Interfaces/memory_controller_interface.sv"
+`include "../Include/Interfaces/bus_controller_interface.sv"
 `include "../Include/Interfaces/store_buffer_interface.sv"
 
 `include "Execution Unit/integer_unit.sv"
 `include "Execution Unit/load_store_unit.sv"
 `include "Execution Unit/control_status_registers.sv"
 
-module execution_unit (
+module execution_unit #(
+    /* Number of entries in the store buffer */
+    parameter STORE_BUFFER_SIZE = 8
+) (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
     input logic stall_i,
+    input logic validate_i,
+
+    /* Csr nets */ 
+    input logic validate_csr_write_i,
+    output logic priv_level_o,
+    output logic csr_buffer_full_o,
 
     /* Operands */
     input data_word_t [1:0] operand_i,
@@ -79,29 +88,6 @@ module execution_unit (
 
     load_interface.master load_channel,
     store_interface.master store_channel,
-
-    /* Data cachable */
-    output logic store_cachable_o,
-    output logic load_cachable_o,
-
-    /* 
-     * Store buffer interface 
-     */
-
-    /* Store buffer main interface */
-    store_buffer_push_interface.master str_buf_channel,
-
-    /* Store buffer fowarding nets */
-    input logic       str_buf_address_match_i,
-    input data_word_t str_buf_fowarded_data_i,
-
-    /* Burst buffer */
-    input logic [9:0] burst_buffer_size_i,
-    output data_word_t burst_base_addr_o,
-    output logic [9:0] burst_threshold_o,
-    output logic [1:0] burst_width_o,
-    output logic burst_operation_o,
-    output logic buffer_select_o,
 
 
     /*
@@ -131,7 +117,6 @@ module execution_unit (
     input logic instruction_retired_i,
 
     /* Functional units status for scheduling */
-    output logic div_idle_o,
     output logic ldu_idle_o,
     output logic stu_idle_o,
 
@@ -174,8 +159,7 @@ module execution_unit (
         .operand_2_i  ( operand_i[1]             ),
         .result_o     ( result_o[ITU]            ), 
         .ipacket_o    ( ipacket_o[ITU]           ),
-        .data_valid_o ( data_valid_o[ITU]        ),
-        .div_idle_o   ( div_idle_o               )
+        .data_valid_o ( data_valid_o[ITU]        )
     ); 
 
 
@@ -185,7 +169,7 @@ module execution_unit (
 
     logic timer_interrupt, current_privilege;
 
-    load_store_unit LSU (
+    load_store_unit #(STORE_BUFFER_SIZE) LSU (
         .clk_i                   ( clk_i                   ),
         .rst_n_i                 ( rst_n_i                 ),
         .flush_i                 ( flush_i                 ),
@@ -197,13 +181,9 @@ module execution_unit (
         .timer_interrupt_o       ( timer_interrupt         ),
         .ldu_idle_o              ( ldu_idle_o              ),
         .stu_idle_o              ( stu_idle_o              ),
+        .validate_i              ( validate_i              ),
         .load_channel            ( load_channel            ),
         .store_channel           ( store_channel           ),
-        .load_cachable_o         ( load_cachable_o         ),
-        .store_cachable_o        ( store_cachable_o        ),
-        .str_buf_channel         ( str_buf_channel         ),
-        .str_buf_address_match_i ( str_buf_address_match_i ),
-        .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
         .instr_packet_o          ( ipacket_o[LSU]          ),
         .data_o                  ( result_o[LSU]           ),
         .data_valid_o            ( data_valid_o[LSU]       )
@@ -243,8 +223,11 @@ module execution_unit (
     control_status_registers CSRU (
         .clk_i                  ( clk_i                 ),
         .rst_n_i                ( rst_n_i               ),
+        .flush_i                ( flush_i               ),
+        .buffer_full_o          ( csr_buffer_full_o     ),
         .csr_write_access_i     ( csr_write             ),
         .csr_read_access_i      ( csr_read              ),
+        .csr_write_validate_i   ( validate_csr_write_i  ),
         .csr_address_i          ( operand_i[1][11:0]    ),
         .csr_data_write_i       ( csr_data_write        ),
         .csr_data_read_o        ( csr_data_read         ),
@@ -257,12 +240,6 @@ module execution_unit (
         .enable_mul_o           ( csr_mul_enable        ),
         .enable_div_o           ( csr_div_enable        ), 
         `ifdef BMU.enable_bmu_o ( csr_bmu_enable ), `endif 
-        .burst_buffer_size_i    ( burst_buffer_size_i   ),
-        .burst_base_addr_o      ( burst_base_addr_o     ),
-        .burst_threshold_o      ( burst_threshold_o     ),
-        .burst_width_o          ( burst_width_o         ),
-        .burst_operation_o      ( burst_operation_o     ),
-        .buffer_select_o        ( buffer_select_o       ),
         .trap_instruction_pc_i  ( trap_instruction_pc_i  ),
         .trap_instruction_pc_o  ( trap_instruction_pc_o  ),
         .interrupt_vector_i     ( interrupt_vector_i     ),
@@ -278,6 +255,7 @@ module execution_unit (
 
     assign data_valid_o[CSR] = data_valid_i.CSR;
 
+    assign priv_level_o = current_privilege;
         
         always_comb begin : csr_output_logic
             /* Default values */

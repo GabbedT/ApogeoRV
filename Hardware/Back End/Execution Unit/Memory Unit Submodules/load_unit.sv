@@ -46,7 +46,7 @@
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/Execution Unit/control_status_registers_pkg.sv"
 
-`include "../../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../../Include/Interfaces/bus_controller_interface.sv"
 `include "../../../Include/Interfaces/store_buffer_interface.sv"
 
 module load_unit (
@@ -69,22 +69,18 @@ module load_unit (
     /* Memory controller load channel */
     load_interface.master load_channel,
 
-    /* Store controller fowarding nets */
-    input logic stu_address_match_i,
-    input data_word_t stu_fowarded_data_i,
+    /* Fowarding nets */
+    input logic foward_match_i,
+    input data_word_t foward_data_i,
 
-    /* Store buffer fowarding nets */
-    input logic str_buf_address_match_i,
-    input data_word_t str_buf_fowarded_data_i,
+    /* Status */
+    input logic buffer_empty_i, 
     
     /* Data loaded from memory */   
     output data_word_t data_loaded_o,
 
     /* Functional unit status */
     output logic idle_o,
-
-    /* Data can be loaded from cache */
-    output logic cachable_o,
 
     /* Data is valid */
     output logic data_valid_o
@@ -97,16 +93,15 @@ module load_unit (
 
     logic timer_access, cachable;
 
-    assign timer_access = (load_address_i > (`TIMER_START - 1)) & (load_address_i < (`TIMER_END - 1));
+    assign timer_access = (load_address_i >= (`TIMER_START)) & (load_address_i <= (`TIMER_END));
 
-    assign cachable = (load_address_i > (`IO_END - 1));
+    assign cachable = (load_address_i >= (`IO_END));
 
     /* Load data from cache or memory */
-    data_word_t load_data_CRT, load_data_NXT; logic cachable_CRT, cachable_NXT;
+    data_word_t load_data_CRT, load_data_NXT;  
 
         always_ff @(posedge clk_i) begin
             load_data_CRT <= load_data_NXT;
-            cachable_CRT <= cachable_NXT;
         end
 
 
@@ -177,7 +172,7 @@ module load_unit (
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic {IDLE, WAIT} load_unit_fsm_state_t;
+    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_MEMORY_UPDATE} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
@@ -193,11 +188,10 @@ module load_unit (
         always_comb begin : fsm_logic
             /* Default values */
             load_data_NXT = load_data_CRT;
-            cachable_NXT = cachable_CRT;
             match_NXT = match_CRT;
             state_NXT = state_CRT;
 
-            load_channel.request = 1'b1;
+            load_channel.request = 1'b0;
             load_channel.address = load_address; 
             
             idle_o = 1'b0;
@@ -214,38 +208,24 @@ module load_unit (
                  * unit issue a load request                  */ 
                 IDLE: begin
                     idle_o = 1'b1;
-                    load_channel.request = 1'b0; 
-                    cachable_o = cachable;
                     
                     if (valid_operation_i) begin
-                        state_NXT = WAIT;
+                        if (operation_i != LDW) begin
+                            state_NXT = WAIT_MEMORY_UPDATE;
 
-                        if (str_buf_address_match_i) begin
-                            load_data_NXT = str_buf_fowarded_data_i;
+                            idle_o = 1'b0;
+                        end else if (foward_match_i) begin
+                            load_data_NXT = foward_data_i;
                             match_NXT = 1'b1;
 
-                            /* Idle status is declared before to enhance 
-                             * scheduler performance */
                             idle_o = 1'b1;
                         end else if (timer_access) begin
                             load_data_NXT = timer_data_i;
                             match_NXT = 1'b1;
 
-                            /* Idle status is declared before to enhance 
-                             * scheduler performance */
-                            idle_o = 1'b1;
-                        end else if (stu_address_match_i) begin
-                            load_data_NXT = stu_fowarded_data_i;
-                            match_NXT = 1'b1;
-
-                            /* Idle status is declared before to enhance 
-                             * scheduler performance */
                             idle_o = 1'b1;
                         end else begin 
                             load_channel.request = 1'b1;
-                            cachable_NXT = cachable; 
-
-                            idle_o = 1'b0;
                         end
                     end
 
@@ -254,7 +234,7 @@ module load_unit (
 
 
                 /* Waits for memory to supply data */
-                WAIT: begin
+                WAIT_MEMORY: begin
                     /* Valid signal is the OR between the signal from 
                      * cache controller and the signal from the memory 
                      * interface */
@@ -264,13 +244,21 @@ module load_unit (
 
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;
-                        load_channel.request = 1'b0; 
                     end 
 
                     load_data_NXT = data_sliced;
                     data_loaded_o = data_sliced;
-                    cachable_o = cachable_CRT; 
                 end   
+
+
+                WAIT_MEMORY_UPDATE: begin
+                    if (buffer_empty_i) begin
+                        load_channel.request = 1'b1;
+                        load_channel.address = load_address;
+
+                        state_NXT = WAIT_MEMORY; 
+                    end
+                end
             endcase
         end : fsm_logic
 

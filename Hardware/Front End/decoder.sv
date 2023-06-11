@@ -82,6 +82,7 @@ module decoder (
     /* Registers */
     logic [1:0][4:0] reg_src_idec; logic [4:0] reg_dest_idec;
     
+    
     /* Exception vector */
     logic [4:0] exc_vect_idec;
 
@@ -137,8 +138,6 @@ module decoder (
     /* Registers */
     logic [1:0][4:0] reg_src_bdec; logic [4:0] reg_dest_bdec;
     
-    /* Exception vector */
-    logic [4:0] exc_vect_bdec;
 
     bit_manipulation_decoder bdecoder (
         .instr_i ( instr_i ),
@@ -152,8 +151,7 @@ module decoder (
         .unit_valid_o ( bmu_valid_bdec ),
         .unit_uop_o   ( bmu_uop_bdec   ),
 
-        .exception_generated_o ( exc_gen_bdec  ),
-        .exception_vector_o    ( exc_vect_bdec )
+        .exception_generated_o ( exc_gen_bdec  )
     ); 
 
     `endif 
@@ -163,46 +161,151 @@ module decoder (
 //      OUTPUT LOGIC
 //====================================================================================
 
-    assign immediate_o[0] = immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
-    assign immediate_o[1] = immediate_idec[1];
+    // assign immediate_o[0] = immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
+    // assign immediate_o[1] = immediate_idec[1];
 
-    assign imm_valid_o[0] = is_immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
-    assign imm_valid_o[1] = is_immediate_idec[1];
+    // assign imm_valid_o[0] = is_immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
+    // assign imm_valid_o[1] = is_immediate_idec[1];
 
-    assign reg_src_o[0] = reg_src_idec[0] `ifdef BMU | reg_src_bdec[0] `endif;
-    assign reg_src_o[1] = reg_src_idec[1] `ifdef BMU | reg_src_bdec[1] `endif;
+    // assign reg_src_o[0] = reg_src_idec[0] `ifdef BMU | reg_src_bdec[0] `endif;
+    // assign reg_src_o[1] = reg_src_idec[1] `ifdef BMU | reg_src_bdec[1] `endif;
 
-    assign reg_dest_o = reg_dest_idec `ifdef BMU | reg_dest_bdec `endif;
+    // assign reg_dest_o = reg_dest_idec `ifdef BMU | reg_dest_bdec `endif;
 
-    assign exu_valid_o.ITU = itu_valid_idec `ifdef BMU | {1'b0, bmu_valid_bdec, 2'b0} `endif; 
-    assign exu_valid_o.LSU = lsu_valid_idec;
-    assign exu_valid_o.CSR = csr_valid_idec;
+    // assign exu_valid_o.ITU = itu_valid_idec `ifdef BMU | {1'b0, bmu_valid_bdec, 2'b0} `endif; 
+    // assign exu_valid_o.LSU = lsu_valid_idec;
+    // assign exu_valid_o.CSR = csr_valid_idec;
+
+    // exu_uop_t itu_uop, lsu_uop, csr_uop;
+
+    // assign itu_uop.ITU.subunit = itu_uop_idec `ifdef BMU | bmu_uop_bdec `endif; 
+    // assign itu_uop.ITU.padding = '0; 
+    // assign lsu_uop.LSU.subunit = lsu_uop_idec;
+    // assign lsu_uop.LSU.padding = '0;
+    // assign csr_uop.CSR.subunit = csr_uop_idec;
+    // assign csr_uop.CSR.padding = '0;
+
+    // assign exu_uop_o = itu_uop | lsu_uop | csr_uop;
+
+    // assign exception_generated_o = exc_gen_idec & exc_gen_bdec;
+
+
 
     exu_uop_t itu_uop, lsu_uop, csr_uop;
 
-    assign itu_uop.ITU.subunit = itu_uop_idec `ifdef BMU | bmu_uop_bdec `endif; 
-    assign itu_uop.ITU.padding = '0; 
-    assign lsu_uop.LSU.subunit = lsu_uop_idec;
-    assign lsu_uop.LSU.padding = '0;
-    assign csr_uop.CSR.subunit = csr_uop_idec;
-    assign csr_uop.CSR.padding = '0;
-
-    assign exu_uop_o = itu_uop | lsu_uop | csr_uop;
-
-    assign exception_generated_o = exc_gen_idec `ifdef BMU & exc_gen_bdec `endif;
-    
     `ifdef BMU 
-        always_comb begin 
-            if (exc_gen_idec) begin    
-                exception_vector_o = exc_vect_idec;
-            end else if (exc_gen_bdec) begin
-                exception_vector_o = exc_vect_bdec;
+
+        always_comb begin
+            /* Default values */
+            immediate_o = '0;
+            imm_valid_o = '0;
+            reg_src_o = '0; 
+            reg_dest_o = '0;
+            exu_valid_o = '0;
+            exu_uop_o = '0;
+            itu_uop = '0;
+            lsu_uop = '0; 
+            csr_uop = '0; 
+            exception_vector_o = `INSTR_ILLEGAL; 
+            exception_generated_o = 1'b0;
+
+            case ({exc_gen_idec, exc_gen_bdec})
+                2'b00: begin
+                    $display("[DECODER] ERROR! Both decoder have produced a valid micro instruction!");
+                end
+
+                2'b01: begin
+                    immediate_o = immediate_idec;
+                    imm_valid_o = is_immediate_idec;
+
+                    reg_src_o = reg_src_idec;
+                    reg_dest_o = reg_dest_idec;
+
+                    exu_valid_o.ITU = itu_valid_idec; 
+                    exu_valid_o.LSU = lsu_valid_idec;
+                    exu_valid_o.CSR = csr_valid_idec;
+
+                    itu_uop.ITU.subunit = itu_uop_idec; 
+                    lsu_uop.LSU.subunit = lsu_uop_idec; 
+                    csr_uop.CSR.subunit = csr_uop_idec; 
+                    exu_uop_o = itu_uop | lsu_uop | csr_uop; 
+
+                    exception_vector_o = exc_vect_idec;
+                end
+
+                2'b10: begin
+                    immediate_o[0] = immediate_bdec;
+                    immediate_o[1] = '0;
+
+                    imm_valid_o[0] = is_immediate_bdec;
+                    imm_valid_o[1] = '0;
+
+                    reg_src_o = reg_src_bdec;
+                    reg_dest_o = reg_dest_bdec;
+
+                    exu_valid_o.ITU.BMU = bmu_valid_bdec;
+                    exu_uop_o.ITU.subunit = bmu_uop_bdec; 
+                end
+
+                2'b11: begin
+                    immediate_o = '0;
+                    imm_valid_o = '0;
+                    reg_src_o = '0; 
+                    reg_dest_o = '0; 
+
+                    exu_valid_o.ITU.ALU = 1'b1;
+                    exu_uop_o.ITU.subunit.ALU.opcode = ADD; 
+
+                    exception_generated_o = 1'b1;
+                end
+            endcase 
+        end
+
+    `else 
+
+        always_comb begin
+            /* Default values */
+            immediate_o = '0;
+            imm_valid_o = '0;
+            reg_src_o = '0; 
+            reg_dest_o = '0;
+            exu_valid_o = '0;
+            exu_uop_o = '0;
+            itu_uop = '0;
+            lsu_uop = '0; 
+            csr_uop = '0;
+
+            exception_vector_o = exception_vector_idec;
+            exception_generated_o = exc_gen_idec;
+
+            if (!exc_gen_idec) begin 
+                immediate_o[0] = immediate_idec[0];
+                immediate_o[1] = immediate_idec[1];
+
+                imm_valid_o[0] = is_immediate_idec[0];
+                imm_valid_o[1] = is_immediate_idec[1];
+
+                reg_src_o = reg_src_idec;
+                reg_dest_o = reg_dest_idec;
+
+                exu_valid_o.ITU = itu_valid_idec; 
+                exu_valid_o.LSU = lsu_valid_idec;
+                exu_valid_o.CSR = csr_valid_idec;
+                itu_uop.ITU.subunit = itu_uop_idec; 
+                lsu_uop.LSU.subunit = lsu_uop_idec; 
+                csr_uop.CSR.subunit = csr_uop_idec; 
+                exu_uop_o = itu_uop | lsu_uop | csr_uop; 
             end else begin
-                exception_vector_o = '0;
+                immediate_o = '0;
+                imm_valid_o = '0;
+                reg_src_o = '0; 
+                reg_dest_o = '0; 
+
+                exu_valid_o.ITU.ALU = 1'b1;
+                exu_uop_o.ITU.subunit.ALU.opcode = ADD; 
             end
         end
-    `else 
-        assign exception_vector_o = exc_vect_idec;
+
     `endif 
 
 endmodule : decoder

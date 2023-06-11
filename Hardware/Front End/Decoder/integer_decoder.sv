@@ -138,7 +138,7 @@ module integer_decoder (
         immediate_o[index][11] = instr_i.B.immediate1;  
         immediate_o[index][4:1] = instr_i.B.immediate2;  
         immediate_o[index][10:5] = instr_i.B.immediate3;  
-        immediate_o[index][31:12] = $signed(instr_i.B.immediate4);
+        immediate_o[index][31:12] = {20{instr_i.B.immediate4}};
         imm_valid_o[index] = 1'b1;
     endfunction : build_B_immediate 
 
@@ -151,13 +151,15 @@ module integer_decoder (
     endfunction : build_J_immediate 
 
     function void build_I_immediate(input int index, input logic is_signed);
-        immediate_o[index][11:0] = is_signed ? $signed(instr_i.I.immediate) : instr_i.I.immediate;
+        immediate_o[index][11:0] = instr_i.I.immediate;
+        immediate_o[index][31:12] = is_signed ? {20{instr_i.I.immediate[11]}} : '0;
         imm_valid_o[index] = 1'b1;
     endfunction : build_I_immediate
 
     function void build_S_immediate(input int index, input logic is_signed);
-        immediate_o[index] = is_signed ? $signed({instr_i.S.immediate2, instr_i.S.immediate1}) : {instr_i.S.immediate2, instr_i.S.immediate1};
-        immediate_o[index][4:0] = instr_i.S.immediate1;
+        immediate_o[index][11:0] = {instr_i.S.immediate2, instr_i.S.immediate1};
+        immediate_o[index][31:12] = is_signed ? {20{instr_i.S.immediate2[6]}} : '0;
+        imm_valid_o[index] = 1'b1;
     endfunction : build_S_immediate
 
 
@@ -377,6 +379,8 @@ module integer_decoder (
             end
 
             riscv32::STORE: begin
+                exception_vector_o = `STORE_OPERATION; 
+
                 case (instr_i.S.funct3)
                     riscv32::SB: begin
                         build_stu_packet(STB);
@@ -396,7 +400,10 @@ module integer_decoder (
                         `ifdef TEST_DESIGN print("SW"); `endif 
                     end  
 
-                    default: exception_generated = 1'b1;
+                    default: begin
+                        exception_generated = 1'b1;
+                        exception_vector_o = `INSTR_ILLEGAL;
+                    end 
                 endcase 
 
                 /* Registers */
@@ -495,11 +502,12 @@ module integer_decoder (
                         build_alu_packet(SLL); 
 
                         /* Registers */
-                        reg_src_o[1] = instr_i.S.reg_src_1; 
-                        reg_dest_o = riscv32::X0; 
+                        reg_src_o[1] = instr_i.R.reg_src_1; 
+                        reg_dest_o = instr_i.R.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b0);
+                        immediate_o[2] = instr_i.R.reg_src_2;
+                        imm_valid_o[2] = 1'b1; 
 
                         exception_generated = (instr_i.R.funct7 != '0);
 
@@ -513,8 +521,11 @@ module integer_decoder (
 
                             /* Registers */
                             reg_src_o[1] = instr_i.R.reg_src_1; 
-                            reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            /* Immediates */
+                            immediate_o[2] = instr_i.R.reg_src_2;
+                            imm_valid_o[2] = 1'b1;
 
                             `ifdef TEST_DESIGN print("SRAI"); `endif 
                         end else begin
@@ -523,8 +534,11 @@ module integer_decoder (
 
                             /* Registers */
                             reg_src_o[1] = instr_i.R.reg_src_1; 
-                            reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
+
+                            /* Immediates */
+                            immediate_o[2] = instr_i.R.reg_src_2;
+                            imm_valid_o[2] = 1'b1;
 
                             `ifdef TEST_DESIGN print("SRLI"); `endif 
                         end

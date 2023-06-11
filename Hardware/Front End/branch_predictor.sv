@@ -43,7 +43,13 @@
 `include "Branch Predictor/predictor_unit.sv"
 `include "Branch Predictor/branch_target_buffer.sv"
 
-module branch_predictor (
+module branch_predictor #(
+    /* Predictor table size */ 
+    parameter PREDICTOR_SIZE = 32, 
+
+    /* Branch target buffer cache size */
+    parameter BTB_SIZE = 32
+) (
     input logic clk_i, 
     input logic rst_n_i,
 
@@ -69,9 +75,9 @@ module branch_predictor (
 //      PREDICTOR
 //====================================================================================
 
-    logic make_prediction; logic [$clog2(`BRANCH_PREDICTOR_DEPTH) - 1:0] predictor_index;
+    logic make_prediction; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
 
-    predictor_unit #(`BRANCH_PREDICTOR_DEPTH) branch_predictor_unit (
+    predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
         .clk_i          ( clk_i           ),   
         .rst_n_i        ( rst_n_i         ),
         .predict_i      ( make_prediction ),
@@ -86,9 +92,8 @@ module branch_predictor (
 //      BRANCH TARGET BUFFER
 //====================================================================================
 
-    branch_target_buffer #(`BRANCH_TARGET_BUFFER_DEPTH) btb_unit (
+    branch_target_buffer #(BTB_SIZE) btb_unit (
         .clk_i                ( clk_i                ), 
-        .rst_n_i              ( rst_n_i              ),
         .program_counter_i    ( program_counter_i    ),
         .instr_address_i      ( instr_address_i      ),
         .branch_target_addr_i ( branch_target_addr_i ), 
@@ -100,7 +105,7 @@ module branch_predictor (
         .hit_o                ( hit_o                )
     );
 
-    assign predictor_index = branch_target_addr_o[$clog2(`BRANCH_PREDICTOR_DEPTH) - 1:0];
+    assign predictor_index = branch_target_addr_o[$clog2(PREDICTOR_SIZE) - 1:0];
 
 endmodule : branch_predictor
 

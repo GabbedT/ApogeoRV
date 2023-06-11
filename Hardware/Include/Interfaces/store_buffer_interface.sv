@@ -6,7 +6,7 @@
 `include "../Packages/apogeo_pkg.sv"
 `include "../Packages/Execution Unit/store_unit_pkg.sv"
 
-interface store_buffer_push_interface;
+interface store_buffer_interface;
 
 //=========================================================
 //      NETS 
@@ -15,8 +15,11 @@ interface store_buffer_push_interface;
     /* Buffer full */
     logic full;
 
+    /* Buffer empty */
+    logic empty; 
+
     /* Push entry into the buffer */
-    logic push_request;
+    logic request;
 
     /* Store buffer entry */
     store_buffer_entry_t packet;
@@ -28,55 +31,20 @@ interface store_buffer_push_interface;
 
     modport master (
         input full,
+        input empty,
 
-        output push_request,
+        output request,
         output packet
     );
 
     modport slave (
-        input push_request,
+        input request,
         input packet,
 
-        output full
-    );
-
-endinterface : store_buffer_push_interface
-
-
-interface store_buffer_pull_interface;
-
-//=========================================================
-//      NETS 
-//=========================================================
-
-    /* Buffer empty */
-    logic empty;
-
-    /* Pull entry from the buffer */
-    logic pull_request;
-
-    /* Store buffer entry read */
-    store_buffer_entry_t packet;  
-
-
-//=========================================================
-//      MODPORTS 
-//=========================================================
-
-    modport master (
-        input empty,
-        input packet,
-
-        output pull_request
-    );
-
-    modport slave (
-        input pull_request,
-
-        output packet,
+        output full,
         output empty
     );
 
-endinterface : store_buffer_pull_interface
+endinterface : store_buffer_interface
 
 `endif 

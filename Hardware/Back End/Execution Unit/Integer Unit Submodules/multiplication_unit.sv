@@ -137,7 +137,7 @@ module multiplication_unit #(
     mul_uop_t   operation_stg0;
     
         always_ff @(posedge clk_i) begin : first_stage_register
-            if (clk_en_i)begin
+            if (clk_en_i) begin
                 conversion_enable_stg0 <= conversion_enable;
                 multiplicand_stg0 <= multiplicand;
                 multiplier_stg0 <= multiplier;
@@ -195,25 +195,6 @@ module multiplication_unit #(
 //      MULTIPLICATION STAGE
 //====================================================================================
 
-`ifdef ASIC 
-
-    /* Array multiplier instantiation, XLEN bit and 8 clock cycles of latency */
-    logic [RESULT_WIDTH - 1:0] mul_result;
-    logic                      mul_data_valid;
-
-    pipelined_array_multiplier #(DATA_WIDTH, CORE_STAGES) multiplier_core (
-        .clk_i          ( clk_i             ),
-        .clk_en_i       ( 1'b1              ),
-        .rst_n_i        ( rst_n_i           ),
-        .multiplicand_i ( multiplicand_stg0 ),
-        .multiplier_i   ( multiplier_stg0   ),
-        .data_valid_i   ( data_valid        ),
-        .product_o      ( mul_result        ),
-        .data_valid_o   ( mul_data_valid    )
-    );
-
-`elsif FPGA 
-
     logic [RESULT_WIDTH - 1:0] mul_result;
 
     /* Vivado IP module instantiation */
@@ -242,24 +223,14 @@ module multiplication_unit #(
             end
         end
 
-`endif 
+    assign data_valid_o = mul_data_valid_pipe[CORE_STAGES];
+
 
     logic [RESULT_WIDTH - 1:0] last_stage_result;
-    logic                      last_stage_data_valid;
 
         always_ff @(posedge clk_i) begin
             if (clk_en_i) begin
                 last_stage_result <= mul_result;
-
-                `ifdef ASIC 
-                    last_stage_data_valid <= mul_data_valid;
-                `elsif FPGA 
-                    if (clear_i) begin 
-                        last_stage_data_valid <= 1'b0;
-                    end else begin 
-                        last_stage_data_valid <= mul_data_valid_pipe[CORE_STAGES];
-                    end
-                `endif 
             end
         end
 
@@ -279,8 +250,6 @@ module multiplication_unit #(
                 default: product_o = converted_result[RESULT_WIDTH - 1:DATA_WIDTH];
             endcase
         end : final_conversion_logic
-
-    assign data_valid_o = last_stage_data_valid;
 
 endmodule : multiplication_unit
 

@@ -28,8 +28,7 @@ module bit_manipulation_decoder (
     output bmu_uop_t unit_uop_o,
 
     /* Exception */
-    output logic exception_generated_o,
-    output logic [4:0] exception_vector_o
+    output logic exception_generated_o
 ); 
 
 //====================================================================================
@@ -310,7 +309,7 @@ module bit_manipulation_decoder (
                         reg_src_o[2] = instr_i.R.reg_src_2;
                         reg_dest_o = instr_i.R.reg_dest;
 
-                        exception_generated = (instr_i.R.funct7 == 0010000);
+                        exception_generated = (instr_i.R.funct7 != 0010000);
 
                         `ifdef TEST_DESIGN if (!exception_generated) print("SH1ADD"); `endif 
                     end
@@ -499,8 +498,6 @@ module bit_manipulation_decoder (
     end : decoder_logic
 
     assign exception_generated_o = exception_generated | (instr_i[1:0] != '1);
-
-    assign exception_vector_o = exception_generated_o ? `INSTR_ILLEGAL : '0;
 
     assign unit_valid_o = unit_valid & !exception_generated_o;
     assign unit_uop_o = unit_uop & !exception_generated_o;

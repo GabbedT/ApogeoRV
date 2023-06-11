@@ -53,11 +53,12 @@ module scheduler (
 
     /* Immediates */
     input data_word_t [1:0] immediate_i,
-    input logic [1:0] imm_valid_i,
+    input logic [1:0] immediate_valid_i,
 
     /* Registers */
     input logic [1:0][4:0] src_reg_i,
     input logic [4:0] dest_reg_i, 
+    output logic [1:0][4:0] src_reg_o,
 
     /* LSU status */
     input logic ldu_idle_i,
@@ -70,6 +71,7 @@ module scheduler (
     output exu_uop_t exu_uop_o,
 
     /* Operands supplied */
+    output logic [1:0] immediate_valid_o,
     output data_word_t [1:0] operand_o 
 );
 
@@ -95,19 +97,33 @@ module scheduler (
 //      ADDRESS CALCULATION LOGIC
 //====================================================================================
 
+    data_word_t [1:0] register_operand; 
+
+        always_comb begin
+            for (int i = 0; i < 2; ++i) begin
+                if (writeback_register_i == src_reg_i[i]) begin
+                    /* Foward instead of waiting for data to *
+                     * be written back                       */
+                    register_operand[i] = writeback_data_i;
+                end else begin 
+                    register_operand[i] = register_data[i];
+                end
+            end
+        end
+
     data_word_t computed_address, operand_A, operand_B;
 
         always_comb begin
             if (address_operand_i[0] == riscv32::IMMEDIATE) begin
                 operand_A = immediate_i[0];
             end else begin
-                operand_A = register_data[0];
+                operand_A = register_operand[0];
             end
 
             if (address_operand_i[1] == riscv32::IMMEDIATE) begin
                 operand_B = immediate_i[1];
             end else begin
-                operand_B = register_data[1];
+                operand_B = register_operand[1];
             end
         end
 
@@ -133,8 +149,9 @@ module scheduler (
         .itu_unit_i ( exu_valid_i.ITU ),
         .lsu_unit_i ( exu_valid_i.LSU ),
 
-        .ldu_idle_i ( ldu_idle_i ),
-        .stu_idle_i ( stu_idle_i ),
+        .ldu_operation_i ( exu_uop_i.LSU.subunit.LDU.opcode.uop ),
+        .ldu_idle_i      ( ldu_idle_i                       ),
+        .stu_idle_i      ( stu_idle_i                       ),
 
         .pipeline_empty_o    ( pipeline_empty    ),
         .issue_instruction_o ( issue_instruction )
@@ -146,21 +163,32 @@ module scheduler (
 //====================================================================================
 
         always_comb begin
+            /* Default value */ 
+            operand_o = '0; 
+            
             if (memory_i) begin
                 /* First operand is the address, second
                  * operand is data to store */
                 operand_o[0] = computed_address;
-                operand_o[1] = register_data[1];
+                immediate_valid_o[0] = 1'b1;
+
+                operand_o[1] = register_operand[1];
+                immediate_valid_o[1] = 1'b0; 
             end else if (jump_i) begin
                 operand_o[0] = instr_address_i;
+                immediate_valid_o[0] = 1'b1;
+
                 operand_o[1] = compressed_i ? 'd2 : 'd4;
+                immediate_valid_o[1] = 1'b1;
             end else begin
+                immediate_valid_o = immediate_valid_i;
+                
                 /* Select between immediate or register */
                 for (int i = 0; i < 2; ++i) begin
-                    if (imm_valid_i[i]) begin
+                    if (immediate_valid_i[i]) begin
                         operand_o[i] = immediate_i[i];
                     end else begin
-                        operand_o[i] = register_data[i];
+                        operand_o[i] = register_operand[i];
                     end
                 end
             end
@@ -178,7 +206,7 @@ module scheduler (
                 generated_tag <= 6'b0;
             end else if (flush_i) begin
                 generated_tag <= 6'b0;
-            end else if (!(stall_i | stall_o) & issue_instruction) begin
+            end else if (!(stall_i | stall_o) & (exu_valid_i != '0)) begin
                 generated_tag <= generated_tag + 1'b1;
             end
         end : tag_counter
@@ -190,6 +218,8 @@ module scheduler (
 
     assign exu_valid_o = exu_valid_i;
     assign exu_uop_o = exu_uop_i;
+
+    assign src_reg_o = src_reg_i; 
 
     assign branch_address_o = computed_address;
 

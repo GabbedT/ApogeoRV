@@ -66,6 +66,7 @@ module scoreboard (
     input lsu_valid_t lsu_unit_i,
 
     /* LSU status */
+    input ldu_opcode_t ldu_operation_i,
     input logic ldu_idle_i, 
     input logic stu_idle_i, 
 
@@ -84,11 +85,11 @@ module scoreboard (
     /* Valid for ALU and CSR */
     localparam COMBINATIONAL = 1;
 
-    localparam MUL_LATENCY = 6;
+    localparam MUL_LATENCY = 5;
 
     localparam BMU_LATENCY = 2;
 
-    localparam DIV_LATENCY = 36;
+    localparam DIV_LATENCY = 35;
 
     /* Check if the dispatched instruction is being issued in the next cycle */
     function bit issue_next_cycle(input bit unit_to_issue);
@@ -192,7 +193,7 @@ module scoreboard (
                 end
             end : mul_destination_register
 
-            assign mul_executing[i] = (mul_latency_cnt[i] != '0);
+            assign mul_executing[i] = (mul_latency_cnt[i] > 'd1);
 
             assign mul_raw_hazard[i] = ((src_reg_i[0] == mul_register_dest[i]) | (src_reg_i[1] == mul_register_dest[i]) | (dest_reg_i == mul_register_dest[i])) & 
                                         mul_executing[i] & (mul_register_dest[i] != '0);
@@ -271,7 +272,7 @@ module scoreboard (
                 end
             end : bmu_destination_register
 
-            assign bmu_executing[i] = (bmu_latency_cnt[i] != '0);
+            assign bmu_executing[i] = (bmu_latency_cnt[i] > 'd1);
             
             assign bmu_raw_hazard[i] = ((src_reg_i[0] == bmu_register_dest[i]) | (src_reg_i[1] == bmu_register_dest[i]) | (dest_reg_i == bmu_register_dest[i])) & 
                                         bmu_executing[i] & (bmu_register_dest[i] != '0);
@@ -321,7 +322,7 @@ module scoreboard (
             end
         end : div_destination_register
 
-    assign div_executing = (div_latency_cnt != '0);
+    assign div_executing = (div_latency_cnt > 'd1);
 
     assign div_raw_hazard = ((src_reg_i[0] == div_register_dest) | (src_reg_i[1] == div_register_dest) | (dest_reg_i == div_register_dest)) & div_executing & (div_register_dest != '0);
 
@@ -332,6 +333,7 @@ module scoreboard (
 //      LDU SCHEDULING LOGIC
 //==================================================================================== 
 
+    /* Block issue for one cycle since there's the bypass stage */
     logic block_ldu_issue; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
@@ -347,15 +349,17 @@ module scoreboard (
         end 
 
 
-    logic ldu_raw_hazard;
+    logic ldu_raw_hazard, ldu_word_operation;
     logic [31:0] ldu_register_dest;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : ldu_destination_register
             if (!rst_n_i) begin
                 ldu_register_dest <= '0;
+                ldu_word_operation <= 1'b1;
             end else if (!stall_i) begin
                 if (issue_next_cycle(lsu_unit_i.LDU)) begin 
                     ldu_register_dest <= dest_reg_i;
+                    ldu_word_operation <= ldu_operation_i == LDW;
                 end 
             end
         end : ldu_destination_register
@@ -367,6 +371,7 @@ module scoreboard (
 //      STU SCHEDULING LOGIC
 //==================================================================================== 
 
+    /* Block issue for one cycle since there's the bypass stage */
     logic block_stu_issue; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
@@ -382,7 +387,7 @@ module scoreboard (
         end 
 
 
-    logic stu_raw_hazard;
+    logic stu_raw_hazard, block_store_operation;
     logic [31:0] stu_register_dest;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : stu_destination_register
@@ -396,6 +401,8 @@ module scoreboard (
         end : stu_destination_register
 
     assign stu_raw_hazard = block_stu_issue | ((src_reg_i[0] == stu_register_dest) | (dest_reg_i == stu_register_dest)) & !stu_idle_i & (stu_register_dest != '0); 
+
+    assign block_store_operation = lsu_unit_i.STU & (!ldu_idle_i & !ldu_word_operation);
 
 
 //====================================================================================
@@ -413,7 +420,7 @@ module scoreboard (
 //      OUTPUT LOGIC
 //==================================================================================== 
 
-    assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard);
+    assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard | block_store_operation);
 
     /* If no unit is executing, then the pipeline is empty */
     assign pipeline_empty_o = !((|mul_executing) | div_executing | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i);

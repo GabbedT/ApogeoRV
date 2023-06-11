@@ -50,10 +50,19 @@
 `define U_SYSTEM_CALL 8
 `define M_SYSTEM_CALL 11
 
+
+/* DEFINED FOR HARDWARE PURPOUSE */
+
 /* WFI set hart to sleep */
 `define SLEEP 16
 
 /* Machine handler return */
 `define HANDLER_RETURN 17
+
+/* Store operation executed */
+`define STORE_OPERATION 18
+
+/* CSR operation executed */
+`define CSR_OPERATION 19
 
 `endif 

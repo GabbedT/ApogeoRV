@@ -3,33 +3,33 @@
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
-`include "../Include/Interfaces/instruction_cache_interface.sv"
-
 `include "../Include/Packages/apogeo_pkg.sv"
 `include "../Include/Packages/apogeo_operations_pkg.sv"
 
-`include "instruction_buffer.sv"
 `include "decoder.sv"
 `include "scheduler.sv"
 `include "Decoder/decompressor.sv"
 
 module front_end #(
-    parameter INSTRUCTION_BUFFER = 8
+    /* Predictor table size */ 
+    parameter PREDICTOR_SIZE = 32, 
+
+    /* Branch target buffer cache size */
+    parameter BTB_SIZE = 32
 ) (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
     input logic stall_i,
     input logic priv_level_i,
+    output logic issue_o,
 
-    /* Cache interface */
+    /* Fetch interface */
+    input logic fetch_valid_i, 
+    input logic fetch_wait_i,
+    input data_word_t fetch_instruction_i, 
     output logic fetch_o,
-    output logic halt_fetch_o,
-    output data_word_t fetch_address_o,
-    input data_word_t [INSTRUCTION_BUFFER:0] instruction_i, 
-    input logic [$clog2(2 * INSTRUCTION_BUFFER):0] instruction_count_i,
-    input logic fetch_valid_i,
-    input logic fetch_misaligned_i,
+    output data_word_t fetch_address_o, 
 
     /* Interrupt and exception */
     input logic interrupt_i,
@@ -58,8 +58,11 @@ module front_end #(
     output logic compressed_o,
     output logic branch_o,
     output logic jump_o,
+    output logic mispredicted_o,
     output data_word_t branch_target_addr_o,
     output data_word_t [1:0] operand_o,
+    output logic [1:0] immediate_valid_o,
+    output logic [1:0][4:0] register_source_o,
     output instr_packet_t ipacket_o,
     output exu_valid_t exu_valid_o,
     output exu_uop_t exu_uop_o
@@ -70,12 +73,12 @@ module front_end #(
 //====================================================================================
 
     /* The program counter points at the head of the instruction buffer */
-    data_word_t program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, buffer_empty, block_pc;
+    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, block_pc;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
                 program_counter <= '0;
-            end else if (!stall & !stall_i & !buffer_empty & !block_pc) begin
+            end else if (!stall & !stall_i & !block_pc) begin
                 if (exception_i | interrupt_i) begin
                     /* Load exception handler program counter
                      * it has maximum priority */
@@ -87,6 +90,8 @@ module front_end #(
                     end else begin
                         program_counter <= compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
                     end
+                end else if (jump_o) begin 
+                    program_counter <= branch_target_addr_o;
                 end else if (branch_buffer_hit) begin
                     if (predict) begin
                         /* Load predicted BTA */
@@ -95,7 +100,7 @@ module front_end #(
                         /* Increment normally */
                         program_counter <= next_program_counter;
                     end
-                end else begin
+                end else if (fetch_valid_i) begin
                     /* Increment normally */
                     program_counter <= next_program_counter;
                 end
@@ -105,7 +110,7 @@ module front_end #(
     assign next_program_counter = compressed ? (program_counter + 'd2) : (program_counter + 'd4);
 
 
-    branch_predictor predictor_unit (
+    branch_predictor #(PREDICTOR_SIZE, BTB_SIZE) predictor_unit (
         .clk_i                ( clk_i                 ), 
         .rst_n_i              ( rst_n_i               ),
         .program_counter_i    ( program_counter       ),
@@ -122,7 +127,7 @@ module front_end #(
     );
 
     /* Stage nets */
-    logic pcgen_branch_hit, pcgen_mispredicted, pcgen_prediction_taken; data_word_t pcgen_branch_address, pcgen_resolved;
+    logic pcgen_branch_hit, pcgen_mispredicted, pcgen_prediction_taken; data_word_t pcgen_branch_address;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pc_generation_stage_register
             if (!rst_n_i) begin
@@ -131,21 +136,18 @@ module front_end #(
                 pcgen_branch_hit <= 1'b0; 
                 pcgen_mispredicted <= 1'b0; 
                 pcgen_prediction_taken <= 1'b0; 
-                pcgen_resolved <= 1'b0; 
             end else if (flush_i) begin
                 pcgen_branch_address <= '0; 
 
                 pcgen_branch_hit <= 1'b0; 
                 pcgen_mispredicted <= 1'b0; 
                 pcgen_prediction_taken <= 1'b0; 
-                pcgen_resolved <= 1'b0; 
             end else if (!stall & !stall_i) begin
                 pcgen_branch_address <= branch_target_address; 
 
                 pcgen_branch_hit <= branch_buffer_hit; 
                 pcgen_mispredicted <= mispredicted; 
                 pcgen_prediction_taken <= predict; 
-                pcgen_resolved <= executed_i; 
             end
         end : pc_generation_stage_register
 
@@ -154,195 +156,55 @@ module front_end #(
 //      INSTRUCTION FETCH STAGE
 //====================================================================================
 
-    typedef enum logic [2:0] {IDLE, WAIT_RESOLVE, CACHE_OUTCOME, WAIT_MEMORY, WAIT_CYCLE} fsm_states_t; 
-
-    fsm_states_t state_CRT, state_NXT; logic speculative_CRT, speculative_NXT;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
-            if (!rst_n_i) begin
-                state_CRT <= IDLE;
-                speculative_CRT <= 1'b0; 
-            end else begin
-                state_CRT <= state_NXT;
-                speculative_CRT <= speculative_NXT;
-            end
-        end : state_register
-
-
     logic inject_nop;
+
+    assign block_pc = fetch_wait_i; 
+    assign inject_nop = fetch_wait_i;
 
         always_comb begin
             /* Default values */
-            state_NXT = state_CRT; 
-            speculative_NXT = speculative_CRT; 
-
-            block_pc = 1'b0; 
-            inject_nop = 1'b0; 
-            load_buffer = 1'b0;
-
             fetch_o = 1'b0;
-            halt_fetch_o = 1'b0; 
             fetch_address_o = '0; 
 
-            case (state_CRT)
+            if (!stall & !stall_i & !block_pc) begin
+                if (pcgen_mispredicted) begin
+                    fetch_o = 1'b1; 
 
-                IDLE: begin
-                    if (pcgen_mispredicted) begin
-                        state_NXT = CACHE_OUTCOME;
-
-                        fetch_o = 1'b1; 
-
-                        if (taken_i) begin 
-                            /* If it was taken load the BTA */
-                            fetch_address_o = branch_target_addr_i; 
-                        end else begin
-                            /* If it was not taken, continue from the next instruction */
-                            fetch_address_o = compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
-                        end
-                    end else if (pcgen_branch_hit & pcgen_prediction_taken) begin
-                        state_NXT = CACHE_OUTCOME;
-
-                        block_pc = 1'b1;
-                        inject_nop = 1'b1;
-
-                        /* Predict taken */
-                        fetch_o = 1'b1; 
-                        fetch_address_o = pcgen_branch_address;
-
-                        speculative_NXT = 1'b1;
-                    end else if (instr_request) begin
-                        state_NXT = CACHE_OUTCOME;
-
-                        fetch_o = 1'b1; 
-
-                        /* Next instruction */
-                        fetch_address_o = compressed_i ? (program_counter + 'd2) : (program_counter + 'd4);
-                    end
-                end
-
-
-                /* After fetch request, cache returns an hit or a miss.  *
-                 * If hit is registred, the instructions are loaded into *
-                 * the instruction buffer If a miss is registred: if the *
-                 * fetch is speculative, stall the pipeline until the    *
-                 * branch is resolved, otherwise wait for the memory to  *
-                 * supply the cache block.                               */  
-                CACHE_OUTCOME: begin
-                    if (fetch_valid_i) begin
-                        state_NXT = IDLE;
-
-                        load_buffer = 1'b1;
+                    if (taken_i) begin 
+                        /* If it was taken load the BTA */
+                        fetch_address_o = branch_target_addr_i; 
                     end else begin
-                        if (fetch_misaligned_i) begin
-                            state_NXT = WAIT_CYCLE;
-                        end else begin 
-                            if (speculative_CRT) begin 
-                                state_NXT = WAIT_RESOLVE;
-
-                                halt_fetch_o = 1'b1;
-                            end else begin 
-                                state_NXT = WAIT_MEMORY; 
-                            end
-                        end 
-
-                        block_pc = 1'b1;
-                        inject_nop = 1'b1;
+                        /* If it was not taken, continue from the next instruction */
+                        fetch_address_o = compressed_i ? (instr_address_i + 'd2) : (instr_address_i + 'd4);
                     end
+                end else if (pcgen_branch_hit & pcgen_prediction_taken) begin
+                    /* Predict fetch */
+                    fetch_o = 1'b1; 
+                    fetch_address_o = pcgen_branch_address;
+                end else if (!fetch_wait_i) begin
+                    /* Sequential fetch */
+                    fetch_o = 1'b1; 
+                    fetch_address_o = program_counter;
                 end
-
-                
-                /* FSM waits for memory to supply the cache block. While *
-                 * it's waiting, the PC doesn't get incremented. The FSM *
-                 * return to IDLE and load the buffer when the memory    *
-                 * interface has valid data.                             */
-                WAIT_MEMORY: begin
-                    if (fetch_valid_i) begin
-                        state_NXT = IDLE;
-
-                        load_buffer = 1'b1;
-                    end
-
-                    block_pc = 1'b1;
-                    inject_nop = 1'b1;
-                end
-
-
-                /* To avoid accessing the memory wastefully, the FSM  *
-                 * waits for the speculative branch to resolve in the *
-                 * execution stage. Meanwhile the instruction cache   *
-                 * gets halted by the FSM. If the branch was actually *
-                 * taken, the halt signal gets deasseted.             */
-                WAIT_RESOLVE: begin
-                    block_pc = 1'b1;
-                    inject_nop = 1'b1;
-                    halt_fetch_o = 1'b1; 
-
-                    if (pcgen_resolved) begin
-                        state_NXT = WAIT_MEMORY; 
-
-                        halt_fetch_o = 1'b0; 
-                    end                   
-                end
-
-
-                /* On misaligned memory accessed, the cache needs one *
-                 * more clock cycle to supply the whole instruction   *
-                 * bundle. The FSM waits and then checks again the    *
-                 * cache operation outcome.                           */
-                WAIT_CYCLE: begin
-                    state_NXT = CACHE_OUTCOME;
-
-                    block_pc = 1'b1;
-                    inject_nop = 1'b1;
-                end
-            endcase 
+            end 
         end
 
 
-    data_word_t buffer_instruction, fetched_instruction; logic [INSTRUCTION_BUFFER - 1:0][31:0] loaded_bundle; logic load_buffer, request;
-
-    assign loaded_bundle = instruction_i[INSTRUCTION_BUFFER:1];
-
-    instruction_buffer #(INSTRUCTION_BUFFER, 4) instr_buffer (
-        .clk_i           ( clk_i               ),
-        .rst_n_i         ( rst_n_i             ),
-        .stall_i         ( stall               ),
-        .flush_i         ( flush_i             ),
-        .instr_bundle_i  ( loaded_bundle       ),
-        .bundle_size_i   ( instruction_count_i ),
-        .load_i          ( load_buffer         ),
-        .compressed_i    ( compressed          ),
-        .fetched_instr_o ( buffer_instruction  ),
-        .instr_request_o ( instr_request       ),
-        .buffer_empty_o  ( buffer_empty        )
-    ); 
-
-    /* Request on threshold hit on instruction buffer or if a prediction is taken */
-    assign instr_request_o = instr_request | (branch_buffer_hit & predict); 
-
-    /* On threshold hit on instruction buffer request the next instruction after the 
-     * head of the buffer, otherwise request the BTA */
-    assign request_address_o = instr_request ? next_program_counter : branch_target_address;
-    
-    /* Foward instruction from cache instead of waiting 1 clock cycle for buffer loading */
-    assign fetched_instruction = load_buffer ? instruction_i[0] : buffer_instruction;
-
     /* RISCV defines uncompressed instructions with the first two 
      * bits setted */
-    assign compressed = (fetched_instruction[1:0] != '1);
-
+    assign compressed = (fetch_instruction_i[1:0] != '1);
 
     logic decompressor_exception; data_word_t expanded_instruction;
 
     decompressor decompressor_unit (
-        .compressed_i          ( fetched_instruction[31:16] ),
+        .compressed_i          ( fetch_instruction_i[15:0]  ),
         .decompressed_o        ( expanded_instruction       ), 
         .exception_generated_o ( decompressor_exception     )
     );
 
 
     /* Stage nets */
-    data_word_t if_stage_instruction, if_stage_program_counter;  logic if_stage_compressed;
+    data_word_t if_stage_instruction, if_stage_program_counter;  logic if_stage_compressed, if_stage_mispredicted, if_stage_valid;
     logic if_stage_exception; logic [4:0] if_stage_exception_vector; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fetch_stage_register
@@ -350,6 +212,8 @@ module front_end #(
                 if_stage_instruction <= riscv32::NOP;
                 if_stage_program_counter <= '0; 
                 if_stage_compressed <= 1'b0;
+                if_stage_mispredicted <= 1'b0;
+                if_stage_valid <= 1'b0;
 
                 if_stage_exception_vector <= '0; 
                 if_stage_exception <= 1'b0; 
@@ -357,22 +221,26 @@ module front_end #(
                 if_stage_instruction <= riscv32::NOP;
                 if_stage_program_counter <= '0; 
                 if_stage_compressed <= 1'b0;
+                if_stage_mispredicted <= mispredicted; 
+                if_stage_valid <= 1'b0;
 
                 if_stage_exception_vector <= '0; 
                 if_stage_exception <= 1'b0; 
             end else if (!stall & !stall_i) begin
-                if (buffer_empty) begin 
+                if (inject_nop) begin 
                     if_stage_instruction <= riscv32::NOP;
                     if_stage_program_counter <= program_counter;
                     if_stage_compressed <= 1'b0;
                 end else begin 
-                    if_stage_instruction <= compressed ? expanded_instruction : fetched_instruction;
+                    if_stage_instruction <= compressed ? expanded_instruction : fetch_instruction_i;
                     if_stage_program_counter <= program_counter; 
                     if_stage_compressed <= compressed;
                 end
 
+                if_stage_valid <= fetch_valid_i;
                 if_stage_exception_vector <= `INSTR_ILLEGAL; 
-                if_stage_exception <= decompressor_exception;
+                if_stage_exception <= compressed ? decompressor_exception : 1'b0;;
+                if_stage_mispredicted <= mispredicted; 
             end
         end : fetch_stage_register
 
@@ -423,9 +291,9 @@ module front_end #(
 
     
     /* Stage nets */
-    data_word_t dc_stage_program_counter; logic [31:0][1:0] dc_stage_immediate; logic [1:0] dc_stage_immediate_valid, dc_stage_address_operand; 
+    data_word_t dc_stage_program_counter; logic [1:0][31:0] dc_stage_immediate; logic [1:0] dc_stage_immediate_valid, dc_stage_address_operand; 
 
-    logic dc_stage_branch, dc_stage_jump, dc_stage_memory, dc_stage_fence, dc_stage_compressed;
+    logic dc_stage_branch, dc_stage_jump, dc_stage_memory, dc_stage_fence, dc_stage_compressed, dc_stage_mispredicted;
 
     logic [1:0][4:0] dc_stage_reg_source; logic [4:0] dc_stage_reg_destination;
 
@@ -444,6 +312,7 @@ module front_end #(
                 dc_stage_memory <= 1'b0;
                 dc_stage_fence <= 1'b0;
                 dc_stage_compressed <= 1'b0;
+                dc_stage_mispredicted <= 1'b0; 
 
                 dc_stage_reg_source <= '0;
                 dc_stage_reg_destination <= '0; 
@@ -465,6 +334,7 @@ module front_end #(
                 dc_stage_memory <= 1'b0;
                 dc_stage_fence <= 1'b0;
                 dc_stage_compressed <= 1'b0;
+                dc_stage_mispredicted <= if_stage_mispredicted;
 
                 dc_stage_reg_source <= '0;
                 dc_stage_reg_destination <= '0; 
@@ -486,15 +356,16 @@ module front_end #(
                 dc_stage_memory <= memory;
                 dc_stage_fence <= fence;
                 dc_stage_compressed <= if_stage_compressed;
+                dc_stage_mispredicted <= if_stage_mispredicted;
 
                 dc_stage_reg_source <= reg_source; 
                 dc_stage_reg_destination <= reg_destination;
 
-                dc_stage_exu_valid <= exu_valid; 
+                dc_stage_exu_valid <= if_stage_valid ? exu_valid : '0; 
                 dc_stage_exu_operation <= exu_operation;
 
                 dc_stage_exception <= if_stage_exception | decoder_exception;
-                dc_stage_exception_vector <= (decoder_exception_vector & !if_stage_exception) | if_stage_exception_vector;
+                dc_stage_exception_vector <= if_stage_exception ? if_stage_exception_vector : decoder_exception_vector;
 
                 dc_stage_program_counter <= if_stage_program_counter;
             end
@@ -531,10 +402,11 @@ module front_end #(
 
         .address_operand_i ( dc_stage_address_operand ),
         .immediate_i       ( dc_stage_immediate       ),
-        .imm_valid_i       ( dc_stage_immediate_valid ),
+        .immediate_valid_i ( dc_stage_immediate_valid ),
 
         .src_reg_i  ( dc_stage_reg_source      ),
         .dest_reg_i ( dc_stage_reg_destination ), 
+        .src_reg_o  ( register_source_o        ),
 
         .ldu_idle_i ( ldu_idle_i ),
         .stu_idle_i ( stu_idle_i ),
@@ -544,12 +416,17 @@ module front_end #(
         .exu_valid_o ( exu_valid_o            ),
         .exu_uop_o   ( exu_uop_o              ),
 
-        .operand_o ( operand_o ) 
+        .immediate_valid_o ( immediate_valid_o ),
+        .operand_o         ( operand_o         ) 
     ); 
+
+    assign mispredicted_o = dc_stage_mispredicted;
 
     assign compressed_o = dc_stage_compressed;
     assign branch_o = dc_stage_branch;
     assign jump_o = dc_stage_jump;
+
+    assign issue_o = !stall;
 
 endmodule : front_end 
 

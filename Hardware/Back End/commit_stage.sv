@@ -111,6 +111,7 @@ module commit_stage (
 
     assign ipacket_write[LSU] = ipacket_i[LSU];
     assign result_write[LSU] = result_i[LSU];
+    assign data_valid[LSU] = data_valid_i[LSU]; 
 
     /* Invalidate the data if the other buffer is pushing a result
      * as it is becoming the most recent data */
@@ -197,7 +198,7 @@ module commit_stage (
                     end
 
                     /* Push data in the other buffer if it's valid */
-                    push_buffer[LSU] = data_valid_i[LSU];
+                    push_buffer[LSU] = data_valid[LSU];
 
                     /* Go to next buffer, give priority 
                      * to the next one */
@@ -212,10 +213,10 @@ module commit_stage (
                 BUFFER2: begin
                     if (!buffer_empty[LSU]) begin
                         /* Push data if it's valid during buffer read */
-                        push_buffer[ITU] = data_valid[ITU];
+                        push_buffer[LSU] = data_valid[LSU];
 
                         /* If the buffer is not empty read the value */
-                        pull_buffer[ITU] = 1'b1;
+                        pull_buffer[LSU] = 1'b1;
                         rob_write_o = !stall_i;
                         rob_entry_o = packet_convert(ipacket_read[LSU], result_read[LSU]);
                         rob_tag_o = ipacket_read[LSU].rob_tag;
@@ -231,7 +232,7 @@ module commit_stage (
                     end
 
                     /* Push data in the other buffer if it's valid */
-                    push_buffer[ITU] = data_valid_i[ITU];
+                    push_buffer[ITU] = data_valid[ITU];
 
                     /* Go to next buffer, give priority 
                      * to the next one */
@@ -266,11 +267,11 @@ module commit_stage (
                      * match the register destination because no duplicate
                      * register destination can be in flight in the execution
                      * pipeline */
-                    foward_data_o[i] = (register_match[ITU][i] & result_write[ITU]) | (register_match[LSU][i] & result_write[LSU]);
+                    foward_data_o[i] = (register_match[ITU][i] ? result_write[ITU] : '0) | (register_match[LSU][i] ? result_write[LSU] : '0);
                     foward_valid_o[i] = (data_valid_i != '0);
                 end else begin
                     /* Take data from buffers */
-                    foward_data_o[i] = (foward_valid[ITU][i] & foward_data[ITU][i]) | (foward_valid[LSU][i] & foward_data[LSU][i]);
+                    foward_data_o[i] = (foward_valid[ITU][i] ? foward_data[ITU][i] : '0) | (foward_valid[LSU][i] ? foward_data[LSU][i] : '0);
                     foward_valid_o[i] = foward_valid[ITU][i] | foward_valid[LSU][i];
                 end 
             end 

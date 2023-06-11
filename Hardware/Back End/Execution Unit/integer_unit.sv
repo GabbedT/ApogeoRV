@@ -77,10 +77,7 @@ module integer_unit (
 
     /* General instruction packet and valid bit */
     output instr_packet_t ipacket_o,
-    output logic data_valid_o,
-
-    /* Sequential functional units status for scheduling */
-    output logic div_idle_o
+    output logic data_valid_o
 );
 
 //====================================================================================
@@ -191,7 +188,7 @@ module integer_unit (
     /* Multiplication unit is fully pipelined  instruction packet 
      * must be passed through a shift register that delays the delivery 
      * to the final multiplexer */
-    instr_packet_t [IMUL_STAGES:0] mul_ipacket;
+    instr_packet_t [IMUL_STAGES - 1:0] mul_ipacket;
 
         always_ff @(posedge clk_i) begin : mul_stage_register
             if (enable_mul) begin
@@ -200,7 +197,7 @@ module integer_unit (
                         mul_ipacket[i] <= NO_OPERATION;
                     end 
                 end else begin
-                    mul_ipacket <= {mul_ipacket[IMUL_STAGES - 1:0], ipacket_i};
+                    mul_ipacket <= {mul_ipacket[IMUL_STAGES - 2:0], ipacket_i};
                 end
             end
         end : mul_stage_register
@@ -210,7 +207,7 @@ module integer_unit (
     data_word_t    mul_result_out;
 
     assign mul_result_out = mul_valid ? mul_result : '0;
-    assign mul_final_ipacket = mul_valid ? mul_ipacket[IMUL_STAGES] : '0;
+    assign mul_final_ipacket = mul_valid ? mul_ipacket[IMUL_STAGES - 1] : '0;
 
 
 //====================================================================================
@@ -233,8 +230,7 @@ module integer_unit (
         .operation_i      ( operation_i.DIV.opcode ),
         .product_o        ( div_result             ),
         .data_valid_o     ( div_valid              ),
-        .divide_by_zero_o ( divide_by_zero         ),
-        .idle_o           ( div_idle_o             )
+        .divide_by_zero_o ( divide_by_zero         )
     );
     
 

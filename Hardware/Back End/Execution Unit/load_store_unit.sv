@@ -52,12 +52,15 @@
 `include "../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../../Include/Interfaces/memory_controller_interface.sv"
+`include "../../Include/Interfaces/bus_controller_interface.sv"
 `include "../../Include/Interfaces/store_buffer_interface.sv"
 
 `include "../../Include/Headers/apogeo_exception_vectors.svh"
 
-module load_store_unit (
+module load_store_unit #(
+    /* Number of entries in the store buffer */
+    parameter STORE_BUFFER_SIZE = 8
+) (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
@@ -82,6 +85,9 @@ module load_store_unit (
     output logic ldu_idle_o,
     output logic stu_idle_o,
 
+    /* Validate store buffer entry */
+    input logic validate_i,
+
 
     /* 
      * Memory controller interface 
@@ -89,22 +95,6 @@ module load_store_unit (
 
     load_interface.master load_channel,
     store_interface.master store_channel,
-
-    /* Data cachable */
-    output logic store_cachable_o,
-    output logic load_cachable_o,
-
-
-    /* 
-     * Store buffer interface 
-     */
-
-    /* Store buffer main interface */
-    store_buffer_push_interface.master str_buf_channel,
-
-    /* Store buffer fowarding nets */
-    input logic str_buf_address_match_i,
-    input data_word_t str_buf_fowarded_data_i,
 
 
     /*
@@ -128,24 +118,34 @@ module load_store_unit (
 
     logic stu_data_accepted, stu_illegal_access, stu_data_valid, stu_timer_write;
 
+    /* Store buffer fowarding nets */
+    logic foward_address_match, buffer_wait, buffer_empty;
+    data_word_t foward_data;
+
     store_unit stu (
-        .clk_i             ( clk_i                  ),
-        .rst_n_i           ( rst_n_i                ),
+        .clk_i             ( clk_i   ),
+        .rst_n_i           ( rst_n_i ),
+        .flush_i           ( flush_i ), 
+
         .valid_operation_i ( data_valid_i.STU       ),
         .store_data_i      ( data_i                 ),
         .store_address_i   ( address_i              ),
         .operation_i       ( operation_i.STU.opcode ),
         .data_accepted_i   ( stu_data_accepted      ),
 
-        .str_buf_channel ( str_buf_channel ),
-
         .store_channel ( store_channel ),
+
+        .validate_i       ( validate_i           ),
+        .foward_address_i ( load_channel.address ),
+        .foward_data_o    ( foward_data          ),
+        .foward_match_o   ( foward_address_match ),
+
+        .buffer_empty_o ( buffer_empty ),
 
         .timer_write_o ( stu_timer_write ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
-        .cachable_o       ( store_cachable_o   ), 
         .data_valid_o     ( stu_data_valid     )
     );
 
@@ -174,12 +174,8 @@ module load_store_unit (
 //      LOAD UNIT
 //====================================================================================
     
-    logic       ldu_data_valid, ldu_illegal_access;
+    logic ldu_data_valid, ldu_illegal_access;
     data_word_t loaded_data, timer_data;
-
-    logic address_match;
-
-    assign address_match = (store_channel.address == address_i) & !stu_idle_o;
 
     load_unit ldu (
         .clk_i             ( clk_i                  ),
@@ -192,16 +188,14 @@ module load_store_unit (
 
         .load_channel ( load_channel ),
 
-        .stu_address_match_i ( address_match ),
-        .stu_fowarded_data_i ( data_i        ),
+        .foward_match_i ( foward_address_match ),
+        .foward_data_i  ( foward_data          ),
 
-        .str_buf_address_match_i ( str_buf_address_match_i ),
-        .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
+        .buffer_empty_i ( buffer_empty ), 
 
-        .data_loaded_o    ( loaded_data     ),
-        .cachable_o       ( load_cachable_o ),
-        .idle_o           ( ldu_idle_o      ),
-        .data_valid_o     ( ldu_data_valid  ) 
+        .data_loaded_o ( loaded_data    ),
+        .idle_o        ( ldu_idle_o     ),
+        .data_valid_o  ( ldu_data_valid ) 
     ); 
 
     instr_packet_t ldu_ipacket;

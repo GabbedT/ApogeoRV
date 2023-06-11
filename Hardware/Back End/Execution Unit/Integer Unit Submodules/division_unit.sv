@@ -73,10 +73,7 @@ module division_unit (
     output logic       data_valid_o,
 
     /* Exception */
-    output logic divide_by_zero_o,
-
-    /* Functional unit status */
-    output logic idle_o
+    output logic divide_by_zero_o
 );
 
 
@@ -183,7 +180,7 @@ module division_unit (
         .remainder_o      ( remainder         ),
         .divide_by_zero_o ( divide_by_zero    ),
         .data_valid_o     ( div_data_valid    ),
-        .idle_o           ( div_idle          )
+        .idle_o           (                   )
     );
 
 
@@ -196,12 +193,6 @@ module division_unit (
 
                 divide_by_zero_o <= divide_by_zero;
                 data_valid_o <= div_data_valid;
-
-                if (data_valid_i | data_valid) begin 
-                    idle_o <= 1'b0;
-                end else begin 
-                    idle_o <= div_idle;
-                end
             end
         end
 

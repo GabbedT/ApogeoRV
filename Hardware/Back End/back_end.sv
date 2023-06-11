@@ -5,7 +5,7 @@
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
-`include "../Include/Interfaces/memory_controller_interface.sv"
+`include "../Include/Interfaces/bus_controller_interface.sv"
 `include "../Include/Interfaces/store_buffer_interface.sv"
 
 `include "bypass_controller.sv"
@@ -15,16 +15,21 @@
 `include "writeback_stage.sv"
 `include "trap_manager.sv"
 
-module back_end (
+module back_end #(
+    /* Number of entries in the store buffer */
+    parameter STORE_BUFFER_SIZE = 8
+) (
     input logic clk_i,
     input logic rst_n_i,
 
     /* Pipeline control */
     output logic flush_o,
     output logic stall_o,
+    output logic priv_level_o,
 
     /* Operands */
     input logic [1:0][4:0] reg_src_i,
+    input logic [1:0] immediate_valid_i,
     input data_word_t [1:0] operand_i,
 
     /* Valid operations signals */
@@ -39,27 +44,21 @@ module back_end (
     output logic compressed_o,
 
     /* Branch control */
+    output logic executed_o,
     input logic branch_i,
     output logic branch_o,
     input logic jump_i,
     output logic jump_o,
     input data_word_t branch_address_i,
     output data_word_t branch_address_o,
+    output data_word_t instr_address_o,
     input logic mispredicted_i,
     output logic branch_outcome_o,
 
     /* Memory interface */
     load_interface.master load_channel,
     store_interface.master store_channel,
-    output logic store_cachable_o,
-    output logic load_cachable_o,
 
-    /* Store buffer interface */
-    store_buffer_push_interface.master str_buf_channel,
-
-    /* Store buffer fowarding nets */
-    input logic str_buf_address_match_i,
-    input data_word_t str_buf_fowarded_data_i,
 
     /* Interrupt logic */
     input logic interrupt_i,
@@ -79,12 +78,8 @@ module back_end (
     output data_word_t handler_pc_o,
 
     /* Functional units status for scheduling */
-    output logic div_idle_o,
     output logic ldu_idle_o,
     output logic stu_idle_o,
-
-    /* Sleep */
-    output logic core_sleep_o,
 
     /* Writeback data */
     output logic [4:0] reg_destination_o,
@@ -97,25 +92,31 @@ module back_end (
 //      EXECUTION STAGE
 //====================================================================================
 
+    logic core_sleep;
+
     /* Operands */
     data_word_t [1:0] fowarded_operands; 
 
     /* Data fowarded */
-    data_word_t [1:0] commit_data, reorder_buffer_data;
-    logic [1:0] commit_valid, reorder_buffer_valid;
+    data_word_t [1:0] execute_data, commit_data, reorder_buffer_data;
+    logic [1:0] execute_valid, commit_valid, reorder_buffer_valid;
+
 
     bypass_controller bypass (
-        .issue_operand_i ( operand_i            ),
-        .commit_data_i   ( commit_data          ),
-        .commit_valid_i  ( commit_valid         ),
-        .rob_data_i      ( reorder_buffer_data  ),
-        .rob_valid_i     ( reorder_buffer_valid ),
-        .operand_o       ( fowarded_operands    )   
+        .issue_operand_i   ( operand_i            ),
+        .issue_immediate_i ( immediate_valid_i    ),
+        .execute_data_i    ( execute_data         ),
+        .execute_valid_i   ( execute_valid        ),
+        .commit_data_i     ( commit_data          ),
+        .commit_valid_i    ( commit_valid         ),
+        .rob_data_i        ( reorder_buffer_data  ),
+        .rob_valid_i       ( reorder_buffer_valid ),
+        .operand_o         ( fowarded_operands    )   
     );
 
 
     exu_valid_t bypass_valid; 
-    logic bypass_branch, bypass_jump, flush_pipeline, bypass_compressed;
+    logic bypass_branch, bypass_jump, flush_pipeline, bypass_compressed, bypass_mispredicted;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
             if (!rst_n_i) begin
@@ -123,16 +124,19 @@ module back_end (
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
                 bypass_compressed <= 1'b0;
+                bypass_mispredicted <= 1'b0; 
             end else if (flush_pipeline | mispredicted_i) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
                 bypass_compressed <= 1'b0; 
-            end else if (!core_sleep_o) begin
+                bypass_mispredicted <= mispredicted_i;
+            end else if (!stall_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
                 bypass_compressed <= compressed_i;
+                bypass_mispredicted <= mispredicted_i;
             end
         end : bypass_stage_register
 
@@ -143,13 +147,17 @@ module back_end (
     data_word_t bypass_branch_address;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
-            if (!core_sleep_o) begin 
+            if (!stall_o) begin 
                 bypass_ipacket <= ipacket_i;
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
                 bypass_branch_address <= branch_address_i;
             end 
         end : bypass_operands_stage_register
+
+
+    assign executed_o = bypass_branch | bypass_jump;
+    assign instr_address_o = bypass_ipacket.instr_addr;
 
 
     /* Instruction address of ROB entry readed */
@@ -171,30 +179,29 @@ module back_end (
     logic [2:0] valid;
 
     /* Pipeline control */
-    logic stall_pipeline, buffer_full;
-    logic wait_handling, handler_return;
+    logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr;
+    logic wait_handling, handler_return, execute_store;
 
-    execution_unit execute_stage (
-        .clk_i   ( clk_i                                       ),
-        .rst_n_i ( rst_n_i                                     ),
-        .flush_i ( flush_pipeline                              ),
-        .stall_i ( stall_pipeline | buffer_full | core_sleep_o ),
+    execution_unit #(STORE_BUFFER_SIZE) execute_stage (
+        .clk_i      ( clk_i          ),
+        .rst_n_i    ( rst_n_i        ),
+        .flush_i    ( flush_pipeline ),
+        .stall_i    ( stall_o        ),
+        .validate_i ( execute_store  ),
 
-        .operand_i    ( bypass_operands   ),
-        .data_valid_i ( bypass_valid      ),
-        .operation_i  ( bypass_operation  ), 
-        .ipacket_i    ( bypass_ipacket    ),
+        .validate_csr_write_i ( execute_csr     ),
+        .priv_level_o         ( priv_level_o    ),
+        .csr_buffer_full_o    ( csr_buffer_full ),
 
-        .branch_i     ( bypass_branch     ),
+        .operand_i    ( bypass_operands  ),
+        .data_valid_i ( bypass_valid     ),
+        .operation_i  ( bypass_operation ), 
+        .ipacket_i    ( bypass_ipacket   ),
 
-        .load_channel     ( load_channel     ),
-        .store_channel    ( store_channel    ),
-        .load_cachable_o  ( load_cachable_o  ),
-        .store_cachable_o ( store_cachable_o ),
+        .branch_i     ( bypass_branch ),
 
-        .str_buf_channel         ( str_buf_channel         ),
-        .str_buf_address_match_i ( str_buf_address_match_i ),
-        .str_buf_fowarded_data_i ( str_buf_fowarded_data_i ),
+        .load_channel  ( load_channel  ),
+        .store_channel ( store_channel ),
 
         .trap_instruction_pc_i  ( trap_iaddress       ),
         .exception_vector_i     ( exception_vector    ),
@@ -204,10 +211,9 @@ module back_end (
         .handler_pc_o           ( handler_pc_o        ),
         .glb_interrupt_enable_o ( interrupt_enable_o  ),
         .machine_return_instr_i ( handler_return      ),
-        .branch_mispredicted_i  ( mispredicted_i      ),
+        .branch_mispredicted_i  ( bypass_mispredicted ),
         .instruction_retired_i  ( instruction_retired ),
 
-        .div_idle_o ( div_idle_o ),
         .ldu_idle_o ( ldu_idle_o ),
         .stu_idle_o ( stu_idle_o ),
 
@@ -226,6 +232,36 @@ module back_end (
     assign compressed_o = bypass_compressed; 
 
 
+    /* Bypass logic */
+    genvar i; 
+
+    logic [1:0][2:0] dest_match;
+
+    generate
+        for (i = 0; i < 3; ++i) begin
+            assign dest_match[0][i] = ipacket[i].reg_dest == reg_src_i[0];
+            assign dest_match[1][i] = ipacket[i].reg_dest == reg_src_i[1];
+        end
+
+        for (i = 0; i < 2; ++i) begin
+            assign execute_valid[i] = (dest_match[i][0] & valid[0]) | (dest_match[i][1] & valid[1]) | (dest_match[i][2] & valid[2]); 
+
+            always_comb begin 
+                case (dest_match[i])
+                    3'b001: execute_data[i] = result[0];
+
+                    3'b010: execute_data[i] = result[1];
+
+                    3'b100: execute_data[i] = result[2];
+
+                    default: execute_data[i] = '0;
+                endcase 
+            end
+        end
+    endgenerate
+
+
+
     /* Pipeline registers */
     data_word_t [2:0] result_commit;
     instr_packet_t [2:0] packet_commit;
@@ -238,14 +274,14 @@ module back_end (
             end else if (flush_pipeline) begin 
                 packet_commit <= {NO_OPERATION, NO_OPERATION, NO_OPERATION};
                 valid_commit <= '0;
-            end else if (!core_sleep_o) begin
+            end else if (!stall_o) begin
                 packet_commit <= ipacket;
                 valid_commit <= valid;
             end
         end : commit_stage_register
 
         always_ff @(posedge clk_i) begin : commit_result_register
-            if (!core_sleep_o) begin 
+            if (!stall_o) begin 
                 result_commit <= result;
             end
         end : commit_result_register
@@ -263,7 +299,7 @@ module back_end (
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_pipeline ),
-        .stall_i ( core_sleep_o   ),
+        .stall_i ( core_sleep     ),
         .stall_o ( buffer_full    ),
 
         .result_i     ( result_commit ),
@@ -311,7 +347,7 @@ module back_end (
 //      WRITEBACK STAGE
 //====================================================================================
 
-    logic core_sleep, mreturn;
+    logic mreturn;
     
     writeback_stage write_back (
         .rob_entry_i ( writeback_packet    ),
@@ -324,6 +360,8 @@ module back_end (
 
         .sleep_o               ( core_sleep          ),
         .mreturn_o             ( mreturn             ),
+        .execute_store_o       ( execute_store       ),
+        .execute_csr_o         ( execute_csr         ),
         .exception_generated_o ( exception_generated ),
         .exception_vector_o    ( exception_vector    ),
         .exception_iaddress_o  ( trap_iaddress       )
@@ -347,9 +385,7 @@ module back_end (
     ); 
 
     assign flush_o = flush_pipeline;
-    assign stall_o = stall_pipeline | buffer_full;
-
-    assign core_sleep_o = core_sleep;
+    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | core_sleep;
 
     assign reorder_buffer_clear = flush_pipeline;
 

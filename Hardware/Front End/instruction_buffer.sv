@@ -62,7 +62,7 @@ module instruction_buffer #(
         end : size_counter
 
     assign buffer_empty_o = (buffer_size == '0);
-    assign instr_request_o = buffer_size < wewREQUEST_LIMIT;
+    assign instr_request_o = buffer_size < REQUEST_LIMIT;
 
 
 //====================================================================================

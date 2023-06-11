@@ -1,35 +1,49 @@
 `ifndef DATA_CACHE_COMPLEX_SV
     `define DATA_CACHE_COMPLEX_SV
 
-`include "../../Include/Packages/cache_pkg.sv"
-`include "../../Include/Packages/apogeo_pkg.sv"
+`include "../Include/Packages/cache_pkg.sv"
+`include "../Include/Packages/apogeo_pkg.sv"
 
-`include "../../Include/Interfaces/memory_controller_interface.sv"
+`include "../Include/Interfaces/bus_controller_interface.sv"
 
-`include "Data Cache/data_cache.sv"
-`include "Data Cache/load_controller.sv"
-`include "Data Cache/store_controller.sv"
+`include "Cache/Data Cache/data_cache.sv"
+`include "Cache/Data Cache/load_controller.sv"
+`include "Cache/Data Cache/store_controller.sv"
+
+`include "store_buffer.sv"
 
 module data_cache_complex #(
     /* Total cache size in bytes */
     parameter CACHE_SIZE = 2 ** 13,
 
     /* Total block size in bytes */
-    parameter BLOCK_SIZE = 16
+    parameter BLOCK_SIZE = 16, 
+
+    /* Number of entries stored */
+    parameter STORE_BUFFER_SIZE = 4
 ) (
     input logic clk_i,
     input logic rst_n_i,
+    input logic flush_i,
+    input logic valid_i,
 
     /* Load unit interface */
-    input logic load_request_i,
-    input data_word_t load_address_i, 
-    output data_word_t load_data_o,
-    output logic load_valid_o,
+    load_interface.master ldu_channel,
+    input logic load_cachable_i,
+    output data_word_t foward_data_o,
+    output logic foward_match_o,
 
     /* Store unit interface */
-    input logic store_request_i,
-    input store_buffer_entry_t buffer_entry_i,
-    output logic store_valid_o,
+    store_interface.master stu_channel,
+    store_buffer_push_interface.master buffer_channel,
+
+    /* Burst buffer CSR interface */
+    output logic [9:0] buffer_size_o,
+    input data_word_t base_address_i,
+    input logic [9:0] threshold_i,
+    input logic [1:0] store_width_i,
+    input logic burst_type_i,
+    input logic buffer_select_i,
 
     /* Memory load interface */
     load_interface.master load_channel,
@@ -50,6 +64,35 @@ module data_cache_complex #(
 
     localparam TAG = 32 - (2 + OFFSET + INDEX);
 
+
+//====================================================================================
+//      STORE BUFFER
+//====================================================================================
+
+    store_buffer_pull_interface buffer_push_channel;
+    store_buffer_pull_interface buffer_pull_channel; 
+    logic buffer_head_valid; 
+
+    store_buffer #(STORE_BUFFER_SIZE) store_buffer (
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+        .flush_i ( flush_i ),
+    
+        .push_channel ( buffer_push_channel ),
+        .pull_channel ( buffer_pull_channel ),
+
+        .valid_i ( valid_i ),
+
+        .foward_address_i ( load_channel.address ),
+        .foward_data_o    ( foward_data_o        ),
+        .address_match_o  ( foward_match_o       ),
+
+        .valid_o ( buffer_head_valid )
+    );
+
+    assign buffer_push_channel.push_request = buffer_channel.push_request & !buffer_select_i;
+    assign buffer_push_channel.full = buffer_channel.full;
+    assign buffer_push_channel.pac = buffer_channel.packet;
 
 //====================================================================================
 //      CACHE

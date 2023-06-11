@@ -99,7 +99,13 @@ module reorder_buffer (
 //      MEMORY LOGIC
 //====================================================================================
 
-    logic [$bits(rob_entry_t) - 1:0] reorder_buffer[63:0];
+    logic [$bits(rob_entry_t) - 1:0] reorder_buffer[63:0]; 
+
+    initial begin
+        for (int i = 0; i < 64; ++i) begin
+            reorder_buffer[i] = '0;
+        end
+    end
 
         always_ff @(posedge clk_i) begin : rob_write_port
             if (write_i) begin
@@ -150,10 +156,6 @@ module reorder_buffer (
             end 
         end : register_write_port
 
-    /* Read port */
-    assign foward_data_o[0] = (foward_src_i[0] == '0) ? '0 : foward_register[0][foward_src_i[0]];
-    assign foward_data_o[1] = (foward_src_i[1] == '0) ? '0 : foward_register[1][foward_src_i[1]];
-
 
     /* Register the last packet that wrote the foward register */
     logic [5:0] tag_register [31:0];
@@ -186,10 +188,35 @@ module reorder_buffer (
                 end
             end
         end : register_valid_write_port
+ 
 
-    /* Read port */
-    assign foward_valid_o[0] = (foward_src_i[0] == '0) ? 1'b1 : valid_register[foward_src_i[0]];
-    assign foward_valid_o[1] = (foward_src_i[1] == '0) ? 1'b1 : valid_register[foward_src_i[1]];
+    generate genvar i;
+        for (i = 0; i < 2; ++i) begin
+            always_comb begin
+                /* Default values */
+                foward_valid_o[i] = 1'b0;
+                foward_data_o[i] = '0;
+                    
+                if (foward_src_i[i] != '0) begin
+                    if (foward_src_i[i] == entry_i.reg_dest) begin
+                        /* Foward data that has passed commit stage */
+                        foward_valid_o[i] = 1'b1;
+                        foward_data_o[i] = entry_i.result;
+                    end else if (valid_register[foward_src_i[i]]) begin
+                        /* Foward data that has been written inside the buffers */
+                        foward_valid_o[i] = 1'b1;
+                        foward_data_o[i] = foward_register[i][foward_src_i[i]];
+                    end else begin
+                        foward_valid_o[i] = entry_o.reg_dest == foward_src_i[i]; 
+                        foward_data_o[i] = entry_o.result; 
+                    end
+                end else begin
+                    foward_valid_o[i] = 1'b1;
+                    foward_data_o[i] = '0;
+                end
+            end
+        end
+    endgenerate
 
 endmodule : reorder_buffer
 

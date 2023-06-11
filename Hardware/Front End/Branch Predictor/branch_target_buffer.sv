@@ -47,7 +47,6 @@ module branch_target_buffer #(
     parameter BUFFER_SIZE = 1024
 ) (
     input logic clk_i, 
-    input logic rst_n_i, 
 
     /* Current program counter */
     input data_word_t program_counter_i,
@@ -101,10 +100,8 @@ module branch_target_buffer #(
 
     branch_target_buffer_t buffer_read; 
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : buffer_read_port
-            if (!rst_n_i) begin 
-                buffer_read <= '0;
-            end else if (jump_i | branch_i) begin
+        always_ff @(posedge clk_i) begin : buffer_read_port
+            if (jump_i | branch_i) begin
                 buffer_read <= branch_target_buffer_memory[read_index];
             end 
         end : buffer_read_port
