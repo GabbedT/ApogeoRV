@@ -97,24 +97,6 @@ module load_unit (
 
     assign cachable = (load_address_i >= (`IO_END));
 
-    /* Load data from cache or memory */
-    data_word_t load_data_CRT, load_data_NXT;  
-
-        always_ff @(posedge clk_i) begin
-            load_data_CRT <= load_data_NXT;
-        end
-
-
-    logic match_CRT, match_NXT;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (!rst_n_i) begin
-                match_CRT <= 1'b0;
-            end else begin 
-                match_CRT <= match_NXT;
-            end
-        end
-
 
     ldu_uop_t   operation;
     data_word_t load_address;
@@ -131,20 +113,17 @@ module load_unit (
     /* During WAIT, load_data_CRT is the buffer data */
     data_word_t data_selected;
 
-    assign data_selected = match_CRT ? load_data_CRT : load_channel.data;
-
-
     /* Select a subword */
-    data_word_t data_sliced;
+    data_word_t data_sliced; ldu_uop_t slice_operation;
 
         always_comb begin
             /* Default value */
             data_sliced = '0;
 
-            case (operation.uop)
+            case (slice_operation.uop)
                 /* Load byte */
                 LDB: begin 
-                    if (operation.signed_load) begin
+                    if (slice_operation.signed_load) begin
                         data_sliced = $signed(data_selected.word8[load_address[1:0]]);
                     end else begin
                         data_sliced = $unsigned(data_selected.word8[load_address[1:0]]);
@@ -153,7 +132,7 @@ module load_unit (
 
                 /* Load half word signed */
                 LDH: begin 
-                    if (operation.signed_load) begin 
+                    if (slice_operation.signed_load) begin 
                         data_sliced = $signed(data_selected.word16[load_address[1]]);
                     end else begin
                         data_sliced = $unsigned(data_selected.word16[load_address[1]]);
@@ -187,8 +166,6 @@ module load_unit (
 
         always_comb begin : fsm_logic
             /* Default values */
-            load_data_NXT = load_data_CRT;
-            match_NXT = match_CRT;
             state_NXT = state_CRT;
 
             load_channel.request = 1'b0;
@@ -196,7 +173,8 @@ module load_unit (
             
             idle_o = 1'b0;
             data_valid_o = 1'b0;
-            data_loaded_o = '0;
+            slice_operation = '0;
+            data_selected = '0;
 
             case (state_CRT)
 
@@ -210,21 +188,19 @@ module load_unit (
                     idle_o = 1'b1;
                     
                     if (valid_operation_i) begin
-                        if (operation_i != LDW) begin
+                        if (operation_i.uop != LDW) begin
                             state_NXT = WAIT_MEMORY_UPDATE;
 
                             idle_o = 1'b0;
-                        end else if (foward_match_i) begin
-                            load_data_NXT = foward_data_i;
-                            match_NXT = 1'b1;
-
-                            idle_o = 1'b1;
                         end else if (timer_access) begin
-                            load_data_NXT = timer_data_i;
-                            match_NXT = 1'b1;
+                            data_selected = timer_data_i;
+
+                            slice_operation = operation_i; 
 
                             idle_o = 1'b1;
-                        end else begin 
+                        end else begin  
+                            state_NXT = WAIT_MEMORY; 
+
                             load_channel.request = 1'b1;
                         end
                     end
@@ -235,19 +211,23 @@ module load_unit (
 
                 /* Waits for memory to supply data */
                 WAIT_MEMORY: begin
-                    /* Valid signal is the OR between the signal from 
-                     * cache controller and the signal from the memory 
-                     * interface */
-                    if (load_channel.valid | match_CRT) begin
+                    slice_operation = operation; 
+
+                    if (foward_match_i) begin
                         state_NXT = IDLE;
-                        match_NXT = 1'b0;
+
+                        data_selected = foward_data_i;
 
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;
-                    end 
+                    end else if (load_channel.valid) begin
+                        state_NXT = IDLE;
 
-                    load_data_NXT = data_sliced;
-                    data_loaded_o = data_sliced;
+                        data_selected = load_channel.data; 
+                        
+                        idle_o = 1'b1;
+                        data_valid_o = 1'b1;
+                    end 
                 end   
 
 
@@ -261,6 +241,8 @@ module load_unit (
                 end
             endcase
         end : fsm_logic
+
+    assign data_loaded_o = data_sliced; 
 
 endmodule : load_unit
 

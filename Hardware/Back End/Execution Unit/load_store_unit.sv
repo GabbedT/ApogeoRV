@@ -119,7 +119,7 @@ module load_store_unit #(
     logic stu_data_accepted, stu_illegal_access, stu_data_valid, stu_timer_write;
 
     /* Store buffer fowarding nets */
-    logic foward_address_match, buffer_wait, buffer_empty;
+    logic foward_address_match, buffer_empty;
     data_word_t foward_data;
 
     store_unit stu (
@@ -161,12 +161,30 @@ module load_store_unit #(
             end
         end
 
+
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
                 stu_ipacket <= NO_OPERATION;
             end else if (data_valid_i.STU) begin
                 stu_ipacket <= stu_exception_packet;
             end 
+        end 
+
+
+    logic foward_address_match_out; data_word_t foward_data_out; 
+
+        always_ff @(posedge clk_i) begin
+            if (flush_i) begin
+                foward_address_match_out <= 1'b0;
+            end else if (data_valid_i.LDU) begin
+                foward_address_match_out <= foward_address_match;
+            end else begin
+                foward_address_match_out <= 1'b0;
+            end
+        end 
+
+        always_ff @(posedge clk_i) begin
+            foward_data_out <= foward_data;
         end 
 
 
@@ -188,8 +206,8 @@ module load_store_unit #(
 
         .load_channel ( load_channel ),
 
-        .foward_match_i ( foward_address_match ),
-        .foward_data_i  ( foward_data          ),
+        .foward_match_i ( foward_address_match_out ),
+        .foward_data_i  ( foward_data_out          ),
 
         .buffer_empty_i ( buffer_empty ), 
 
