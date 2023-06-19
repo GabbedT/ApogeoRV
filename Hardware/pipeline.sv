@@ -21,8 +21,8 @@ module pipeline #(
 
     /* Fetch interface */
     input logic fetch_valid_i, 
-    input logic fetch_wait_i,
     input data_word_t fetch_instruction_i, 
+    output logic fetch_acknowledge_o,
     output logic fetch_o,
     output data_word_t fetch_address_o, 
 
@@ -45,34 +45,36 @@ module pipeline #(
 //====================================================================================
 
     /* Pipeline control */ 
-    logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle;
+    logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, branch_flush;
     data_word_t handler_program_counter;
 
     /* Write back result */
     logic writeback; logic [4:0] writeback_register; data_word_t writeback_result;
 
     /* Branch control from backend */
-    logic compressed, executed, branch, jump, taken; 
+    logic compressed, executed, branch, jump, taken, speculative; 
     data_word_t branch_target_address, instruction_address;  
 
     /* Data to backend */ 
     logic frontend_compressed, frontend_branch, frontend_jump, issue; logic [1:0] frontend_immediate_valid;
-    data_word_t frontend_branch_target_address; 
+    data_word_t frontend_address_offset; 
+    logic frontend_save_next_pc, frontend_base_address_reg, frontend_speculative; 
     data_word_t [1:0] frontend_operand; instr_packet_t frontend_ipacket;
     exu_valid_t frontend_valid_operation; exu_uop_t frontend_operation; 
     logic [1:0][4:0] frontend_register_source;
 
     front_end #(PREDICTOR_SIZE, BTB_SIZE) apogeo_frontend (
-        .clk_i        ( clk_i           ),
-        .rst_n_i      ( rst_n_i         ),
-        .flush_i      ( flush_pipeline  ),
-        .stall_i      ( stall_pipeline  ),
-        .priv_level_i ( privilege_level ),
-        .issue_o      ( issue           ),
+        .clk_i          ( clk_i           ),
+        .rst_n_i        ( rst_n_i         ),
+        .flush_i        ( flush_pipeline  ),
+        .branch_flush_i ( branch_flush    ),
+        .stall_i        ( stall_pipeline  ),
+        .priv_level_i   ( privilege_level ),
+        .issue_o        ( issue           ),
 
         .fetch_valid_i       ( fetch_valid_i       ),
-        .fetch_wait_i        ( fetch_wait_i        ),
         .fetch_instruction_i ( fetch_instruction_i ),
+        .fetch_acknowledge_o ( fetch_acknowledge_o ),
         .fetch_o             ( fetch_o             ), 
         .fetch_address_o     ( fetch_address_o     ),
 
@@ -85,6 +87,7 @@ module pipeline #(
         .branch_i             ( branch                ),
         .jump_i               ( jump                  ),
         .taken_i              ( taken                 ),
+        .speculative_i        ( speculative           ),
         .branch_target_addr_i ( branch_target_address ),
         .instr_address_i      ( instruction_address   ), 
 
@@ -98,11 +101,17 @@ module pipeline #(
         .compressed_o         ( frontend_compressed            ),
         .branch_o             ( frontend_branch                ),
         .jump_o               ( frontend_jump                  ),
-        .branch_target_addr_o ( frontend_branch_target_address ),
         .mispredicted_o       ( frontend_mispredicted          ),
+        .speculative_o        ( frontend_speculative           ),
+
+        .save_next_pc_o     ( frontend_save_next_pc     ),
+        .base_address_reg_o ( frontend_base_address_reg ),
+        .address_offset_o   ( frontend_address_offset   ),
+
         .operand_o            ( frontend_operand               ),
         .immediate_valid_o    ( frontend_immediate_valid       ),
         .register_source_o    ( frontend_register_source       ),
+
         .ipacket_o            ( frontend_ipacket               ),
         .exu_valid_o          ( frontend_valid_operation       ),
         .exu_uop_o            ( frontend_operation             )
@@ -115,7 +124,8 @@ module pipeline #(
 
     /* Data to backend */ 
     logic backend_compressed, backend_branch, backend_jump, backend_mispredicted; logic [1:0] backend_immediate_valid;
-    data_word_t backend_branch_target_address; 
+    data_word_t backend_address_offset; 
+    logic backend_save_next_pc, backend_base_address_reg, backend_speculative; 
     data_word_t [1:0] backend_operand; instr_packet_t backend_ipacket;
     exu_valid_t backend_valid_operation; exu_uop_t backend_operation; 
     logic [1:0][4:0] backend_register_source;
@@ -125,8 +135,12 @@ module pipeline #(
                 backend_compressed <= 1'b0;
                 backend_branch <= 1'b0;
                 backend_jump <= 1'b0;
-                backend_branch_target_address <= '0;
                 backend_mispredicted <= 1'b0;
+                backend_speculative <= 1'b0;
+
+                backend_address_offset <= '0;
+                backend_save_next_pc <= 1'b0; 
+                backend_base_address_reg <= 1'b0; 
 
                 backend_operand <= '0;
                 backend_ipacket <= '0;
@@ -137,17 +151,21 @@ module pipeline #(
                 backend_operation <= '0;
             end else if (!stall_pipeline) begin
                 backend_compressed <= frontend_compressed;
-                backend_branch <= frontend_branch;
-                backend_jump <= frontend_jump;
-                backend_branch_target_address <= frontend_branch_target_address;
+                backend_branch <= issue ? frontend_branch : 1'b0;
+                backend_jump <= issue ? frontend_jump : 1'b0;
                 backend_mispredicted <= frontend_mispredicted;
+                backend_speculative <= frontend_speculative;
+
+                backend_address_offset <= frontend_address_offset;
+                backend_save_next_pc <= frontend_save_next_pc; 
+                backend_base_address_reg <= frontend_base_address_reg; 
 
                 backend_operand <= frontend_operand;
                 backend_ipacket <= frontend_ipacket;
                 backend_register_source <= frontend_register_source; 
                 backend_immediate_valid <= frontend_immediate_valid;
 
-                backend_valid_operation <= (!stall_pipeline & issue) ? frontend_valid_operation : '0; 
+                backend_valid_operation <= issue ? frontend_valid_operation : '0; 
                 backend_operation <= frontend_operation;
             end
         end : pipeline_register
@@ -161,8 +179,9 @@ module pipeline #(
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
 
-        .flush_o ( flush_pipeline ),
-        .stall_o ( stall_pipeline ),
+        .flush_o        ( flush_pipeline ),
+        .branch_flush_o ( branch_flush   ),
+        .stall_o        ( stall_pipeline ),
 
         .priv_level_o ( privilege_level ),
 
@@ -178,16 +197,21 @@ module pipeline #(
         .compressed_i ( backend_compressed ),
         .compressed_o ( compressed         ),
 
-        .executed_o       ( executed                      ),
-        .branch_i         ( backend_branch                ),
-        .branch_o         ( branch                        ),
-        .jump_i           ( backend_jump                  ),
-        .jump_o           ( jump                          ),
-        .branch_address_i ( backend_branch_target_address ),
-        .branch_address_o ( branch_target_address         ),
-        .instr_address_o  ( instruction_address           ),
-        .mispredicted_i   ( backend_mispredicted          ),
-        .branch_outcome_o ( taken                         ),
+        .executed_o       ( executed              ),
+        .branch_i         ( backend_branch        ),
+        .branch_o         ( branch                ),
+        .jump_i           ( backend_jump          ),
+        .jump_o           ( jump                  ),
+        .speculative_i    ( backend_speculative   ),
+        .speculative_o    ( speculative           ),
+        .branch_address_o ( branch_target_address ),
+        .instr_address_o  ( instruction_address   ),
+        .mispredicted_i   ( backend_mispredicted  ),
+        .branch_outcome_o ( taken                 ),
+
+        .save_next_pc_i     ( backend_save_next_pc     ),
+        .base_address_reg_i ( backend_base_address_reg ),
+        .address_offset_i   ( backend_address_offset   ),
 
         .load_channel     ( load_channel  ),
         .store_channel    ( store_channel ),

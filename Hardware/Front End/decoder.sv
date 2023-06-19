@@ -25,24 +25,17 @@ module decoder (
 
     /* Immediate */
     output data_word_t [1:0] immediate_o,
-    output logic [1:0] imm_valid_o,
+    output logic [1:0] immediate_valid_o,
 
-    /* Instruction is a jump and require 
-     * to set the PC to the BTA */
-    output logic branch_o,
+    /* Target address data */
+    output logic base_address_reg_o,
+    output data_word_t address_offset_o,
+    output logic save_next_pc_o,
 
-    /* Require the current PC + 4 to be 
-     * passed as operand */
-    output logic jump_o,
-
-    /* Calculate memory address (base + offset) 
-     * and use as first operand for the units */
-    output logic memory_o,
-    output logic [1:0] address_operand_o,
-
-    /* Stall the front end until the execution
-     * pipeline is empty */
+    /* Operation info */
     output logic fence_o,
+    output logic jump_o,
+    output logic branch_o,
 
     /* Registers */
     output logic [1:0][4:0] reg_src_o,
@@ -82,6 +75,7 @@ module decoder (
     /* Registers */
     logic [1:0][4:0] reg_src_idec; logic [4:0] reg_dest_idec;
     
+    logic fence;
     
     /* Exception vector */
     logic [4:0] exc_vect_idec;
@@ -99,14 +93,16 @@ module decoder (
         .csr_unit_valid_o ( csr_valid_idec ),
         .csr_unit_uop_o   ( csr_uop_idec   ),
 
-        .immediate_o       ( immediate_idec       ),
-        .imm_valid_o       ( is_immediate_idec    ),
-        .address_operand_o ( address_operand_o ),
+        .immediate_o       ( immediate_idec    ),
+        .immediate_valid_o ( is_immediate_idec ),
 
+        .base_address_reg_o ( base_address_reg_o ),
+        .address_offset_o   ( address_offset_o   ),
+        .save_next_pc_o     ( save_next_pc_o     ),
+
+        .fence_o  ( fence_o  ),
         .branch_o ( branch_o ),
         .jump_o   ( jump_o   ),
-        .memory_o ( memory_o ),
-        .fence_o  ( fence_o  ),
 
         .reg_src_o  ( reg_src_idec  ),
         .reg_dest_o ( reg_dest_idec ),
@@ -142,8 +138,8 @@ module decoder (
     bit_manipulation_decoder bdecoder (
         .instr_i ( instr_i ),
 
-        .immediate_o ( immediate_bdec    ),
-        .imm_valid_o ( is_immediate_bdec ),
+        .immediate_o       ( immediate_bdec    ),
+        .immediate_valid_o ( is_immediate_bdec ),
 
         .reg_src_o  ( reg_src_bdec  ),
         .reg_dest_o ( reg_dest_bdec ),
@@ -161,36 +157,6 @@ module decoder (
 //      OUTPUT LOGIC
 //====================================================================================
 
-    // assign immediate_o[0] = immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
-    // assign immediate_o[1] = immediate_idec[1];
-
-    // assign imm_valid_o[0] = is_immediate_idec[0] `ifdef BMU | immediate_bdec `endif;
-    // assign imm_valid_o[1] = is_immediate_idec[1];
-
-    // assign reg_src_o[0] = reg_src_idec[0] `ifdef BMU | reg_src_bdec[0] `endif;
-    // assign reg_src_o[1] = reg_src_idec[1] `ifdef BMU | reg_src_bdec[1] `endif;
-
-    // assign reg_dest_o = reg_dest_idec `ifdef BMU | reg_dest_bdec `endif;
-
-    // assign exu_valid_o.ITU = itu_valid_idec `ifdef BMU | {1'b0, bmu_valid_bdec, 2'b0} `endif; 
-    // assign exu_valid_o.LSU = lsu_valid_idec;
-    // assign exu_valid_o.CSR = csr_valid_idec;
-
-    // exu_uop_t itu_uop, lsu_uop, csr_uop;
-
-    // assign itu_uop.ITU.subunit = itu_uop_idec `ifdef BMU | bmu_uop_bdec `endif; 
-    // assign itu_uop.ITU.padding = '0; 
-    // assign lsu_uop.LSU.subunit = lsu_uop_idec;
-    // assign lsu_uop.LSU.padding = '0;
-    // assign csr_uop.CSR.subunit = csr_uop_idec;
-    // assign csr_uop.CSR.padding = '0;
-
-    // assign exu_uop_o = itu_uop | lsu_uop | csr_uop;
-
-    // assign exception_generated_o = exc_gen_idec & exc_gen_bdec;
-
-
-
     exu_uop_t itu_uop, lsu_uop, csr_uop;
 
     `ifdef BMU 
@@ -198,7 +164,7 @@ module decoder (
         always_comb begin
             /* Default values */
             immediate_o = '0;
-            imm_valid_o = '0;
+            immediate_valid_o = '0;
             reg_src_o = '0; 
             reg_dest_o = '0;
             exu_valid_o = '0;
@@ -216,7 +182,7 @@ module decoder (
 
                 2'b01: begin
                     immediate_o = immediate_idec;
-                    imm_valid_o = is_immediate_idec;
+                    immediate_valid_o = is_immediate_idec;
 
                     reg_src_o = reg_src_idec;
                     reg_dest_o = reg_dest_idec;
@@ -237,8 +203,8 @@ module decoder (
                     immediate_o[0] = immediate_bdec;
                     immediate_o[1] = '0;
 
-                    imm_valid_o[0] = is_immediate_bdec;
-                    imm_valid_o[1] = '0;
+                    immediate_valid_o[0] = is_immediate_bdec;
+                    immediate_valid_o[1] = '0;
 
                     reg_src_o = reg_src_bdec;
                     reg_dest_o = reg_dest_bdec;
@@ -249,7 +215,7 @@ module decoder (
 
                 2'b11: begin
                     immediate_o = '0;
-                    imm_valid_o = '0;
+                    immediate_valid_o = '0;
                     reg_src_o = '0; 
                     reg_dest_o = '0; 
 
@@ -266,7 +232,7 @@ module decoder (
         always_comb begin
             /* Default values */
             immediate_o = '0;
-            imm_valid_o = '0;
+            immediate_valid_o = '0;
             reg_src_o = '0; 
             reg_dest_o = '0;
             exu_valid_o = '0;
@@ -282,8 +248,8 @@ module decoder (
                 immediate_o[0] = immediate_idec[0];
                 immediate_o[1] = immediate_idec[1];
 
-                imm_valid_o[0] = is_immediate_idec[0];
-                imm_valid_o[1] = is_immediate_idec[1];
+                immediate_valid_o[0] = is_immediate_idec[0];
+                immediate_valid_o[1] = is_immediate_idec[1];
 
                 reg_src_o = reg_src_idec;
                 reg_dest_o = reg_dest_idec;
@@ -297,7 +263,7 @@ module decoder (
                 exu_uop_o = itu_uop | lsu_uop | csr_uop; 
             end else begin
                 immediate_o = '0;
-                imm_valid_o = '0;
+                immediate_valid_o = '0;
                 reg_src_o = '0; 
                 reg_dest_o = '0; 
 

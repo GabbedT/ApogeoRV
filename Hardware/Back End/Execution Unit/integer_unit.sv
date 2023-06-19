@@ -58,6 +58,7 @@ module integer_unit (
     input logic enable_mul,
     input logic enable_div,
     `ifdef BMU input logic enable_bmu, `endif
+    input logic save_next_pc_i,
 
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
@@ -85,11 +86,13 @@ module integer_unit (
 //====================================================================================
 
     /* Module instantiation logic */
-    data_word_t alu_result;
+    data_word_t alu_result, alu_operand_1;
     logic       alu_valid, branch_taken, is_branch;
 
+    assign alu_operand_1 = save_next_pc_i ? ipacket_i.instr_addr : operand_1_i;
+
     arithmetic_logic_unit alu (
-        .operand_A_i  ( operand_1_i            ),
+        .operand_A_i  ( alu_operand_1          ),
         .operand_B_i  ( operand_2_i            ),
         .operation_i  ( operation_i.ALU.opcode ),
         .data_valid_i ( data_valid_i.ALU       ),
@@ -193,7 +196,7 @@ module integer_unit (
         always_ff @(posedge clk_i) begin : mul_stage_register
             if (enable_mul) begin
                 if (flush_i) begin
-                    for (int i = 0; i <= IMUL_STAGES; ++i) begin
+                    for (int i = 0; i < IMUL_STAGES; ++i) begin
                         mul_ipacket[i] <= NO_OPERATION;
                     end 
                 end else begin

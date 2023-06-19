@@ -75,7 +75,7 @@ module branch_predictor #(
 //      PREDICTOR
 //====================================================================================
 
-    logic make_prediction; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
+    logic make_prediction, prediction, jump; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
 
     predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
         .clk_i          ( clk_i           ),   
@@ -84,9 +84,12 @@ module branch_predictor #(
         .executed_i     ( executed_i      ),
         .taken_i        ( taken_i         ),
         .index_i        ( predictor_index ),
-        .prediction_o   ( prediction_o    ),
+        .prediction_o   ( prediction      ),
         .mispredicted_o ( mispredicted_o  )
     ); 
+
+    /* Take the branch if it's predicted taken or if it's a jump */
+    assign prediction_o = prediction | jump;
 
 //====================================================================================
 //      BRANCH TARGET BUFFER
@@ -102,6 +105,7 @@ module branch_predictor #(
         .jump_i               ( jump_i               ),
         .branch_target_addr_o ( branch_target_addr_o ),
         .predict_o            ( make_prediction      ),
+        .jump_o               ( jump                 ),
         .hit_o                ( hit_o                )
     );
 

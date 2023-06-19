@@ -60,13 +60,14 @@ module execution_unit #(
     input logic stall_i,
     input logic validate_i,
 
-    /* Csr nets */ 
+    /* CSR nets */ 
     input logic validate_csr_write_i,
     output logic priv_level_o,
     output logic csr_buffer_full_o,
 
     /* Operands */
     input data_word_t [1:0] operand_i,
+    input data_word_t address_i,
 
     /* Valid operations signals */
     input exu_valid_t data_valid_i,
@@ -77,6 +78,7 @@ module execution_unit #(
 
     /* Instruction is branch */
     input logic branch_i,
+    input logic save_next_pc_i,
 
     /* Global interrupt enable */
     output logic glb_interrupt_enable_o,
@@ -142,24 +144,25 @@ module execution_unit #(
     assign bmu_enable = csr_bmu_enable | !stall_i;
 
     integer_unit ITU (
-        .clk_i        ( clk_i                    ),
-        .rst_n_i      ( rst_n_i                  ),
-        .flush_i      ( flush_i                  ),
-        .enable_mul   ( mul_enable               ),
-        .enable_div   ( div_enable               ),
+        .clk_i          ( clk_i          ),
+        .rst_n_i        ( rst_n_i        ),
+        .flush_i        ( flush_i        ),
+        .enable_mul     ( mul_enable     ),
+        .enable_div     ( div_enable     ),
+        .save_next_pc_i ( save_next_pc_i ),
 
         `ifdef BMU 
-        .enable_bmu   ( bmu_enable               ),
+        .enable_bmu   ( bmu_enable ),
         `endif 
         
-        .ipacket_i    ( ipacket_i                ),
-        .operation_i  ( operation_i.ITU.subunit  ),
-        .data_valid_i ( data_valid_i.ITU         ),
-        .operand_1_i  ( operand_i[0]             ),
-        .operand_2_i  ( operand_i[1]             ),
-        .result_o     ( result_o[ITU]            ), 
-        .ipacket_o    ( ipacket_o[ITU]           ),
-        .data_valid_o ( data_valid_o[ITU]        )
+        .ipacket_i    ( ipacket_i               ),
+        .operation_i  ( operation_i.ITU.subunit ),
+        .data_valid_i ( data_valid_i.ITU        ),
+        .operand_1_i  ( operand_i[0]            ),
+        .operand_2_i  ( operand_i[1]            ),
+        .result_o     ( result_o[ITU]           ), 
+        .ipacket_o    ( ipacket_o[ITU]          ),
+        .data_valid_o ( data_valid_o[ITU]       )
     ); 
 
 
@@ -170,23 +173,23 @@ module execution_unit #(
     logic timer_interrupt, current_privilege;
 
     load_store_unit #(STORE_BUFFER_SIZE) LSU (
-        .clk_i                   ( clk_i                   ),
-        .rst_n_i                 ( rst_n_i                 ),
-        .flush_i                 ( flush_i                 ),
-        .instr_packet_i          ( ipacket_i               ),
-        .data_valid_i            ( data_valid_i.LSU        ),
-        .address_i               ( operand_i[0]            ),
-        .data_i                  ( operand_i[1]            ),
-        .operation_i             ( operation_i.LSU.subunit ),
-        .timer_interrupt_o       ( timer_interrupt         ),
-        .ldu_idle_o              ( ldu_idle_o              ),
-        .stu_idle_o              ( stu_idle_o              ),
-        .validate_i              ( validate_i              ),
-        .load_channel            ( load_channel            ),
-        .store_channel           ( store_channel           ),
-        .instr_packet_o          ( ipacket_o[LSU]          ),
-        .data_o                  ( result_o[LSU]           ),
-        .data_valid_o            ( data_valid_o[LSU]       )
+        .clk_i             ( clk_i                   ),
+        .rst_n_i           ( rst_n_i                 ),
+        .flush_i           ( flush_i                 ),
+        .instr_packet_i    ( ipacket_i               ),
+        .data_valid_i      ( data_valid_i.LSU        ),
+        .address_i         ( address_i               ),
+        .data_i            ( operand_i[1]            ),
+        .operation_i       ( operation_i.LSU.subunit ),
+        .timer_interrupt_o ( timer_interrupt         ),
+        .ldu_idle_o        ( ldu_idle_o              ),
+        .stu_idle_o        ( stu_idle_o              ),
+        .validate_i        ( validate_i              ),
+        .load_channel      ( load_channel            ),
+        .store_channel     ( store_channel           ),
+        .instr_packet_o    ( ipacket_o[LSU]          ),
+        .data_o            ( result_o[LSU]           ),
+        .data_valid_o      ( data_valid_o[LSU]       )
     );
 
 
@@ -221,25 +224,25 @@ module execution_unit #(
 
 
     control_status_registers CSRU (
-        .clk_i                  ( clk_i                 ),
-        .rst_n_i                ( rst_n_i               ),
-        .flush_i                ( flush_i               ),
-        .buffer_full_o          ( csr_buffer_full_o     ),
-        .csr_write_access_i     ( csr_write             ),
-        .csr_read_access_i      ( csr_read              ),
-        .csr_write_validate_i   ( validate_csr_write_i  ),
-        .csr_address_i          ( operand_i[1][11:0]    ),
-        .csr_data_write_i       ( csr_data_write        ),
-        .csr_data_read_o        ( csr_data_read         ),
-        .illegal_csr_access_o   ( illegal_csr_access    ),
-        .instruction_retired_i  ( instruction_retired_i ),
-        .data_store_i           ( data_valid_i.LSU.STU  ),
-        .data_load_i            ( data_valid_i.LSU.LDU  ),
-        .branch_i               ( branch_i              ),
-        .branch_mispredicted_i  ( branch_mispredicted_i ),
-        .enable_mul_o           ( csr_mul_enable        ),
-        .enable_div_o           ( csr_div_enable        ), 
-        `ifdef BMU.enable_bmu_o ( csr_bmu_enable ), `endif 
+        .clk_i                  ( clk_i                  ),
+        .rst_n_i                ( rst_n_i                ),
+        .flush_i                ( flush_i                ),
+        .buffer_full_o          ( csr_buffer_full_o      ),
+        .csr_write_access_i     ( csr_write              ),
+        .csr_read_access_i      ( csr_read               ),
+        .csr_write_validate_i   ( validate_csr_write_i   ),
+        .csr_address_i          ( operand_i[1][11:0]     ),
+        .csr_data_write_i       ( csr_data_write         ),
+        .csr_data_read_o        ( csr_data_read          ),
+        .illegal_csr_access_o   ( illegal_csr_access     ),
+        .instruction_retired_i  ( instruction_retired_i  ),
+        .data_store_i           ( data_valid_i.LSU.STU   ),
+        .data_load_i            ( data_valid_i.LSU.LDU   ),
+        .branch_i               ( branch_i               ),
+        .branch_mispredicted_i  ( branch_mispredicted_i  ),
+        .enable_mul_o           ( csr_mul_enable         ),
+        .enable_div_o           ( csr_div_enable         ), 
+        `ifdef BMU.enable_bmu_o ( csr_bmu_enable         ), `endif 
         .trap_instruction_pc_i  ( trap_instruction_pc_i  ),
         .trap_instruction_pc_o  ( trap_instruction_pc_o  ),
         .interrupt_vector_i     ( interrupt_vector_i     ),

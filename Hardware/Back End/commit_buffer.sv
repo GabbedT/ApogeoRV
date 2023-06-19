@@ -150,7 +150,7 @@ module commit_buffer #(
      * It's write indexed by the destination register of the instruction
      * and read indexed by the issue stage register destination */
     
-    logic [$bits(data_word_t) - 1:0] foward_register_1 [BUFFER_DEPTH - 1:0];
+    logic [$bits(data_word_t) - 1:0] foward_register_1 [31:0];
 
         always_ff @(posedge clk_i) begin : register1_write_port
             if (write_i) begin
@@ -162,7 +162,7 @@ module commit_buffer #(
     assign foward_result_o[0] = (foward_src_i[0] == '0) ? '0 : foward_register_1[foward_src_i[0]];
 
 
-    logic [$bits(data_word_t) - 1:0] foward_register_2 [BUFFER_DEPTH - 1:0];
+    logic [$bits(data_word_t) - 1:0] foward_register_2 [31:0];
 
         always_ff @(posedge clk_i) begin : register2_write_port
             if (write_i) begin

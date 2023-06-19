@@ -24,6 +24,7 @@ module back_end #(
 
     /* Pipeline control */
     output logic flush_o,
+    output logic branch_flush_o,
     output logic stall_o,
     output logic priv_level_o,
 
@@ -49,11 +50,17 @@ module back_end #(
     output logic branch_o,
     input logic jump_i,
     output logic jump_o,
-    input data_word_t branch_address_i,
+    input logic speculative_i,
+    output logic speculative_o,
     output data_word_t branch_address_o,
     output data_word_t instr_address_o,
     input logic mispredicted_i,
     output logic branch_outcome_o,
+    
+    /* Address */
+    input logic save_next_pc_i,
+    input logic base_address_reg_i,
+    input data_word_t address_offset_i,
 
     /* Memory interface */
     load_interface.master load_channel,
@@ -117,6 +124,7 @@ module back_end #(
 
     exu_valid_t bypass_valid; 
     logic bypass_branch, bypass_jump, flush_pipeline, bypass_compressed, bypass_mispredicted;
+    logic bypass_save_next_pc, bypass_base_address_reg, bypass_speculative;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
             if (!rst_n_i) begin
@@ -125,18 +133,27 @@ module back_end #(
                 bypass_jump <= 1'b0;
                 bypass_compressed <= 1'b0;
                 bypass_mispredicted <= 1'b0; 
-            end else if (flush_pipeline | mispredicted_i) begin 
+                bypass_save_next_pc <= 1'b0;
+                bypass_base_address_reg <= 1'b0;
+                bypass_speculative <= 1'b0;
+            end else if (flush_pipeline | mispredicted_i | branch_flush_o) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
                 bypass_compressed <= 1'b0; 
                 bypass_mispredicted <= mispredicted_i;
+                bypass_save_next_pc <= 1'b0;
+                bypass_base_address_reg <= 1'b0;
+                bypass_speculative <= 1'b0;
             end else if (!stall_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
                 bypass_compressed <= compressed_i;
                 bypass_mispredicted <= mispredicted_i;
+                bypass_save_next_pc <= save_next_pc_i;
+                bypass_base_address_reg <= base_address_reg_i;
+                bypass_speculative <= speculative_i;
             end
         end : bypass_stage_register
 
@@ -144,14 +161,14 @@ module back_end #(
     instr_packet_t bypass_ipacket;
     exu_uop_t bypass_operation;
     data_word_t [1:0] bypass_operands;
-    data_word_t bypass_branch_address;
+    data_word_t bypass_address_offset;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
             if (!stall_o) begin 
                 bypass_ipacket <= ipacket_i;
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
-                bypass_branch_address <= branch_address_i;
+                bypass_address_offset <= address_offset_i;
             end 
         end : bypass_operands_stage_register
 
@@ -159,6 +176,14 @@ module back_end #(
     assign executed_o = bypass_branch | bypass_jump;
     assign instr_address_o = bypass_ipacket.instr_addr;
 
+
+    data_word_t base_address, computed_address;
+
+    /* Choose between the instruction address and the register souce 1 as base address */
+    assign base_address = bypass_base_address_reg ? bypass_operands[0] : bypass_ipacket.instr_addr;
+
+    assign computed_address = bypass_address_offset + base_address;
+    assign branch_address_o = computed_address; 
 
     /* Instruction address of ROB entry readed */
     data_word_t trap_iaddress;
@@ -194,11 +219,13 @@ module back_end #(
         .csr_buffer_full_o    ( csr_buffer_full ),
 
         .operand_i    ( bypass_operands  ),
+        .address_i    ( computed_address ),
         .data_valid_i ( bypass_valid     ),
         .operation_i  ( bypass_operation ), 
         .ipacket_i    ( bypass_ipacket   ),
 
-        .branch_i     ( bypass_branch ),
+        .branch_i       ( bypass_branch       ),
+        .save_next_pc_i ( bypass_save_next_pc ),
 
         .load_channel  ( load_channel  ),
         .store_channel ( store_channel ),
@@ -225,11 +252,10 @@ module back_end #(
     /* If bit is set it's a branch taken */
     assign branch_outcome_o = result[0];
 
-    assign branch_address_o = bypass_branch_address;
-
     assign branch_o = bypass_branch;
     assign jump_o = bypass_jump;
     assign compressed_o = bypass_compressed; 
+    assign speculative_o = bypass_speculative; 
 
 
     /* Bypass logic */
@@ -384,7 +410,10 @@ module back_end #(
         .core_sleep_i ( core_sleep          )
     ); 
 
+    /* Flush when an interrupt or an exception is detected, also flush when the branch 
+     * was not predicted and it was taken */
     assign flush_o = flush_pipeline;
+    assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
     assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | core_sleep;
 
     assign reorder_buffer_clear = flush_pipeline;
