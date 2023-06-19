@@ -1,0 +1,80 @@
+
+branch_test:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <main>:
+   0:	fe010113          	add	sp,sp,-32
+   4:	00112e23          	sw	ra,28(sp)
+   8:	00812c23          	sw	s0,24(sp)
+   c:	02010413          	add	s0,sp,32
+  10:	fe042623          	sw	zero,-20(s0)
+  14:	fe042423          	sw	zero,-24(s0)
+  18:	0680006f          	j	80 <main+0x80>
+  1c:	fe842783          	lw	a5,-24(s0)
+  20:	0017f793          	and	a5,a5,1
+  24:	02079663          	bnez	a5,50 <main+0x50> 
+  28:	fec42703          	lw	a4,-20(s0)
+  2c:	fe842783          	lw	a5,-24(s0)
+  30:	02f707b3          	mul	a5,a4,a5
+  34:	00078513          	mv	a0,a5
+  38:	06c000ef          	jal	a4 <jump_function1>
+  3c:	00050713          	mv	a4,a0
+  40:	fec42783          	lw	a5,-20(s0)
+  44:	00e787b3          	add	a5,a5,a4
+  48:	fef42623          	sw	a5,-20(s0)
+  4c:	0280006f          	j	74 <main+0x74>
+  50:	fec42703          	lw	a4,-20(s0)
+  54:	fe842783          	lw	a5,-24(s0)
+  58:	02f707b3          	mul	a5,a4,a5
+  5c:	00078513          	mv	a0,a5
+  60:	07c000ef          	jal	dc <jump_function2>
+  64:	00050713          	mv	a4,a0
+  68:	fec42783          	lw	a5,-20(s0)
+  6c:	00e787b3          	add	a5,a5,a4
+  70:	fef42623          	sw	a5,-20(s0)
+  74:	fe842783          	lw	a5,-24(s0)
+  78:	00178793          	add	a5,a5,1
+  7c:	fef42423          	sw	a5,-24(s0)
+  80:	fe842703          	lw	a4,-24(s0)
+  84:	01300793          	li	a5,19
+  88:	f8e7dae3          	bge	a5,a4,1c <main+0x1c>
+  8c:	00000793          	li	a5,0
+  90:	00078513          	mv	a0,a5
+  94:	01c12083          	lw	ra,28(sp)
+  98:	01812403          	lw	s0,24(sp)
+  9c:	02010113          	add	sp,sp,32
+  a0:	00008067          	ret
+
+000000a4 <jump_function1>:
+  a4:	fe010113          	add	sp,sp,-32
+  a8:	00812e23          	sw	s0,28(sp)
+  ac:	02010413          	add	s0,sp,32
+  b0:	fea42623          	sw	a0,-20(s0)
+  b4:	fec42783          	lw	a5,-20(s0)
+  b8:	0017f793          	and	a5,a5,1
+  bc:	00079663          	bnez	a5,c8 <jump_function1+0x24>
+  c0:	01400793          	li	a5,20
+  c4:	0080006f          	j	cc <jump_function1+0x28>
+  c8:	01900793          	li	a5,25
+  cc:	00078513          	mv	a0,a5
+  d0:	01c12403          	lw	s0,28(sp)
+  d4:	02010113          	add	sp,sp,32
+  d8:	00008067          	ret
+
+000000dc <jump_function2>:
+  dc:	fe010113          	add	sp,sp,-32
+  e0:	00812e23          	sw	s0,28(sp)
+  e4:	02010413          	add	s0,sp,32
+  e8:	fea42623          	sw	a0,-20(s0)
+  ec:	fec42783          	lw	a5,-20(s0)
+  f0:	0017f793          	and	a5,a5,1
+  f4:	00079663          	bnez	a5,100 <jump_function2+0x24>
+  f8:	02800793          	li	a5,40
+  fc:	0080006f          	j	104 <jump_function2+0x28>
+ 100:	02d00793          	li	a5,45
+ 104:	00078513          	mv	a0,a5
+ 108:	01c12403          	lw	s0,28(sp)
+ 10c:	02010113          	add	sp,sp,32
+ 110:	00008067          	ret

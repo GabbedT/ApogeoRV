@@ -13,9 +13,9 @@ module directed_pipeline_test;
 
     /* Fetch interface */
     logic fetch_valid_i = 0; 
-    logic fetch_wait_i = '0;
     data_word_t fetch_instruction_i = 0; 
     logic fetch_o;
+    logic fetch_acknowledge_o;
     data_word_t fetch_address_o; 
 
     /* Interrupt interface */
@@ -28,9 +28,9 @@ module directed_pipeline_test;
 
     pipeline #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE) dut (.*); 
 
-    memory_agent #(128) memory (.*); 
+    memory_agent #(8192) memory (.*); 
     
-    instruction_agent instruction (fetch_o, fetch_address_o, fetch_instruction_i, fetch_valid_i); 
+    instruction_agent instruction (clk_i, rst_n_i, fetch_o, fetch_address_o, fetch_instruction_i, fetch_valid_i); 
 
     always #5 clk_i <= !clk_i; 
 
@@ -48,7 +48,7 @@ module directed_pipeline_test;
         
         @(posedge clk_i);
         rst_n_i <= 1'b1;
-        repeat(200) @(posedge clk_i); 
+        repeat (300) @(posedge clk_i);
 
         $finish();
     end
@@ -74,9 +74,16 @@ module memory_agent #(
         end
     end
 
+
+    logic [$clog2(MEMORY_SIZE) - 1:0] store_address, load_address; 
+
+    assign load_address = load_channel.address[$clog2(MEMORY_SIZE) - 1:0];
+    assign store_address = store_channel.address[$clog2(MEMORY_SIZE) - 1:0];
+
+
     logic [31:0] data_read;
 
-    assign data_read = {memory[load_channel.address + 3], memory[load_channel.address + 2], memory[load_channel.address + 1], memory[load_channel.address]}; 
+    assign data_read = {memory[load_address + 3], memory[load_address + 2], memory[load_address + 1], memory[load_address]}; 
 
         always_ff @(posedge clk_i) begin
             if (load_channel.request) begin
@@ -89,11 +96,11 @@ module memory_agent #(
 
             if (store_channel.request) begin
                 case (store_channel.width)
-                    BYTE: memory[store_channel.address] <= store_channel.data[7:0];  
+                    BYTE: memory[store_address] <= store_channel.data[7:0];  
 
-                    HALF_WORD: {memory[store_channel.address + 1], memory[store_channel.address]} <= store_channel.data[15:0];  
+                    HALF_WORD: {memory[store_address + 1], memory[store_address]} <= store_channel.data[15:0];  
 
-                    WORD: {memory[store_channel.address + 3], memory[store_channel.address + 2], memory[store_channel.address + 1], memory[store_channel.address]} <= store_channel.data; 
+                    WORD: {memory[store_address + 3], memory[store_address + 2], memory[store_address + 1], memory[store_address]} <= store_channel.data; 
                 endcase 
 
                 store_channel.done <= 1'b1;
@@ -105,6 +112,8 @@ module memory_agent #(
 endmodule : memory_agent
 
 module instruction_agent (
+    input logic clk_i,
+    input logic rst_n_i,
     input logic fetch,
     input logic [31:0] address,
     output logic [31:0] instruction, 
@@ -119,13 +128,7 @@ module instruction_agent (
         ++index;
     endfunction : write_instruction 
 
-    initial begin
-        rv32 = new(); 
-
-        for (int i = 0; i < 100; ++i) begin
-            instructions[i] = write_instruction(rv32._add(0, 0, 0));
-        end
-
+    function write_program(); 
         index = 0;
 
         write_instruction(rv32._lui(1, 1));
@@ -184,9 +187,32 @@ module instruction_agent (
         write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
         write_instruction(rv32._ori(5, 0, -1));  // X5 = '1
         write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1 
+    endfunction : write_program 
+
+    function inject_program();
+        $readmemh("branch_test.hex", instructions);
+        index = 200;
+    endfunction : inject_program
+
+    initial begin
+        rv32 = new(); 
+
+        for (int i = 0; i < 200; ++i) begin
+            instructions[i] = write_instruction(rv32._add('0, '0, '0));
+        end
+
+        inject_program();
+        
     end
 
-    assign valid = fetch & (address < (index * 4)); 
-    assign instruction = instructions[address[31:2]]; 
+    always_ff @(posedge clk_i) begin
+        if (!rst_n_i) begin
+            valid <= 1'b0; 
+            instruction <= '0; 
+        end else if (fetch) begin 
+            valid <= 1'b1; 
+            instruction <= instructions[address[31:2]]; 
+        end 
+    end
 
 endmodule : instruction_agent 
