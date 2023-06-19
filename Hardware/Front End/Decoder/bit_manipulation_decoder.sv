@@ -17,7 +17,7 @@ module bit_manipulation_decoder (
 
     /* Immediate 2 */
     output data_word_t immediate_o,
-    output logic imm_valid_o,
+    output logic immediate_valid_o,
 
     /* Registers */
     output logic [2:1][4:0] reg_src_o,
@@ -65,7 +65,7 @@ module bit_manipulation_decoder (
         reg_dest_o = '0;
 
         immediate_o = '0;
-        imm_valid_o = '0;
+        immediate_valid_o = '0;
 
         unit_valid = 1'b0;
         unit_uop = '0;
@@ -87,7 +87,7 @@ module bit_manipulation_decoder (
 
                                 /* Immediate is contained in register source */
                                 immediate_o = {'0, instr_i.R.reg_src_2};
-                                imm_valid_o = 1'b1;
+                                immediate_valid_o = 1'b1;
 
                                 `ifdef TEST_DESIGN if (!exception_generated) print("BSETI"); `endif  
                             end
@@ -102,7 +102,7 @@ module bit_manipulation_decoder (
 
                                 /* Immediate is contained in register source */
                                 immediate_o = {'0, instr_i.R.reg_src_2};
-                                imm_valid_o = 1'b1;
+                                immediate_valid_o = 1'b1;
 
                                 `ifdef TEST_DESIGN if (!exception_generated) print("BCLRI"); `endif 
                             end
@@ -165,7 +165,7 @@ module bit_manipulation_decoder (
 
                                 /* Immediate is contained in register source */
                                 immediate_o = {'0, instr_i.R.reg_src_2};
-                                imm_valid_o = 1'b1;
+                                immediate_valid_o = 1'b1;
 
                                 `ifdef TEST_DESIGN if (!exception_generated) print("BINVI"); `endif 
                             end
@@ -187,7 +187,7 @@ module bit_manipulation_decoder (
                                 reg_dest_o = instr_i.R.reg_dest;
 
                                 immediate_o = {'0, instr_i.R.reg_src_2};
-                                imm_valid_o = 1'b1;
+                                immediate_valid_o = 1'b1;
 
                                 `ifdef TEST_DESIGN if (!exception_generated) print("BEXTI"); `endif 
                             end
@@ -202,7 +202,7 @@ module bit_manipulation_decoder (
 
                                 /* Immediate is contained in register source */
                                 immediate_o = {'0, instr_i.R.reg_src_2};
-                                imm_valid_o = 1'b1;
+                                immediate_valid_o = 1'b1;
 
                                 `ifdef TEST_DESIGN if (!exception_generated) print("RORI"); `endif 
                             end

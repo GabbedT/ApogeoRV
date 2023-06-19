@@ -30,21 +30,20 @@ module integer_decoder (
 
     /* Immediate */
     output data_word_t [2:1] immediate_o,
-    output logic [2:1] imm_valid_o,
+    output logic [2:1] immediate_valid_o,
 
-    /* Calculate branch target in issue stage
-     * and set PC */
-    output logic branch_o,
-    output logic jump_o,
+    /* Save PC + 4 or PC + 2 */
+    output logic save_next_pc_o,
 
-    /* Calculate memory address (base + offset) 
-     * and use as first operand for the units */
-    output logic memory_o,
-    output logic [2:1] address_operand_o,
+    /* If RS1 is the base address or the instruction
+     * program counter */
+    output logic base_address_reg_o,
+    output data_word_t address_offset_o,
 
-    /* Stall the front end until the execution
-     * pipeline is empty */
+    /* Operation info */
     output logic fence_o,
+    output logic jump_o,
+    output logic branch_o,
 
     /* Registers */
     output logic [2:1][4:0] reg_src_o,
@@ -60,7 +59,7 @@ module integer_decoder (
 //====================================================================================
 
     function void print(input string operation);
-        $display("Decoded %s instruction!", operation);
+        $display("[0x%h, 0x%h] Decoded %s instruction!", instr_i, instr_address_i, operation);
     endfunction : print
 
 
@@ -123,43 +122,39 @@ module integer_decoder (
     /* 
      *  Build immediate values
      */
-
-    function void build_immediate(input int index, input logic [31:0] data);
-        immediate_o[index] = data;
-        imm_valid_o[index] = 1'b1;
-    endfunction : build_immediate 
     
-    function void build_U_immediate(input int index);
-        immediate_o[index][31:12] = instr_i.U.immediate;  
-        imm_valid_o[index] = 1'b1;
+    function logic [31:0] build_U_immediate();
+
+        return {instr_i.U.immediate, 12'b0};  
+
     endfunction : build_U_immediate 
 
-    function void build_B_immediate(input int index);
-        immediate_o[index][11] = instr_i.B.immediate1;  
-        immediate_o[index][4:1] = instr_i.B.immediate2;  
-        immediate_o[index][10:5] = instr_i.B.immediate3;  
-        immediate_o[index][31:12] = {20{instr_i.B.immediate4}};
-        imm_valid_o[index] = 1'b1;
+
+    function logic [31:0] build_B_immediate();
+
+        return {{20{instr_i.B.immediate4}}, instr_i.B.immediate1, instr_i.B.immediate3, instr_i.B.immediate2, 1'b0};
+
     endfunction : build_B_immediate 
 
-    function void build_J_immediate(input int index);
-        immediate_o[index][10:1] = instr_i.J.immediate3; 
-        immediate_o[index][11] = instr_i.J.immediate2; 
-        immediate_o[index][19:12] = instr_i.J.immediate1; 
-        immediate_o[index][20] = instr_i.J.immediate4; 
-        imm_valid_o[index] = 1'b1;
+
+    function logic [31:0] build_J_immediate();
+
+        return {{13{instr_i.J.immediate4}}, instr_i.J.immediate1, instr_i.J.immediate2, instr_i.J.immediate3, 1'b0};
+
     endfunction : build_J_immediate 
 
-    function void build_I_immediate(input int index, input logic is_signed);
-        immediate_o[index][11:0] = instr_i.I.immediate;
-        immediate_o[index][31:12] = is_signed ? {20{instr_i.I.immediate[11]}} : '0;
-        imm_valid_o[index] = 1'b1;
+
+    function logic [31:0] build_I_immediate(input logic is_signed);
+ 
+        return {(is_signed ? {20{instr_i.I.immediate[11]}} : 20'b0), instr_i.I.immediate};
+
     endfunction : build_I_immediate
 
-    function void build_S_immediate(input int index, input logic is_signed);
-        immediate_o[index][11:0] = {instr_i.S.immediate2, instr_i.S.immediate1};
-        immediate_o[index][31:12] = is_signed ? {20{instr_i.S.immediate2[6]}} : '0;
-        imm_valid_o[index] = 1'b1;
+
+    function logic [31:0] build_S_immediate(input logic is_signed);
+
+        return {(is_signed ? {20{instr_i.S.immediate2[6]}} : 20'b0), {instr_i.S.immediate2, instr_i.S.immediate1}};
+        
     endfunction : build_S_immediate
 
 
@@ -167,12 +162,14 @@ module integer_decoder (
 //      DECODING LOGIC
 //====================================================================================
 
-    logic exception_generated;
+    logic exception_generated, fence, jump, branch, save_next_pc;
 
     always_comb begin : decoder_logic
         /* Default values */
         immediate_o = '0;
-        imm_valid_o = '0; 
+        immediate_valid_o = '0; 
+
+        address_offset_o = '0;
 
         reg_src_o = '0;
         reg_dest_o = '0;
@@ -184,11 +181,11 @@ module integer_decoder (
         csr_unit_valid_o = '0;
         csr_unit_uop_o = CSR_SWAP;
 
-        branch_o = 1'b0;
-        fence_o = 1'b0;
-        memory_o = 1'b0;
-        jump_o = 1'b0;
-        address_operand_o = '0;
+        fence = 1'b0;
+        jump = 1'b0;
+        branch = 1'b0;
+        save_next_pc = 1'b0;
+        base_address_reg_o = 1'b0;
 
         exception_vector_o = `INSTR_ILLEGAL; 
         exception_generated = 1'b0;
@@ -205,7 +202,8 @@ module integer_decoder (
                 reg_src_o[2] = riscv32::X0;
 
                 /* Immediates */
-                build_U_immediate(1);
+                immediate_o[1] = build_U_immediate();
+                immediate_valid_o[1] = 1'b1;
 
                 `ifdef TEST_DESIGN print("LUI"); `endif 
             end
@@ -218,8 +216,9 @@ module integer_decoder (
                 reg_dest_o = instr_i.U.reg_dest;
                 
                 /* Immediates */
-                build_immediate(1, instr_address_i); 
-                build_U_immediate(2);
+                immediate_o[1] = instr_address_i; 
+                immediate_o[2] = build_U_immediate();
+                immediate_valid_o = 2'b11;
 
                 `ifdef TEST_DESIGN print("AUIPC"); `endif 
             end
@@ -231,20 +230,13 @@ module integer_decoder (
                 /* Registers */
                 reg_dest_o = instr_i.J.reg_dest;
 
-                /* Immediates */
-                build_immediate(1, instr_address_i); 
-                build_J_immediate(2); 
+                /* Address offset, base is instruction address */
+                address_offset_o = build_J_immediate(); 
+                base_address_reg_o = 1'b0;
 
-                /* Immediates are not passed into the 
-                 * execute stage but are only used for
-                 * address calculation */
-                imm_valid_o = '0;
-
-                /* Control */
-                branch_o = 1'b0;
-                jump_o = 1'b1;
-                address_operand_o[1] = riscv32::IMMEDIATE;
-                address_operand_o[2] = riscv32::IMMEDIATE;
+                /* Save PC of the next instruction */
+                save_next_pc = 1'b1;
+                jump = 1'b1;
 
                 `ifdef TEST_DESIGN print("JAL"); `endif 
             end
@@ -254,21 +246,15 @@ module integer_decoder (
                 build_alu_packet(ADD);
 
                 /* Registers */
-                reg_src_o[1] = instr_i.I.reg_src_1[1];
+                reg_src_o[1] = instr_i.I.reg_src_1[1]; /* Base address */
 
-                /* Immediates */
-                build_I_immediate(2, 1'b1);
+                /* Address offset, base is register */
+                address_offset_o = build_I_immediate(1'b1);
+                base_address_reg_o = 1'b1;
 
-                /* Immediate is not passed into the 
-                 * execute stage but are only used for
-                 * address calculation */
-                imm_valid_o[2] = 1'b0;
-
-                /* Control */
-                branch_o = 1'b0;
-                jump_o = 1'b1;
-                address_operand_o[1] = riscv32::REGISTER;
-                address_operand_o[2] = riscv32::IMMEDIATE;
+                /* Save PC of the next instruction */
+                save_next_pc = 1'b1;
+                jump = 1'b1;
 
                 `ifdef TEST_DESIGN print("JALR"); `endif 
             end
@@ -319,19 +305,11 @@ module integer_decoder (
                 reg_src_o[1] = instr_i.B.reg_src_1;
                 reg_src_o[2] = instr_i.B.reg_src_2;
 
-                /* Immediates */
-                build_immediate(1, instr_address_i);
-                build_B_immediate(2);
+                /* Address offset, base is instruction address */
+                address_offset_o = build_B_immediate();
+                base_address_reg_o = 1'b0;
 
-                /* Immediates are not passed into the 
-                 * execute stage but are only used for
-                 * address calculation */
-                imm_valid_o = '0;
-
-                /* Control */
-                branch_o = 1'b1;
-                address_operand_o[1] = riscv32::IMMEDIATE;
-                address_operand_o[2] = riscv32::IMMEDIATE;
+                branch = 1'b1;
             end 
 
             riscv32::LOAD: begin
@@ -368,12 +346,9 @@ module integer_decoder (
                 reg_dest_o = instr_i.I.reg_dest; 
                 reg_src_o[1] = instr_i.I.reg_src_1; /* Base address */
 
-                /* Immediates */
-                build_I_immediate(2, 1'b1); /* Offset */
-
-                memory_o = 1'b1;
-                address_operand_o[1] = riscv32::REGISTER;
-                address_operand_o[2] = riscv32::IMMEDIATE;
+                /* Address offset, base is register */
+                address_offset_o = build_I_immediate(1'b1);
+                base_address_reg_o = 1'b1;
 
                 exception_generated = (instr_i.I.reg_dest == riscv32::X0);
             end
@@ -410,12 +385,9 @@ module integer_decoder (
                 reg_src_o[1] = instr_i.S.reg_src_1; /* Base address */
                 reg_src_o[2] = instr_i.S.reg_src_2; /* Data to store */
 
-                /* Immediates */
-                build_S_immediate(2, 1'b1); /* Offset */
-
-                memory_o = 1'b1;
-                address_operand_o[1] = riscv32::REGISTER;
-                address_operand_o[2] = riscv32::IMMEDIATE;
+                /* Address offset, base is register */
+                address_offset_o = build_S_immediate(1'b1);
+                base_address_reg_o = 1'b1;
             end
 
             riscv32::IMM_ARITHM: begin
@@ -428,7 +400,8 @@ module integer_decoder (
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b1);
+                        immediate_o[2] = build_I_immediate(1'b1);
+                        immediate_valid_o[2] = 1'b1;
 
                         `ifdef TEST_DESIGN print("ADDI"); `endif 
                     end
@@ -441,7 +414,8 @@ module integer_decoder (
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b1);
+                        immediate_o[2] = build_I_immediate(1'b1);
+                        immediate_valid_o[2] = 1'b1;
 
                         `ifdef TEST_DESIGN print("SLTI"); `endif 
                     end
@@ -454,7 +428,8 @@ module integer_decoder (
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b1);
+                        immediate_o[2] = build_I_immediate(1'b1);
+                        immediate_valid_o[2] = 1'b1;
 
                         `ifdef TEST_DESIGN print("SLTIU"); `endif 
                     end
@@ -467,7 +442,8 @@ module integer_decoder (
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b1);
+                        immediate_o[2] = build_I_immediate(1'b1);
+                        immediate_valid_o[2] = 1'b1;
 
                         `ifdef TEST_DESIGN print("XORI"); `endif 
                     end
@@ -480,7 +456,8 @@ module integer_decoder (
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b1);
+                        immediate_o[2] = build_I_immediate(1'b1);
+                        immediate_valid_o[2] = 1'b1;
 
                         `ifdef TEST_DESIGN print("ORI"); `endif 
                     end
@@ -493,7 +470,8 @@ module integer_decoder (
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         /* Immediates */
-                        build_I_immediate(2, 1'b1);
+                        immediate_o[2] = build_I_immediate(1'b1);
+                        immediate_valid_o[2] = 1'b1;
 
                         `ifdef TEST_DESIGN print("ANDI"); `endif 
                     end
@@ -507,7 +485,7 @@ module integer_decoder (
 
                         /* Immediates */
                         immediate_o[2] = instr_i.R.reg_src_2;
-                        imm_valid_o[2] = 1'b1; 
+                        immediate_valid_o[2] = 1'b1; 
 
                         exception_generated = (instr_i.R.funct7 != '0);
 
@@ -525,7 +503,7 @@ module integer_decoder (
 
                             /* Immediates */
                             immediate_o[2] = instr_i.R.reg_src_2;
-                            imm_valid_o[2] = 1'b1;
+                            immediate_valid_o[2] = 1'b1;
 
                             `ifdef TEST_DESIGN print("SRAI"); `endif 
                         end else begin
@@ -538,7 +516,7 @@ module integer_decoder (
 
                             /* Immediates */
                             immediate_o[2] = instr_i.R.reg_src_2;
-                            imm_valid_o[2] = 1'b1;
+                            immediate_valid_o[2] = 1'b1;
 
                             `ifdef TEST_DESIGN print("SRLI"); `endif 
                         end
@@ -776,7 +754,7 @@ module integer_decoder (
 
             riscv32::FENCE: begin
                 nop_instruction();
-                fence_o = 1'b1;
+                fence = 1'b1;
 
                 /* Registers */
                 reg_src_o[1] = riscv32::X0; 
@@ -874,7 +852,7 @@ module integer_decoder (
                         end
 
                         immediate_o[1] = instr_i.I.reg_src_1;
-                        imm_valid_o[1] = 1'b1;
+                        immediate_valid_o[1] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;
 
                         `ifdef TEST_DESIGN print("CSRRWI"); `endif  
@@ -888,7 +866,7 @@ module integer_decoder (
                         end
 
                         immediate_o[1] = instr_i.I.reg_src_1; 
-                        imm_valid_o[1] = 1'b1;
+                        immediate_valid_o[1] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         `ifdef TEST_DESIGN print("CSRRSI"); `endif 
@@ -903,7 +881,7 @@ module integer_decoder (
 
                         /* Operations with 0 as operand shall not write any CSR */
                         immediate_o[1] = (instr_i.I.reg_src_1 == riscv32::X0) ? '1 : instr_i.I.reg_src_1; 
-                        imm_valid_o[1] = 1'b1;
+                        immediate_valid_o[1] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;
 
                         `ifdef TEST_DESIGN print("CSRRCI"); `endif  
@@ -916,6 +894,12 @@ module integer_decoder (
     end : decoder_logic
 
     assign exception_generated_o = exception_generated | (instr_i[1:0] != '1);
+
+    assign fence_o = !exception_generated_o & fence;
+    assign jump_o = !exception_generated_o & jump;
+    assign branch_o = !exception_generated_o & branch;
+
+    assign save_next_pc_o = !exception_generated_o & save_next_pc;
 
 endmodule : integer_decoder
 
