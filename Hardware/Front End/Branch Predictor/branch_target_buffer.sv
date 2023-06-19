@@ -61,6 +61,7 @@ module branch_target_buffer #(
     /* Predictor must speculate */ 
     output data_word_t branch_target_addr_o,
     output logic predict_o,
+    output logic jump_o,
     output logic hit_o
 );
 
@@ -111,17 +112,20 @@ module branch_target_buffer #(
 //      OUTPUT LOGIC
 //====================================================================================
 
-    data_word_t saved_pc; 
+    data_word_t saved_pc; logic validate;
 
         always_ff @(posedge clk_i) begin
             saved_pc <= program_counter_i;
+            validate <= jump_i | branch_i;
         end 
 
 
     /* Predict indirect branches, direct branches do not need prediction */
     assign predict_o = buffer_read.branch;
 
-    assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid; 
+    assign jump_o = !buffer_read.branch;
+
+    assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid & validate; 
 
     assign branch_target_addr_o = buffer_read.branch_target_address;
 
