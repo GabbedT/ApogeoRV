@@ -126,7 +126,7 @@ module store_buffer #(
                 push_channel.full <= (valid_ptr == push_ptr);
                 push_channel.empty <= (valid_ptr == pull_ptr);
             end else begin 
-                case ({push_channel.request, pull_channel.request})
+                case ({push_channel.request, pull_channel.done})
                     PULL_OPERATION: begin
                         push_channel.full <= 1'b0;
                         push_channel.empty <= (push_ptr == inc_pull_ptr);
@@ -144,7 +144,7 @@ module store_buffer #(
 
     /* Valid pointer indicates that all the previous values in
      * the buffer are valid. */
-    assign pull_channel.request = (pull_ptr < valid_ptr) & !pull_channel.done;
+    assign pull_channel.request = (pull_ptr != valid_ptr) & !pull_channel.done;
 
 
 //====================================================================================
