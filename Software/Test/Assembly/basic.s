@@ -23,23 +23,23 @@
     addi x22, x23, 100
 
     # Logic Immediate
-    xori x24, x25, 255
-    ori x26, x27, 65535
-    andi x28, x29, 4095
+    xori x24, x25, 1
+    ori x26, x27, 1
+    andi x28, x29, 1
 
     # Store word then load
-    sw x30, 2048(x0) 
-    lw x30, 2048(x0)
+    sw x30, 3(x0) 
+    lw x30, 3(x0)
 
     # Store byte then load
-    sb x9, 2048(x0)
-    lb x1, 2048(x0)
+    sb x9, 3(x0)
+    lb x1, 3(x0)
 
     # Store halfword then load
-    lbu x5, 2048(x0)
-    sh x11, 2048(x0)
-    lh x3, 2048(x0)
-    lhu x7, 2048(x0)
+    lbu x5, 3(x0)
+    sh x11, 3(x0)
+    lh x3, 3(x0)
+    lhu x7, 3(x0)
 
     # Jumps
     jal x0, 8
