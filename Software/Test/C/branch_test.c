@@ -1,7 +1,5 @@
-#include <stdio.h>
-
-int jump_function1(int); 
-int jump_function2(int); 
+int jump_function1(int);
+int jump_function2(int);
 
 int main(void) {
     int sum = 0; 
@@ -13,8 +11,6 @@ int main(void) {
             sum += jump_function2(sum * i); 
         }
     }
-
-    /* SUM = 600 */
 }
 
 int jump_function1(int p) {

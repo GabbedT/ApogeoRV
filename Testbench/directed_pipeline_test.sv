@@ -198,7 +198,7 @@ module instruction_agent (
         rv32 = new(); 
 
         for (int i = 0; i < 200; ++i) begin
-            instructions[i] = write_instruction(rv32._add('0, '0, '0));
+            instructions[i] = 32'h00000013;
         end
 
         inject_program();
