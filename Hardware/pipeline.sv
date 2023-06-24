@@ -52,11 +52,11 @@ module pipeline #(
     logic writeback; logic [4:0] writeback_register; data_word_t writeback_result;
 
     /* Branch control from backend */
-    logic compressed, executed, branch, jump, taken, speculative; 
+    logic executed, branch, jump, taken, speculative; 
     data_word_t branch_target_address, instruction_address;  
 
     /* Data to backend */ 
-    logic frontend_compressed, frontend_branch, frontend_jump, issue; logic [1:0] frontend_immediate_valid;
+    logic frontend_branch, frontend_jump, issue; logic [1:0] frontend_immediate_valid;
     data_word_t frontend_address_offset; 
     logic frontend_save_next_pc, frontend_base_address_reg, frontend_speculative; 
     data_word_t [1:0] frontend_operand; instr_packet_t frontend_ipacket;
@@ -82,7 +82,6 @@ module pipeline #(
         .exception_i  ( exception               ),
         .handler_pc_i ( handler_program_counter ),
 
-        .compressed_i         ( compressed            ),
         .executed_i           ( executed              ),
         .branch_i             ( branch                ),
         .jump_i               ( jump                  ),
@@ -98,7 +97,6 @@ module pipeline #(
         .ldu_idle_i ( ldu_idle ),
         .stu_idle_i ( stu_idle ),
 
-        .compressed_o         ( frontend_compressed            ),
         .branch_o             ( frontend_branch                ),
         .jump_o               ( frontend_jump                  ),
         .mispredicted_o       ( frontend_mispredicted          ),
@@ -123,7 +121,7 @@ module pipeline #(
 //====================================================================================
 
     /* Data to backend */ 
-    logic backend_compressed, backend_branch, backend_jump, backend_mispredicted; logic [1:0] backend_immediate_valid;
+    logic backend_branch, backend_jump, backend_mispredicted; logic [1:0] backend_immediate_valid;
     data_word_t backend_address_offset; 
     logic backend_save_next_pc, backend_base_address_reg, backend_speculative; 
     data_word_t [1:0] backend_operand; instr_packet_t backend_ipacket;
@@ -132,7 +130,6 @@ module pipeline #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pipeline_register
             if (!rst_n_i) begin
-                backend_compressed <= 1'b0;
                 backend_branch <= 1'b0;
                 backend_jump <= 1'b0;
                 backend_mispredicted <= 1'b0;
@@ -150,7 +147,6 @@ module pipeline #(
                 backend_valid_operation <= '0; 
                 backend_operation <= '0;
             end else if (!stall_pipeline) begin
-                backend_compressed <= frontend_compressed;
                 backend_branch <= issue ? frontend_branch : 1'b0;
                 backend_jump <= issue ? frontend_jump : 1'b0;
                 backend_mispredicted <= frontend_mispredicted;
@@ -193,9 +189,6 @@ module pipeline #(
         .operation_i  ( backend_operation       ),  
 
         .ipacket_i ( backend_ipacket ),
-
-        .compressed_i ( backend_compressed ),
-        .compressed_o ( compressed         ),
 
         .executed_o       ( executed              ),
         .branch_i         ( backend_branch        ),
