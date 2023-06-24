@@ -75,10 +75,10 @@ module writeback_stage (
 
     assign exception_iaddress_o = rob_entry_i.instr_addr;
 
-    assign sleep_o = (rob_entry_i.exception_vector == `SLEEP);
-    assign mreturn_o = (rob_entry_i.exception_vector == `HANDLER_RETURN);
-    assign execute_store_o = (rob_entry_i.exception_vector == `STORE_OPERATION);
-    assign execute_csr_o = (rob_entry_i.exception_vector == `CSR_OPERATION);
+    assign sleep_o = rob_valid_i & (rob_entry_i.exception_vector == `SLEEP);
+    assign mreturn_o = rob_valid_i & (rob_entry_i.exception_vector == `HANDLER_RETURN);
+    assign execute_store_o = rob_valid_i & (rob_entry_i.exception_vector == `STORE_OPERATION);
+    assign execute_csr_o = rob_valid_i & (rob_entry_i.exception_vector == `CSR_OPERATION);
 
 endmodule : writeback_stage
 
