@@ -220,16 +220,11 @@ module store_unit #(
                     fsm_match = foward_address_i == store_address_i[31:2];
 
                     if (!buffer_channel.full) begin 
-                        data_valid_o = 1'b1;
-
-                        /* Idle status is declared before to enhance 
-                         * scheduler performance */
-                        idle_o = 1'b1;
-
                         if (data_accepted_i) begin
                             state_NXT = IDLE;
 
                             idle_o = 1'b1;
+                            data_valid_o = 1'b1;
                         end else begin
                             state_NXT = WAIT_ACCEPT;
                         end
