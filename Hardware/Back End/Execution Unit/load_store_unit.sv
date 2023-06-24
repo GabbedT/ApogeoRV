@@ -122,7 +122,7 @@ module load_store_unit #(
     logic foward_address_match, buffer_empty;
     data_word_t foward_data;
 
-    store_unit stu (
+    store_unit #(STORE_BUFFER_SIZE) stu (
         .clk_i             ( clk_i   ),
         .rst_n_i           ( rst_n_i ),
         .flush_i           ( flush_i ), 
