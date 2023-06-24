@@ -38,7 +38,6 @@ module front_end #(
     input data_word_t handler_pc_i,
 
     /* Branch and Jump */
-    input logic compressed_i,
     input logic executed_i,
     input logic branch_i,
     input logic jump_i,
@@ -57,7 +56,6 @@ module front_end #(
     input logic stu_idle_i,
 
     /* To backend */
-    output logic compressed_o,
     output logic branch_o,
     output logic jump_o,
     output logic mispredicted_o,
@@ -215,7 +213,7 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fetch_stage_register
             if (!rst_n_i) begin
                 if_stage_instruction <= riscv32::NOP;
-                if_stage_program_counter <= program_counter;
+                if_stage_program_counter <= '0;
                 if_stage_compressed <= 1'b0;
                 if_stage_mispredicted <= 1'b0;
                 if_stage_speculative <= 1'b0;
@@ -416,7 +414,6 @@ module front_end #(
 
     assign mispredicted_o = dc_stage_mispredicted;
 
-    assign compressed_o = dc_stage_compressed;
     assign branch_o = dc_stage_branch;
     assign jump_o = dc_stage_jump;
     assign speculative_o = dc_stage_speculative;

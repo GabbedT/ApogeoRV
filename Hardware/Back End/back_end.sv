@@ -40,10 +40,6 @@ module back_end #(
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
 
-    /* Instruction jump is compressed */
-    input logic compressed_i,
-    output logic compressed_o,
-
     /* Branch control */
     output logic executed_o,
     input logic branch_i,
@@ -123,7 +119,7 @@ module back_end #(
 
 
     exu_valid_t bypass_valid; 
-    logic bypass_branch, bypass_jump, flush_pipeline, bypass_compressed, bypass_mispredicted;
+    logic bypass_branch, bypass_jump, flush_pipeline, bypass_mispredicted;
     logic bypass_save_next_pc, bypass_base_address_reg, bypass_speculative;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
@@ -131,7 +127,6 @@ module back_end #(
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
-                bypass_compressed <= 1'b0;
                 bypass_mispredicted <= 1'b0; 
                 bypass_save_next_pc <= 1'b0;
                 bypass_base_address_reg <= 1'b0;
@@ -140,7 +135,6 @@ module back_end #(
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
-                bypass_compressed <= 1'b0; 
                 bypass_mispredicted <= mispredicted_i;
                 bypass_save_next_pc <= 1'b0;
                 bypass_base_address_reg <= 1'b0;
@@ -149,7 +143,6 @@ module back_end #(
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
-                bypass_compressed <= compressed_i;
                 bypass_mispredicted <= mispredicted_i;
                 bypass_save_next_pc <= save_next_pc_i;
                 bypass_base_address_reg <= base_address_reg_i;
@@ -254,7 +247,6 @@ module back_end #(
 
     assign branch_o = bypass_branch;
     assign jump_o = bypass_jump;
-    assign compressed_o = bypass_compressed; 
     assign speculative_o = bypass_speculative; 
 
 
@@ -417,6 +409,9 @@ module back_end #(
     assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | core_sleep;
 
     assign reorder_buffer_clear = flush_pipeline;
+
+
+    // ADD EDGE DETECTOR FOR STORE OPERATION
 
 endmodule : back_end
 
