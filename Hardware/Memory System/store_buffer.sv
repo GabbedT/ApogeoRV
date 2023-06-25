@@ -142,9 +142,18 @@ module store_buffer #(
 
     logic [$clog2(BUFFER_DEPTH) - 1:0] foward_ptr;
 
-    /* Valid pointer indicates that all the previous values in
-     * the buffer are valid. */
-    assign pull_channel.request = (pull_ptr != valid_ptr) & !pull_channel.done;
+
+    logic request_status;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : request_status_register
+            if (!rst_n_i) begin
+                request_status <= 1'b0;
+            end else if (pull_channel.done) begin
+                request_status <= 1'b0; 
+            end else if (pull_channel.request) begin
+                request_status <= 1'b1; 
+            end
+        end : request_status_register 
 
 
 //====================================================================================
@@ -209,17 +218,17 @@ module store_buffer #(
         end
     end
 
-        always_ff @(posedge clk_i) begin : write_foward_metadata_port
+        always_ff @(posedge clk_i) begin : write_address_port
             if (push_channel.request) begin
                 /* Push data */
                 metadata_buffer[push_ptr].address <= push_channel.packet.address;
             end
-        end : write_foward_metadata_port
+        end : write_address_port
 
     assign pull_channel.address = metadata_buffer[pull_ptr].address;
 
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : write_foward_metadata_valid_port
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : write_valid_port
             if (!rst_n_i) begin 
                 for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
                     metadata_buffer[i].valid <= '0;
@@ -230,17 +239,44 @@ module store_buffer #(
                     metadata_buffer[pull_ptr].valid <= 1'b0;
                 end
                 
-                if (push_channel.request) begin
-                    /* Validate on push */
-                    metadata_buffer[push_ptr].valid <= 1'b1;
+                if (valid_i) begin
+                    /* Validate on ROB writeback */
+                    metadata_buffer[valid_ptr].valid <= 1'b1;
                 end
             end 
-        end : write_foward_metadata_valid_port
+        end : write_valid_port
+
+
+    /* If the entry pointed by the pull pointer is valid and a request is not already done, 
+     * request a store operation to memory */
+    assign pull_channel.request = metadata_buffer[pull_ptr].valid & !request_status;
 
 
 //====================================================================================
 //      MERGE AND FOWARD LOGIC
 //====================================================================================
+
+    // ADD DESCRIPTION
+    logic [BUFFER_DEPTH - 1:0] foward_valid;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin 
+                for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
+                    foward_valid[i] <= '0;
+                end
+            end else begin 
+                if (pull_channel.request) begin
+                    /* Invalidate on pull */
+                    foward_valid[pull_ptr] <= 1'b0;
+                end
+                
+                if (push_channel.request) begin
+                    /* Validate on ROB writeback */
+                    foward_valid[push_ptr] <= 1'b1;
+                end
+            end 
+        end 
+
 
     logic [BUFFER_DEPTH - 1:0] pop_address_match;
 
@@ -252,7 +288,7 @@ module store_buffer #(
             for (int i = BUFFER_DEPTH - 1; i >= 0; --i) begin
                 /* Check if any read address match an entry, start from the head of the buffer, so the most recent
                  * data is matched */
-                pop_address_match[i] = (foward_address_i[31:2] == metadata_buffer[i].address[31:2]) & metadata_buffer[i].valid;
+                pop_address_match[i] = (foward_address_i[31:2] == metadata_buffer[i].address[31:2]) & foward_valid[i];
                 
                 if (pop_address_match[i]) begin
                     foward_ptr = i;
