@@ -1,7 +1,12 @@
+#include <stdio.h>
+#include <time.h>
+
 int jump_function1(int);
 int jump_function2(int);
 
 int main(void) {
+    clock_t start = clock(); 
+
     int sum = 0; 
 
     for (int i = 0; i < 20; ++i) {
@@ -10,7 +15,12 @@ int main(void) {
         } else {
             sum += jump_function2(sum * i); 
         }
+
+        printf("%d\n", sum);
     }
+
+    clock_t end = clock(); 
+    printf("%lf", ((double) (end - start)) / CLOCKS_PER_SEC);
 }
 
 int jump_function1(int p) {
