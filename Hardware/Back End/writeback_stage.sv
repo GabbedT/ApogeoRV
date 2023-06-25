@@ -80,6 +80,17 @@ module writeback_stage (
     assign execute_store_o = rob_valid_i & (rob_entry_i.exception_vector == `STORE_OPERATION);
     assign execute_csr_o = rob_valid_i & (rob_entry_i.exception_vector == `CSR_OPERATION);
 
+
+    `ifdef TEST_DESIGN 
+
+        always_comb begin 
+            if (rob_valid_i) begin
+                $display("[WRITEBACK][0x%h] Destination: x%0d, Result: %0d\n", rob_entry_i.instr_addr, rob_entry_i.reg_dest, rob_entry_i.result);
+            end
+        end
+
+    `endif 
+
 endmodule : writeback_stage
 
 `endif 
