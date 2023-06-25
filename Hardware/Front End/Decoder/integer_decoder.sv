@@ -61,7 +61,7 @@ module integer_decoder (
     `ifdef TEST_DESIGN string operation_string; `endif 
 
     function void print(input string operation);
-        $display("[0x%h, 0x%h] Decoded %s instruction! SRC1: x%0d, SRC2: x%0d, DEST: x%0d", instr_i, instr_address_i, operation, reg_src_o[1], reg_src_o[2], reg_dest_o);
+        $display("[DECODER][0x%h] 0x%h decoded into %s instruction! SRC1: x%0d, SRC2: x%0d, DEST: x%0d\n", instr_address_i, instr_i, operation, reg_src_o[1], reg_src_o[2], reg_dest_o);
     endfunction : print
 
 
