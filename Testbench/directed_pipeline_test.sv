@@ -48,7 +48,8 @@ module directed_pipeline_test;
         
         @(posedge clk_i);
         rst_n_i <= 1'b1;
-        repeat (300) @(posedge clk_i);
+
+        while (!dut.apogeo_backend.exception_generated) @(posedge clk_i);
 
         $finish();
     end
