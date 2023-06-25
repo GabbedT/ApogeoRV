@@ -118,8 +118,8 @@ module back_end #(
     );
 
 
-    exu_valid_t bypass_valid; 
-    logic bypass_branch, bypass_jump, flush_pipeline, bypass_mispredicted;
+    exu_valid_t bypass_valid; instr_packet_t bypass_ipacket;
+    logic bypass_branch, bypass_jump, flush_pipeline;
     logic bypass_save_next_pc, bypass_base_address_reg, bypass_speculative;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
@@ -127,38 +127,36 @@ module back_end #(
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
-                bypass_mispredicted <= 1'b0; 
                 bypass_save_next_pc <= 1'b0;
                 bypass_base_address_reg <= 1'b0;
                 bypass_speculative <= 1'b0;
+                bypass_ipacket <= '0;
             end else if (flush_pipeline | mispredicted_i | branch_flush_o) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
-                bypass_mispredicted <= mispredicted_i;
                 bypass_save_next_pc <= 1'b0;
                 bypass_base_address_reg <= 1'b0;
                 bypass_speculative <= 1'b0;
+                bypass_ipacket <= '0;
             end else if (!stall_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
-                bypass_mispredicted <= mispredicted_i;
                 bypass_save_next_pc <= save_next_pc_i;
                 bypass_base_address_reg <= base_address_reg_i;
                 bypass_speculative <= speculative_i;
+                bypass_ipacket <= ipacket_i;
             end
         end : bypass_stage_register
 
 
-    instr_packet_t bypass_ipacket;
     exu_uop_t bypass_operation;
     data_word_t [1:0] bypass_operands;
     data_word_t bypass_address_offset;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
             if (!stall_o) begin 
-                bypass_ipacket <= ipacket_i;
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
                 bypass_address_offset <= address_offset_i;
@@ -231,7 +229,7 @@ module back_end #(
         .handler_pc_o           ( handler_pc_o        ),
         .glb_interrupt_enable_o ( interrupt_enable_o  ),
         .machine_return_instr_i ( handler_return      ),
-        .branch_mispredicted_i  ( bypass_mispredicted ),
+        .branch_mispredicted_i  ( mispredicted_i ),
         .instruction_retired_i  ( instruction_retired ),
 
         .ldu_idle_o ( ldu_idle_o ),
@@ -287,10 +285,10 @@ module back_end #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : commit_stage_register
             if (!rst_n_i) begin
-                packet_commit <= {NO_OPERATION, NO_OPERATION, NO_OPERATION};
+                packet_commit <= '0;
                 valid_commit <= '0;
             end else if (flush_pipeline) begin 
-                packet_commit <= {NO_OPERATION, NO_OPERATION, NO_OPERATION};
+                packet_commit <= '0;
                 valid_commit <= '0;
             end else if (!stall_o) begin
                 packet_commit <= ipacket;
@@ -409,9 +407,6 @@ module back_end #(
     assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | core_sleep;
 
     assign reorder_buffer_clear = flush_pipeline;
-
-
-    // ADD EDGE DETECTOR FOR STORE OPERATION
 
 endmodule : back_end
 
