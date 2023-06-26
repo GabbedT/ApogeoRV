@@ -74,7 +74,7 @@ module store_unit #(
 
     /* Data loaded is accepted and the 
      * STU can now transition in IDLE state */
-    input logic data_accepted_i,
+    input logic wait_i,
 
     /* Memory controller store channel */
     store_interface.master store_channel,
@@ -114,12 +114,12 @@ module store_unit #(
 
 
     /* Legal access to the memory region: cannot write into boot region */
-    assign accessable = /* (store_address_i >= (`BOOT_END)) */ 1'b1;
+    assign accessable = (store_address_i >= (`BOOT_END));
 
-    logic accessable_CRT, accessable_NXT;
+    logic accessable_saved;
 
         always_ff @(posedge clk_i) begin 
-            accessable_CRT <= accessable_NXT;
+            accessable_saved <= accessable;
         end
 
 
@@ -163,7 +163,6 @@ module store_unit #(
             /* Default values */
             state_NXT = state_CRT;
             store_data_NXT = store_data_CRT;
-            accessable_NXT = accessable_CRT;
             store_width_NXT = store_width_CRT;
             store_address_NXT = store_address_CRT;
 
@@ -172,6 +171,7 @@ module store_unit #(
 
             idle_o = 1'b0;
             data_valid_o = 1'b0;
+            illegal_access_o = 1'b0; 
             timer_write_o = 1'b0;
             fsm_match = 1'b0;
 
@@ -183,13 +183,21 @@ module store_unit #(
                     if (valid_operation_i) begin
                         if (timer_access) begin
                             timer_write_o = 1'b1;
+                            data_valid_o = 1'b1;
+
+                            if (wait_i) begin
+                                state_NXT = WAIT_ACCEPT;
+                                idle_o = 1'b0;
+                            end 
                         end else begin 
                             if (accessable) begin
                                 if (!buffer_channel.full) begin
-                                    if (!data_accepted_i) begin
+                                    data_valid_o = 1'b1;
+
+                                    if (wait_i) begin
                                         state_NXT = WAIT_ACCEPT;
                                         idle_o = 1'b0;
-                                    end
+                                    end 
                                 end else begin
                                     state_NXT = WAIT_BUFFER;
                                 end
@@ -197,7 +205,13 @@ module store_unit #(
                                 /* Don't push data if the buffer is full */
                                 buffer_channel.request = !buffer_channel.full;
                             end else begin
-                                state_NXT = WAIT_ACCEPT;
+                                data_valid_o = 1'b1;
+                                illegal_access_o = 1'b1; 
+
+                                if (!wait_i) begin
+                                    state_NXT = WAIT_ACCEPT;
+                                    idle_o = 1'b0;
+                                end 
                             end
                         end
                     end
@@ -206,8 +220,6 @@ module store_unit #(
                     store_data_NXT = store_data_i;
                     store_address_NXT = store_address_i;
                     store_width_NXT = store_width_t'(operation_i);
-
-                    accessable_NXT = accessable;
 
                     buffer_channel.packet = {store_data_i, store_address_i, store_width_t'(operation_i)};
                 end
@@ -220,7 +232,7 @@ module store_unit #(
                     fsm_match = foward_address_i == store_address_i[31:2];
 
                     if (!buffer_channel.full) begin 
-                        if (data_accepted_i) begin
+                        if (!wait_i) begin
                             state_NXT = IDLE;
 
                             idle_o = 1'b1;
@@ -234,19 +246,18 @@ module store_unit #(
 
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
+                    illegal_access_o = accessable_saved; 
 
                     /* Idle status is declared before to enhance 
                      * scheduler performance */
                     idle_o = 1'b1;
                     
-                    if (data_accepted_i) begin
+                    if (!wait_i) begin
                         state_NXT = IDLE;
                     end
                 end
             endcase
         end 
-
-    assign illegal_access_o = !accessable_CRT | !accessable;
 
 
 //====================================================================================

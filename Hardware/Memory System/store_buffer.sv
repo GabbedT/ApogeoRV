@@ -100,7 +100,8 @@ module store_buffer #(
                 /* Push pointer is setted to the last 
                  * validated value */ 
                 push_ptr <= valid_ptr;
-                pull_ptr <= pull_ptr;
+
+                /* Pull pointer remains the same */
             end else begin 
                 /* Increment pointer */
                 if (push_channel.request) begin
@@ -256,7 +257,8 @@ module store_buffer #(
 //      MERGE AND FOWARD LOGIC
 //====================================================================================
 
-    // ADD DESCRIPTION
+    /* A valid entry, used to partially validate pushed values before the store operation
+     * passes the reorder buffer */ 
     logic [BUFFER_DEPTH - 1:0] foward_valid;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 

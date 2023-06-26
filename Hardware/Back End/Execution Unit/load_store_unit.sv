@@ -116,22 +116,22 @@ module load_store_unit #(
 //      STORE UNIT
 //====================================================================================
 
-    logic stu_data_accepted, stu_illegal_access, stu_data_valid, stu_timer_write;
+    logic stu_data_accepted, stu_illegal_access, stu_data_valid, ldu_data_valid, stu_timer_write;
 
     /* Store buffer fowarding nets */
     logic foward_address_match, buffer_empty;
     data_word_t foward_data;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
-        .clk_i             ( clk_i   ),
-        .rst_n_i           ( rst_n_i ),
-        .flush_i           ( flush_i ), 
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+        .flush_i ( flush_i ), 
 
         .valid_operation_i ( data_valid_i.STU       ),
         .store_data_i      ( data_i                 ),
         .store_address_i   ( address_i              ),
         .operation_i       ( operation_i.STU.opcode ),
-        .data_accepted_i   ( stu_data_accepted      ),
+        .wait_i            ( ldu_data_valid         ),
 
         .store_channel ( store_channel ),
 
@@ -164,7 +164,7 @@ module load_store_unit #(
 
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
-                stu_ipacket <= NO_OPERATION;
+                stu_ipacket <= '0;
             end else if (data_valid_i.STU) begin
                 stu_ipacket <= stu_exception_packet;
             end 
@@ -192,7 +192,7 @@ module load_store_unit #(
 //      LOAD UNIT
 //====================================================================================
     
-    logic ldu_data_valid, ldu_illegal_access;
+    logic ldu_illegal_access;
     data_word_t loaded_data, timer_data;
 
     load_unit ldu (
@@ -220,7 +220,7 @@ module load_store_unit #(
 
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
-                ldu_ipacket <= NO_OPERATION;
+                ldu_ipacket <= '0;
             end else if (data_valid_i.LDU) begin
                 ldu_ipacket <= instr_packet_i;
             end
@@ -258,29 +258,21 @@ module load_store_unit #(
                 2'b00: begin
                     instr_packet_o = '0;
                     data_o = '0;
-
-                    stu_data_accepted = 1'b0;
                 end
 
                 2'b10: begin
                     instr_packet_o = ldu_ipacket;
                     data_o = loaded_data;
-
-                    stu_data_accepted = 1'b0;
                 end
 
                 2'b01: begin
                     instr_packet_o = stu_ipacket;
                     data_o = '0;
-
-                    stu_data_accepted = 1'b1;
                 end
 
                 2'b11: begin
                     instr_packet_o = ldu_ipacket;
                     data_o = loaded_data;
-
-                    stu_data_accepted = 1'b0;
                 end
 
             endcase
