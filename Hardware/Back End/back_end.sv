@@ -229,7 +229,7 @@ module back_end #(
         .handler_pc_o           ( handler_pc_o        ),
         .glb_interrupt_enable_o ( interrupt_enable_o  ),
         .machine_return_instr_i ( handler_return      ),
-        .branch_mispredicted_i  ( mispredicted_i ),
+        .branch_mispredicted_i  ( mispredicted_i      ),
         .instruction_retired_i  ( instruction_retired ),
 
         .ldu_idle_o ( ldu_idle_o ),
