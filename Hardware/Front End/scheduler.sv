@@ -1,3 +1,55 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+// FILE NAME : scheduler.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ---------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : The scheduler resolves all the possible hazards that can happen during
+//               execution stage. It implements a scoreboard algorithm, basically for each
+//               functional unit, it saves the current status (executing or not), the 
+//               latency that remains to output a valid result and the register 
+//               destination. The status of each functional unit is set when an 
+//               instruction is issued.
+//
+//               - RAW hazards: detected by checking if any destination register in the
+//                 currently executing functional units matches any source register of the
+//                 current instruction.
+//
+//               - Structural hazards: if a not pipelined functional unit is executing and
+//                 the current instruction wants to issue in that unit.
+//
+//               - Concurrent result: detected by checking that the remaining time of each
+//                 functional unit doesn't match the latency time of the operation that 
+//                 the instruction must do.
+//
+//               In the scheduler we can also find the register file, the reorder buffer
+//               tag generator and the operand selector.
+// ---------------------------------------------------------------------------------------
+
 `ifndef SCHEDULER_SV
     `define SCHEDULER_SV
 

@@ -1,3 +1,43 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// ---------------------------------------------------------------------------------------
+// ---------------------------------------------------------------------------------------
+// FILE NAME : front_end.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// ---------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : The front end of the CPU has the job of feeding the back end of valid
+//               micro instruction and scheduling the issue of each one of them. First the
+//               actual instruction is fetched from the memory, this is the job of the 
+//               PC generations stage, here branch outcomes and predictions are also taken 
+//               into account. Once the instruction is supplied, if it's compressed, it's
+//               feeded into the decompressor, otherwise the full instruction is selected.
+//               The decode stage will decode the supplied instruction and then in the 
+//               issue stage the instruction will be scheduled and eventually issued.
+// ---------------------------------------------------------------------------------------
+
 `ifndef FRONT_END_SV
     `define FRONT_END_SV
 

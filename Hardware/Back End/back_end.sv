@@ -1,3 +1,46 @@
+// MIT License
+//
+// Copyright (c) 2021 Gabriele Tripi
+// 
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+// 
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+// --------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
+// FILE NAME : back_end.sv
+// DEPARTMENT : 
+// AUTHOR : Gabriele Tripi
+// AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
+// --------------------------------------------------------------------------------------
+// RELEASE HISTORY
+// VERSION : 1.0 
+// DESCRIPTION : The back end of the CPU executes all the instructions feeded by the 
+//               front end and it's responsable of the in order writeback of the 
+//               executed instructions. The instructions first pass through the bypass
+//               stage, here operands are fowarded if a match is registred, then they 
+//               get executed. The execution stage might take more than 1 clock cycle
+//               and a maximum of two instructions can be committed simultaneously. 
+//               Once committed, the instructions get feeded into the reorder buffer
+//               that reorders them based on a generated tag carried by the instruction
+//               packet. Finally once the head of the reorder buffer become valid, the
+//               instruction can be written back, if the instruction has generated an 
+//               exception the entire pipeline is flushed and a new PC is generated. 
+// --------------------------------------------------------------------------------------
+
 `ifndef BACK_END_SV 
     `define BACK_END_SV 
 
