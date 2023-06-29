@@ -260,6 +260,8 @@ module decoder (
                     exu_uop_o.ITU.subunit.ALU.opcode = ADD; 
 
                     exception_generated_o = 1'b1;
+
+                    exception_vector_o = exc_vect_idec;
                 end
             endcase 
         end
