@@ -1,11 +1,4 @@
-
-branch_test:     file format elf32-littleriscv
-
-
-Disassembly of section .text:
-
-00000000 <main>:
-   0:	fe010113          	add	sp,sp,-32
+   0:	fe010113          	add	sp,sp,-32 ## [ ENTER MAIN ] ##
    4:	00112e23          	sw	ra,28(sp)
    8:	00812c23          	sw	s0,24(sp)
    c:	02010413          	add	s0,sp,32
@@ -46,9 +39,7 @@ Disassembly of section .text:
   98:	01812403          	lw	s0,24(sp)
   9c:	02010113          	add	sp,sp,32
   a0:	00008067          	ret
-
-000000a4 <jump_function1>:
-  a4:	fe010113          	add	sp,sp,-32
+  a4:	fe010113          	add	sp,sp,-32 ## [ ENTER FUNCTION 1 ] ##
   a8:	00812e23          	sw	s0,28(sp)
   ac:	02010413          	add	s0,sp,32
   b0:	fea42623          	sw	a0,-20(s0)
@@ -62,9 +53,7 @@ Disassembly of section .text:
   d0:	01c12403          	lw	s0,28(sp)
   d4:	02010113          	add	sp,sp,32
   d8:	00008067          	ret
-
-000000dc <jump_function2>:
-  dc:	fe010113          	add	sp,sp,-32
+  dc:	fe010113          	add	sp,sp,-32 ## [ ENTER FUNCTION 2 ] ##
   e0:	00812e23          	sw	s0,28(sp)
   e4:	02010413          	add	s0,sp,32
   e8:	fea42623          	sw	a0,-20(s0)

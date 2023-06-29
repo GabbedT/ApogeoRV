@@ -1,0 +1,122 @@
+
+temp.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <main>:
+   0:	1101                	add	sp,sp,-32
+   2:	ce06                	sw	ra,28(sp)
+   4:	cc22                	sw	s0,24(sp)
+   6:	1000                	add	s0,sp,32
+   8:	fe042623          	sw	zero,-20(s0)
+   c:	fe042423          	sw	zero,-24(s0)
+  10:	a0b9                	j	5e <main+0x5e>
+  12:	fe842783          	lw	a5,-24(s0)
+  16:	8b85                	and	a5,a5,1
+  18:	e385                	bnez	a5,38 <main+0x38>
+  1a:	fec42703          	lw	a4,-20(s0)
+  1e:	fe842783          	lw	a5,-24(s0)
+  22:	02f707b3          	mul	a5,a4,a5
+  26:	853e                	mv	a0,a5
+  28:	20b9                	jal	76 <jump_function1>
+  2a:	872a                	mv	a4,a0
+  2c:	fec42783          	lw	a5,-20(s0)
+  30:	97ba                	add	a5,a5,a4
+  32:	fef42623          	sw	a5,-20(s0)
+  36:	a839                	j	54 <main+0x54>
+  38:	fec42703          	lw	a4,-20(s0)
+  3c:	fe842783          	lw	a5,-24(s0)
+  40:	02f707b3          	mul	a5,a4,a5
+  44:	853e                	mv	a0,a5
+  46:	2881                	jal	96 <jump_function2>
+  48:	872a                	mv	a4,a0
+  4a:	fec42783          	lw	a5,-20(s0)
+  4e:	97ba                	add	a5,a5,a4
+  50:	fef42623          	sw	a5,-20(s0)
+  54:	fe842783          	lw	a5,-24(s0)
+  58:	0785                	add	a5,a5,1
+  5a:	fef42423          	sw	a5,-24(s0)
+  5e:	fe842703          	lw	a4,-24(s0)
+  62:	47cd                	li	a5,19
+  64:	fae7d7e3          	bge	a5,a4,12 <main+0x12>
+  68:	fec42783          	lw	a5,-20(s0)
+  6c:	853e                	mv	a0,a5
+  6e:	40f2                	lw	ra,28(sp)
+  70:	4462                	lw	s0,24(sp)
+  72:	6105                	add	sp,sp,32
+  74:	8082                	ret
+
+00000076 <jump_function1>:
+  76:	1101                	add	sp,sp,-32
+  78:	ce22                	sw	s0,28(sp)
+  7a:	1000                	add	s0,sp,32
+  7c:	fea42623          	sw	a0,-20(s0)
+  80:	fec42783          	lw	a5,-20(s0)
+  84:	8b85                	and	a5,a5,1
+  86:	e399                	bnez	a5,8c <jump_function1+0x16>
+  88:	47d1                	li	a5,20
+  8a:	a011                	j	8e <jump_function1+0x18>
+  8c:	47e5                	li	a5,25
+  8e:	853e                	mv	a0,a5
+  90:	4472                	lw	s0,28(sp)
+  92:	6105                	add	sp,sp,32
+  94:	8082                	ret
+
+00000096 <jump_function2>:
+  96:	1101                	add	sp,sp,-32
+  98:	ce22                	sw	s0,28(sp)
+  9a:	1000                	add	s0,sp,32
+  9c:	fea42623          	sw	a0,-20(s0)
+  a0:	fec42783          	lw	a5,-20(s0)
+  a4:	8b85                	and	a5,a5,1
+  a6:	e781                	bnez	a5,ae <jump_function2+0x18>
+  a8:	02800793          	li	a5,40
+  ac:	a019                	j	b2 <jump_function2+0x1c>
+  ae:	02d00793          	li	a5,45
+  b2:	853e                	mv	a0,a5
+  b4:	4472                	lw	s0,28(sp)
+  b6:	6105                	add	sp,sp,32
+  b8:	8082                	ret
+
+Disassembly of section .comment:
+
+00000000 <.comment>:
+   0:	3a434347          	.4byte	0x3a434347
+   4:	2820                	.2byte	0x2820
+   6:	29554e47          	.4byte	0x29554e47
+   a:	3120                	.2byte	0x3120
+   c:	2e32                	.2byte	0x2e32
+   e:	2e32                	.2byte	0x2e32
+  10:	0030                	add	a2,sp,8
+
+Disassembly of section .riscv.attributes:
+
+00000000 <.riscv.attributes>:
+   0:	4341                	li	t1,16
+   2:	0000                	unimp
+   4:	7200                	.2byte	0x7200
+   6:	7369                	lui	t1,0xffffa
+   8:	01007663          	bgeu	zero,a6,14 <main+0x14>
+   c:	0039                	c.nop	14
+   e:	0000                	unimp
+  10:	1004                	add	s1,sp,32
+  12:	7205                	lui	tp,0xfffe1
+  14:	3376                	.2byte	0x3376
+  16:	6932                	.2byte	0x6932
+  18:	7032                	.2byte	0x7032
+  1a:	5f30                	lw	a2,120(a4)
+  1c:	326d                	jal	fffff9c6 <jump_function2+0xfffff930>
+  1e:	3070                	.2byte	0x3070
+  20:	635f 7032 5f30      	.byte	0x5f, 0x63, 0x32, 0x70, 0x30, 0x5f
+  26:	6d7a                	.2byte	0x6d7a
+  28:	756d                	lui	a0,0xffffb
+  2a:	316c                	.2byte	0x316c
+  2c:	3070                	.2byte	0x3070
+  2e:	7a5f 6162 7031      	.byte	0x5f, 0x7a, 0x62, 0x61, 0x31, 0x70
+  34:	5f30                	lw	a2,120(a4)
+  36:	627a                	.2byte	0x627a
+  38:	3162                	.2byte	0x3162
+  3a:	3070                	.2byte	0x3070
+  3c:	7a5f 7362 7031      	.byte	0x5f, 0x7a, 0x62, 0x73, 0x31, 0x70
+  42:	0030                	add	a2,sp,8

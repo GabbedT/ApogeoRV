@@ -2,6 +2,11 @@
 
 `include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
 
+/* Enable or disable tracing */
+`define TRACER
+
+`define TRACE_FILE "../trace.txt"
+
 module directed_pipeline_test;
 
     localparam PREDICTOR_SIZE = 1024;
@@ -41,15 +46,46 @@ module directed_pipeline_test;
         @(posedge clk_i);
     endtask : fetch
 
+
+    int file; 
+
     initial begin
         load_channel.valid <= '0;
         load_channel.data <= '0;
         store_channel.done <= '0;
         
+        `ifdef TRACER
+            file = $fopen(`TRACE_FILE, "w"); 
+    
+            if (file) begin
+                $display("File opened successfully! %d", file); 
+            end else begin
+                $display("[ERROR] File not opened!"); 
+            end
+         `endif 
+        
         @(posedge clk_i);
         rst_n_i <= 1'b1;
 
-        while (!dut.apogeo_backend.exception_generated) @(posedge clk_i);
+        while (!dut.apogeo_backend.exception_generated) begin
+            @(posedge clk_i);
+
+            `ifdef TRACER 
+                if (dut.apogeo_backend.writeback_o) begin
+                    $display("[%5dns] | [0x%h] | x%02d | 0x%h", $time / 10, dut.apogeo_backend.trap_iaddress, 
+                                                           dut.apogeo_backend.reg_destination_o, 
+                                                           dut.apogeo_backend.writeback_result_o); 
+
+                    // $fwrite(file, "[%t] | [0x%h] | x%0d | 0x%h", $time, dut.apogeo_backend.trap_iaddress, 
+                    //                                        dut.apogeo_backend.reg_destination_o, 
+                    //                                        dut.apogeo_backend.writeback_result_o);
+                end
+            `endif 
+        end 
+        
+        `ifdef TRACER
+            $fclose(file); 
+        `endif 
 
         $finish();
     end
