@@ -116,7 +116,7 @@ module load_store_unit #(
 //      STORE UNIT
 //====================================================================================
 
-    logic stu_data_accepted, stu_illegal_access, stu_data_valid, ldu_data_valid, stu_timer_write;
+    logic stu_data_accepted, stu_illegal_access, stu_data_valid, ldu_data_valid, stu_timer_write, stu_packet_select;
 
     /* Store buffer fowarding nets */
     logic foward_address_match, buffer_empty;
@@ -145,6 +145,7 @@ module load_store_unit #(
         .timer_write_o ( stu_timer_write ),
 
         .idle_o           ( stu_idle_o         ),
+        .ipacket_select_o ( stu_packet_select  ),
         .illegal_access_o ( stu_illegal_access ),
         .data_valid_o     ( stu_data_valid     )
     );
@@ -266,7 +267,7 @@ module load_store_unit #(
                 end
 
                 2'b01: begin
-                    instr_packet_o = stu_ipacket;
+                    instr_packet_o = stu_packet_select ? stu_exception_packet : stu_ipacket;
                     data_o = '0;
                 end
 

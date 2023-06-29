@@ -95,6 +95,9 @@ module store_unit #(
 
     /* Functional unit status */
     output logic idle_o,
+
+    /* Select instruction packet */
+    output logic ipacket_select_o,
  
     /* Illegal memory access exception */
     output logic illegal_access_o,
@@ -114,7 +117,7 @@ module store_unit #(
 
 
     /* Legal access to the memory region: cannot write into boot region */
-    assign accessable = (store_address_i >= (`BOOT_END));
+    assign accessable = 1'b1 /*(store_address_i >= (`BOOT_END))*/;
 
     logic accessable_saved;
 
@@ -172,6 +175,7 @@ module store_unit #(
             idle_o = 1'b0;
             data_valid_o = 1'b0;
             illegal_access_o = 1'b0; 
+            ipacket_select_o = 1'b0; 
             timer_write_o = 1'b0;
             fsm_match = 1'b0;
 
@@ -183,34 +187,52 @@ module store_unit #(
                     if (valid_operation_i) begin
                         if (timer_access) begin
                             timer_write_o = 1'b1;
+                            ipacket_select_o = 1'b1;
+
                             data_valid_o = 1'b1;
+                            idle_o = 1'b1;
 
                             if (wait_i) begin
                                 state_NXT = WAIT_ACCEPT;
+
                                 idle_o = 1'b0;
+                                ipacket_select_o = 1'b0;
                             end 
                         end else begin 
                             if (accessable) begin
                                 if (!buffer_channel.full) begin
+                                    ipacket_select_o = 1'b1; 
+
                                     data_valid_o = 1'b1;
+                                    idle_o = 1'b1;
 
                                     if (wait_i) begin
                                         state_NXT = WAIT_ACCEPT;
+
                                         idle_o = 1'b0;
+                                        ipacket_select_o = 1'b0;
                                     end 
                                 end else begin
                                     state_NXT = WAIT_BUFFER;
+
+                                    idle_o = 1'b0;
+                                    ipacket_select_o = 1'b0;
                                 end
                                         
                                 /* Don't push data if the buffer is full */
                                 buffer_channel.request = !buffer_channel.full;
                             end else begin
+                                illegal_access_o = 1'b1;
+                                ipacket_select_o = 1'b1;
+
                                 data_valid_o = 1'b1;
-                                illegal_access_o = 1'b1; 
+                                idle_o = 1'b1; 
 
                                 if (!wait_i) begin
                                     state_NXT = WAIT_ACCEPT;
+
                                     idle_o = 1'b0;
+                                    ipacket_select_o = 1'b0;
                                 end 
                             end
                         end
@@ -247,13 +269,11 @@ module store_unit #(
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
                     illegal_access_o = accessable_saved; 
-
-                    /* Idle status is declared before to enhance 
-                     * scheduler performance */
-                    idle_o = 1'b1;
                     
                     if (!wait_i) begin
                         state_NXT = IDLE;
+
+                        idle_o = 1'b1;
                     end
                 end
             endcase
