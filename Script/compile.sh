@@ -2,18 +2,12 @@
 
 # This script receives as input:
 #
-# - Options: 
-#   - Enable linking: flag -l followed by the linker file name 
-#                     (situated in the directory passed as parameter)
-#   - File Extension: -c or -s for .c and .s files
-#   - ISA Extension: -m followed by a string like "imc"
-#   - Help: -h
-# 
-# - Arguments:
-#   - Directory: Specify where to find those files and where
-#                to store the outputs. This is a relative path to the 
-#                directory in the project folder
-#   - File Name: Specify the file name to elaborate
+# -l / --linker : Followed by the linker file
+# -m / --march  : Followed by the RISCV extensions string 
+# -f / --file   : Followed by the file to compile 
+# -d / --dir    : Followed by the relative path (to the root of the project directory)
+#                 to the folder where all the files are saved / will be written
+# -h / --help   : This flag is used alone and explains the usage of the script
 #
 # It generates the disassembled program with the hexadecimal
 
@@ -61,7 +55,7 @@ while [[ $# -gt 0 ]]; do
             ;;
 
         -h|--help)
-            echo -e "${CYAN}[HELP] Usage: $0 directory_name [-l linker_name] [-c / -s file_name] [-m isa_string]${NOC}"
+            echo -e "${CYAN}[HELP] Usage: $0 [-d directory_name] [-l linker_name] [-f file_name] [-m isa_string]${NOC}"
             echo -e "${CYAN}[HELP] Directory: where all the file can be found relative to the root of the project${NOC}"
             echo -e "${CYAN}[HELP] Linker (optional): name of the linker file without .ld extension${NOC}"
             echo -e "${CYAN}[HELP] File to compile: name of the file with .s or .c option (use -s or -c depending on the extenison)${NOC}"
@@ -145,24 +139,51 @@ echo -e "${GREEN}[STATUS] Generated .dasm file!${NOC}"
 
 # Delete temporary file
 rm temp.elf
-
-# Delete temporary file
 rm temp.o
 
 
 
-# Remove the first line of the file 
-sed -i '1d' ${filename}.hex
-
-
-
-
-# Move the generated hexdump file inside a proper directory
 if [[ ! -d "Hex" ]]; then 
     mkdir Hex
 fi 
 
-mv ${filename}.hex Hex
+
+
+# Count the number of section in the hex file
+sections=$(grep -c "^@" ${filename}.hex)
+count=0
+
+if [[ section -eq 1 ]]; then 
+    # Remove the first line of the file 
+    sed -i '1d' ${filename}.hex
+
+    # Rename the file and move it inside the directory
+    mv ${filename}.hex i_${filename}.hex 
+    mv i_${filename}.hex Hex 
+else 
+    # Scan the file line by line
+    while IFS="" read -r line; do
+        if [[ $line != @* ]]; then
+            if [[ count -eq 1 ]]; then 
+                echo "$line" >> i_${filename}.hex
+            else 
+                echo "$line" >> d_${filename}.hex
+            fi 
+        else 
+            count=$((count + 1))
+        fi 
+    done < ${filename}.hex
+
+    # Move it inside the directory
+    mv i_${filename}.hex Hex 
+    mv d_${filename}.hex Hex 
+fi 
+
+
+# Remove the temporary hexfile
+rm ${filename}.hex
+
+
 
 # Move the generated disassembly file inside a proper directory
 if [[ ! -d "Disassembly" ]]; then 
