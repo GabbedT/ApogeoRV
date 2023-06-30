@@ -33,7 +33,7 @@ module directed_pipeline_test;
 
     pipeline #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE) dut (.*); 
 
-    memory_agent #(8192) memory (.*); 
+    memory_agent #(1024) memory (.*); 
     
     instruction_agent instruction (clk_i, rst_n_i, fetch_o, fetch_address_o, fetch_instruction_i, fetch_valid_i); 
 
@@ -106,9 +106,7 @@ module memory_agent #(
     logic [7:0] memory [0:MEMORY_SIZE - 1]; 
 
     initial begin
-        for (int i = 0; i < MEMORY_SIZE; ++i) begin
-            memory[i] = '0;
-        end
+        $readmemh("d_prova.hex", memory);
     end
 
 
@@ -157,7 +155,7 @@ module instruction_agent (
     output logic valid 
 );
 
-    logic [31:0] instructions [200]; int index; 
+    logic [31:0] instructions [1024]; int index; 
     Riscv32 rv32;
 
     function write_instruction(input logic [31:0] instruction);
@@ -227,14 +225,14 @@ module instruction_agent (
     endfunction : write_program 
 
     function inject_program();
-        $readmemh("branch_test.hex", instructions);
-        index = 200;
+        $readmemh("i_prova.hex", instructions);
+        index = 1024;
     endfunction : inject_program
 
     initial begin
         rv32 = new(); 
 
-        for (int i = 0; i < 200; ++i) begin
+        for (int i = 0; i < 1024; ++i) begin
             instructions[i] = 32'h00000013;
         end
 

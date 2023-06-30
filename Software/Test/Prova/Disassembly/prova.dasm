@@ -1,0 +1,125 @@
+
+temp.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <main>:
+   0:	fe010113          	add	sp,sp,-32
+   4:	00812e23          	sw	s0,28(sp)
+   8:	02010413          	add	s0,sp,32
+   c:	fff00593          	li	a1,-1
+  10:	feb42023          	sw	a1,-32(s0)
+  14:	0ff00593          	li	a1,255
+  18:	fff5c593          	not	a1,a1
+  1c:	01000513          	li	a0,16
+  20:	00b515b3          	sll	a1,a0,a1
+  24:	00058513          	mv	a0,a1
+  28:	fe042583          	lw	a1,-32(s0)
+  2c:	00a5f5b3          	and	a1,a1,a0
+  30:	feb42023          	sw	a1,-32(s0)
+  34:	00100513          	li	a0,1
+  38:	00000593          	li	a1,0
+  3c:	fea42423          	sw	a0,-24(s0)
+  40:	feb42623          	sw	a1,-20(s0)
+  44:	fe042223          	sw	zero,-28(s0)
+  48:	0980006f          	j	e0 <main+0xe0>
+  4c:	10400513          	li	a0,260
+  50:	fe442583          	lw	a1,-28(s0)
+  54:	00b505b3          	add	a1,a0,a1
+  58:	0005c583          	lbu	a1,0(a1)
+  5c:	00058713          	mv	a4,a1
+  60:	00000793          	li	a5,0
+  64:	fec42583          	lw	a1,-20(s0)
+  68:	02e58533          	mul	a0,a1,a4
+  6c:	fe842583          	lw	a1,-24(s0)
+  70:	02f585b3          	mul	a1,a1,a5
+  74:	00b50533          	add	a0,a0,a1
+  78:	fe842583          	lw	a1,-24(s0)
+  7c:	02e58833          	mul	a6,a1,a4
+  80:	02e5b6b3          	mulhu	a3,a1,a4
+  84:	00080613          	mv	a2,a6
+  88:	00d505b3          	add	a1,a0,a3
+  8c:	00058693          	mv	a3,a1
+  90:	fec42423          	sw	a2,-24(s0)
+  94:	fed42623          	sw	a3,-20(s0)
+  98:	fec42423          	sw	a2,-24(s0)
+  9c:	fed42623          	sw	a3,-20(s0)
+  a0:	fe042583          	lw	a1,-32(s0)
+  a4:	00058313          	mv	t1,a1
+  a8:	00000393          	li	t2,0
+  ac:	fe842803          	lw	a6,-24(s0)
+  b0:	fec42883          	lw	a7,-20(s0)
+  b4:	40680533          	sub	a0,a6,t1
+  b8:	00050e13          	mv	t3,a0
+  bc:	01c83e33          	sltu	t3,a6,t3
+  c0:	407885b3          	sub	a1,a7,t2
+  c4:	41c58833          	sub	a6,a1,t3
+  c8:	00080593          	mv	a1,a6
+  cc:	fea42423          	sw	a0,-24(s0)
+  d0:	feb42623          	sw	a1,-20(s0)
+  d4:	fe442583          	lw	a1,-28(s0)
+  d8:	00158593          	add	a1,a1,1
+  dc:	feb42223          	sw	a1,-28(s0)
+  e0:	fe442503          	lw	a0,-28(s0)
+  e4:	00500593          	li	a1,5
+  e8:	f6a5d2e3          	bge	a1,a0,4c <main+0x4c>
+  ec:	fe842783          	lw	a5,-24(s0)
+  f0:	00078513          	mv	a0,a5
+  f4:	01c12403          	lw	s0,28(sp)
+  f8:	02010113          	add	sp,sp,32
+  fc:	00008067          	ret
+
+Disassembly of section .srodata:
+
+00000100 <CONSTANT>:
+ 100:	ffff3333          	.4byte	0xffff3333
+
+00000104 <SECTOR>:
+ 104:	ff ee dd cc 	Address 0x104 is out of bounds.
+
+ 108:	bb 
+ 109:	aa    	Address 0x109 is out of bounds.
+
+ 10d:	 
+
+Disassembly of section .comment:
+
+00000000 <.comment>:
+   0:	3a434347          	.4byte	0x3a434347
+   4:	2820                	.2byte	0x2820
+   6:	29554e47          	.4byte	0x29554e47
+   a:	3120                	.2byte	0x3120
+   c:	2e32                	.2byte	0x2e32
+   e:	2e32                	.2byte	0x2e32
+  10:	0030                	.2byte	0x30
+
+Disassembly of section .riscv.attributes:
+
+00000000 <.riscv.attributes>:
+   0:	3e41                	.2byte	0x3e41
+   2:	0000                	.2byte	0x0
+   4:	7200                	.2byte	0x7200
+   6:	7369                	.2byte	0x7369
+   8:	01007663          	bgeu	zero,a6,14 <main+0x14>
+   c:	0034                	.2byte	0x34
+   e:	0000                	.2byte	0x0
+  10:	1004                	.2byte	0x1004
+  12:	7205                	.2byte	0x7205
+  14:	3376                	.2byte	0x3376
+  16:	6932                	.2byte	0x6932
+  18:	7032                	.2byte	0x7032
+  1a:	5f30                	.2byte	0x5f30
+  1c:	326d                	.2byte	0x326d
+  1e:	3070                	.2byte	0x3070
+  20:	7a5f 6d6d 6c75      	.byte	0x5f, 0x7a, 0x6d, 0x6d, 0x75, 0x6c
+  26:	7031                	.2byte	0x7031
+  28:	5f30                	.2byte	0x5f30
+  2a:	627a                	.2byte	0x627a
+  2c:	3161                	.2byte	0x3161
+  2e:	3070                	.2byte	0x3070
+  30:	7a5f 6262 7031      	.byte	0x5f, 0x7a, 0x62, 0x62, 0x31, 0x70
+  36:	5f30                	.2byte	0x5f30
+  38:	627a                	.2byte	0x627a
+  3a:	30703173          	csrrc	sp,0x307,zero
+	...
