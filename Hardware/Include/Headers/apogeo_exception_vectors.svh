@@ -51,7 +51,7 @@
 `define M_SYSTEM_CALL 11
 
 
-/* DEFINED FOR HARDWARE PURPOUSE */
+/* DEFINED FOR HARDWARE LOGIC / DEBUG PURPOUSE */
 
 /* WFI set hart to sleep */
 `define SLEEP 16
@@ -62,7 +62,14 @@
 /* Store operation executed */
 `define STORE_OPERATION 18
 
+/* Load operation executed */
+`define LOAD_OPERATION 19
+
+/* Branch / Jump */
+`define BRANCH_OPERATION 20 
+`define JUMP_OPERATION 21 
+
 /* CSR operation executed */
-`define CSR_OPERATION 19
+`define CSR_OPERATION 22
 
 `endif 
