@@ -197,7 +197,11 @@ module commit_buffer #(
                 if (write_i) begin
                     /* On writes validate the result */
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
-                end 
+                end else if (read_i & (tag_register[ipacket_o.reg_dest] == ipacket_o.rob_tag)) begin
+                    /* If the instruction that wrote the result in the foward register
+                     * is being pulled from the buffer, invalidate the result */
+                    valid_register[ipacket_o.reg_dest] <= 1'b0;
+                end
 
                 if (invalidate_i) begin
                     /* If another buffer is pushing a register, it has
@@ -205,12 +209,6 @@ module commit_buffer #(
                      * since is old */
                     valid_register[invalid_reg_i] <= 1'b0;
                 end 
-
-                if (read_i & (tag_register[ipacket_o.reg_dest] == ipacket_o.rob_tag)) begin
-                    /* If the instruction that wrote the result in the foward register
-                     * is being pulled from the buffer, invalidate the result */
-                    valid_register[ipacket_o.reg_dest] <= 1'b0;
-                end
             end
         end : register_valid_write_port
 

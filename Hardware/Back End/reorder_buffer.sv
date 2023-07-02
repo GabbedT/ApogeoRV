@@ -179,9 +179,7 @@ module reorder_buffer (
                 if (write_i) begin
                     /* On writes validate the result */
                     valid_register[entry_i.reg_dest] <= 1'b1;
-                end 
-
-                if (read_i & (tag_register[entry_o.reg_dest] == read_ptr)) begin
+                end else if (read_i & (tag_register[entry_o.reg_dest] == read_ptr)) begin
                     /* If the instruction that wrote the result in the foward register
                      * is being pulled from the ROB, invalidate the result */
                     valid_register[entry_o.reg_dest] <= 1'b0;
