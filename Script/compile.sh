@@ -5,6 +5,7 @@
 # -l / --linker : Followed by the linker file
 # -m / --march  : Followed by the RISCV extensions string 
 # -f / --file   : Followed by the file to compile 
+# -s / --start  : Followed by the startup file
 # -d / --dir    : Followed by the relative path (to the root of the project directory)
 #                 to the folder where all the files are saved / will be written
 # -h / --help   : This flag is used alone and explains the usage of the script
@@ -47,6 +48,14 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
 
+        -s | --start)
+            start=true
+            startup=$2
+            echo -e "${CYAN}[INFO] STARTUP: ${startup}${NOC}"
+
+            shift 2
+            ;;
+
         -d|--dir)
             directory=$2
             echo -e "${CYAN}[INFO] DIRECTORY: ${directory}${NOC}"
@@ -55,11 +64,12 @@ while [[ $# -gt 0 ]]; do
             ;;
 
         -h|--help)
-            echo -e "${CYAN}[HELP] Usage: $0 [-d directory_name] [-l linker_name] [-f file_name] [-m isa_string]${NOC}"
+            echo -e "${CYAN}[HELP] Usage: $0 [-d directory_name] [-l linker_name] [-f file_name] [-m isa_string] [-s startup_name]${NOC}"
             echo -e "${CYAN}[HELP] Directory: where all the file can be found relative to the root of the project${NOC}"
             echo -e "${CYAN}[HELP] Linker (optional): name of the linker file without .ld extension${NOC}"
-            echo -e "${CYAN}[HELP] File to compile: name of the file with .s or .c option (use -s or -c depending on the extenison)${NOC}"
+            echo -e "${CYAN}[HELP] File to compile: name of the file with .s or .c option${NOC}"
             echo -e "${CYAN}[HELP] Target architecture: a string containing all the ISA extensions (imc_zba_zbb_zbs for Apogeo base config)${NOC}"
+            echo -e "${CYAN}[HELP] Enable startup file: name of the startup file with .s or .c option${NOC}"
             exit 1
             ;;
         
@@ -96,6 +106,10 @@ elif [[ ! -f $linker ]]; then
     echo -e "${RED}[ERROR] Non existing file: ${linker}!${NOC}"
 
     exit 1
+elif [[ ! -f $startup ]]; then 
+    echo -e "${RED}[ERROR] Non existing file: ${startup}!${NOC}"
+
+    exit 1
 fi 
 
 
@@ -103,10 +117,18 @@ fi
 # Generate object file based on the passed flag
 if [[ $extension == "c" ]]; then 
     # C file
-    riscv32-unknown-elf-gcc -c -march=rv32${riscvext} -o temp.o ${file}
+    if [[ $start == true ]]; then 
+        riscv32-unknown-elf-gcc -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${startup} ${file}
+    else 
+        riscv32-unknown-elf-gcc -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${file}
+    fi 
 elif [[ $extension == "s" || $extension == "S" || $extension == "asm" ]]; then
     # Assembly file
-    riscv32-unknown-elf-as -c -march=rv32${riscvext} -o temp.o ${file}
+    if [[ $start == true ]]; then 
+        riscv32-unknown-elf-as -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${startup} ${file}
+    else 
+        riscv32-unknown-elf-as -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${file}
+    fi 
 fi 
 
 echo -e "${GREEN}[STATUS] Generated .o file!${NOC}" 
