@@ -106,6 +106,10 @@ module memory_agent #(
     logic [7:0] memory [0:MEMORY_SIZE - 1]; 
 
     initial begin
+        for (int i = 0; i < MEMORY_SIZE; ++i) begin
+            memory[i] = '0;
+        end
+        
         $readmemh("d_prova.hex", memory);
     end
 
@@ -122,13 +126,16 @@ module memory_agent #(
 
         always_ff @(posedge clk_i) begin
             if (load_channel.request) begin
-                load_channel.data <= data_read; 
+                load_channel.data <= {memory[load_address + 3], memory[load_address + 2], memory[load_address + 1], memory[load_address]}; 
                 load_channel.valid <= 1'b1;
             end else begin
                 load_channel.data <= '0; 
                 load_channel.valid <= 1'b0;
             end
+        end
 
+
+        always_ff @(posedge clk_i) begin
             if (store_channel.request) begin
                 case (store_channel.width)
                     BYTE: memory[store_address] <= store_channel.data[7:0];  
