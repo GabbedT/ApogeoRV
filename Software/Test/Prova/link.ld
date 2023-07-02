@@ -1,22 +1,31 @@
-MEMORY
-{
-  imemory (rx) : ORIGIN = 0x00000000, LENGTH = 0x00000400 /* 1K for instructions */
-  dmemory (rw) : ORIGIN = 0x00000400, LENGTH = 0x00000400 /* 1K for data */
-}
-
-ENTRY(main)
+ENTRY(_start)
 
 SECTIONS
 {
-  . = 0x00000000;
+  . = 0x00000;   /* Set the starting address of the program */
+
+  .startup :
+  {
+    *(.startup)
+  }
 
   .text :
   {
     *(.text)
-  } > imemory
+  }
 
   .data :
   {
     *(.data)
-  } > dmemory
+  }
+
+  .bss :
+  {
+    *(.bss)
+  }
+
+  /DISCARD/ :
+  {
+    *(.comment)
+  }
 }
