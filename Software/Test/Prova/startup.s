@@ -2,7 +2,7 @@
 .global _start
 
 _start:
-    li sp, 0x07FF
+    li sp, 0x0800
     j main
 
 .section .data

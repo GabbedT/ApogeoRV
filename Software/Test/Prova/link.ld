@@ -1,31 +1,30 @@
-ENTRY(_start)
+MEMORY
+{
+    IMEM : ORIGIN = 0x00000000, LENGTH = 0x400
+    DMEM : ORIGIN = 0x00000400, LENGTH = 0x400
+}
 
 SECTIONS
 {
-  . = 0x00000;   /* Set the starting address of the program */
+    __stacktop = ORIGIN(DMEM) + LENGTH(DMEM);
 
-  .startup :
-  {
-    *(.startup)
-  }
+    .text :
+    {
+        *(.text)
+    } > IMEM
 
-  .text :
-  {
-    *(.text)
-  }
+    .rodata :
+    {
+        *(.rodata)
+    } > DMEM
 
-  .data :
-  {
-    *(.data)
-  }
+    .data :
+    {
+        *(.data)
+    } > DMEM
 
-  .bss :
-  {
-    *(.bss)
-  }
-
-  /DISCARD/ :
-  {
-    *(.comment)
-  }
+    .bss :
+    {
+        *(.bss)
+    } > DMEM
 }

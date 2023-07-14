@@ -47,12 +47,14 @@ module directed_pipeline_test;
     endtask : fetch
 
 
-    int file; 
+    int file; logic [31:0] registers[32];
 
     initial begin
         load_channel.valid <= '0;
         load_channel.data <= '0;
         store_channel.done <= '0;
+
+        registers = {default: 0}; 
         
         `ifdef TRACER
             file = $fopen(`TRACE_FILE, "w"); 
@@ -72,9 +74,11 @@ module directed_pipeline_test;
 
             `ifdef TRACER 
                 if (dut.apogeo_backend.writeback_o) begin
-                    $display("[%5dns] | [0x%h] | x%02d | 0x%h", $time / 10, dut.apogeo_backend.trap_iaddress, 
+                    $display("%0dns , 0x%0h , x%02d , 0x%h", $time / 10, dut.apogeo_backend.trap_iaddress, 
                                                            dut.apogeo_backend.reg_destination_o, 
                                                            dut.apogeo_backend.writeback_result_o); 
+
+                    registers[dut.apogeo_backend.reg_destination_o] <= dut.apogeo_backend.writeback_result_o; 
 
                     // $fwrite(file, "[%t] | [0x%h] | x%0d | 0x%h", $time, dut.apogeo_backend.trap_iaddress, 
                     //                                        dut.apogeo_backend.reg_destination_o, 
@@ -86,6 +90,10 @@ module directed_pipeline_test;
         `ifdef TRACER
             $fclose(file); 
         `endif 
+
+        for (int i = 0; i < 32; ++i) begin
+            $display("%02d | 0x%h", i, registers[i]); 
+        end
 
         $finish();
     end
@@ -116,7 +124,7 @@ module memory_agent #(
 
     logic [$clog2(MEMORY_SIZE) - 1:0] store_address, load_address; 
 
-    assign load_address = load_channel.address[$clog2(MEMORY_SIZE) - 1:0];
+    assign load_address = {load_channel.address[$clog2(MEMORY_SIZE) - 1:2], 2'b0};
     assign store_address = store_channel.address[$clog2(MEMORY_SIZE) - 1:0];
 
 

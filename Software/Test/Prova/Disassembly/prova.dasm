@@ -1,159 +1,97 @@
-
-temp.elf:     file format elf32-littleriscv
-
-
-Disassembly of section .text:
-
-00000000 <main>:
-   0:	fe010113          	add	sp,sp,-32
-   4:	00112e23          	sw	ra,28(sp)
-   8:	00812c23          	sw	s0,24(sp)
-   c:	01212a23          	sw	s2,20(sp)
-  10:	01312823          	sw	s3,16(sp)
-  14:	02010413          	add	s0,sp,32
-  18:	fff00793          	li	a5,-1
-  1c:	fef42623          	sw	a5,-20(s0)
-  20:	0cc00793          	li	a5,204
-  24:	01879713          	sll	a4,a5,0x18
-  28:	0dd00793          	li	a5,221
-  2c:	01079793          	sll	a5,a5,0x10
-  30:	00f76733          	or	a4,a4,a5
-  34:	0ee00793          	li	a5,238
-  38:	00879793          	sll	a5,a5,0x8
-  3c:	00f767b3          	or	a5,a4,a5
-  40:	0ff00713          	li	a4,255
-  44:	00e7e7b3          	or	a5,a5,a4
-  48:	00078713          	mv	a4,a5
-  4c:	fec42783          	lw	a5,-20(s0)
-  50:	00e7c7b3          	xor	a5,a5,a4
-  54:	fef42623          	sw	a5,-20(s0)
-  58:	fec42503          	lw	a0,-20(s0)
-  5c:	038000ef          	jal	94 <function>
-  60:	00050713          	mv	a4,a0
-  64:	00058793          	mv	a5,a1
-  68:	0007d913          	srl	s2,a5,0x0
-  6c:	00000993          	li	s3,0
-  70:	ff242623          	sw	s2,-20(s0)
-  74:	fec42783          	lw	a5,-20(s0)
-  78:	00078513          	mv	a0,a5
-  7c:	01c12083          	lw	ra,28(sp)
-  80:	01812403          	lw	s0,24(sp)
-  84:	01412903          	lw	s2,20(sp)
-  88:	01012983          	lw	s3,16(sp)
-  8c:	02010113          	add	sp,sp,32
-  90:	00008067          	ret
-
-00000094 <function>:
-  94:	fd010113          	add	sp,sp,-48
-  98:	02812623          	sw	s0,44(sp)
-  9c:	03010413          	add	s0,sp,48
-  a0:	fca42e23          	sw	a0,-36(s0)
-  a4:	00100513          	li	a0,1
-  a8:	00000593          	li	a1,0
-  ac:	fea42423          	sw	a0,-24(s0)
-  b0:	feb42623          	sw	a1,-20(s0)
-  b4:	fe042223          	sw	zero,-28(s0)
-  b8:	0980006f          	j	150 <function+0xbc>
-  bc:	17800513          	li	a0,376
-  c0:	fe442583          	lw	a1,-28(s0)
-  c4:	00b505b3          	add	a1,a0,a1
-  c8:	0005c583          	lbu	a1,0(a1)
-  cc:	00058713          	mv	a4,a1
-  d0:	00000793          	li	a5,0
-  d4:	fec42583          	lw	a1,-20(s0)
-  d8:	02e58533          	mul	a0,a1,a4
-  dc:	fe842583          	lw	a1,-24(s0)
-  e0:	02f585b3          	mul	a1,a1,a5
-  e4:	00b50533          	add	a0,a0,a1
+   0:	00001137          	lui	sp,0x1
+   4:	80010113          	add	sp,sp,-2048 # 800 <__stacktop>
+   8:	0040006f          	j	c <main>
+   c:	fe010113          	add	sp,sp,-32
+  10:	00112e23          	sw	ra,28(sp)
+  14:	00812c23          	sw	s0,24(sp)
+  18:	01212a23          	sw	s2,20(sp)
+  1c:	01312823          	sw	s3,16(sp)
+  20:	02010413          	add	s0,sp,32
+  24:	fff00793          	li	a5,-1
+  28:	fef42623          	sw	a5,-20(s0)
+  2c:	0cc00793          	li	a5,204
+  30:	01879713          	sll	a4,a5,0x18
+  34:	0dd00793          	li	a5,221
+  38:	01079793          	sll	a5,a5,0x10
+  3c:	00f76733          	or	a4,a4,a5
+  40:	0ee00793          	li	a5,238
+  44:	00879793          	sll	a5,a5,0x8
+  48:	00f767b3          	or	a5,a4,a5
+  4c:	0ff00713          	li	a4,255
+  50:	00e7e7b3          	or	a5,a5,a4
+  54:	00078713          	mv	a4,a5
+  58:	fec42783          	lw	a5,-20(s0)
+  5c:	00e7c7b3          	xor	a5,a5,a4
+  60:	fef42623          	sw	a5,-20(s0)
+  64:	fec42503          	lw	a0,-20(s0)
+  68:	038000ef          	jal	a0 <function>
+  6c:	00050713          	mv	a4,a0
+  70:	00058793          	mv	a5,a1
+  74:	0007d913          	srl	s2,a5,0x0
+  78:	00000993          	li	s3,0
+  7c:	ff242623          	sw	s2,-20(s0)
+  80:	fec42783          	lw	a5,-20(s0)
+  84:	00078513          	mv	a0,a5
+  88:	01c12083          	lw	ra,28(sp)
+  8c:	01812403          	lw	s0,24(sp)
+  90:	01412903          	lw	s2,20(sp)
+  94:	01012983          	lw	s3,16(sp)
+  98:	02010113          	add	sp,sp,32
+  9c:	00008067          	ret
+  a0:	fd010113          	add	sp,sp,-48
+  a4:	02812623          	sw	s0,44(sp)
+  a8:	03010413          	add	s0,sp,48
+  ac:	fca42e23          	sw	a0,-36(s0)
+  b0:	00100513          	li	a0,1
+  b4:	00000593          	li	a1,0
+  b8:	fea42423          	sw	a0,-24(s0)
+  bc:	feb42623          	sw	a1,-20(s0)
+  c0:	fe042223          	sw	zero,-28(s0)
+  c4:	0980006f          	j	15c <function+0xbc>
+  c8:	40000513          	li	a0,1024
+  cc:	fe442583          	lw	a1,-28(s0)
+  d0:	00b505b3          	add	a1,a0,a1
+  d4:	0005c583          	lbu	a1,0(a1)
+  d8:	00058713          	mv	a4,a1
+  dc:	00000793          	li	a5,0
+  e0:	fec42583          	lw	a1,-20(s0)
+  e4:	02e58533          	mul	a0,a1,a4
   e8:	fe842583          	lw	a1,-24(s0)
-  ec:	02e58833          	mul	a6,a1,a4
-  f0:	02e5b6b3          	mulhu	a3,a1,a4
-  f4:	00080613          	mv	a2,a6
-  f8:	00d505b3          	add	a1,a0,a3
-  fc:	00058693          	mv	a3,a1
- 100:	fec42423          	sw	a2,-24(s0)
- 104:	fed42623          	sw	a3,-20(s0)
- 108:	fec42423          	sw	a2,-24(s0)
- 10c:	fed42623          	sw	a3,-20(s0)
- 110:	fdc42583          	lw	a1,-36(s0)
- 114:	00058313          	mv	t1,a1
- 118:	00000393          	li	t2,0
- 11c:	fe842803          	lw	a6,-24(s0)
- 120:	fec42883          	lw	a7,-20(s0)
- 124:	40680533          	sub	a0,a6,t1
- 128:	00050e13          	mv	t3,a0
- 12c:	01c83e33          	sltu	t3,a6,t3
- 130:	407885b3          	sub	a1,a7,t2
- 134:	41c58833          	sub	a6,a1,t3
- 138:	00080593          	mv	a1,a6
- 13c:	fea42423          	sw	a0,-24(s0)
- 140:	feb42623          	sw	a1,-20(s0)
- 144:	fe442583          	lw	a1,-28(s0)
- 148:	00158593          	add	a1,a1,1
- 14c:	feb42223          	sw	a1,-28(s0)
- 150:	fe442503          	lw	a0,-28(s0)
- 154:	00500593          	li	a1,5
- 158:	f6a5d2e3          	bge	a1,a0,bc <function+0x28>
- 15c:	fe842703          	lw	a4,-24(s0)
- 160:	fec42783          	lw	a5,-20(s0)
- 164:	00070513          	mv	a0,a4
- 168:	00078593          	mv	a1,a5
- 16c:	02c12403          	lw	s0,44(sp)
- 170:	03010113          	add	sp,sp,48
- 174:	00008067          	ret
-
-Disassembly of section .srodata:
-
-00000178 <SECTOR>:
- 178:	ff ee dd cc 	Address 0x178 is out of bounds.
-
- 17c:	bb 
- 17d:	aa    	Address 0x17d is out of bounds.
-
- 181:	 
-
-Disassembly of section .stack:
-
-00000400 <_stack_start-0x300>:
-	...
-
-Disassembly of section .comment:
-
-00000000 <.comment>:
-   0:	3a434347          	.4byte	0x3a434347
-   4:	2820                	.2byte	0x2820
-   6:	29554e47          	.4byte	0x29554e47
-   a:	3120                	.2byte	0x3120
-   c:	2e32                	.2byte	0x2e32
-   e:	2e32                	.2byte	0x2e32
-  10:	0030                	.2byte	0x30
-
-Disassembly of section .riscv.attributes:
-
-00000000 <.riscv.attributes>:
-   0:	3e41                	.2byte	0x3e41
-   2:	0000                	.2byte	0x0
-   4:	7200                	.2byte	0x7200
-   6:	7369                	.2byte	0x7369
-   8:	01007663          	bgeu	zero,a6,14 <main+0x14>
-   c:	0034                	.2byte	0x34
-   e:	0000                	.2byte	0x0
-  10:	1004                	.2byte	0x1004
-  12:	7205                	.2byte	0x7205
-  14:	3376                	.2byte	0x3376
-  16:	6932                	.2byte	0x6932
-  18:	7032                	.2byte	0x7032
-  1a:	5f30                	.2byte	0x5f30
-  1c:	326d                	.2byte	0x326d
-  1e:	3070                	.2byte	0x3070
-  20:	7a5f 6d6d 6c75      	.byte	0x5f, 0x7a, 0x6d, 0x6d, 0x75, 0x6c
-  26:	7031                	.2byte	0x7031
-  28:	5f30                	.2byte	0x5f30
-  2a:	627a                	.2byte	0x627a
-  2c:	3161                	.2byte	0x3161
-  2e:	3070                	.2byte	0x3070
-  30:	7a5f 6262 7031      	.byte	0x5f, 0x7a, 0x62, 0x62, 0x31, 0x70
-  36:	5f30                	.2byte	0x5f30
-  38:	627a                	.2byte	0x627a
-  3a:	30703173          	csrrc	sp,0x307,zero
-	...
+  ec:	02f585b3          	mul	a1,a1,a5
+  f0:	00b50533          	add	a0,a0,a1
+  f4:	fe842583          	lw	a1,-24(s0)
+  f8:	02e58833          	mul	a6,a1,a4
+  fc:	02e5b6b3          	mulhu	a3,a1,a4
+ 100:	00080613          	mv	a2,a6
+ 104:	00d505b3          	add	a1,a0,a3
+ 108:	00058693          	mv	a3,a1
+ 10c:	fec42423          	sw	a2,-24(s0)
+ 110:	fed42623          	sw	a3,-20(s0)
+ 114:	fec42423          	sw	a2,-24(s0)
+ 118:	fed42623          	sw	a3,-20(s0)
+ 11c:	fdc42583          	lw	a1,-36(s0)
+ 120:	00058313          	mv	t1,a1
+ 124:	00000393          	li	t2,0
+ 128:	fe842803          	lw	a6,-24(s0)
+ 12c:	fec42883          	lw	a7,-20(s0)
+ 130:	40680533          	sub	a0,a6,t1
+ 134:	00050e13          	mv	t3,a0
+ 138:	01c83e33          	sltu	t3,a6,t3
+ 13c:	407885b3          	sub	a1,a7,t2
+ 140:	41c58833          	sub	a6,a1,t3
+ 144:	00080593          	mv	a1,a6
+ 148:	fea42423          	sw	a0,-24(s0)
+ 14c:	feb42623          	sw	a1,-20(s0)
+ 150:	fe442583          	lw	a1,-28(s0)
+ 154:	00158593          	add	a1,a1,1
+ 158:	feb42223          	sw	a1,-28(s0)
+ 15c:	fe442503          	lw	a0,-28(s0)
+ 160:	00500593          	li	a1,5
+ 164:	f6a5d2e3          	bge	a1,a0,c8 <function+0x28>
+ 168:	fe842703          	lw	a4,-24(s0)
+ 16c:	fec42783          	lw	a5,-20(s0)
+ 170:	00070513          	mv	a0,a4
+ 174:	00078593          	mv	a1,a5
+ 178:	02c12403          	lw	s0,44(sp)
+ 17c:	03010113          	add	sp,sp,48
+ 180:	00008067          	ret
