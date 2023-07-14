@@ -52,6 +52,11 @@ while [[ $# -gt 0 ]]; do
             start=true
             startup=$2
             echo -e "${CYAN}[INFO] STARTUP: ${startup}${NOC}"
+            
+            # Get the file extension and name
+            startname=$(basename -- "$startup")
+            startextension="${startname##*.}"
+            startname="${startname%.*}"
 
             shift 2
             ;;
@@ -117,19 +122,24 @@ fi
 # Generate object file based on the passed flag
 if [[ $extension == "c" ]]; then 
     # C file
-    if [[ $start == true ]]; then 
-        riscv32-unknown-elf-gcc -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${startup} ${file}
-    else 
-        riscv32-unknown-elf-gcc -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${file}
-    fi 
+    riscv32-unknown-elf-gcc -c -nostdlib -nostartfiles -mabi=ilp32 -march=rv32${riscvext} ${file} -o ${filename}.o
 elif [[ $extension == "s" || $extension == "S" || $extension == "asm" ]]; then
     # Assembly file
-    if [[ $start == true ]]; then 
-        riscv32-unknown-elf-as -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${startup} ${file}
-    else 
-        riscv32-unknown-elf-as -c -nostdlib -nostartfiles -march=rv32${riscvext} -o temp.o ${file}
+    riscv32-unknown-elf-as -c -mabi=ilp32 -march=rv32${riscvext} ${file} -o ${filename}.o
+fi 
+
+
+# Generate object file for the startup file 
+if [[ $start == true ]]; then 
+    if [[ $startextension == "c" ]]; then 
+        # C file
+        riscv32-unknown-elf-gcc -c -nostdlib -nostartfiles -mabi=ilp32 -march=rv32${riscvext} ${startup} -o ${startname}.o
+    elif [[ $startextension == "s" || $startextension == "S" || $startextension == "asm" ]]; then
+        # Assembly file
+        riscv32-unknown-elf-as -c -mabi=ilp32 -march=rv32${riscvext} ${startup} -o ${startname}.o 
     fi 
 fi 
+
 
 echo -e "${GREEN}[STATUS] Generated .o file!${NOC}" 
 
@@ -138,30 +148,46 @@ echo -e "${GREEN}[STATUS] Generated .o file!${NOC}"
 echo -e "${CYAN}[INFO] Generating .elf file by linking the object file...${NOC}"
 
 if [ link ]; then 
-    # Generate Executable and Linkable Format (ELF) file with a linker
-    riscv32-unknown-elf-ld -T ${linker} -o temp.elf temp.o
+    if [[ $start == true ]]; then 
+        # Generate Executable and Linkable Format (ELF) file with a linker and a starter file
+        riscv32-unknown-elf-ld -T ${linker} ${startname}.o ${filename}.o -o out.elf
+    else 
+        # Generate Executable and Linkable Format (ELF) file with a linker
+        riscv32-unknown-elf-ld -T ${linker} ${filename}.o -o out.elf
+    fi 
+
     echo -e "${GREEN}[STATUS] Generated .elf file!${NOC}" 
 else
-    # Generate Executable and Linkable Format (ELF) file without a linker
-    riscv32-unknown-elf-ld -o temp.elf temp.o
+    if [[ $start == true ]]; then 
+        # Generate Executable and Linkable Format (ELF) file without a linker and with a starter file
+        riscv32-unknown-elf-ld ${filename}.o -o out.elf
+    else 
+        # Generate Executable and Linkable Format (ELF) file without a linker
+        riscv32-unknown-elf-ld ${startname}.o ${filename}.o -o out.elf 
+    fi 
+
     echo -e "${GREEN}[STATUS] Generated .elf file!${NOC}" 
 fi 
 
 
 
 # Generate hexadecimal file
-riscv32-unknown-elf-objcopy -O verilog --verilog-data-width=4 temp.elf ${filename}.hex
+riscv32-unknown-elf-objcopy -O verilog --verilog-data-width=4 out.elf ${filename}.hex
 echo -e "${GREEN}[STATUS] Generated .hex file!${NOC}" 
 
 # Generate disassembly 
-riscv32-unknown-elf-objdump -D temp.elf > ${filename}.dasm
+riscv32-unknown-elf-objdump -D out.elf > ${filename}.dasm
 echo -e "${GREEN}[STATUS] Generated .dasm file!${NOC}" 
 
 
 
 # Delete temporary file
-rm temp.elf
-rm temp.o
+rm out.elf
+rm ${filename}.o
+
+if [[ $start == true ]]; then 
+    rm ${startname}.o
+fi 
 
 
 
