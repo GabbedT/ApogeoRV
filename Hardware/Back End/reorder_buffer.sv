@@ -179,10 +179,15 @@ module reorder_buffer (
                 if (write_i) begin
                     /* On writes validate the result */
                     valid_register[entry_i.reg_dest] <= 1'b1;
-                end else if (read_i & (tag_register[entry_o.reg_dest] == read_ptr)) begin
+                end 
+                
+                if (read_i & (tag_register[entry_o.reg_dest] == read_ptr)) begin
                     /* If the instruction that wrote the result in the foward register
-                     * is being pulled from the ROB, invalidate the result */
-                    valid_register[entry_o.reg_dest] <= 1'b0;
+                     * is being pulled from the ROB, invalidate the result, but only 
+                     * if at the same time there's not the same register being written */
+                    if (entry_o.reg_dest != entry_i.reg_dest) begin 
+                        valid_register[entry_o.reg_dest] <= 1'b0;
+                    end 
                 end
             end
         end : register_valid_write_port
@@ -198,14 +203,14 @@ module reorder_buffer (
                 if (foward_src_i[i] != '0) begin
                     if (foward_src_i[i] == entry_i.reg_dest) begin
                         /* Foward data that has passed commit stage */
-                        foward_valid_o[i] = 1'b1;
+                        foward_valid_o[i] = write_i;
                         foward_data_o[i] = entry_i.result;
                     end else if (valid_register[foward_src_i[i]]) begin
                         /* Foward data that has been written inside the buffers */
                         foward_valid_o[i] = 1'b1;
                         foward_data_o[i] = foward_register[i][foward_src_i[i]];
                     end else begin
-                        foward_valid_o[i] = entry_o.reg_dest == foward_src_i[i]; 
+                        foward_valid_o[i] = (entry_o.reg_dest == foward_src_i[i]) & read_i; 
                         foward_data_o[i] = entry_o.result; 
                     end
                 end else begin

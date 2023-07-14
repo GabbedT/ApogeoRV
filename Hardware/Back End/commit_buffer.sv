@@ -187,7 +187,7 @@ module commit_buffer #(
 
     /* Indicates it the result was written back to register file or not */
     logic [31:0] valid_register;
-
+        
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : register_valid_write_port
             if (!rst_n_i) begin
                 valid_register <= '0;
@@ -197,10 +197,15 @@ module commit_buffer #(
                 if (write_i) begin
                     /* On writes validate the result */
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
-                end else if (read_i & (tag_register[ipacket_o.reg_dest] == ipacket_o.rob_tag)) begin
+                end 
+                
+                if (read_i & (tag_register[ipacket_o.reg_dest] == ipacket_o.rob_tag)) begin
                     /* If the instruction that wrote the result in the foward register
-                     * is being pulled from the buffer, invalidate the result */
-                    valid_register[ipacket_o.reg_dest] <= 1'b0;
+                     * is being pulled from the buffer, invalidate the result but only 
+                     * if at the same time there's not the same register being written */
+                    if (ipacket_o.reg_dest != ipacket_i.reg_dest) begin 
+                        valid_register[ipacket_o.reg_dest] <= 1'b0;
+                    end 
                 end
 
                 if (invalidate_i) begin
