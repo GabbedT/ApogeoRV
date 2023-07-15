@@ -55,6 +55,7 @@ module branch_predictor #(
 
     /* Current program counter */
     input data_word_t program_counter_i,
+    input logic stall_i,
 
     /* Branch info */
     input data_word_t instr_address_i,
@@ -80,6 +81,7 @@ module branch_predictor #(
     predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
         .clk_i          ( clk_i           ),   
         .rst_n_i        ( rst_n_i         ),
+        .stall_i        ( stall_i         ),
         .predict_i      ( make_prediction ),
         .executed_i     ( executed_i      ),
         .taken_i        ( taken_i         ),

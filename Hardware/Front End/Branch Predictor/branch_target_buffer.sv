@@ -93,7 +93,7 @@ module branch_target_buffer #(
     end
 
         always_ff @(posedge clk_i) begin : buffer_write_port
-            if ((jump_i | branch_i) & taken_i) begin
+            if ((branch_i & taken_i) | jump_i) begin
                 branch_target_buffer_memory[write_index] <= {1'b1, branch_i, instr_address_i[31:LOWER_BITS + 1], branch_target_addr_i};
             end 
         end : buffer_write_port
@@ -102,30 +102,27 @@ module branch_target_buffer #(
     branch_target_buffer_t buffer_read; 
 
         always_ff @(posedge clk_i) begin : buffer_read_port
-            if (jump_i | branch_i) begin
-                buffer_read <= branch_target_buffer_memory[read_index];
-            end 
+            buffer_read <= branch_target_buffer_memory[read_index];
         end : buffer_read_port
 
 
 //====================================================================================
 //      OUTPUT LOGIC
 //====================================================================================
-
-    data_word_t saved_pc; logic validate;
+    
+    data_word_t saved_pc;
 
         always_ff @(posedge clk_i) begin
             saved_pc <= program_counter_i;
-            validate <= jump_i | branch_i;
         end 
 
 
     /* Predict indirect branches, direct branches do not need prediction */
-    assign predict_o = buffer_read.branch;
+    assign predict_o = buffer_read.branch & hit_o;
 
-    assign jump_o = !buffer_read.branch;
+    assign jump_o = !buffer_read.branch & hit_o;
 
-    assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid & validate; 
+    assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid; 
 
     assign branch_target_addr_o = buffer_read.branch_target_address;
 

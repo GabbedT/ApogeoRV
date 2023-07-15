@@ -68,6 +68,7 @@ module scheduler (
     input logic stall_i,
     input logic flush_i,
     input logic branch_flush_i,
+    input logic mispredicted_i,
     output logic stall_o,
 
     /* Writeback data */
@@ -231,12 +232,12 @@ module scheduler (
             end else if (flush_i) begin
                 generated_tag <= 6'b0;
 
-            end else if (branch_flush_i) begin
-                    if (issued_instructions) begin
-                        generated_tag <= generated_tag - 1'b1;
-                    end
+            end else if (branch_flush_i | mispredicted_i) begin
+                if (issued_instructions) begin
+                    generated_tag <= generated_tag - 1'b1;
+                end
             end else if ((!stall_i & !stall_o) & (exu_valid_i != '0)) begin
-                    generated_tag <= generated_tag + 1'b1;
+                generated_tag <= generated_tag + 1'b1;
             end
         end : tag_counter
 

@@ -50,6 +50,7 @@ module predictor_unit #(
 ) (
     input logic clk_i, 
     input logic rst_n_i,
+    input logic stall_i,
 
     /* Match in BTB, make a prediction */
     input logic predict_i,
@@ -75,10 +76,13 @@ module predictor_unit #(
     /* Control */
     logic push, pull;
 
-    assign push = predict_i;
+    assign push = predict_i & !stall_i;
 
     /* Write and read pointers */
-    logic [$clog2(BUFFER_DEPTH) - 1:0] push_ptr, pull_ptr;
+    logic [$clog2(BUFFER_DEPTH) - 1:0] push_ptr, push_ptr_inc, pull_ptr, pull_ptr_inc;
+
+    assign push_ptr_inc = push_ptr + 1; 
+    assign pull_ptr_inc = pull_ptr + 1; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pointers_register
             if (!rst_n_i) begin
@@ -87,14 +91,29 @@ module predictor_unit #(
             end else begin 
                 /* Increment pointer */
                 if (push) begin
-                    push_ptr <= push_ptr + 1'b1;
+                    push_ptr <= push_ptr_inc;
                 end
 
                 if (pull) begin
-                    pull_ptr <= pull_ptr + 1'b1;
+                    pull_ptr <= pull_ptr_inc;
                 end
             end 
         end : pointers_register
+
+
+    logic fifo_empty; 
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                fifo_empty <= 1'b1;
+            end else begin 
+                case ({push, pull})
+                    2'b01: fifo_empty <= (push_ptr == pull_ptr_inc);
+
+                    2'b10: fifo_empty <= 1'b0;
+                endcase                 
+            end 
+        end 
 
 
 //====================================================================================
@@ -158,16 +177,16 @@ module predictor_unit #(
             if (taken_i) begin
                 branch_status_write = (branch_status_read[0] == '1) ? branch_status_read[0] : (branch_status_read[0] + 1'b1);
             end else begin
-                branch_status_write = (branch_status_read[0] == '1) ? branch_status_read[0] : (branch_status_read[0] - 1'b1);
+                branch_status_write = (branch_status_read[0] == '0) ? branch_status_read[0] : (branch_status_read[0] - 1'b1);
             end 
 
             /* Mispredicted if different */
-            mispredicted_o = (taken_i != fifo_read_data.prediction) & executed_i; 
+            mispredicted_o = (taken_i != fifo_read_data.prediction) & executed_i & !fifo_empty; 
         end
 
     /* Read FIFO and update branch status when it has been executed and 
      * its condition evaluated */
-    assign pull = executed_i; assign write = executed_i;
+    assign pull = executed_i & !fifo_empty; assign write = executed_i;
 
     /* If high bit of the status is set then prediction is taken */
     assign prediction_o = branch_status_read[1][1];

@@ -145,7 +145,7 @@ module front_end #(
                     fetch_o = 1'b1;
 
                     /* If a branch or jump is executed, checks whether the
-                     * operation was predicted (BTB hit) or not */
+                     * operation was predicted or not */
                     if (speculative_i) begin
                         /* Recover PC from misprediction */
                         if (mispredicted) begin 
@@ -153,9 +153,11 @@ module front_end #(
                                 fetch_address_o = branch_target_addr_i;
                             end else begin
                                 if (!stall & !stall_i) begin 
-                                    fetch_address_o = next_program_counter;
+                                    fetch_address_o = instr_address_i + 4; // TODO: ADD COMPRESSED 
                                 end
                             end
+                        end else begin
+                            fetch_address_o = next_program_counter;
                         end
                     end else begin
                         if (taken_i | jump_i) begin 
@@ -199,7 +201,8 @@ module front_end #(
     branch_predictor #(PREDICTOR_SIZE, BTB_SIZE) predictor_unit (
         .clk_i                ( clk_i                 ), 
         .rst_n_i              ( rst_n_i               ),
-        .program_counter_i    ( program_counter       ),
+        .program_counter_i    ( fetch_address_o       ),
+        .stall_i              ( stall | stall_i       ),
         .instr_address_i      ( instr_address_i       ),
         .branch_target_addr_i ( branch_target_addr_i  ), 
         .executed_i           ( executed_i            ),
@@ -212,26 +215,10 @@ module front_end #(
         .hit_o                ( branch_buffer_hit     )
     );
 
-    /* Stage nets */
-    logic pcgen_speculative;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pc_generation_stage_register
-            if (!rst_n_i) begin
-                pcgen_speculative <= 1'b0; 
-            end else if (flush_i) begin
-                pcgen_speculative <= 1'b0; 
-            end else if (!stall & !stall_i) begin
-                pcgen_speculative <= branch_buffer_hit; 
-            end
-        end : pc_generation_stage_register
-
 
 //====================================================================================
 //      INSTRUCTION FETCH STAGE
 //====================================================================================
-
-    // assign fetch_o = (!stall & !stall_i);
-
 
     /* RISCV defines uncompressed instructions with the first two 
      * bits setted */
@@ -247,7 +234,7 @@ module front_end #(
 
 
     /* Stage nets */
-    data_word_t if_stage_instruction, if_stage_program_counter;  logic if_stage_compressed, if_stage_mispredicted, if_stage_valid, if_stage_speculative;
+    data_word_t if_stage_instruction, if_stage_program_counter;  logic if_stage_compressed, if_stage_valid, if_stage_speculative;
     logic if_stage_exception; logic [4:0] if_stage_exception_vector; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fetch_stage_register
@@ -255,7 +242,6 @@ module front_end #(
                 if_stage_instruction <= riscv32::NOP;
                 if_stage_program_counter <= '0;
                 if_stage_compressed <= 1'b0;
-                if_stage_mispredicted <= 1'b0;
                 if_stage_speculative <= 1'b0;
 
                 if_stage_exception_vector <= '0; 
@@ -264,8 +250,7 @@ module front_end #(
                 if_stage_instruction <= compressed ? expanded_instruction : fetch_instruction_i;
                 if_stage_program_counter <= program_counter;
                 if_stage_compressed <= compressed;
-                if_stage_mispredicted <= mispredicted; 
-                if_stage_speculative <= pcgen_speculative;
+                if_stage_speculative <= branch_buffer_hit;
 
                 if_stage_exception_vector <= `INSTR_ILLEGAL; 
                 if_stage_exception <= compressed ? decompressor_exception : 1'b0;
@@ -275,7 +260,7 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 if_stage_valid <= 1'b0;
-            end else if (branch_flush_i) begin
+            end else if (branch_flush_i | mispredicted) begin
                 if_stage_valid <= 1'b0;
             end else if (!stall & !stall_i) begin
                 if_stage_valid <= fetch_valid_i;
@@ -335,7 +320,7 @@ module front_end #(
     /* Stage nets */
     data_word_t dc_stage_program_counter, dc_stage_address_offset; logic [1:0][31:0] dc_stage_immediate; logic [1:0] dc_stage_immediate_valid; 
 
-    logic dc_stage_branch, dc_stage_speculative, dc_stage_jump, dc_stage_fence, dc_stage_compressed, dc_stage_mispredicted, dc_stage_base_address_reg, dc_stage_save_next_pc;
+    logic dc_stage_branch, dc_stage_speculative, dc_stage_jump, dc_stage_fence, dc_stage_compressed, dc_stage_base_address_reg, dc_stage_save_next_pc;
 
     logic [1:0][4:0] dc_stage_reg_source; logic [4:0] dc_stage_reg_destination;
 
@@ -356,7 +341,6 @@ module front_end #(
                 dc_stage_jump <= 1'b0;
                 dc_stage_fence <= 1'b0;
                 dc_stage_compressed <= 1'b0;
-                dc_stage_mispredicted <= 1'b0;
                 dc_stage_speculative <= 1'b0; 
 
                 dc_stage_reg_source <= '0;
@@ -380,7 +364,6 @@ module front_end #(
                 dc_stage_jump <= jump;
                 dc_stage_fence <= fence;
                 dc_stage_compressed <= if_stage_compressed;
-                dc_stage_mispredicted <= if_stage_mispredicted;
                 dc_stage_speculative <= if_stage_speculative;
 
                 dc_stage_reg_source <= reg_source; 
@@ -397,9 +380,9 @@ module front_end #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                dc_stage_exu_valid <= 1'b0;
-            end else if (branch_flush_i) begin
-                dc_stage_exu_valid <= 1'b0;
+                dc_stage_exu_valid <= '0;
+            end else if (branch_flush_i | mispredicted) begin
+                dc_stage_exu_valid <= '0;
             end else if (!stall & !stall_i) begin
                 dc_stage_exu_valid <= if_stage_valid ? exu_valid : '0;
             end
@@ -416,6 +399,7 @@ module front_end #(
         .stall_i        ( stall_i        ),
         .flush_i        ( flush_i        ),
         .branch_flush_i ( branch_flush_i ),
+        .mispredicted_i ( mispredicted   ),
         .stall_o        ( stall          ),
 
         .writeback_i          ( writeback_i          ),
@@ -452,7 +436,7 @@ module front_end #(
         .operand_o         ( operand_o         ) 
     ); 
 
-    assign mispredicted_o = dc_stage_mispredicted;
+    assign mispredicted_o = mispredicted;
 
     assign branch_o = dc_stage_branch;
     assign jump_o = dc_stage_jump;
