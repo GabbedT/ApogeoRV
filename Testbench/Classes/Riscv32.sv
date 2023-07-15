@@ -239,4 +239,88 @@ class Riscv32;
         return {7'b0001000, 5'b00101, 5'b00000, 3'b000, 5'b00000, 5'b11100, 2'b11}; 
     endfunction 
 
+
+//====================================================================================
+//      CSR  
+//====================================================================================
+
+    function logic [31:0] _csrrw(input logic [4:0] rd, input logic [4:0] rs1, input logic [11:0] csr); 
+        return {csr, rs1, 3'b001, rd, 5'b11100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _csrrs(input logic [4:0] rd, input logic [4:0] rs1, input logic [11:0] csr); 
+        return {csr, rs1, 3'b010, rd, 5'b11100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _csrrc(input logic [4:0] rd, input logic [4:0] rs1, input logic [11:0] csr); 
+        return {csr, rs1, 3'b011, rd, 5'b11100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _csrrwi(input logic [4:0] rd, input logic [4:0] uimm, input logic [11:0] csr); 
+        return {csr, uimm, 3'b001, rd, 5'b11100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _csrrsi(input logic [4:0] rd, input logic [4:0] uimm, input logic [11:0] csr); 
+        return {csr, uimm, 3'b010, rd, 5'b11100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _csrrci(input logic [4:0] rd, input logic [4:0] uimm, input logic [11:0] csr); 
+        return {csr, uimm, 3'b011, rd, 5'b11100, 2'b11}; 
+    endfunction
+
+    /* USER CSR */
+    localparam csr_cycle = 12'hC00;
+    localparam csr_time = 12'hC01;
+    localparam csr_instret = 12'hC02;
+    localparam csr_cycleh = 12'hC80;
+    localparam csr_timeh = 12'hC81;
+    localparam csr_instreth = 12'hC82;
+
+    localparam csr_hpmcounter3 = 12'hC03;
+    localparam csr_hpmcounter4 = 12'hC04;
+    localparam csr_hpmcounter5 = 12'hC05;
+    localparam csr_hpmcounter6 = 12'hC06;
+    localparam csr_hpmcounter3h = 12'hC83;
+    localparam csr_hpmcounter4h = 12'hC84;
+    localparam csr_hpmcounter5h = 12'hC85;
+    localparam csr_hpmcounter6h = 12'hC86;
+
+
+    /* MACHINE CSR */
+    localparam csr_mvendorid = 12'hF11; 
+    localparam csr_marchid = 12'hF12; 
+    localparam csr_mimpid = 12'hF13; 
+    localparam csr_mhartid = 12'hF14; 
+    localparam csr_mstatus = 12'h300; 
+    localparam csr_misa = 12'h301; 
+    localparam csr_mie = 12'h304; 
+    localparam csr_mtvec = 12'h305; 
+    localparam csr_mcounteren = 12'h306; 
+    localparam csr_mstatush = 12'h310; 
+    localparam csr_mscratch = 12'h340; 
+    localparam csr_mepc = 12'h341; 
+    localparam csr_mcause = 12'h342; 
+    localparam csr_mip = 12'h344; 
+
+    localparam csr_mcycle = 12'hB00; 
+    localparam csr_minstret = 12'hB02; 
+    localparam csr_mcycleh = 12'hB80; 
+    localparam csr_minstreth = 12'hB82;
+
+    localparam csr_mhpmcounter3 = 12'hB03; 
+    localparam csr_mhpmcounter4 = 12'hB04; 
+    localparam csr_mhpmcounter5 = 12'hB05; 
+    localparam csr_mhpmcounter6 = 12'hB06; 
+    localparam csr_mhpmcounter3h = 12'hB83; 
+    localparam csr_mhpmcounter4h = 12'hB84; 
+    localparam csr_mhpmcounter5h = 12'hB85; 
+    localparam csr_mhpmcounter6h = 12'hB86;  
+ 
+    localparam csr_mcountinhibit = 12'h320;  
+
+    localparam csr_mhpmevent3 = 12'h323;  
+    localparam csr_mhpmevent4 = 12'h324;  
+    localparam csr_mhpmevent5 = 12'h325;  
+    localparam csr_mhpmevent6 = 12'h326;  
+
 endclass : Riscv32
