@@ -74,7 +74,7 @@ module directed_pipeline_test;
 
             `ifdef TRACER 
                 if (dut.apogeo_backend.writeback_o) begin
-                    $display("%0dns , 0x%0h , x%02d , 0x%h", $time / 10, dut.apogeo_backend.trap_iaddress, 
+                    $display("%0dns , 0x%0h , x%02d , 0x%h", $time, dut.apogeo_backend.trap_iaddress, 
                                                            dut.apogeo_backend.reg_destination_o, 
                                                            dut.apogeo_backend.writeback_result_o); 
 
@@ -118,7 +118,7 @@ module memory_agent #(
             memory[i] = '0;
         end
         
-        $readmemh("d_prova.hex", memory);
+        // $readmemh("d_prova.hex", memory);
     end
 
 
@@ -240,7 +240,7 @@ module instruction_agent (
     endfunction : write_program 
 
     function inject_program();
-        $readmemh("i_prova.hex", instructions);
+        $readmemh("i_branch_stress.hex", instructions);
         index = 1024;
     endfunction : inject_program
 
