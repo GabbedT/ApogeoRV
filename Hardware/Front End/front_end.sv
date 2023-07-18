@@ -145,25 +145,46 @@ module front_end #(
                     fetch_o = 1'b1;
 
                     /* If a branch or jump is executed, checks whether the
-                     * operation was predicted or not */
+                     * operation was predicted by the branch predictor or not */
                     if (speculative_i) begin
                         /* Recover PC from misprediction */
                         if (mispredicted) begin 
                             if (taken_i | jump_i) begin
+                                /* Take the BTA from the EXU if a branch is taken or is a jump */
                                 fetch_address_o = branch_target_addr_i;
                             end else begin
-                                if (!stall & !stall_i) begin 
-                                    fetch_address_o = instr_address_i + 4; // TODO: ADD COMPRESSED 
-                                end
+                                /* Recover the next instruction address */
+                                fetch_address_o = instr_address_i + 4; // TODO: ADD COMPRESSED 
                             end
                         end else begin
-                            fetch_address_o = next_program_counter;
+                            /* BTB hit have more priority */
+                            if (branch_buffer_hit) begin
+                                if (predict) begin
+                                    /* Load predicted BTA */
+                                    fetch_address_o = branch_target_address;
+                                end else if (!stall & !stall_i) begin
+                                    /* Increment normally */
+                                    fetch_address_o = next_program_counter;
+                                end
+                            end else if (!stall & !stall_i) begin 
+                                fetch_address_o = next_program_counter;
+                            end
                         end
                     end else begin
                         if (taken_i | jump_i) begin 
+                            /* Take the BTA from the EXU if a branch is taken or is a jump */
                             fetch_address_o = branch_target_addr_i;
                         end else begin
-                            if (!stall & !stall_i) begin 
+                            /* BTB hit have more priority */
+                            if (branch_buffer_hit) begin
+                                if (predict) begin
+                                    /* Load predicted BTA */
+                                    fetch_address_o = branch_target_address;
+                                end else if (!stall & !stall_i) begin
+                                    /* Increment normally */
+                                    fetch_address_o = next_program_counter;
+                                end
+                            end else if (!stall & !stall_i) begin 
                                 fetch_address_o = next_program_counter;
                             end
                         end
@@ -205,7 +226,7 @@ module front_end #(
         .stall_i              ( stall | stall_i       ),
         .instr_address_i      ( instr_address_i       ),
         .branch_target_addr_i ( branch_target_addr_i  ), 
-        .executed_i           ( executed_i            ),
+        .executed_i           ( executed_i & !jump_i  ),
         .taken_i              ( taken_i               ),
         .branch_i             ( branch_i              ),
         .jump_i               ( jump_i                ),
@@ -241,29 +262,38 @@ module front_end #(
             if (!rst_n_i) begin
                 if_stage_instruction <= riscv32::NOP;
                 if_stage_program_counter <= '0;
-                if_stage_compressed <= 1'b0;
-                if_stage_speculative <= 1'b0;
 
                 if_stage_exception_vector <= '0; 
-                if_stage_exception <= 1'b0; 
             end else if (!stall & !stall_i) begin
                 if_stage_instruction <= compressed ? expanded_instruction : fetch_instruction_i;
                 if_stage_program_counter <= program_counter;
-                if_stage_compressed <= compressed;
-                if_stage_speculative <= branch_buffer_hit;
 
                 if_stage_exception_vector <= `INSTR_ILLEGAL; 
-                if_stage_exception <= compressed ? decompressor_exception : 1'b0;
             end 
         end : fetch_stage_register
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 if_stage_valid <= 1'b0;
+                
+                if_stage_compressed <= 1'b0;
+                if_stage_speculative <= 1'b0;
+
+                if_stage_exception <= 1'b0; 
             end else if (branch_flush_i | mispredicted) begin
                 if_stage_valid <= 1'b0;
+                
+                if_stage_compressed <= 1'b0;
+                if_stage_speculative <= 1'b0;
+
+                if_stage_exception <= 1'b0; 
             end else if (!stall & !stall_i) begin
                 if_stage_valid <= fetch_valid_i;
+
+                if_stage_compressed <= compressed;
+                if_stage_speculative <= branch_buffer_hit;
+
+                if_stage_exception <= compressed ? decompressor_exception : 1'b0;
             end
         end 
 
@@ -335,20 +365,13 @@ module front_end #(
 
                 dc_stage_base_address_reg <= 1'b0;
                 dc_stage_address_offset <= '0;
-                dc_stage_save_next_pc <= 1'b0;
-
-                dc_stage_branch <= 1'b0;
-                dc_stage_jump <= 1'b0;
-                dc_stage_fence <= 1'b0;
-                dc_stage_compressed <= 1'b0;
-                dc_stage_speculative <= 1'b0; 
+                dc_stage_save_next_pc <= 1'b0; 
 
                 dc_stage_reg_source <= '0;
                 dc_stage_reg_destination <= '0; 
 
                 dc_stage_exu_operation <= '0; 
 
-                dc_stage_exception <= 1'b0;
                 dc_stage_exception_vector <= '0;
 
                 dc_stage_program_counter <= '0;
@@ -360,18 +383,11 @@ module front_end #(
                 dc_stage_address_offset <= address_offset;
                 dc_stage_save_next_pc <= save_next_pc;
 
-                dc_stage_branch <= branch;
-                dc_stage_jump <= jump;
-                dc_stage_fence <= fence;
-                dc_stage_compressed <= if_stage_compressed;
-                dc_stage_speculative <= if_stage_speculative;
-
                 dc_stage_reg_source <= reg_source; 
                 dc_stage_reg_destination <= reg_destination;
 
                 dc_stage_exu_operation <= exu_operation;
 
-                dc_stage_exception <= if_stage_exception | decoder_exception;
                 dc_stage_exception_vector <= if_stage_exception ? if_stage_exception_vector : decoder_exception_vector;
 
                 dc_stage_program_counter <= if_stage_program_counter;
@@ -381,10 +397,34 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 dc_stage_exu_valid <= '0;
+
+                dc_stage_branch <= 1'b0;
+                dc_stage_jump <= 1'b0;
+                dc_stage_fence <= 1'b0;
+                dc_stage_compressed <= 1'b0;
+                dc_stage_speculative <= 1'b0;
+
+                dc_stage_exception <= 1'b0;
             end else if (branch_flush_i | mispredicted) begin
                 dc_stage_exu_valid <= '0;
+
+                dc_stage_branch <= 1'b0;
+                dc_stage_jump <= 1'b0;
+                dc_stage_fence <= 1'b0;
+                dc_stage_compressed <= 1'b0;
+                dc_stage_speculative <= 1'b0;
+
+                dc_stage_exception <= 1'b0;
             end else if (!stall & !stall_i) begin
                 dc_stage_exu_valid <= if_stage_valid ? exu_valid : '0;
+
+                dc_stage_branch <= branch & if_stage_valid;
+                dc_stage_jump <= jump & if_stage_valid;
+                dc_stage_fence <= fence & if_stage_valid;
+                dc_stage_compressed <= if_stage_compressed & if_stage_valid;
+                dc_stage_speculative <= if_stage_speculative & if_stage_valid;
+
+                dc_stage_exception <= (if_stage_exception | decoder_exception) & if_stage_valid;
             end
         end
 

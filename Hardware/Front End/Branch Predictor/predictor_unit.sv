@@ -71,7 +71,7 @@ module predictor_unit #(
 //      FIFO LOGIC
 //====================================================================================
 
-    localparam BUFFER_DEPTH = 4;
+    localparam BUFFER_DEPTH = 8;
 
     /* Control */
     logic push, pull;
@@ -87,7 +87,10 @@ module predictor_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pointers_register
             if (!rst_n_i) begin
                 pull_ptr <= '0;
-                push_ptr <= '0; 
+                push_ptr <= '0;
+            end else if (mispredicted_o) begin
+                pull_ptr <= '0;
+                push_ptr <= '0;
             end else begin 
                 /* Increment pointer */
                 if (push) begin
@@ -105,6 +108,8 @@ module predictor_unit #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
+                fifo_empty <= 1'b1;
+            end else if (mispredicted_o) begin
                 fifo_empty <= 1'b1;
             end else begin 
                 case ({push, pull})

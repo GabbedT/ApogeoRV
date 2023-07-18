@@ -97,22 +97,22 @@ module pipeline #(
         .ldu_idle_i ( ldu_idle ),
         .stu_idle_i ( stu_idle ),
 
-        .branch_o             ( frontend_branch                ),
-        .jump_o               ( frontend_jump                  ),
-        .mispredicted_o       ( frontend_mispredicted          ),
-        .speculative_o        ( frontend_speculative           ),
+        .branch_o             ( frontend_branch       ),
+        .jump_o               ( frontend_jump         ),
+        .mispredicted_o       ( frontend_mispredicted ),
+        .speculative_o        ( frontend_speculative  ),
 
         .save_next_pc_o     ( frontend_save_next_pc     ),
         .base_address_reg_o ( frontend_base_address_reg ),
         .address_offset_o   ( frontend_address_offset   ),
 
-        .operand_o            ( frontend_operand               ),
-        .immediate_valid_o    ( frontend_immediate_valid       ),
-        .register_source_o    ( frontend_register_source       ),
+        .operand_o            ( frontend_operand         ),
+        .immediate_valid_o    ( frontend_immediate_valid ),
+        .register_source_o    ( frontend_register_source ),
 
-        .ipacket_o            ( frontend_ipacket               ),
-        .exu_valid_o          ( frontend_valid_operation       ),
-        .exu_uop_o            ( frontend_operation             )
+        .ipacket_o            ( frontend_ipacket         ),
+        .exu_valid_o          ( frontend_valid_operation ),
+        .exu_uop_o            ( frontend_operation       )
     );
 
 

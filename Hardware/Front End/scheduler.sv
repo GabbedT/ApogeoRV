@@ -196,7 +196,7 @@ module scheduler (
                     if (immediate_valid_i[i]) begin
                         operand_o[i] = immediate_i[i];
                     end else begin
-                        if (src_reg_i[i] == writeback_register_i) begin
+                        if ((src_reg_i[i] == writeback_register_i) & writeback_i) begin
                             operand_o[i] = writeback_data_i;
                         end else begin
                             operand_o[i] = register_data[i];
