@@ -216,6 +216,138 @@ class Riscv32;
 
 
 //====================================================================================
+//      LOGIC  
+//====================================================================================
+
+    function logic [31:0] _andn(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0100000, rs2, rs1, 3'b111, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _orn(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0100000, rs2, rs1, 3'b110, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _xnor(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0100000, rs2, rs1, 3'b100, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+
+//====================================================================================
+//      BIT MANIPULATION  
+//====================================================================================
+
+    function logic [31:0] _bclr(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0100100, rs2, rs1, 3'b001, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _bclri(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] shamt);
+        return {7'b0100100, shamt, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _bext(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0100100, rs2, rs1, 3'b101, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _bexti(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] shamt);
+        return {7'b0100100, shamt, rs1, 3'b101, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _binv(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0110100, rs2, rs1, 3'b001, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _binvi(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] shamt);
+        return {7'b0110100, shamt, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _bset(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010100, rs2, rs1, 3'b001, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _bseti(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] shamt);
+        return {7'b0010100, shamt, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _sextb(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0110000, 5'b00100, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _sexth(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0110000, 5'b00101, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _zexth(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0000100, 5'b00000, rs1, 3'b100, rd, 5'b01100, 2'b11}; 
+    endfunction
+
+
+//====================================================================================
+//      BIT MISCELLANEOUS  
+//====================================================================================
+
+    function logic [31:0] _clz(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0110000, 5'b00000, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _ctz(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0110000, 5'b00001, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _cpop(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0110000, 5'b00010, rs1, 3'b001, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _max(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0000101, rs2, rs1, 3'b110, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _maxu(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0000101, rs2, rs1, 3'b111, rd, 5'b01100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _min(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0000101, rs2, rs1, 3'b100, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _minu(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0000101, rs2, rs1, 3'b101, rd, 5'b01100, 2'b11}; 
+    endfunction
+
+    function logic [31:0] _orcb(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0010100, 5'b00111, rs1, 3'b101, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _rev8(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b0110100, 5'b11000, rs1, 3'b101, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _rol(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0110000, rs2, rs1, 3'b001, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _ror(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0110000, rs2, rs1, 3'b101, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _rori(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0110000, rs2, rs1, 3'b101, rd, 5'b00100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _sh1add(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010000, rs2, rs1, 3'b010, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _sh2add(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010000, rs2, rs1, 3'b100, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+    function logic [31:0] _sh3add(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010000, rs2, rs1, 3'b110, rd, 5'b01100, 2'b11}; 
+    endfunction 
+
+
+
+//====================================================================================
 //      SYSTEM 
 //====================================================================================
 
