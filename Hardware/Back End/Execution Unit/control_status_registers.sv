@@ -247,23 +247,23 @@ module control_status_registers (
 //====================================================================================
 
     mstatus_csr_t mstatus_csr;
-    logic [1:0]   privilege_level;
+    logic privilege_level;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                privilege_level <= MACHINE;
+                privilege_level <= 1'b1;
             end else if (interrupt_request_i | exception_i) begin
                 /* If an exception occours, it will be handled by 
                  * machine level code */
-                privilege_level <= MACHINE;
+                privilege_level <= 1'b1;
             end else if (machine_return_instr_i) begin
                 /* After a return instruction, restore previous
                  * privilege level */
-                privilege_level <= mstatus_csr.MPP;
+                privilege_level <= mstatus_csr.MPP[0];
             end
         end 
 
-    assign current_privilege_o = privilege_level[1];
+    assign current_privilege_o = privilege_level;
 
 
         /* MIE is a global interrupt enable bits for machine mode interrupt.
@@ -617,7 +617,7 @@ module control_status_registers (
                         /* Most significant nibble: 0xF */
                         MACHINE: begin
                             /* Current privilege is USER */
-                            illegal_instruction = privilege_level[1] & csr_read_access_i;
+                            illegal_instruction = !privilege_level & csr_read_access_i;
 
                             if ((csr_address_i.index[7:5] == '0) & (csr_address_i.index[4:3] == 2'b10)) begin
                                 case (csr_address_i.index[2:0])
@@ -702,7 +702,7 @@ module control_status_registers (
                         /* Most significant nibble: 0x3 */
                         MACHINE: begin
                             /* Current privilege is USER */
-                            illegal_instruction = privilege_level[1];
+                            illegal_instruction = !privilege_level;
                             
                             if (csr_address_i[7:3] == '0) begin
                                 case (csr_address_i.index[2:0])
@@ -800,7 +800,7 @@ module control_status_registers (
                         /* Most significant nibble: 0xB */
                         MACHINE: begin
                             /* Current privilege is USER */
-                            illegal_instruction = privilege_level[1];
+                            illegal_instruction = !privilege_level;
                             
                             if (csr_address_i.index[7:3] == '0) begin
                                 case (csr_address_i.index[2:0])
