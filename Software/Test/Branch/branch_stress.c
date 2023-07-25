@@ -10,7 +10,6 @@ int main(void) {
     for (uint32_t i = 0; i < 10; ++i) {
         for (uint32_t j = 0; j < 27; ++j) {
             tot += function(j); 
-            // printf("FUNCTION: %d | %x\n", tot, tot);
         }
     }
 
@@ -23,10 +22,8 @@ int main(void) {
 
     for (uint32_t i = 0; i < 10; i++) {
         arrayTot += processArray(array);
-        // printf("PROCESS ARRAY: %d | %x\n", arrayTot, arrayTot);
     }
     
-    printf("%d | %x\n", arrayTot + tot, arrayTot + tot);
     return arrayTot + tot; 
 }
 
@@ -65,15 +62,11 @@ uint32_t processArray(uint32_t array[]) {
     uint32_t sum = 0;
 
     for (uint32_t i = 0; i < 10; i++) {
-        printf("PROCESS ARRAY: %x + %x = ", sum, array[i]);
-
         if (array[i] >= 0) {
             sum += array[i];
         } else {
             sum -= array[i];
         }
-
-        printf("%x\n", sum);
     }
     
     return sum; 

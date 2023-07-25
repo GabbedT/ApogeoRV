@@ -178,7 +178,7 @@ module instruction_agent (
         ++index;
     endfunction : write_instruction 
 
-    function write_program(); 
+    function riscv_I_program(); 
         index = 0;
 
         write_instruction(rv32._lui(1, 1));
@@ -237,7 +237,65 @@ module instruction_agent (
         write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
         write_instruction(rv32._ori(5, 0, -1));  // X5 = '1
         write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1 
-    endfunction : write_program 
+    endfunction : riscv_I_program 
+
+
+    function riscv_B_program();
+        write_instruction(rv32._lui(1, $random()));
+        write_instruction(rv32._lui(2, $random()));
+
+        write_instruction(rv32._andn(3, 1, 2));
+        write_instruction(rv32._orn(4, 3, 2));
+        write_instruction(rv32._xnor(5, 5, 3));
+
+        write_instruction(rv32._bclr(5, 1, 3));
+        write_instruction(rv32._bext(6, 3, 3));
+        write_instruction(rv32._binv(7, 5, 3));
+        write_instruction(rv32._bset(8, 6, 2));
+
+        write_instruction(rv32._bclri(5, 1, $random()));
+        write_instruction(rv32._bexti(6, 3, $random()));
+        write_instruction(rv32._binvi(7, 5, $random()));
+        write_instruction(rv32._bseti(8, 6, $random()));
+
+        write_instruction(rv32._sextb(11, 5));
+        write_instruction(rv32._sexth(12, 6));
+        write_instruction(rv32._zexth(13, 8));
+
+        write_instruction(rv32._clz(14, 1));
+        write_instruction(rv32._ctz(15, 2));
+        write_instruction(rv32._cpop(16, 2));
+
+        write_instruction(rv32._max(17, 2, 5));
+        write_instruction(rv32._maxu(18, 5, 6));
+        write_instruction(rv32._min(19, 2, 8));
+        write_instruction(rv32._minu(20, 3, 5));
+        
+        write_instruction(rv32._orcb(21, 12));
+        write_instruction(rv32._rev8(22, 21));
+
+        write_instruction(rv32._rol(23, 2, 5));
+        write_instruction(rv32._ror(24, 5, 6));
+        write_instruction(rv32._rori(25, 2, $random()));
+
+        write_instruction(rv32._sh1add(25, 5, 12));
+        write_instruction(rv32._sh2add(25, 7, 15));
+        write_instruction(rv32._sh3add(25, 9, 8));
+
+        write_instruction(rv32._ecall());
+    endfunction : riscv_B_program
+
+
+    function riscv_CSR_program();
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_misa));
+        write_instruction(rv32._addi(2, 0, -1));
+        write_instruction(rv32._csrrw(1, 2, rv32.csr_mie));
+        write_instruction(rv32._csrrc(1, 2, rv32.csr_mie));
+        write_instruction(rv32._csrrs(1, 2, rv32.csr_mie));
+
+        write_instruction(rv32._ecall());
+    endfunction : riscv_CSR_program
+
 
     function inject_program();
         $readmemh("i_branch_stress.hex", instructions);
@@ -251,7 +309,7 @@ module instruction_agent (
             instructions[i] = 32'h00000013;
         end
 
-        inject_program();
+        riscv_CSR_program();
         
     end
 
