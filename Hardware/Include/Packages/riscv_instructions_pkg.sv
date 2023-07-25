@@ -248,6 +248,9 @@ package riscv32;
         B_type_t B;
         U_type_t U;
         J_type_t J;
+
+        /* Used for simulation clarity */
+        logic [31:0] full;
     } instruction_t; 
 
 
