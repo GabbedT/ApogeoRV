@@ -109,6 +109,7 @@ module back_end #(
     /* Interrupt logic */
     input logic interrupt_i,
     input logic [7:0] interrupt_vector_i,
+    output logic timer_interrupt_o,
     
     /* Set the program counter to the 
      * trap handler address */
@@ -239,7 +240,7 @@ module back_end #(
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr;
-    logic wait_handling, handler_return, execute_store;
+    logic wait_handling, handler_return, execute_store, timer_interrupt;
 
     execution_unit #(STORE_BUFFER_SIZE) execute_stage (
         .clk_i      ( clk_i          ),
@@ -268,6 +269,7 @@ module back_end #(
         .exception_vector_i     ( exception_vector    ),
         .interrupt_vector_i     ( interrupt_vector_i  ),
         .interrupt_request_i    ( interrupt_i         ),
+        .timer_interrupt_o      ( timer_interrupt     ),
         .exception_i            ( exception_generated ),
         .handler_pc_o           ( handler_pc_o        ),
         .glb_interrupt_enable_o ( interrupt_enable_o  ),
@@ -438,9 +440,9 @@ module back_end #(
         .trap_o    ( trap_o         ),
         .int_ack_o ( int_ack_o      ),
 
-        .interrupt_i  ( interrupt_i         ),
-        .exception_i  ( exception_generated ),
-        .core_sleep_i ( core_sleep          )
+        .interrupt_i  ( interrupt_i | timer_interrupt ),
+        .exception_i  ( exception_generated           ),
+        .core_sleep_i ( core_sleep                    )
     ); 
 
     /* Flush when an interrupt or an exception is detected, also flush when the branch 

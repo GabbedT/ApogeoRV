@@ -107,6 +107,7 @@ module execution_unit #(
     /* Interrupt and exception signals */
     input logic interrupt_request_i,
     input logic exception_i,
+    output logic timer_interrupt_o,
 
     /* Address to load the PC in case of trap */
     output data_word_t handler_pc_o,
@@ -192,6 +193,7 @@ module execution_unit #(
         .data_valid_o      ( data_valid_o[LSU]       )
     );
 
+    assign timer_interrupt_o = timer_interrupt; 
 
 //====================================================================================
 //      CONTROL AND STATUS REGISTERS 

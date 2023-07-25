@@ -35,9 +35,9 @@ module pipeline #(
     store_interface.master store_channel
 );
 
-    logic interrupt_enable, interrupt; 
+    logic interrupt_enable, interrupt, timer_interrupt; 
 
-    assign interrupt = interrupt_i & interrupt_enable;
+    assign interrupt = (interrupt_i | timer_interrupt) & interrupt_enable;
 
 
 //====================================================================================
@@ -225,6 +225,7 @@ module pipeline #(
 
         .interrupt_i        ( interrupt               ),
         .interrupt_vector_i ( interrupt_vector_i      ),
+        .timer_interrupt_o  ( timer_interrupt         ),
         .interrupt_enable_o ( interrupt_enable        ),
         .int_ack_o          ( interrupt_acknowledge_o ),
         .trap_o             ( exception               ),
