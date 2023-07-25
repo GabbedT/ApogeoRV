@@ -120,7 +120,7 @@ module front_end #(
 
     logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, fetch;
 
-        /* The above code is implementing the logic for determining the next program counter address   
+        /* The code is implementing the logic for determining the next program counter address   
          * to fetch instructions from in a processor. It takes into account various factors such as    
          * exceptions, interrupts, branch predictions, and branch buffer hits to determine the correct 
          * address to fetch from.                                                                      
