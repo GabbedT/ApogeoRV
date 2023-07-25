@@ -85,7 +85,7 @@ module writeback_stage (
 
         always_comb begin 
             if (rob_valid_i) begin
-                $display("[WRITEBACK][0x%h] Destination: x%0d, Result: %0d\n", rob_entry_i.instr_addr, rob_entry_i.reg_dest, rob_entry_i.result);
+                $display("[WRITEBACK][0x%h] Destination: x%0d, Result: %0d | 0x%h\n", rob_entry_i.instr_addr, rob_entry_i.reg_dest, rob_entry_i.result, rob_entry_i.result);
             end
         end
 
