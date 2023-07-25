@@ -848,6 +848,8 @@ module integer_decoder (
                         end
 
                         reg_src_o[1] = instr_i.I.reg_src_1;
+                        immediate_o[2] = instr_i.I.immediate;
+                        immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         `ifdef TEST_DESIGN operation_string = "CSRRW"; `endif 
@@ -861,6 +863,8 @@ module integer_decoder (
                         end
 
                         reg_src_o[1] = instr_i.I.reg_src_1;
+                        immediate_o[2] = instr_i.I.immediate;
+                        immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;  
 
                         `ifdef TEST_DESIGN operation_string = "CSRRS"; `endif
@@ -875,6 +879,8 @@ module integer_decoder (
 
                         /* Operations with 0 as operand shall not write any CSR */
                         reg_src_o[1] = instr_i.I.reg_src_1; 
+                        immediate_o[2] = instr_i.I.immediate;
+                        immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         `ifdef TEST_DESIGN operation_string = "CSRRC"; `endif 
@@ -889,6 +895,8 @@ module integer_decoder (
 
                         immediate_o[1] = instr_i.I.reg_src_1;
                         immediate_valid_o[1] = 1'b1;
+                        immediate_o[2] = instr_i.I.immediate;
+                        immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;
 
                         `ifdef TEST_DESIGN operation_string = "CSRRWI"; `endif  
@@ -903,6 +911,8 @@ module integer_decoder (
 
                         immediate_o[1] = instr_i.I.reg_src_1; 
                         immediate_valid_o[1] = 1'b1;
+                        immediate_o[2] = instr_i.I.immediate;
+                        immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
                         `ifdef TEST_DESIGN operation_string = "CSRRSI"; `endif 
@@ -916,8 +926,10 @@ module integer_decoder (
                         end
 
                         /* Operations with 0 as operand shall not write any CSR */
-                        immediate_o[1] = (instr_i.I.reg_src_1 == riscv32::X0) ? '1 : instr_i.I.reg_src_1; 
+                        immediate_o[1] = instr_i.I.reg_src_1; 
                         immediate_valid_o[1] = 1'b1;
+                        immediate_o[2] = instr_i.I.immediate;
+                        immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;
 
                         `ifdef TEST_DESIGN operation_string = "CSRRCI"; `endif  
