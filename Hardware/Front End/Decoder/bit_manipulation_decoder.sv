@@ -71,7 +71,7 @@ module bit_manipulation_decoder (
     bmu_uop_t unit_uop; logic unit_valid;
 
     function void print(input string operation);
-        $display("Decoded %s instruction!", operation);
+        $display("[DECODER] 0x%h decoded into %s instruction! SRC1: x%0d, SRC2: x%0d, DEST: x%0d\n", instr_i, operation, reg_src_o[1], reg_src_o[2], reg_dest_o);
     endfunction : print
 
     function void build_packet(input bmu_operation_t operation, input bmu_op_type_t optype);
@@ -342,7 +342,7 @@ module bit_manipulation_decoder (
                         reg_src_o[2] = instr_i.R.reg_src_2;
                         reg_dest_o = instr_i.R.reg_dest;
 
-                        exception_generated = (instr_i.R.funct7 != 0010000);
+                        exception_generated = (instr_i.R.funct7 != 7'b0010000);
 
                         `ifdef TEST_DESIGN if (!exception_generated) print("SH1ADD"); `endif 
                     end
