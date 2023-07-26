@@ -287,13 +287,54 @@ module instruction_agent (
 
 
     function riscv_CSR_program();
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_cycle));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_cycleh));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_instret));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_instreth));
+
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mcycle));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mcycleh));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_minstret));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_minstreth));
+
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter3));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter3h));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter4));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter4h));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter5));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter5h));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter6));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_hpmcounter6h));
+
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter3));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter3h));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter4));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter4h));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter5));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter5h));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter6));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmcounter6h));
+
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mvendorid));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_marchid));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mimpid));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhartid));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mstatus));
         write_instruction(rv32._csrrs(1, 0, rv32.csr_misa));
-        write_instruction(rv32._addi(2, 0, -1));
-        write_instruction(rv32._csrrw(1, 2, rv32.csr_mie));
-        write_instruction(rv32._csrrc(1, 2, rv32.csr_mie));
-        write_instruction(rv32._csrrs(1, 2, rv32.csr_mie));
-        write_instruction(rv32._csrrw(1, 2, rv32.csr_mie));
         write_instruction(rv32._csrrs(1, 0, rv32.csr_mie));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mtvec));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mcounteren));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mscratch));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mepc));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mcause));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mip));
+
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mcountinhibit));
+
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmevent3));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmevent4));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmevent5));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mhpmevent6));
 
         write_instruction(rv32._ecall());
     endfunction : riscv_CSR_program
@@ -311,7 +352,7 @@ module instruction_agent (
             instructions[i] = 32'h00000013;
         end
 
-        inject_program();
+        riscv_CSR_program();
     end
 
     always_ff @(posedge clk_i) begin
