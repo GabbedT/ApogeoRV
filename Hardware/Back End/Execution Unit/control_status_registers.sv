@@ -105,92 +105,34 @@ module control_status_registers (
     output logic current_privilege_o
 );
 
-
 //====================================================================================
-//      FIFO LOGIC
-//====================================================================================
-
-    logic csr_read_access; 
-
-    /* Write and read pointers */
-    logic [2:0] push_ptr, inc_push_ptr, pull_ptr, inc_pull_ptr;
-
-    assign inc_push_ptr = push_ptr + 1'b1;
-    assign inc_pull_ptr = pull_ptr + 1'b1;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fifo_pointers_register
-            if (!rst_n_i) begin
-                pull_ptr <= '0;
-                push_ptr <= '0; 
-            end else if (flush_i) begin
-                /* Push pointer is setted to the last 
-                 * validated value */ 
-                push_ptr <= '0;
-                pull_ptr <= '0;
-            end else begin 
-                /* Increment pointer */
-                if (csr_write_access_i) begin
-                    push_ptr <= inc_push_ptr;
-                end
-
-                if (csr_read_access) begin
-                    pull_ptr <= inc_pull_ptr;
-                end
-            end 
-        end : fifo_pointers_register
-
-
-    logic buffer_full, buffer_empty; 
-
-    /* FIFO access mode */
-    localparam logic [1:0] PULL_OPERATION = 2'b01;
-    localparam logic [1:0] PUSH_OPERATION = 2'b10;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fifo_status_register
-            if (!rst_n_i) begin 
-                buffer_full <= 1'b0;
-                buffer_empty <= 1'b1;
-            end else if (flush_i) begin 
-                buffer_full <= 1'b0;
-                buffer_empty <= 1'b1;
-            end else begin 
-                case ({csr_write_access_i, csr_read_access})
-                    PULL_OPERATION: begin
-                        buffer_empty <= (push_ptr == inc_pull_ptr);
-                        buffer_full <= 1'b0;
-                    end
-
-                    PUSH_OPERATION: begin
-                        buffer_empty <= 1'b0;
-                        buffer_full <= (pull_ptr == inc_push_ptr);
-                    end
-                endcase 
-            end
-        end : fifo_status_register
-
-    assign csr_read_access = !buffer_empty & csr_write_validate_i; 
-
-    assign buffer_full_o = buffer_full;
-
-
-//====================================================================================
-//      FIFO BUFFER
+//      UNIT STATUS
 //====================================================================================
 
     csr_enable_t csr_enable, csr_enable_out;
     data_word_t csr_data_out; 
 
-    logic [$bits(csr_enable_t) + $bits(csr_data_out) - 1:0] csr_write_buffer [7:0]; 
+    logic [$bits(csr_enable_t) + $bits(data_word_t) - 1:0] csr_write_buffer; 
 
         always_ff @(posedge clk_i) begin : write_data_port
             if (csr_write_access_i) begin
                 /* Push data */
-                csr_write_buffer[push_ptr] <= {csr_enable, csr_data_write_i};
+                csr_write_buffer <= {csr_enable, csr_data_write_i};
             end
         end : write_data_port
 
+    assign {csr_enable_out, csr_data_out} = csr_write_buffer;
 
-    assign {csr_enable_out, csr_data_out} = csr_write_buffer[pull_ptr];
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : unit_status_register
+            if (!rst_n_i) begin
+                buffer_full_o <= 1'b0;
+            end else if (csr_write_access_i) begin
+                buffer_full_o <= 1'b1;
+            end else if (csr_write_validate_i | flush_i) begin
+                buffer_full_o <= 1'b0;
+            end
+        end : unit_status_register
 
 
 //====================================================================================
@@ -206,12 +148,12 @@ module control_status_registers (
                 `endif 
 
                 M_extension <= 1'b1;
-            end else if (csr_enable_out.misa & csr_read_access) begin 
+            end else if (csr_enable_out.misa & csr_write_validate_i) begin 
                 `ifdef BMU 
-                    B_extension <= csr_data_write_i[1];
+                    B_extension <= csr_data_out[1];
                 `endif 
 
-                M_extension <= csr_data_write_i[12];
+                M_extension <= csr_data_out[12];
             end
         end 
 
@@ -292,9 +234,9 @@ module control_status_registers (
                 /* Restore privilege status */
                 mstatus_csr.MPIE <= 1'b1;
                 mstatus_csr.MPP <= USER;
-            end else if (csr_enable_out.mstatus & csr_read_access) begin 
+            end else if (csr_enable_out.mstatus & csr_write_validate_i) begin 
                 /* Write CSR */
-                mstatus_csr.MIE <= csr_data_write_i[3];
+                mstatus_csr.MIE <= csr_data_out[3];
             end
         end : mstatus_register
 
@@ -323,8 +265,8 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mtvec_csr <= '0;
-            end else if (csr_enable_out.mtvec & csr_read_access) begin 
-                mtvec_csr <= csr_data_write_i;
+            end else if (csr_enable_out.mtvec & csr_write_validate_i) begin 
+                mtvec_csr <= csr_data_out;
             end
         end
 
@@ -367,9 +309,9 @@ module control_status_registers (
             if (!rst_n_i) begin 
                 mie_csr.MEIE <= 1'b1; 
                 mie_csr.MTIE <= 1'b1; 
-            end else if (csr_enable_out.mie & csr_read_access) begin 
-                mie_csr.MEIE <= csr_data_write_i[11]; 
-                mie_csr.MTIE <= csr_data_write_i[7]; 
+            end else if (csr_enable_out.mie & csr_write_validate_i) begin 
+                mie_csr.MEIE <= csr_data_out[11]; 
+                mie_csr.MTIE <= csr_data_out[7]; 
             end
         end
 
@@ -413,8 +355,8 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mcounthinibit_register
             if (!rst_n_i) begin 
                 mcountinhibit_csr <= 5'b0;
-            end else if (csr_enable_out.mcountinhibit & csr_read_access) begin 
-                mcountinhibit_csr <= {csr_data_write_i[6:2], csr_data_write_i[0]};
+            end else if (csr_enable_out.mcountinhibit & csr_write_validate_i) begin 
+                mcountinhibit_csr <= {csr_data_out[6:2], csr_data_out[0]};
             end
         end : mcounthinibit_register
 
@@ -428,8 +370,8 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mcounteren_register
             if (!rst_n_i) begin 
                 mcounteren_csr <= 5'b0;
-            end else if (csr_enable_out.mcountinhibit & csr_read_access) begin 
-                mcounteren_csr <= {csr_data_write_i[6:2], csr_data_write_i[0]};
+            end else if (csr_enable_out.mcountinhibit & csr_write_validate_i) begin 
+                mcounteren_csr <= {csr_data_out[6:2], csr_data_out[0]};
             end
         end : mcounteren_register
 
@@ -468,8 +410,8 @@ module control_status_registers (
                 end
             end else begin 
                 for (int i = 0; i < 4; ++i) begin
-                    if (csr_enable_out.mhpmevent[i] & csr_read_access) begin
-                        mhpmevent_csr[i] <= csr_data_write_i[2:0];
+                    if (csr_enable_out.mhpmevent[i] & csr_write_validate_i) begin
+                        mhpmevent_csr[i] <= csr_data_out[2:0];
                     end
                 end
             end
@@ -513,12 +455,12 @@ module control_status_registers (
                 end
             end else begin 
                 for (int i = 0; i < 4; ++i) begin
-                    if (csr_read_access & csr_enable_out.mhpmcounter[0][i]) begin
+                    if (csr_write_validate_i & csr_enable_out.mhpmcounter[0][i]) begin
                         /* Write low bits */
-                        mhpmcounter_csr[i][31:0] <= csr_data_write_i;
-                    end else if (csr_read_access & csr_enable_out.mhpmcounter[1][i]) begin
+                        mhpmcounter_csr[i][31:0] <= csr_data_out;
+                    end else if (csr_write_validate_i & csr_enable_out.mhpmcounter[1][i]) begin
                         /* Write high bits */
-                        mhpmcounter_csr[i][63:32] <= csr_data_write_i;
+                        mhpmcounter_csr[i][63:32] <= csr_data_out;
                     end else if (event_trigger[i] & !mcountinhibit_csr[i + 2]) begin
                         /* Increment on event */
                         mhpmcounter_csr[i] <= mhpmcounter_csr[i] + 1'b1;
@@ -543,8 +485,8 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mscratch_csr <= '0;
-            end else if (csr_enable_out.mscratch & csr_read_access) begin 
-                mscratch_csr <= csr_data_write_i;
+            end else if (csr_enable_out.mscratch & csr_write_validate_i) begin 
+                mscratch_csr <= csr_data_out;
             end
         end
 
@@ -617,7 +559,7 @@ module control_status_registers (
                         /* Most significant nibble: 0xF */
                         MACHINE: begin
                             /* Current privilege is USER */
-                            illegal_instruction = !privilege_level & csr_read_access_i;
+                            illegal_instruction = !privilege_level;
 
                             if ((csr_address_i.index[7:5] == '0) & (csr_address_i.index[4:3] == 2'b10)) begin
                                 case (csr_address_i.index[2:0])
