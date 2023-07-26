@@ -852,6 +852,8 @@ module integer_decoder (
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
+                        exception_vector_o = `CSR_OPERATION;
+
                         `ifdef TEST_DESIGN operation_string = "CSRRW"; `endif 
                     end
 
@@ -866,6 +868,8 @@ module integer_decoder (
                         immediate_o[2] = instr_i.I.immediate;
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;  
+
+                        exception_vector_o = `CSR_OPERATION;
 
                         `ifdef TEST_DESIGN operation_string = "CSRRS"; `endif
                     end
@@ -883,6 +887,8 @@ module integer_decoder (
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
+                        exception_vector_o = `CSR_OPERATION;
+
                         `ifdef TEST_DESIGN operation_string = "CSRRC"; `endif 
                     end
 
@@ -898,6 +904,8 @@ module integer_decoder (
                         immediate_o[2] = instr_i.I.immediate;
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;
+
+                        exception_vector_o = `CSR_OPERATION;
 
                         `ifdef TEST_DESIGN operation_string = "CSRRWI"; `endif  
                     end
@@ -915,6 +923,8 @@ module integer_decoder (
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
+                        exception_vector_o = `CSR_OPERATION;
+
                         `ifdef TEST_DESIGN operation_string = "CSRRSI"; `endif 
                     end
 
@@ -931,6 +941,8 @@ module integer_decoder (
                         immediate_o[2] = instr_i.I.immediate;
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest;
+
+                        exception_vector_o = `CSR_OPERATION;
 
                         `ifdef TEST_DESIGN operation_string = "CSRRCI"; `endif  
                     end
