@@ -428,7 +428,6 @@ class Riscv32;
     localparam csr_mie = 12'h304; 
     localparam csr_mtvec = 12'h305; 
     localparam csr_mcounteren = 12'h306; 
-    localparam csr_mstatush = 12'h310; 
     localparam csr_mscratch = 12'h340; 
     localparam csr_mepc = 12'h341; 
     localparam csr_mcause = 12'h342; 
