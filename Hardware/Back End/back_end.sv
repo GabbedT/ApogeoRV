@@ -191,7 +191,7 @@ module back_end #(
                 bypass_base_address_reg <= base_address_reg_i;
                 bypass_speculative <= speculative_i;
                 bypass_ipacket <= ipacket_i;
-            end
+            end 
         end : bypass_stage_register
 
 
@@ -199,8 +199,12 @@ module back_end #(
     data_word_t [1:0] bypass_operands;
     data_word_t bypass_address_offset;
 
-        always_ff @(posedge clk_i) begin : bypass_operands_stage_register
-            if (!stall_o) begin 
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_operands_stage_register
+            if (!rst_n_i) begin 
+                bypass_operation <= '0;
+                bypass_operands <= '0;
+                bypass_address_offset <= '0;
+            end else if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
                 bypass_address_offset <= address_offset_i;
@@ -208,7 +212,7 @@ module back_end #(
         end : bypass_operands_stage_register
 
 
-    assign executed_o = bypass_branch | bypass_jump;
+    assign executed_o = (bypass_branch | bypass_jump) & !stall_o;
     assign instr_address_o = bypass_ipacket.instr_addr;
 
 
@@ -242,6 +246,10 @@ module back_end #(
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr;
     logic wait_handling, handler_return, execute_store, timer_interrupt;
 
+    exu_valid_t valid_operation;
+
+    assign valid_operation = stall_o ? '0 : bypass_valid; 
+
     execution_unit #(STORE_BUFFER_SIZE) execute_stage (
         .clk_i      ( clk_i          ),
         .rst_n_i    ( rst_n_i        ),
@@ -255,7 +263,7 @@ module back_end #(
 
         .operand_i    ( bypass_operands  ),
         .address_i    ( computed_address ),
-        .data_valid_i ( bypass_valid     ),
+        .data_valid_i ( valid_operation  ),
         .operation_i  ( bypass_operation ), 
         .ipacket_i    ( bypass_ipacket   ),
 
@@ -284,6 +292,8 @@ module back_end #(
         .ipacket_o    ( ipacket ),
         .data_valid_o ( valid   )
     );
+
+    assign timer_interrupt_o = timer_interrupt;
 
     /* If bit is set it's a branch taken */
     assign branch_outcome_o = result[0];
