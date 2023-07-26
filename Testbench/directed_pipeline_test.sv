@@ -292,6 +292,8 @@ module instruction_agent (
         write_instruction(rv32._csrrw(1, 2, rv32.csr_mie));
         write_instruction(rv32._csrrc(1, 2, rv32.csr_mie));
         write_instruction(rv32._csrrs(1, 2, rv32.csr_mie));
+        write_instruction(rv32._csrrw(1, 2, rv32.csr_mie));
+        write_instruction(rv32._csrrs(1, 0, rv32.csr_mie));
 
         write_instruction(rv32._ecall());
     endfunction : riscv_CSR_program
@@ -309,8 +311,7 @@ module instruction_agent (
             instructions[i] = 32'h00000013;
         end
 
-        riscv_CSR_program();
-        
+        inject_program();
     end
 
     always_ff @(posedge clk_i) begin
