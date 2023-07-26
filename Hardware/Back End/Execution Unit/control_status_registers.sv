@@ -201,7 +201,7 @@ module control_status_registers (
             end else if (machine_return_instr_i) begin
                 /* After a return instruction, restore previous
                  * privilege level */
-                privilege_level <= mstatus_csr.MPP[0];
+                privilege_level <= mstatus_csr.MPP[11];
             end
         end 
 
@@ -582,17 +582,17 @@ module control_status_registers (
                         USER: begin
                             /* Check if lower level code (USER) can access the counters */
                             case (csr_address_i.index[2:0])
-                                3'h0: illegal_instruction = !mcounteren_csr[0];
+                                3'h0: illegal_instruction = !mcounteren_csr[0] & !privilege_level;
 
-                                3'h2: illegal_instruction = !mcounteren_csr[1];
+                                3'h2: illegal_instruction = !mcounteren_csr[1] & !privilege_level;
 
-                                3'h3: illegal_instruction = !mcounteren_csr[2];
+                                3'h3: illegal_instruction = !mcounteren_csr[2] & !privilege_level;
 
-                                3'h4: illegal_instruction = !mcounteren_csr[3];
+                                3'h4: illegal_instruction = !mcounteren_csr[3] & !privilege_level;
 
-                                3'h5: illegal_instruction = !mcounteren_csr[4];
+                                3'h5: illegal_instruction = !mcounteren_csr[4] & !privilege_level;
 
-                                3'h6: illegal_instruction = !mcounteren_csr[5];
+                                3'h6: illegal_instruction = !mcounteren_csr[5] & !privilege_level;
                             endcase
 
                             if (csr_address_i.index[7:3] == '0) begin
