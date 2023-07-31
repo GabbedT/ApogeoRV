@@ -59,6 +59,7 @@ module execution_unit #(
     input logic flush_i,
     input logic stall_i,
     input logic validate_i,
+    output logic buffer_empty_o,
 
     /* CSR nets */ 
     input logic validate_csr_write_i,
@@ -80,8 +81,10 @@ module execution_unit #(
     input logic branch_i,
     input logic save_next_pc_i,
 
-    /* Global interrupt enable */
-    output logic glb_interrupt_enable_o,
+    /* Interrupt enable */
+    output logic global_interrupt_en_o,
+    output logic external_interrupt_en_o,
+    output logic timer_interrupt_en_o,
 
 
     /* 
@@ -106,8 +109,8 @@ module execution_unit #(
 
     /* Interrupt and exception signals */
     input logic interrupt_request_i,
+    input logic timer_interrupt_i,
     input logic exception_i,
-    output logic timer_interrupt_o,
 
     /* Address to load the PC in case of trap */
     output data_word_t handler_pc_o,
@@ -118,6 +121,7 @@ module execution_unit #(
     /* CSR monitor */
     input logic branch_mispredicted_i,
     input logic instruction_retired_i,
+    input logic compressed_i,
 
     /* Functional units status for scheduling */
     output logic ldu_idle_o,
@@ -177,12 +181,13 @@ module execution_unit #(
         .clk_i             ( clk_i                   ),
         .rst_n_i           ( rst_n_i                 ),
         .flush_i           ( flush_i                 ),
+        .privilege_i       ( current_privilege       ),
+        .buffer_empty_o    ( buffer_empty_o          ),
         .instr_packet_i    ( ipacket_i               ),
         .data_valid_i      ( data_valid_i.LSU        ),
         .address_i         ( address_i               ),
         .data_i            ( operand_i[1]            ),
         .operation_i       ( operation_i.LSU.subunit ),
-        .timer_interrupt_o ( timer_interrupt         ),
         .ldu_idle_o        ( ldu_idle_o              ),
         .stu_idle_o        ( stu_idle_o              ),
         .validate_i        ( validate_i              ),
@@ -220,42 +225,42 @@ module execution_unit #(
         end
 
 
-    logic illegal_csr_access, time_csr_interrupt;
-
-    assign time_csr_interrupt = timer_interrupt & glb_interrupt_enable_o;
-
+    logic illegal_csr_access;
 
     control_status_registers CSRU (
-        .clk_i                  ( clk_i                  ),
-        .rst_n_i                ( rst_n_i                ),
-        .flush_i                ( flush_i                ),
-        .buffer_full_o          ( csr_buffer_full_o      ),
-        .csr_write_access_i     ( csr_write              ),
-        .csr_read_access_i      ( csr_read               ),
-        .csr_write_validate_i   ( validate_csr_write_i   ),
-        .csr_address_i          ( operand_i[1][11:0]     ),
-        .csr_data_write_i       ( csr_data_write         ),
-        .csr_data_read_o        ( csr_data_read          ),
-        .illegal_csr_access_o   ( illegal_csr_access     ),
-        .instruction_retired_i  ( instruction_retired_i  ),
-        .data_store_i           ( data_valid_i.LSU.STU   ),
-        .data_load_i            ( data_valid_i.LSU.LDU   ),
-        .branch_i               ( branch_i               ),
-        .branch_mispredicted_i  ( branch_mispredicted_i  ),
-        .enable_mul_o           ( csr_mul_enable         ),
-        .enable_div_o           ( csr_div_enable         ), 
-        `ifdef BMU.enable_bmu_o ( csr_bmu_enable         ), `endif 
-        .trap_instruction_pc_i  ( trap_instruction_pc_i  ),
-        .trap_instruction_pc_o  ( trap_instruction_pc_o  ),
-        .interrupt_vector_i     ( interrupt_vector_i     ),
-        .timer_interrupt_i      ( time_csr_interrupt     ),
-        .exception_vector_i     ( exception_vector_i     ),
-        .interrupt_request_i    ( interrupt_request_i    ),
-        .exception_i            ( exception_i            ),
-        .handler_pc_o           ( handler_pc_o           ),
-        .glb_int_enabled_o      ( glb_interrupt_enable_o ),
-        .machine_return_instr_i ( machine_return_instr_i ),
-        .current_privilege_o    ( current_privilege      )
+        .clk_i                  ( clk_i                   ),
+        .rst_n_i                ( rst_n_i                 ),
+        .flush_i                ( flush_i                 ),
+        .buffer_full_o          ( csr_buffer_full_o       ),
+        .csr_write_access_i     ( csr_write               ),
+        .csr_read_access_i      ( csr_read                ),
+        .csr_write_validate_i   ( validate_csr_write_i    ),
+        .csr_address_i          ( operand_i[1][11:0]      ),
+        .csr_data_write_i       ( csr_data_write          ),
+        .csr_data_read_o        ( csr_data_read           ),
+        .illegal_csr_access_o   ( illegal_csr_access      ),
+        .instruction_retired_i  ( instruction_retired_i   ),
+        .compressed_i           ( compressed_i            ),
+        .data_store_i           ( data_valid_i.LSU.STU    ),
+        .data_load_i            ( data_valid_i.LSU.LDU    ),
+        .branch_i               ( branch_i                ),
+        .branch_mispredicted_i  ( branch_mispredicted_i   ),
+        .enable_mul_o           ( csr_mul_enable          ),
+        .enable_div_o           ( csr_div_enable          ), 
+        `ifdef BMU.enable_bmu_o ( csr_bmu_enable          ), `endif 
+        .trap_instruction_pc_i  ( trap_instruction_pc_i   ),
+        .trap_instruction_pc_o  ( trap_instruction_pc_o   ),
+        .interrupt_vector_i     ( interrupt_vector_i      ),
+        .timer_interrupt_i      ( timer_interrupt_i       ),
+        .exception_vector_i     ( exception_vector_i      ),
+        .interrupt_request_i    ( interrupt_request_i     ),
+        .exception_i            ( exception_i             ),
+        .handler_pc_o           ( handler_pc_o            ),
+        .glb_int_enabled_o      ( global_interrupt_en_o   ),
+        .ext_int_enabled_o      ( external_interrupt_en_o ),
+        .tim_int_enabled_o      ( timer_interrupt_en_o    ),
+        .machine_return_instr_i ( machine_return_instr_i  ),
+        .current_privilege_o    ( current_privilege       )
     );
 
     assign data_valid_o[CSR] = data_valid_i.CSR;
