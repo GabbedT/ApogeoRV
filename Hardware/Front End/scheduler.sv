@@ -69,6 +69,7 @@ module scheduler (
     input logic flush_i,
     input logic branch_flush_i,
     input logic mispredicted_i,
+    input logic pipeline_empty_i,
     output logic stall_o,
 
     /* Writeback data */
@@ -252,9 +253,10 @@ module scheduler (
     assign src_reg_o = src_reg_i; 
 
     /* If there's a dependency or fence is executed and pipeline is not empty then stall */
-    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty);
+    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i);
 
     /* Packet generation */
+    assign ipacket_o.compressed = compressed_i; 
     assign ipacket_o.exception_generated = exception_generated_i; 
     assign ipacket_o.exception_vector = exception_vector_i; 
     assign ipacket_o.instr_addr = instr_address_i;
