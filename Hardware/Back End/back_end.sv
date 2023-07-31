@@ -70,6 +70,7 @@ module back_end #(
     output logic branch_flush_o,
     output logic stall_o,
     output logic priv_level_o,
+    output logic pipeline_empty_o,
 
     /* Operands */
     input logic [1:0][4:0] reg_src_i,
@@ -84,6 +85,7 @@ module back_end #(
     input instr_packet_t ipacket_i,
 
     /* Branch control */
+    output logic compressed_o,
     output logic executed_o,
     input logic branch_i,
     output logic branch_o,
@@ -108,21 +110,25 @@ module back_end #(
 
     /* Interrupt logic */
     input logic interrupt_i,
+    input logic timer_interrupt_i,
     input logic [7:0] interrupt_vector_i,
-    output logic timer_interrupt_o,
     
     /* Set the program counter to the 
      * trap handler address */
-    output logic trap_o,
+    output logic exception_o,
+    output logic handler_return_o,
 
-    /* Global interrupt enable */
-    output logic interrupt_enable_o,
+    /* Interrupt enable */
+    output logic global_interrupt_en_o,
+    output logic external_interrupt_en_o,
+    output logic timer_interrupt_en_o,
 
     /* Acknowledge interrupt */
     output logic int_ack_o,
 
     /* Program counter */
     output data_word_t handler_pc_o,
+    output data_word_t handler_return_pc_o,
 
     /* Functional units status for scheduling */
     output logic ldu_idle_o,
@@ -162,6 +168,15 @@ module back_end #(
     );
 
 
+    /* Branch / Memory address computation */
+    data_word_t base_address, computed_address, computed_address_bypass;
+
+    /* Choose between the instruction address and the register souce 1 as base address */
+    assign base_address = base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr;
+
+    assign computed_address = address_offset_i + base_address;
+
+
     exu_valid_t bypass_valid; instr_packet_t bypass_ipacket;
     logic bypass_branch, bypass_jump, flush_pipeline;
     logic bypass_save_next_pc, bypass_base_address_reg, bypass_speculative;
@@ -172,25 +187,28 @@ module back_end #(
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
                 bypass_save_next_pc <= 1'b0;
-                bypass_base_address_reg <= 1'b0;
                 bypass_speculative <= 1'b0;
                 bypass_ipacket <= '0;
+
+                computed_address_bypass <= '0;
             end else if (flush_pipeline | mispredicted_i | branch_flush_o) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
                 bypass_save_next_pc <= 1'b0;
-                bypass_base_address_reg <= 1'b0;
                 bypass_speculative <= 1'b0;
                 bypass_ipacket <= '0;
+
+                computed_address_bypass <= '0;
             end else if (!stall_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
                 bypass_jump <= jump_i;
                 bypass_save_next_pc <= save_next_pc_i;
-                bypass_base_address_reg <= base_address_reg_i;
                 bypass_speculative <= speculative_i;
                 bypass_ipacket <= ipacket_i;
+
+                computed_address_bypass <= computed_address;
             end 
         end : bypass_stage_register
 
@@ -203,26 +221,24 @@ module back_end #(
             if (!rst_n_i) begin 
                 bypass_operation <= '0;
                 bypass_operands <= '0;
-                bypass_address_offset <= '0;
             end else if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
-                bypass_address_offset <= address_offset_i;
             end 
         end : bypass_operands_stage_register
 
 
+    /* Control flow instruction has been executed */
     assign executed_o = (bypass_branch | bypass_jump) & !stall_o;
+
+    /* Send instruction address and instruction type bit to recover from misprediction */
     assign instr_address_o = bypass_ipacket.instr_addr;
+    assign compressed_o = bypass_ipacket.compressed;
+
+    /* Send BTA to update the PC */
+    assign branch_address_o = computed_address_bypass; 
 
 
-    data_word_t base_address, computed_address;
-
-    /* Choose between the instruction address and the register souce 1 as base address */
-    assign base_address = bypass_base_address_reg ? bypass_operands[0] : bypass_ipacket.instr_addr;
-
-    assign computed_address = bypass_address_offset + base_address;
-    assign branch_address_o = computed_address; 
 
     /* Instruction address of ROB entry readed */
     data_word_t trap_iaddress;
@@ -231,7 +247,7 @@ module back_end #(
     logic [4:0] exception_vector; logic exception_generated;
 
     /* Result written back */
-    logic instruction_retired;
+    logic instruction_retired, instruction_compressed;
 
     /* Unit result data */
     data_word_t [2:0] result;
@@ -243,7 +259,7 @@ module back_end #(
     logic [2:0] valid;
 
     /* Pipeline control */
-    logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr;
+    logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
     logic wait_handling, handler_return, execute_store, timer_interrupt;
 
     exu_valid_t valid_operation;
@@ -251,21 +267,22 @@ module back_end #(
     assign valid_operation = stall_o ? '0 : bypass_valid; 
 
     execution_unit #(STORE_BUFFER_SIZE) execute_stage (
-        .clk_i      ( clk_i          ),
-        .rst_n_i    ( rst_n_i        ),
-        .flush_i    ( flush_pipeline ),
-        .stall_i    ( stall_o        ),
-        .validate_i ( execute_store  ),
+        .clk_i          ( clk_i              ),
+        .rst_n_i        ( rst_n_i            ),
+        .flush_i        ( flush_pipeline     ),
+        .stall_i        ( stall_o            ),
+        .validate_i     ( execute_store      ),
+        .buffer_empty_o ( store_buffer_empty ),
 
         .validate_csr_write_i ( execute_csr     ),
         .priv_level_o         ( priv_level_o    ),
         .csr_buffer_full_o    ( csr_buffer_full ),
 
-        .operand_i    ( bypass_operands  ),
-        .address_i    ( computed_address ),
-        .data_valid_i ( valid_operation  ),
-        .operation_i  ( bypass_operation ), 
-        .ipacket_i    ( bypass_ipacket   ),
+        .operand_i    ( bypass_operands         ),
+        .address_i    ( computed_address_bypass ),
+        .data_valid_i ( valid_operation         ),
+        .operation_i  ( bypass_operation        ), 
+        .ipacket_i    ( bypass_ipacket          ),
 
         .branch_i       ( bypass_branch       ),
         .save_next_pc_i ( bypass_save_next_pc ),
@@ -273,17 +290,22 @@ module back_end #(
         .load_channel  ( load_channel  ),
         .store_channel ( store_channel ),
 
-        .trap_instruction_pc_i  ( trap_iaddress       ),
-        .exception_vector_i     ( exception_vector    ),
-        .interrupt_vector_i     ( interrupt_vector_i  ),
-        .interrupt_request_i    ( interrupt_i         ),
-        .timer_interrupt_o      ( timer_interrupt     ),
-        .exception_i            ( exception_generated ),
-        .handler_pc_o           ( handler_pc_o        ),
-        .glb_interrupt_enable_o ( interrupt_enable_o  ),
-        .machine_return_instr_i ( handler_return      ),
-        .branch_mispredicted_i  ( mispredicted_i      ),
-        .instruction_retired_i  ( instruction_retired ),
+        .trap_instruction_pc_i   ( trap_iaddress           ),
+        .trap_instruction_pc_o   ( handler_return_pc_o     ),
+        .exception_vector_i      ( exception_vector        ),
+        .interrupt_vector_i      ( interrupt_vector_i      ),
+        .interrupt_request_i     ( interrupt_i             ),
+        .timer_interrupt_i       ( timer_interrupt_i       ),
+        .exception_i             ( exception_generated     ),
+        .handler_pc_o            ( handler_pc_o            ),
+        .global_interrupt_en_o   ( global_interrupt_en_o   ),
+        .external_interrupt_en_o ( external_interrupt_en_o ),
+        .timer_interrupt_en_o    ( timer_interrupt_en_o    ),
+
+        .machine_return_instr_i ( handler_return_o       ),
+        .branch_mispredicted_i  ( mispredicted_i         ),
+        .instruction_retired_i  ( instruction_retired    ),
+        .compressed_i           ( instruction_compressed ),
 
         .ldu_idle_o ( ldu_idle_o ),
         .stu_idle_o ( stu_idle_o ),
@@ -293,7 +315,6 @@ module back_end #(
         .data_valid_o ( valid   )
     );
 
-    assign timer_interrupt_o = timer_interrupt;
 
     /* If bit is set it's a branch taken */
     assign branch_outcome_o = result[0];
@@ -362,7 +383,7 @@ module back_end #(
 //      COMMIT STAGE
 //====================================================================================
 
-    logic reorder_buffer_write;
+    logic reorder_buffer_write, commit_buffer_empty;
     logic [5:0] reorder_buffer_tag;
     rob_entry_t reorder_buffer_packet;
 
@@ -370,7 +391,7 @@ module back_end #(
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_pipeline ),
-        .stall_i ( core_sleep     ),
+        .stall_i ( stall_pipeline ),
         .stall_o ( buffer_full    ),
 
         .result_i     ( result_commit ),
@@ -380,6 +401,8 @@ module back_end #(
         .rob_write_o ( reorder_buffer_write  ),
         .rob_tag_o   ( reorder_buffer_tag    ),
         .rob_entry_o ( reorder_buffer_packet ),
+
+        .buffers_empty_o ( commit_buffer_empty ),
 
         .foward_src_i   ( reg_src_i    ),
         .foward_data_o  ( commit_data  ),
@@ -392,18 +415,23 @@ module back_end #(
 //====================================================================================
 
     logic reorder_buffer_clear, reorder_buffer_read, writeback_valid;
+    logic reorder_buffer_full, reorder_buffer_empty;
     rob_entry_t writeback_packet;
 
     reorder_buffer rob (
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_pipeline ),
+        .stall_i ( stall_pipeline ),
 
         .tag_i   ( reorder_buffer_tag    ),
         .entry_i ( reorder_buffer_packet ),
 
         .write_i    ( reorder_buffer_write ),
         .read_i     ( reorder_buffer_read  ),
+
+        .full_o  ( reorder_buffer_full  ),
+        .empty_o ( reorder_buffer_empty ),
 
         .foward_src_i   ( reg_src_i            ),
         .foward_data_o  ( reorder_buffer_data  ), 
@@ -429,17 +457,20 @@ module back_end #(
         .reg_dest_o ( reg_destination_o  ),
         .result_o   ( writeback_result_o ),
 
-        .sleep_o               ( core_sleep          ),
-        .mreturn_o             ( mreturn             ),
-        .execute_store_o       ( execute_store       ),
-        .execute_csr_o         ( execute_csr         ),
-        .exception_generated_o ( exception_generated ),
-        .exception_vector_o    ( exception_vector    ),
-        .exception_iaddress_o  ( trap_iaddress       )
+        .compressed_o          ( instruction_compressed ),
+        .sleep_o               ( core_sleep             ),
+        .mreturn_o             ( mreturn                ),
+        .execute_store_o       ( execute_store          ),
+        .execute_csr_o         ( execute_csr            ),
+        .exception_generated_o ( exception_generated    ),
+        .exception_vector_o    ( exception_vector       ),
+        .exception_iaddress_o  ( trap_iaddress          )
     );
 
     assign instruction_retired = writeback_o;
-    assign handler_return = mreturn & writeback_o;
+    assign handler_return_o = mreturn & writeback_o;
+
+    assign exception_o = exception_generated;
 
 
     trap_manager trap_controller (
@@ -447,19 +478,19 @@ module back_end #(
         .rst_n_i   ( rst_n_i        ),
         .flush_o   ( flush_pipeline ),
         .stall_o   ( stall_pipeline ),
-        .trap_o    ( trap_o         ),
         .int_ack_o ( int_ack_o      ),
 
-        .interrupt_i  ( interrupt_i | timer_interrupt ),
-        .exception_i  ( exception_generated           ),
-        .core_sleep_i ( core_sleep                    )
+        .interrupt_i  ( interrupt_i | timer_interrupt_i ),
+        .exception_i  ( exception_generated             ),
+        .core_sleep_i ( core_sleep                      )
     ); 
 
     /* Flush when an interrupt or an exception is detected, also flush when the branch 
      * was not predicted and it was taken */
     assign flush_o = flush_pipeline;
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
-    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | core_sleep;
+    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
+    assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 
     assign reorder_buffer_clear = flush_pipeline;
 
