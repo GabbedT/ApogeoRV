@@ -46,7 +46,6 @@ module trap_manager (
     output logic flush_o,
     output logic stall_o,
     output logic int_ack_o,
-    output logic trap_o,
 
     /* Events */
     input logic interrupt_i,
@@ -77,7 +76,6 @@ module trap_manager (
             
             flush_o = 1'b0;
             stall_o = 1'b0;
-            trap_o = 1'b0;
             int_ack_o = 1'b0;
             
             case (state_CRT)
@@ -91,24 +89,15 @@ module trap_manager (
                     if (interrupt_i) begin
                         /* Flush the pipeline then
                          * acknowledge the interrupt */
-                        flush_o = 1'b1;
                         state_NXT = ACK_CYCLE;
-                    end else if (exception_i) begin
-                        if (core_sleep_i) begin
-                            /* Core is put into sleep mode, the 
-                             * entire core is stalled */
-                            state_NXT = WAIT_WAKE_UP;
-
-                            stall_o = 1'b1;
-                        end else begin
-                            /* Respond immediately by clearing
-                             * the pipeline and setting the 
-                             * PC to trap handler address */
-                            flush_o = 1'b1;
-                        end
+                    end else if (core_sleep_i) begin
+                        /* Core is put into sleep mode, the 
+                         * entire core is stalled */
+                        state_NXT = WAIT_WAKE_UP;
                     end
 
-                    trap_o = interrupt_i | exception_i;
+                    stall_o = core_sleep_i;
+                    flush_o = interrupt_i | exception_i; 
                 end
 
                 /* 
@@ -121,6 +110,7 @@ module trap_manager (
                     state_NXT = IDLE;
 
                     int_ack_o = 1'b1;
+                    stall_o = 1'b0;
                 end
 
                 /* 
@@ -132,6 +122,8 @@ module trap_manager (
 
                     if (interrupt_i) begin
                         state_NXT = ACK_CYCLE;
+
+                        stall_o = 1'b0;
                     end
                 end
             endcase 
