@@ -44,6 +44,7 @@ module commit_buffer #(
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
+    input logic stall_i,
 
     /* Commands */
     input logic write_i,
@@ -87,7 +88,7 @@ module commit_buffer #(
             end else if (flush_i) begin 
                 read_ptr <= '0;
                 write_ptr <= '0;
-            end else begin 
+            end else if (!stall_i) begin 
                 if (write_i) begin
                     write_ptr <= inc_write_ptr;
                 end
@@ -110,7 +111,7 @@ module commit_buffer #(
             end else if (flush_i) begin 
                 full_o <= 1'b0;
                 empty_o <= 1'b1;
-            end else begin 
+            end else if (!stall_i) begin 
                 case ({write_i, read_i})
                     PULL_DATA: begin
                         full_o <= 1'b0;
@@ -133,7 +134,7 @@ module commit_buffer #(
     logic [$bits(data_word_t) + $bits(instr_packet_t) - 1:0] buffer_memory [BUFFER_DEPTH - 1:0]; 
 
         always_ff @(posedge clk_i) begin : write_port
-            if (write_i) begin
+            if (write_i & !stall_i) begin
                 buffer_memory[write_ptr] <= {result_i, ipacket_i};
             end
         end : write_port
@@ -153,7 +154,7 @@ module commit_buffer #(
     logic [$bits(data_word_t) - 1:0] foward_register_1 [31:0];
 
         always_ff @(posedge clk_i) begin : register1_write_port
-            if (write_i) begin
+            if (write_i & !stall_i) begin
                 foward_register_1[ipacket_i.reg_dest] <= result_i;
             end 
         end : register1_write_port
@@ -165,7 +166,7 @@ module commit_buffer #(
     logic [$bits(data_word_t) - 1:0] foward_register_2 [31:0];
 
         always_ff @(posedge clk_i) begin : register2_write_port
-            if (write_i) begin
+            if (write_i & !stall_i) begin
                 foward_register_2[ipacket_i.reg_dest] <= result_i;
             end 
         end : register2_write_port
@@ -179,7 +180,7 @@ module commit_buffer #(
     logic [5:0] tag_register [31:0];
 
         always_ff @(posedge clk_i) begin : register_tag_write_port
-            if (write_i) begin
+            if (write_i & !stall_i) begin
                 tag_register[ipacket_i.reg_dest] <= ipacket_i.rob_tag;
             end 
         end : register_tag_write_port
@@ -193,7 +194,7 @@ module commit_buffer #(
                 valid_register <= '0;
             end else if (flush_i) begin 
                 valid_register <= '0;
-            end else begin
+            end else if (!stall_i) begin
                 if (write_i) begin
                     /* On writes validate the result */
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
