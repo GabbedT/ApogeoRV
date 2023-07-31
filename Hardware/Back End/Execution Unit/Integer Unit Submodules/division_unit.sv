@@ -134,6 +134,8 @@ module division_unit (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : valid_register
             if (!rst_n_i) begin
                 data_valid <= 1'b0; 
+            end else if (clear_i) begin
+                data_valid <= 1'b0;
             end else if (clk_en_i) begin
                 data_valid <= data_valid_i;
             end
@@ -190,7 +192,17 @@ module division_unit (
             if (clk_en_i) begin 
                 last_stage_quotient <= quotient;
                 last_stage_remainder <= remainder;
+            end
+        end
 
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                divide_by_zero_o <= 1'b0;
+                data_valid_o <= 1'b0;
+            end else if (clear_i) begin
+                divide_by_zero_o <= 1'b0;
+                data_valid_o <= 1'b0;
+            end else if (clk_en_i) begin 
                 divide_by_zero_o <= divide_by_zero;
                 data_valid_o <= div_data_valid;
             end
