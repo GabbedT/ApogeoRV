@@ -56,6 +56,7 @@
 `include "../../Include/Interfaces/store_buffer_interface.sv"
 
 `include "../../Include/Headers/apogeo_exception_vectors.svh"
+`include "../../Include/Headers/apogeo_memory_map.svh"
 
 module load_store_unit #(
     /* Number of entries in the store buffer */
@@ -64,6 +65,10 @@ module load_store_unit #(
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
+    output logic buffer_empty_o,
+
+    /* Privilege level */
+    input logic privilege_i,
 
     /* Instruction packet */
     input instr_packet_t instr_packet_i,
@@ -77,9 +82,6 @@ module load_store_unit #(
 
     /* Memory operation */
     input lsu_uop_t operation_i,
-
-    /* To CSR unit */
-    output logic timer_interrupt_o,
 
     /* Functional unit state */
     output logic ldu_idle_o,
@@ -116,7 +118,7 @@ module load_store_unit #(
 //      STORE UNIT
 //====================================================================================
 
-    logic stu_data_accepted, stu_illegal_access, stu_data_valid, ldu_data_valid, stu_timer_write, stu_packet_select;
+    logic stu_data_accepted, stu_illegal_access, stu_misaligned, stu_data_valid, ldu_data_valid, stu_foward_ipacket;
 
     /* Store buffer fowarding nets */
     logic foward_address_match, buffer_empty;
@@ -126,6 +128,8 @@ module load_store_unit #(
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
         .flush_i ( flush_i ), 
+
+        .privilege_i ( privilege_i ),
 
         .valid_operation_i ( data_valid_i.STU       ),
         .store_data_i      ( data_i                 ),
@@ -142,14 +146,15 @@ module load_store_unit #(
 
         .buffer_empty_o ( buffer_empty ),
 
-        .timer_write_o ( stu_timer_write ),
-
         .idle_o           ( stu_idle_o         ),
-        .ipacket_select_o ( stu_packet_select  ),
         .illegal_access_o ( stu_illegal_access ),
-        .data_valid_o     ( stu_data_valid     )
+        .misaligned_o     ( stu_misaligned     ),
+        .data_valid_o     ( stu_data_valid     ),
+        .foward_packet_o  ( stu_foward_ipacket )
     );
 
+    assign buffer_empty_o = buffer_empty;
+    
 
     instr_packet_t stu_ipacket, stu_exception_packet;
 
@@ -158,6 +163,9 @@ module load_store_unit #(
 
             if (stu_illegal_access) begin
                 stu_exception_packet.exception_vector = `STORE_ACCESS_FAULT;
+                stu_exception_packet.exception_generated = 1'b1;
+            end else if (stu_misaligned) begin
+                stu_exception_packet.exception_vector = `STORE_MISALIGNED;
                 stu_exception_packet.exception_generated = 1'b1;
             end
         end
@@ -193,17 +201,18 @@ module load_store_unit #(
 //      LOAD UNIT
 //====================================================================================
     
-    logic ldu_illegal_access;
-    data_word_t loaded_data, timer_data;
+    logic ldu_misaligned_access, ldu_illegal_access, ldu_foward_ipacket;
+    data_word_t loaded_data;
 
     load_unit ldu (
-        .clk_i             ( clk_i                  ),
-        .rst_n_i           ( rst_n_i                ),
+        .clk_i   ( clk_i                  ),
+        .rst_n_i ( rst_n_i                ),
+
+        .privilege_i ( privilege_i ),
+
         .valid_operation_i ( data_valid_i.LDU       ),
         .load_address_i    ( address_i              ),
         .operation_i       ( operation_i.LDU.opcode ),
-        
-        .timer_data_i ( timer_data ),
 
         .load_channel ( load_channel ),
 
@@ -212,39 +221,35 @@ module load_store_unit #(
 
         .buffer_empty_i ( buffer_empty ), 
 
-        .data_loaded_o ( loaded_data    ),
-        .idle_o        ( ldu_idle_o     ),
-        .data_valid_o  ( ldu_data_valid ) 
+        .misaligned_o     ( ldu_misaligned_access ),
+        .illegal_access_o ( ldu_illegal_access    ),
+        .data_loaded_o    ( loaded_data           ),
+        .idle_o           ( ldu_idle_o            ),
+        .data_valid_o     ( ldu_data_valid        ),
+        .foward_packet_o  ( ldu_foward_ipacket ) 
     ); 
 
-    instr_packet_t ldu_ipacket;
+    instr_packet_t ldu_ipacket, ldu_exception_packet;
+
+        always_comb begin
+            ldu_exception_packet = instr_packet_i;
+
+            if (ldu_illegal_access) begin
+                ldu_exception_packet.exception_vector = `LOAD_ACCESS_FAULT;
+                ldu_exception_packet.exception_generated = 1'b1;
+            end else if (ldu_misaligned_access) begin
+                ldu_exception_packet.exception_vector = `LOAD_MISALIGNED;
+                ldu_exception_packet.exception_generated = 1'b1;
+            end
+        end
 
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
                 ldu_ipacket <= '0;
             end else if (data_valid_i.LDU) begin
-                ldu_ipacket <= instr_packet_i;
+                ldu_ipacket <= ldu_exception_packet;
             end
         end
-    
-
-//====================================================================================
-//      MEMORY MAPPED TIMER
-//====================================================================================
-
-    memory_mapped_timer timer (
-        .clk_i   ( clk_i   ),
-        .rst_n_i ( rst_n_i ),
-
-        .write_i         ( stu_timer_write            ),
-        .write_data_i    ( store_channel.data         ),
-        .write_address_i ( store_channel.address[1:0] ),
-
-        .read_address_i ( load_channel.address[1:0] ),
-        .read_data_o    ( timer_data                ),
-
-        .timer_interrupt_o ( timer_interrupt_o )
-    );
 
 //====================================================================================
 //      OUTPUT LOGIC
@@ -262,17 +267,32 @@ module load_store_unit #(
                 end
 
                 2'b10: begin
-                    instr_packet_o = ldu_ipacket;
+                    if (ldu_foward_ipacket) begin
+                        instr_packet_o = ldu_exception_packet;
+                    end else begin 
+                        instr_packet_o = ldu_ipacket;
+                    end 
+
                     data_o = loaded_data;
                 end
 
                 2'b01: begin
-                    instr_packet_o = stu_packet_select ? stu_exception_packet : stu_ipacket;
+                    if (stu_foward_ipacket) begin
+                        instr_packet_o = stu_exception_packet;
+                    end else begin 
+                        instr_packet_o = stu_ipacket;
+                    end 
+
                     data_o = '0;
                 end
 
                 2'b11: begin
-                    instr_packet_o = ldu_ipacket;
+                    if (ldu_foward_ipacket) begin
+                        instr_packet_o = ldu_exception_packet;
+                    end else begin 
+                        instr_packet_o = ldu_ipacket;
+                    end 
+
                     data_o = loaded_data;
                 end
 
