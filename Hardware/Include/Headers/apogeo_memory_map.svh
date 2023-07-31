@@ -11,8 +11,7 @@
      *  (Only M mode)
      *
      *  NON CACHABLE
-     *  NON WRITABLE
-     *  NON BUFFERABLE
+     *  NON WRITABLE (A store results in a NOP)
      */
     `define BOOT_START 32'h0000_0000
     `define BOOT_END   `BOOT_START + `KILO(2)
@@ -24,14 +23,18 @@
      *  (Only M mode)
      *
      *  NON CACHABLE
-     *  NON BUFFERABLE
      */
     `define IO_START `BOOT_END + 1
     `define IO_END   `IO_START + `KILO(128)
 
-    /* Timer has 8 registers */
-    `define TIMER_START `IO_START
-    `define TIMER_END `IO_START + 7
+
+    /*
+     *  Protected memory region
+     *
+     *  (Only M mode)
+     */
+    `define PRIVATE_REGION_START `BOOT_START
+    `define PRIVATE_REGION_END `IO_END 
 
 
     /* 
