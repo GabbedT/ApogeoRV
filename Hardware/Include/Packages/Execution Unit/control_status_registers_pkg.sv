@@ -150,12 +150,6 @@ package control_status_registers_pkg;
 
     /* Enable CSR */
     typedef struct packed {
-        /* User */
-        logic fflags;
-        logic frm;
-        logic fcsr;
-
-        /* Machine */
         logic [1:0] mcycle;
         logic [1:0] minstret;
         logic misa;
@@ -170,20 +164,17 @@ package control_status_registers_pkg;
         logic mcounteren;
         logic mcountinhibit;
         logic mscratch;
-        logic bufconfig;
-        logic bufbase;
-        logic bufstatus;
     } csr_enable_t;
 
 
     /* CSR Event */
-    localparam MACHINE_CYCLE       = 3'd0;
-    localparam DATA_STORE_EXEC     = 3'd1;
-    localparam DATA_LOAD_EXEC      = 3'd2;
-    localparam INTERRUPT_TAKEN     = 3'd3;
-    localparam EXCEPTION_TAKEN     = 3'd4;
-    localparam BRANCH_COUNTER      = 3'd5;
-    localparam BRANCH_MISPREDICTED = 3'd6;
+    localparam MACHINE_CYCLE       = 3'd1;
+    localparam DATA_STORE_EXEC     = 3'd2;
+    localparam DATA_LOAD_EXEC      = 3'd3;
+    localparam INTERRUPT_TAKEN     = 3'd4;
+    localparam EXCEPTION_TAKEN     = 3'd5;
+    localparam BRANCH_COUNTER      = 3'd6;
+    localparam BRANCH_MISPREDICTED = 3'd7;
 
 
     typedef struct packed {
