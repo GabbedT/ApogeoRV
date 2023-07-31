@@ -71,6 +71,7 @@ module control_status_registers (
 
     /* Performance monitor events */
     input logic instruction_retired_i,
+    input logic compressed_i,
     input logic data_store_i,
     input logic data_load_i,
     input logic branch_i,
@@ -97,13 +98,31 @@ module control_status_registers (
     /* Address to load the PC in case of trap */
     output data_word_t handler_pc_o,
 
-    /* Interrupt mode */
+    /* Interrupt enabled */
     output logic glb_int_enabled_o,
+    output logic ext_int_enabled_o,
+    output logic tim_int_enabled_o,
 
     /* Privilege control */
     input  logic machine_return_instr_i,
     output logic current_privilege_o
 );
+
+    `ifdef CSR_DEBUG 
+
+        string csr_name;
+
+        always_comb begin
+            if (csr_write_access_i) begin
+                $display("[CSR UNIT] Writing %s : %b!", csr_name, csr_data_write_i);
+            end
+
+            if (csr_read_access_i) begin
+                $display("[CSR UNIT] Reading %s : %b!", csr_name, csr_data_read_o);
+            end
+        end
+
+    `endif 
 
 //====================================================================================
 //      UNIT STATUS
@@ -219,7 +238,7 @@ module control_status_registers (
                 mstatus_csr.MIE <= 1'b0;
 
                 mstatus_csr.MPIE <= 1'b0;
-                mstatus_csr.MPP <= MACHINE;
+                mstatus_csr.MPP <= USER;
             end else if (interrupt_request_i | exception_i) begin
                 /* Disable interrupts */
                 mstatus_csr.MIE <= 1'b0;
@@ -315,6 +334,10 @@ module control_status_registers (
             end
         end
 
+    assign ext_int_enabled_o = mie_csr.MEIE; 
+    assign tim_int_enabled_o = mie_csr.MTIE; 
+
+
     mip_csr_t mip_csr;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
@@ -322,8 +345,19 @@ module control_status_registers (
                 mip_csr.MEIP <= 1'b0;
                 mip_csr.MTIP <= 1'b0;
             end else begin 
-                mip_csr.MEIP <= interrupt_request_i & mie_csr.MEIE & mstatus_csr.MIE;
-                mip_csr.MTIP <= timer_interrupt_i & mie_csr.MTIE & mstatus_csr.MIE;
+                if (interrupt_request_i) begin 
+                    /* Pending if enabled */
+                    mip_csr.MEIP <= 1'b1;
+                end else if (csr_enable_out.mip & csr_write_validate_i) begin
+                    mip_csr.MEIP <= csr_data_out[11]; 
+                end
+
+                if (timer_interrupt_i) begin 
+                    /* Pending if enabled */
+                    mip_csr.MTIP <= 1'b1;
+                end else if (csr_enable_out.mip & csr_write_validate_i) begin
+                    mip_csr.MTIP <= csr_data_out[7];
+                end
             end
         end
 
@@ -382,8 +416,14 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mcycle_csr <= 64'b0;
+            end else if (csr_enable_out.mcycle[0] & csr_write_validate_i) begin 
+                /* Lower part */
+                mcycle_csr[31:0] <= csr_data_out;
+            end else if (csr_enable_out.mcycle[1] & csr_write_validate_i) begin 
+                /* Higher part */
+                mcycle_csr[63:32] <= csr_data_out;
             end else if (!mcountinhibit_csr[0]) begin 
-                mcycle_csr<= mcycle_csr + 1'b1;
+                mcycle_csr <= mcycle_csr + 1'b1;
             end
         end
 
@@ -395,6 +435,12 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 minstret_csr <= 64'b0;
+            end else if (csr_enable_out.minstret[0] & csr_write_validate_i) begin 
+                /* Lower part */
+                minstret_csr[31:0] <= csr_data_out;
+            end else if (csr_enable_out.minstret[1] & csr_write_validate_i) begin 
+                /* Higher part */
+                minstret_csr[63:32] <= csr_data_out;
             end else if (instruction_retired_i & !mcountinhibit_csr[2]) begin 
                 minstret_csr <= minstret_csr + 1'b1;
             end
@@ -502,8 +548,12 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mepc_csr <= '0;
-            end else if (exception_i | interrupt_request_i) begin 
+            end else if (exception_i) begin 
                 mepc_csr <= trap_instruction_pc_i;
+            end else if (interrupt_request_i) begin
+                mepc_csr <= compressed_i ? (trap_instruction_pc_i + 2) : (trap_instruction_pc_i + 4);
+            end else if (csr_enable_out.mepc & csr_write_validate_i) begin 
+                mepc_csr <= csr_data_out;
             end
         end
 
@@ -563,13 +613,29 @@ module control_status_registers (
 
                             if ((csr_address_i.index[7:5] == '0) & (csr_address_i.index[4:3] == 2'b10)) begin
                                 case (csr_address_i.index[2:0])
-                                    3'h1: csr_data_read_o = mvendorid_csr;
+                                    3'h1: begin 
+                                        csr_data_read_o = mvendorid_csr;
 
-                                    3'h2: csr_data_read_o = marchid_csr;
+                                        `ifdef CSR_DEBUG csr_name = "MVENDORID"; `endif 
+                                    end 
 
-                                    3'h3: csr_data_read_o = mimpid_csr;
+                                    3'h2: begin 
+                                        csr_data_read_o = marchid_csr;
 
-                                    3'h4: csr_data_read_o = mhartid_csr;
+                                        `ifdef CSR_DEBUG csr_name = "MARCHID"; `endif 
+                                    end 
+
+                                    3'h3: begin 
+                                        csr_data_read_o = mimpid_csr;
+
+                                        `ifdef CSR_DEBUG csr_name = "MIMPID"; `endif 
+                                    end 
+
+                                    3'h4: begin 
+                                        csr_data_read_o = mhartid_csr;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHARTID"; `endif  
+                                    end 
 
                                     default: non_existing_csr = 1'b1;
                                 endcase
@@ -598,34 +664,82 @@ module control_status_registers (
                             if (csr_address_i.index[7:3] == '0) begin
                                 /* Upper 32 bits of HPMs */
                                 case (csr_address_i.index[2:0])
-                                    3'h0: csr_data_read_o = mcycle_csr[63:32];
+                                    3'h0: begin
+                                        csr_data_read_o = mcycle_csr[31:0];
 
-                                    3'h2: csr_data_read_o = minstret_csr[63:32];
+                                        `ifdef CSR_DEBUG csr_name = "CYCLE"; `endif  
+                                    end 
 
-                                    3'h3: csr_data_read_o = mhpmcounter_csr[0][63:32];
+                                    3'h2: begin
+                                        csr_data_read_o = minstret_csr[31:0];
 
-                                    3'h4: csr_data_read_o = mhpmcounter_csr[1][63:32];
+                                        `ifdef CSR_DEBUG csr_name = "INSTRET"; `endif  
+                                    end 
 
-                                    3'h5: csr_data_read_o = mhpmcounter_csr[2][63:32];
+                                    3'h3: begin
+                                        csr_data_read_o = mhpmcounter_csr[0][31:0];
 
-                                    3'h6: csr_data_read_o = mhpmcounter_csr[3][63:32];
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER3"; `endif  
+                                    end 
+
+                                    3'h4: begin
+                                        csr_data_read_o = mhpmcounter_csr[1][31:0];
+
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER4"; `endif  
+                                    end 
+
+                                    3'h5: begin
+                                        csr_data_read_o = mhpmcounter_csr[2][31:0];
+
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER5"; `endif  
+                                    end 
+
+                                    3'h6: begin
+                                        csr_data_read_o = mhpmcounter_csr[3][31:0];
+
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER6"; `endif  
+                                    end 
 
                                     default: non_existing_csr = 1'b1;
                                 endcase
                             end else if (csr_address_i.index[7:3] == 5'b1000_0) begin
                                 /* Lower 32 bits of HPMs */
                                 case (csr_address_i.index[2:0])
-                                    3'h0: csr_data_read_o = mcycle_csr[31:0];
+                                    3'h0: begin 
+                                        csr_data_read_o = mcycle_csr[63:32];
 
-                                    3'h2: csr_data_read_o = minstret_csr[31:0];
+                                        `ifdef CSR_DEBUG csr_name = "CYCLEH"; `endif
+                                    end 
 
-                                    3'h3: csr_data_read_o = mhpmcounter_csr[0][31:0];
+                                    3'h2: begin 
+                                        csr_data_read_o = minstret_csr[63:32];
 
-                                    3'h4: csr_data_read_o = mhpmcounter_csr[1][31:0];
+                                        `ifdef CSR_DEBUG csr_name = "INSTRETH"; `endif
+                                    end 
 
-                                    3'h5: csr_data_read_o = mhpmcounter_csr[2][31:0];
+                                    3'h3: begin 
+                                        csr_data_read_o = mhpmcounter_csr[0][63:32];
 
-                                    3'h6: csr_data_read_o = mhpmcounter_csr[3][31:0];
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER3H"; `endif
+                                    end 
+
+                                    3'h4: begin 
+                                        csr_data_read_o = mhpmcounter_csr[1][63:32];
+
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER4H"; `endif
+                                    end 
+
+                                    3'h5: begin 
+                                        csr_data_read_o = mhpmcounter_csr[2][63:32];
+
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER5H"; `endif
+                                    end 
+
+                                    3'h6: begin 
+                                        csr_data_read_o = mhpmcounter_csr[3][63:32];
+
+                                        `ifdef CSR_DEBUG csr_name = "HPMCOUNTER6H"; `endif
+                                    end 
 
                                     default: non_existing_csr = 1'b1;
                                 endcase
@@ -653,28 +767,38 @@ module control_status_registers (
                                         csr_data_read_o[7] = mstatus_csr.MPIE;
                                         csr_data_read_o[12:11] = mstatus_csr.MPP;
                                         csr_enable.mstatus = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MSTATUS"; `endif
                                     end
 
                                     3'h1: begin
                                         csr_data_read_o = misa_csr;
                                         csr_enable.misa = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MISA"; `endif
                                     end
 
                                     3'h4: begin
                                         csr_data_read_o[11] = mie_csr.MEIE;
                                         csr_data_read_o[7] = mie_csr.MTIE;
                                         csr_enable.mie = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MIE"; `endif
                                     end
 
                                     3'h5: begin
                                         csr_data_read_o = mtvec_csr;
                                         csr_enable.mtvec = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MTVEC"; `endif
                                     end
 
                                     3'h6: begin
                                         csr_data_read_o[6:2] = mcounteren_csr[5:1];
                                         csr_data_read_o[0] = mcounteren_csr[0];
                                         csr_enable.mcounteren = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MCOUNTEREN"; `endif
                                     end
                                 endcase 
                             end else if (csr_address_i[7:3] == 5'b0100_0) begin
@@ -682,22 +806,30 @@ module control_status_registers (
                                     3'h0: begin
                                         csr_data_read_o = mscratch_csr;
                                         csr_enable.mscratch = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MSCRATCH"; `endif
                                     end
 
                                     3'h1: begin
                                         csr_data_read_o = mepc_csr;
                                         csr_enable.mepc = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MEPC"; `endif
                                     end
 
                                     3'h2: begin
                                         csr_data_read_o = mcause_csr;
                                         csr_enable.mcause = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MCAUSE"; `endif
                                     end
 
                                     3'h4: begin
                                         /* Read only */
                                         csr_data_read_o[11] = mip_csr.MEIP;
                                         csr_data_read_o[7] = mip_csr.MTIP;
+
+                                        `ifdef CSR_DEBUG csr_name = "MIP"; `endif
                                     end
                                 endcase
                             end else if (csr_address_i[7:3] == 5'b0010_0) begin
@@ -706,26 +838,36 @@ module control_status_registers (
                                         csr_data_read_o[6:2] = mcountinhibit_csr[5:1];
                                         csr_data_read_o[0] = mcountinhibit_csr[0];
                                         csr_enable.mcountinhibit = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MCOUNTINHIBIT"; `endif
                                     end
 
                                     3'h3: begin
                                         csr_data_read_o[2:0] = mhpmevent_csr[0];
                                         csr_enable.mhpmevent[0] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMEVENT3"; `endif
                                     end
 
                                     3'h4: begin
                                         csr_data_read_o[2:0] = mhpmevent_csr[1];
                                         csr_enable.mhpmevent[1] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMEVENT4"; `endif
                                     end
 
                                     3'h5: begin
                                         csr_data_read_o[2:0] = mhpmevent_csr[2];
                                         csr_enable.mhpmevent[2] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMEVENT5"; `endif
                                     end
 
                                     3'h6: begin
                                         csr_data_read_o[2:0] = mhpmevent_csr[3];
                                         csr_enable.mhpmevent[3] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMEVENT6"; `endif
                                     end
                                 endcase
                             end else begin
@@ -749,31 +891,43 @@ module control_status_registers (
                                     3'h0: begin
                                         csr_data_read_o = mcycle_csr[31:0];
                                         csr_enable.mcycle[0] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MCYCLE"; `endif
                                     end 
                                     
                                     3'h2: begin
                                         csr_data_read_o = minstret_csr[31:0];
                                         csr_enable.minstret[0] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MINSTRET"; `endif
                                     end 
                                     
                                     3'h3: begin
                                         csr_data_read_o = mhpmcounter_csr[0][31:0];
                                         csr_enable.mhpmcounter[0][0] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER3"; `endif
                                     end 
                                     
                                     3'h4: begin
                                         csr_data_read_o = mhpmcounter_csr[1][31:0];
                                         csr_enable.mhpmcounter[0][1] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER4"; `endif
                                     end 
                                     
                                     3'h5: begin
                                         csr_data_read_o = mhpmcounter_csr[2][31:0];
                                         csr_enable.mhpmcounter[0][2] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER5"; `endif
                                     end 
                                     
                                     3'h6: begin
                                         csr_data_read_o = mhpmcounter_csr[3][31:0];
                                         csr_enable.mhpmcounter[0][3] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER6"; `endif
                                     end 
                                     
                                     default: non_existing_csr = 1'b1;
@@ -783,31 +937,43 @@ module control_status_registers (
                                     3'h0: begin
                                         csr_data_read_o = mcycle_csr[63:31];
                                         csr_enable[1] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MCYCLEH"; `endif
                                     end 
                                     
                                     3'h2: begin
                                         csr_data_read_o = minstret_csr[63:31];
                                         csr_enable[1] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MINSTRETH"; `endif
                                     end 
                                     
                                     3'h3: begin
                                         csr_data_read_o = mhpmcounter_csr[0][63:31];
                                         csr_enable.mhpmcounter[1][3] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER3H"; `endif
                                     end 
                                     
                                     3'h4: begin
                                         csr_data_read_o = mhpmcounter_csr[1][63:31];
                                         csr_enable.mhpmcounter[1][3] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER4H"; `endif
                                     end 
                                     
                                     3'h5: begin
                                         csr_data_read_o = mhpmcounter_csr[2][63:31];
                                         csr_enable.mhpmcounter[1][3] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER5H"; `endif
                                     end 
                                     
                                     3'h6: begin
                                         csr_data_read_o = mhpmcounter_csr[3][63:31];
                                         csr_enable.mhpmcounter[1][3] = 1'b1;
+
+                                        `ifdef CSR_DEBUG csr_name = "MHPMCOUNTER6H"; `endif
                                     end 
                                     
                                     default: non_existing_csr = 1'b1;
