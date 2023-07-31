@@ -6,6 +6,8 @@
 
 `include "Include/Interfaces/bus_controller_interface.sv"
 
+`include "../Include/Headers/apogeo_configuration.svh"
+
 module pipeline #(
     /* Predictor table size */ 
     parameter PREDICTOR_SIZE = 1024, 
@@ -28,6 +30,7 @@ module pipeline #(
 
     /* Interrupt interface */
     input logic interrupt_i, 
+    input logic timer_interrupt_i, 
     input logic [7:0] interrupt_vector_i,
 
     /* Memory interface */ 
@@ -35,9 +38,11 @@ module pipeline #(
     store_interface.master store_channel
 );
 
-    logic interrupt_enable, interrupt, timer_interrupt; 
+    logic global_interrupt_enable, external_interrupt_enable, timer_interrupt_enable;
+    logic interrupt, timer_interrupt; 
 
-    assign interrupt = (interrupt_i | timer_interrupt) & interrupt_enable;
+    assign interrupt = interrupt_i & global_interrupt_enable & external_interrupt_enable;
+    assign timer_interrupt = timer_interrupt_i & global_interrupt_enable & timer_interrupt_enable;
 
 
 //====================================================================================
@@ -45,14 +50,14 @@ module pipeline #(
 //====================================================================================
 
     /* Pipeline control */ 
-    logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, branch_flush;
-    data_word_t handler_program_counter;
+    logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, branch_flush, pipeline_empty;
+    data_word_t handler_program_counter, hander_return_program_counter; logic handler_return;
 
     /* Write back result */
     logic writeback; logic [4:0] writeback_register; data_word_t writeback_result;
 
     /* Branch control from backend */
-    logic executed, branch, jump, taken, speculative; 
+    logic executed, branch, jump, taken, speculative, compressed; 
     data_word_t branch_target_address, instruction_address;  
 
     /* Data to backend */ 
@@ -63,30 +68,38 @@ module pipeline #(
     exu_valid_t frontend_valid_operation; exu_uop_t frontend_operation; 
     logic [1:0][4:0] frontend_register_source;
 
+    /* Registred output */ 
+    logic fetch_acknowledge, fetch;
+    data_word_t fetch_address;
+
     front_end #(PREDICTOR_SIZE, BTB_SIZE) apogeo_frontend (
-        .clk_i          ( clk_i           ),
-        .rst_n_i        ( rst_n_i         ),
-        .flush_i        ( flush_pipeline  ),
-        .branch_flush_i ( branch_flush    ),
-        .stall_i        ( stall_pipeline  ),
-        .priv_level_i   ( privilege_level ),
-        .issue_o        ( issue           ),
+        .clk_i            ( clk_i           ),
+        .rst_n_i          ( rst_n_i         ),
+        .flush_i          ( flush_pipeline  ),
+        .branch_flush_i   ( branch_flush    ),
+        .stall_i          ( stall_pipeline  ),
+        .priv_level_i     ( privilege_level ),
+        .issue_o          ( issue           ),
+        .pipeline_empty_i ( pipeline_empty  ),
 
         .fetch_valid_i       ( fetch_valid_i       ),
         .fetch_instruction_i ( fetch_instruction_i ),
-        .fetch_acknowledge_o ( fetch_acknowledge_o ),
-        .fetch_o             ( fetch_o             ), 
-        .fetch_address_o     ( fetch_address_o     ),
+        .fetch_acknowledge_o ( fetch_acknowledge   ),
+        .fetch_o             ( fetch               ), 
+        .fetch_address_o     ( fetch_address       ),
 
-        .interrupt_i  ( interrupt               ),
-        .exception_i  ( exception               ),
-        .handler_pc_i ( handler_program_counter ),
+        .interrupt_i        ( interrupt | timer_interrupt   ),
+        .exception_i        ( exception                     ),
+        .handler_return_i   ( handler_return                ),  
+        .handler_pc_i       ( handler_program_counter       ),
+        .hander_return_pc_i ( hander_return_program_counter ),
 
         .executed_i           ( executed              ),
         .branch_i             ( branch                ),
         .jump_i               ( jump                  ),
         .taken_i              ( taken                 ),
         .speculative_i        ( speculative           ),
+        .compressed_i         ( compressed            ),
         .branch_target_addr_i ( branch_target_address ),
         .instr_address_i      ( instruction_address   ), 
 
@@ -115,6 +128,20 @@ module pipeline #(
         .exu_uop_o            ( frontend_operation       )
     );
 
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                fetch_acknowledge_o <= 1'b0;
+                fetch_o <= 1'b0;
+
+                fetch_address_o <= '0; 
+            end else begin
+                fetch_acknowledge_o <= fetch_acknowledge;
+                fetch_o <= fetch;
+
+                fetch_address_o <= fetch_address; 
+            end
+        end
 
 //====================================================================================
 //      PIPELINE REGISTER
@@ -185,13 +212,18 @@ module pipeline #(
 //      BACK END 
 //====================================================================================
 
+    /* Registred */ 
+    load_interface load_channel_backend(); 
+    store_interface store_channel_backend();
+
     back_end #(STORE_BUFFER_SIZE) apogeo_backend (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
 
-        .flush_o        ( flush_pipeline ),
-        .branch_flush_o ( branch_flush   ),
-        .stall_o        ( stall_pipeline ),
+        .flush_o          ( flush_pipeline ),
+        .branch_flush_o   ( branch_flush   ),
+        .stall_o          ( stall_pipeline ),
+        .pipeline_empty_o ( pipeline_empty ),
 
         .priv_level_o ( privilege_level ),
 
@@ -204,6 +236,7 @@ module pipeline #(
 
         .ipacket_i ( backend_ipacket ),
 
+        .compressed_o     ( compressed            ),
         .executed_o       ( executed              ),
         .branch_i         ( backend_branch        ),
         .branch_o         ( branch                ),
@@ -220,16 +253,20 @@ module pipeline #(
         .base_address_reg_i ( backend_base_address_reg ),
         .address_offset_i   ( backend_address_offset   ),
 
-        .load_channel     ( load_channel  ),
-        .store_channel    ( store_channel ),
+        .load_channel  ( load_channel_backend  ),
+        .store_channel ( store_channel_backend ),
 
-        .interrupt_i        ( interrupt               ),
-        .interrupt_vector_i ( interrupt_vector_i      ),
-        .timer_interrupt_o  ( timer_interrupt         ),
-        .interrupt_enable_o ( interrupt_enable        ),
-        .int_ack_o          ( interrupt_acknowledge_o ),
-        .trap_o             ( exception               ),
-        .handler_pc_o       ( handler_program_counter ),
+        .interrupt_i             ( interrupt                     ),
+        .timer_interrupt_i       ( timer_interrupt               ),
+        .interrupt_vector_i      ( interrupt_vector_i            ),
+        .global_interrupt_en_o   ( global_interrupt_enable       ),
+        .external_interrupt_en_o ( external_interrupt_enable     ),
+        .timer_interrupt_en_o    ( timer_interrupt_enable        ),
+        .int_ack_o               ( interrupt_acknowledge_o       ),
+        .exception_o             ( exception                     ),
+        .handler_return_o        ( handler_return                ),
+        .handler_pc_o            ( handler_program_counter       ),
+        .handler_return_pc_o     ( hander_return_program_counter ),
 
         .ldu_idle_o ( ldu_idle ),
         .stu_idle_o ( stu_idle ),
@@ -238,6 +275,37 @@ module pipeline #(
         .writeback_result_o ( writeback_result   ),
         .writeback_o        ( writeback          )
     );
+
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                load_channel.request <= 1'b0;
+                load_channel.address <= '0; 
+            end else begin
+                load_channel.request <= load_channel_backend.request;
+                load_channel.address <= load_channel_backend.address; 
+            end
+        end
+
+    assign load_channel_backend.data = load_channel.data;
+    assign load_channel_backend.valid = load_channel.valid; 
+
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                store_channel.request <= 1'b0;
+                store_channel.address <= '0; 
+                store_channel.data <= '0; 
+                store_channel.width <= WORD; 
+            end else begin
+                store_channel.request <= store_channel_backend.request;
+                store_channel.address <= store_channel_backend.address; 
+                store_channel.data <= store_channel_backend.data; 
+                store_channel.width <= store_channel_backend.width; 
+            end
+        end
+
+    assign store_channel_backend.done = store_channel.done;
 
 endmodule : pipeline 
 
