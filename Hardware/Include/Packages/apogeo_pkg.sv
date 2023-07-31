@@ -48,6 +48,9 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
+        /* Instruction is compressed */
+        logic compressed;
+
         /* Has generated a trap */
         logic exception_generated;
 
@@ -72,6 +75,9 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
+        /* Instruction is compressed */
+        logic compressed; 
+
         /* Has generated an trap */
         logic exception_generated;
 
@@ -91,6 +97,7 @@ package rv32_instructions_pkg;
     function rob_entry_t packet_convert(input instr_packet_t packet, input data_word_t result);
         automatic rob_entry_t rob_packet;
 
+        rob_packet.compressed = packet.compressed;
         rob_packet.exception_generated = packet.exception_generated;
         rob_packet.exception_vector = packet.exception_vector;
         rob_packet.instr_addr = packet.instr_addr;

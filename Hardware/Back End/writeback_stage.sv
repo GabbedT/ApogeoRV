@@ -54,6 +54,7 @@ module writeback_stage (
     output data_word_t result_o,
 
     /* Controller interface */
+    output logic compressed_o,
     output logic sleep_o,
     output logic mreturn_o,
     output logic execute_store_o,
@@ -75,13 +76,15 @@ module writeback_stage (
 
     assign exception_iaddress_o = rob_entry_i.instr_addr;
 
+    assign compressed_o = rob_entry_i.compressed;
+
     assign sleep_o = rob_valid_i & (rob_entry_i.exception_vector == `SLEEP);
     assign mreturn_o = rob_valid_i & (rob_entry_i.exception_vector == `HANDLER_RETURN);
     assign execute_store_o = rob_valid_i & (rob_entry_i.exception_vector == `STORE_OPERATION);
     assign execute_csr_o = rob_valid_i & (rob_entry_i.exception_vector == `CSR_OPERATION);
 
 
-    `ifdef TEST_DESIGN 
+    `ifdef WRITEBACK_DEBUG 
 
         always_comb begin 
             if (rob_valid_i) begin
