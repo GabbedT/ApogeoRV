@@ -89,7 +89,7 @@ module scoreboard (
 
     localparam BMU_LATENCY = 2;
 
-    localparam DIV_LATENCY = 35;
+    localparam DIV_LATENCY = 36;
 
     /* Check if the dispatched instruction is being issued in the next cycle */
     function bit issue_next_cycle(input bit unit_to_issue);
