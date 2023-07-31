@@ -71,7 +71,7 @@ module bit_manipulation_decoder (
     bmu_uop_t unit_uop; logic unit_valid;
 
     function void print(input string operation);
-        $display("[DECODER] 0x%h decoded into %s instruction! SRC1: x%0d, SRC2: x%0d, DEST: x%0d\n", instr_i, operation, reg_src_o[1], reg_src_o[2], reg_dest_o);
+        $display("[BDECODER] 0x%h decoded into %s instruction! SRC1: x%0d, SRC2: x%0d, DEST: x%0d\n", instr_i, operation, reg_src_o[1], reg_src_o[2], reg_dest_o);
     endfunction : print
 
     function void build_packet(input bmu_operation_t operation, input bmu_op_type_t optype);
@@ -122,7 +122,7 @@ module bit_manipulation_decoder (
                                 immediate_o = {'0, instr_i.R.reg_src_2};
                                 immediate_valid_o = 1'b1;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BSETI"); `endif  
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BSETI"); `endif  
                             end
 
                             riscv32::BCLRI: begin
@@ -137,7 +137,7 @@ module bit_manipulation_decoder (
                                 immediate_o = {'0, instr_i.R.reg_src_2};
                                 immediate_valid_o = 1'b1;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BCLRI"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BCLRI"); `endif 
                             end
 
                             /* CLZ, CTZ, CPOP, SIGN EXTEND */
@@ -153,35 +153,35 @@ module bit_manipulation_decoder (
                                         bmu_operation.BITC.opcode = CLZ;
                                         build_packet(bmu_operation, COUNT);
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("CLZ"); `endif 
+                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("CLZ"); `endif 
                                     end
 
                                     riscv32::CTZ: begin
                                         bmu_operation.BITC.opcode = CTZ;
                                         build_packet(bmu_operation, COUNT);
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("CTZ"); `endif 
+                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("CTZ"); `endif 
                                     end
 
                                     riscv32::CPOP: begin
                                         bmu_operation.BITC.opcode = CPOP;
                                         build_packet(bmu_operation, COUNT);
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("CPOP"); `endif 
+                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("CPOP"); `endif 
                                     end
 
                                     riscv32::SEXTB: begin
                                         bmu_operation.EXT.opcode = SEXTB;
                                         build_packet(bmu_operation, EXTEND);
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("SEXTB"); `endif 
+                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("SEXTB"); `endif 
                                     end
 
                                     riscv32::SEXTH: begin
                                         bmu_operation.EXT.opcode = SEXTH;
                                         build_packet(bmu_operation, EXTEND);
 
-                                        `ifdef TEST_DESIGN if (!exception_generated) print("SEXTH"); `endif 
+                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("SEXTH"); `endif 
                                     end
 
                                     default: exception_generated = 1'b1;
@@ -200,7 +200,7 @@ module bit_manipulation_decoder (
                                 immediate_o = {'0, instr_i.R.reg_src_2};
                                 immediate_valid_o = 1'b1;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BINVI"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BINVI"); `endif 
                             end
 
                             default: exception_generated = 1'b1;
@@ -222,7 +222,7 @@ module bit_manipulation_decoder (
                                 immediate_o = {'0, instr_i.R.reg_src_2};
                                 immediate_valid_o = 1'b1;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BEXTI"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BEXTI"); `endif 
                             end
 
                             riscv32::RORI: begin
@@ -237,7 +237,7 @@ module bit_manipulation_decoder (
                                 immediate_o = {'0, instr_i.R.reg_src_2};
                                 immediate_valid_o = 1'b1;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("RORI"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("RORI"); `endif 
                             end
 
                             riscv32::REV8: begin
@@ -250,7 +250,7 @@ module bit_manipulation_decoder (
 
                                 exception_generated = instr_i.R.funct7[6] | instr_i.R.funct7[3] | instr_i.R.funct7[1:0] | (instr_i[31:20] != 12'b011010011000);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("REV8"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("REV8"); `endif 
                             end
 
                             riscv32::ORCB: begin
@@ -263,7 +263,7 @@ module bit_manipulation_decoder (
 
                                 exception_generated = instr_i.R.funct7[6] | instr_i.R.funct7[3] | instr_i.R.funct7[1:0] | (instr_i[31:20] != 12'b001010000111);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("ORCB"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ORCB"); `endif 
                             end
 
                             default: exception_generated = 1'b1;
@@ -289,7 +289,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BSET"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BSET"); `endif 
                             end
    
                             riscv32::BCLR: begin
@@ -301,7 +301,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BCLR"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BCLR"); `endif 
                             end
   
                             riscv32::ROL: begin
@@ -313,7 +313,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("ROL"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ROL"); `endif 
                             end
    
                             riscv32::BINV: begin
@@ -325,7 +325,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BINV"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BINV"); `endif 
                             end
 
                             default: exception_generated = 1'b1;
@@ -344,7 +344,7 @@ module bit_manipulation_decoder (
 
                         exception_generated = (instr_i.R.funct7 != 7'b0010000);
 
-                        `ifdef TEST_DESIGN if (!exception_generated) print("SH1ADD"); `endif 
+                        `ifdef BDECODER_DEBUG if (!exception_generated) print("SH1ADD"); `endif 
                     end
 
                     3'b100: begin
@@ -360,7 +360,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("SH2ADD"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("SH2ADD"); `endif 
                             end
 
                             riscv32::MIN: begin
@@ -372,7 +372,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("MIN"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("MIN"); `endif 
                             end
 
                             riscv32::ZEXTH: begin
@@ -383,7 +383,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[1] = instr_i.R.reg_src_1;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("ZEXTH"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ZEXTH"); `endif 
                             end
 
                             riscv32::XNOR: begin
@@ -395,7 +395,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("XNOR"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("XNOR"); `endif 
                             end
 
                             default: exception_generated = 1'b1;
@@ -415,7 +415,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("MINU"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("MINU"); `endif 
                             end
 
                             riscv32::BEXT: begin
@@ -427,7 +427,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("BEXT"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("BEXT"); `endif 
                             end 
 
                             riscv32::ROR: begin
@@ -439,7 +439,7 @@ module bit_manipulation_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2;
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("ROR"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ROR"); `endif 
                             end
 
                             default: exception_generated = 1'b1;
@@ -459,7 +459,7 @@ module bit_manipulation_decoder (
 
                                 exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[3:0] != 4'b0101);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("MAX"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("MAX"); `endif 
                             end
 
                             riscv32::SH3ADD: begin
@@ -473,7 +473,7 @@ module bit_manipulation_decoder (
 
                                 exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[3:0] != '0);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("SH3ADD"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("SH3ADD"); `endif 
                             end
 
                             riscv32::ORN: begin
@@ -487,7 +487,7 @@ module bit_manipulation_decoder (
 
                                 exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[3:0] != '0);
 
-                                `ifdef TEST_DESIGN if (!exception_generated) print("ORN"); `endif 
+                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ORN"); `endif 
                             end
 
                             default: exception_generated = 1'b1;
@@ -506,7 +506,7 @@ module bit_manipulation_decoder (
 
                             exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[4:0] != '0); 
 
-                            `ifdef TEST_DESIGN if (!exception_generated) print("ANDN"); `endif 
+                            `ifdef BDECODER_DEBUG if (!exception_generated) print("ANDN"); `endif 
                         end else if (instr_i.R.funct7[5] == riscv32::MAXU) begin
                             bmu_operation.CMP.opcode = MAXU; 
                             build_packet(bmu_operation, COMPARE);
@@ -518,7 +518,7 @@ module bit_manipulation_decoder (
 
                             exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[4:0] != 4'b00101); 
 
-                            `ifdef TEST_DESIGN if (!exception_generated) print("MAXU"); `endif 
+                            `ifdef BDECODER_DEBUG if (!exception_generated) print("MAXU"); `endif 
                         end 
                     end
 
