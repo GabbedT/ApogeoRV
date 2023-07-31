@@ -1,6 +1,7 @@
 `include "Classes/Riscv32.sv"
 
 `include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
+`include "../Hardware/Include/Headers/apogeo_memory_map.svh"
 
 /* Enable or disable tracing */
 `define TRACER
@@ -25,6 +26,7 @@ module directed_pipeline_test;
 
     /* Interrupt interface */
     logic interrupt_i = '0; 
+    logic timer_interrupt_i = '0; 
     logic [7:0] interrupt_vector_i = '0;
 
     /* Memory interface */ 
@@ -69,7 +71,13 @@ module directed_pipeline_test;
         @(posedge clk_i);
         rst_n_i <= 1'b1;
 
-        while (!dut.apogeo_backend.exception_generated) begin
+        while (!(dut.apogeo_backend.exception_generated && (dut.apogeo_backend.exception_vector == 11))) begin
+            if (dut.apogeo_backend.exception_vector == 16) begin
+                repeat (40) @(posedge clk_i);
+                interrupt_i <= 1'b1; 
+                @(posedge clk_i);
+                interrupt_i <= 1'b0; 
+            end
             @(posedge clk_i);
 
             `ifdef TRACER 
@@ -184,42 +192,42 @@ module instruction_agent (
         write_instruction(rv32._lui(1, 1));
         write_instruction(rv32._auipc(2, 1));
 
-        write_instruction(rv32._addi(3, 0, 4));  // X3 = 4
-        write_instruction(rv32._addi(3, 3, -3)); // X3 = 1
+        write_instruction(rv32._addi(3, 0, 4)); 
+        write_instruction(rv32._addi(3, 3, -3));
 
-        write_instruction(rv32._slti(4, 3, 3));  // X4 = 1
-        write_instruction(rv32._slti(4, 3, -3)); // X4 = 0
-        write_instruction(rv32._slti(4, 3, 0));  // X4 = 0
+        write_instruction(rv32._slti(4, 3, 3)); 
+        write_instruction(rv32._slti(4, 3, -3));
+        write_instruction(rv32._slti(4, 3, 0)); 
 
-        write_instruction(rv32._sltiu(4, 3, 3));  // X4 = 1
-        write_instruction(rv32._sltiu(4, 3, -3)); // X4 = 1
-        write_instruction(rv32._sltiu(4, 3, 0));  // X4 = 0
+        write_instruction(rv32._sltiu(4, 3, 3)); 
+        write_instruction(rv32._sltiu(4, 3, -3));
+        write_instruction(rv32._sltiu(4, 3, 0)); 
 
-        write_instruction(rv32._ori(5, 0, -1));  // X5 = '1
-        write_instruction(rv32._xori(5, 5, 0));  // X5 = '1
-        write_instruction(rv32._andi(5, 5, 16));  // X5 = 16
+        write_instruction(rv32._ori(5, 0, -1));  
+        write_instruction(rv32._xori(5, 5, 0));  
+        write_instruction(rv32._andi(5, 5, 16));  
 
-        write_instruction(rv32._slli(5, 5, 1));  // X5 = 32
-        write_instruction(rv32._srli(5, 5, 1));  // X5 = 16
-        write_instruction(rv32._srai(5, 5, 1));  // X5 = 8
+        write_instruction(rv32._slli(5, 5, 1));  
+        write_instruction(rv32._srli(5, 5, 1));  
+        write_instruction(rv32._srai(5, 5, 1)); 
 
-        write_instruction(rv32._addi(6, 0, 1));  // X6 = 1
-        write_instruction(rv32._add(6, 6, 5));   // X6 = 9
-        write_instruction(rv32._sub(6, 6, 5));   // X6 = 1
+        write_instruction(rv32._addi(6, 0, 1)); 
+        write_instruction(rv32._add(6, 6, 5));  
+        write_instruction(rv32._sub(6, 6, 5));  
 
-        write_instruction(rv32._slt(6, 6, 3));   // X6 = 0
-        write_instruction(rv32._slt(6, 6, 3));   // X6 = 1
-        write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
-        write_instruction(rv32._ori(5, 0, -1));  // X5 = '1
-        write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
+        write_instruction(rv32._slt(6, 6, 3));  
+        write_instruction(rv32._slt(6, 6, 3));  
+        write_instruction(rv32._sltu(6, 6, 5)); 
+        write_instruction(rv32._ori(5, 0, -1));  
+        write_instruction(rv32._sltu(6, 6, 5)); 
 
-        write_instruction(rv32._xor(7, 5, 0));  // X7 = '1
-        write_instruction(rv32._and(7, 7, 0));  // X7 = 0
-        write_instruction(rv32._or(7, 7, 6));  // X7 = 1
+        write_instruction(rv32._xor(7, 5, 0));  
+        write_instruction(rv32._and(7, 7, 0)); 
+        write_instruction(rv32._or(7, 7, 6)); 
 
-        write_instruction(rv32._sll(7, 7, 7));  // X7 = 2
-        write_instruction(rv32._srl(7, 7, 3));  // X7 = 1
-        write_instruction(rv32._sra(7, 7, 3));  // X7 = 0
+        write_instruction(rv32._sll(7, 7, 7)); 
+        write_instruction(rv32._srl(7, 7, 3)); 
+        write_instruction(rv32._sra(7, 7, 3)); 
 
         write_instruction(rv32._mul(7, 5, 2));  
         write_instruction(rv32._mul(7, 7, 7));  
@@ -227,16 +235,16 @@ module instruction_agent (
         write_instruction(rv32._mulhsu(8, 7, 7));  
         write_instruction(rv32._mulhu(8, 7, 8));  
 
-        write_instruction(rv32._slt(6, 8, 3));   // X6 = 0
-        write_instruction(rv32._slt(6, 6, 3));   // X6 = 1
-        write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
-        write_instruction(rv32._ori(5, 0, -1));  // X5 = '1
-        write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
-        write_instruction(rv32._slt(6, 6, 3));   // X6 = 0
-        write_instruction(rv32._slt(6, 6, 3));   // X6 = 1
-        write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1
-        write_instruction(rv32._ori(5, 0, -1));  // X5 = '1
-        write_instruction(rv32._sltu(6, 6, 5));  // X6 = 1 
+        write_instruction(rv32._slt(6, 8, 3));  
+        write_instruction(rv32._slt(6, 6, 3));  
+        write_instruction(rv32._sltu(6, 6, 5)); 
+        write_instruction(rv32._ori(5, 0, -1)); 
+        write_instruction(rv32._sltu(6, 6, 5)); 
+        write_instruction(rv32._slt(6, 6, 3));  
+        write_instruction(rv32._slt(6, 6, 3));  
+        write_instruction(rv32._sltu(6, 6, 5)); 
+        write_instruction(rv32._ori(5, 0, -1)); 
+        write_instruction(rv32._sltu(6, 6, 5));  
     endfunction : riscv_I_program 
 
 
@@ -339,6 +347,74 @@ module instruction_agent (
         write_instruction(rv32._ecall());
     endfunction : riscv_CSR_program
 
+    function riscv_exception_program();
+        for (int i = 0; i < 32; ++i) begin
+            /* Initialize all the registers to 0xFFFFFFFF */
+            write_instruction(rv32._addi(i, 0, -1));
+        end
+
+        write_instruction(rv32._addi(1, 0, 49));
+        write_instruction(rv32._slli(1, 1, 2));
+        write_instruction(rv32._csrrw(1, 1, rv32.csr_mtvec));
+
+        /* Go into U mode */ 
+        write_instruction(rv32._mret()); 
+
+        /* Execute some instructions */
+        write_instruction(rv32._sub(1, 2, 3)); 
+        write_instruction(rv32._sub(4, 5, 6)); 
+        write_instruction(rv32._sub(7, 8, 9)); 
+        write_instruction(rv32._sub(10, 11, 12)); 
+
+        /* Execute an instruction that generate an exception */
+        write_instruction(rv32._ebreak());
+
+        /* Pad some instructions */ 
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+        write_instruction(rv32._add(0, 0, 0));
+
+        /* Handler start */ 
+        write_instruction(rv32._add(3, 1, 2));
+        write_instruction(rv32._ecall());
+    endfunction : riscv_exception_program 
+
+    function riscv_test();
+        /* Execute a division */
+        write_instruction(rv32._addi(31, 0, 1));
+        write_instruction(rv32._div(31, 31, 31));
+
+        /* Wait for the division to end */
+        write_instruction(rv32._fence(0, 0)); 
+
+        /* Check if the ADD instructions doesn't execute */
+        repeat(50) begin
+            write_instruction(rv32._addi(1, 1, 1));
+        end 
+
+        /* Load the timer base address */
+        write_instruction(rv32._lui(2, 1));
+        write_instruction(rv32._addi(2, 2, -`IO_START));
+
+        /* Load the timer value (TIMER_START + 2) */
+        write_instruction(rv32._lw(1, 2, 2));
+
+        /* Set the timer comparator to 200 and wait for interrupt */
+        write_instruction(rv32._addi(3, 0, 200));
+        write_instruction(rv32._sw(3, 2, 0));
+        write_instruction(rv32._wfi());
+
+        /* Load the timer value (TIMER_START + 2) */
+        write_instruction(rv32._lw(4, 2, 2));
+
+        write_instruction(rv32._ecall());
+    endfunction : riscv_test 
+
 
     function inject_program();
         $readmemh("i_branch_stress.hex", instructions);
@@ -352,7 +428,7 @@ module instruction_agent (
             instructions[i] = 32'h00000013;
         end
 
-        riscv_CSR_program();
+        inject_program();
     end
 
     always_ff @(posedge clk_i) begin
