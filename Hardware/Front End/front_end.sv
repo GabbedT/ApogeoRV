@@ -63,6 +63,7 @@ module front_end #(
     input logic branch_flush_i,
     input logic stall_i,
     input logic priv_level_i,
+    input logic pipeline_empty_i,
     output logic issue_o,
 
     /* Fetch interface */
@@ -75,7 +76,9 @@ module front_end #(
     /* Interrupt and exception */
     input logic interrupt_i,
     input logic exception_i,
+    input logic handler_return_i,
     input data_word_t handler_pc_i,
+    input data_word_t hander_return_pc_i,
 
     /* Branch and Jump */
     input logic executed_i,
@@ -83,6 +86,7 @@ module front_end #(
     input logic jump_i,
     input logic taken_i,
     input logic speculative_i,
+    input logic compressed_i,
     input data_word_t branch_target_addr_i,
     input data_word_t instr_address_i,
 
@@ -141,6 +145,12 @@ module front_end #(
                     /* Load exception handler program counter
                      * it has maximum priority */
                     fetch_address_o = handler_pc_i; 
+                end else if (handler_return_i) begin 
+                    fetch_o = 1'b1;
+
+                    /* Load the instruction after completing the
+                     * interrupt / exception handler code */
+                    fetch_address_o = hander_return_pc_i; 
                 end else if (executed_i) begin
                     fetch_o = 1'b1;
 
@@ -154,7 +164,7 @@ module front_end #(
                                 fetch_address_o = branch_target_addr_i;
                             end else begin
                                 /* Recover the next instruction address */
-                                fetch_address_o = instr_address_i + 4; // TODO: ADD COMPRESSED 
+                                fetch_address_o = compressed_i ? (instr_address_i + 2) : (instr_address_i + 4); 
                             end
                         end else begin
                             /* BTB hit have more priority */
@@ -280,7 +290,7 @@ module front_end #(
                 if_stage_speculative <= 1'b0;
 
                 if_stage_exception <= 1'b0; 
-            end else if (branch_flush_i | mispredicted) begin
+            end else if (branch_flush_i | mispredicted | flush_i) begin
                 if_stage_valid <= 1'b0;
                 
                 if_stage_compressed <= 1'b0;
@@ -405,7 +415,7 @@ module front_end #(
                 dc_stage_speculative <= 1'b0;
 
                 dc_stage_exception <= 1'b0;
-            end else if (branch_flush_i | mispredicted) begin
+            end else if (branch_flush_i | mispredicted | flush_i) begin
                 dc_stage_exu_valid <= '0;
 
                 dc_stage_branch <= 1'b0;
@@ -434,13 +444,14 @@ module front_end #(
 //====================================================================================
 
     scheduler scheduler_unit (
-        .clk_i          ( clk_i          ),  
-        .rst_n_i        ( rst_n_i        ), 
-        .stall_i        ( stall_i        ),
-        .flush_i        ( flush_i        ),
-        .branch_flush_i ( branch_flush_i ),
-        .mispredicted_i ( mispredicted   ),
-        .stall_o        ( stall          ),
+        .clk_i            ( clk_i            ),  
+        .rst_n_i          ( rst_n_i          ), 
+        .stall_i          ( stall_i          ),
+        .flush_i          ( flush_i          ),
+        .branch_flush_i   ( branch_flush_i   ),
+        .mispredicted_i   ( mispredicted     ),
+        .stall_o          ( stall            ),
+        .pipeline_empty_i ( pipeline_empty_i ),
 
         .writeback_i          ( writeback_i          ),
         .writeback_register_i ( writeback_register_i ),
