@@ -70,6 +70,9 @@ module commit_stage (
     output logic [5:0] rob_tag_o,
     output rob_entry_t rob_entry_o,
 
+    /* Buffers info */
+    output logic buffers_empty_o,
+
     /* Foward data */
     input logic [1:0][4:0] foward_src_i,
     output data_word_t [1:0] foward_data_o,
@@ -195,7 +198,7 @@ module commit_stage (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= BUFFER1;
-            end else if (!stall_i) begin
+            end else if (!stall_i & !stall_o) begin
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -300,6 +303,7 @@ module commit_stage (
 
     assign stall_o = buffer_full[ITU] | buffer_full[LSU];
 
+    assign buffers_empty_o = buffer_empty[ITU] & buffer_empty[LSU];
 
 //====================================================================================
 //      FOWARD LOGIC
