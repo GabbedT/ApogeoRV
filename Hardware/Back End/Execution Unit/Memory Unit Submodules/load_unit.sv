@@ -54,14 +54,14 @@ module load_unit (
     input logic clk_i,
     input logic rst_n_i,
 
+    /* Privilege level */
+    input logic privilege_i, 
+
     /* Inputs are valid */
     input logic valid_operation_i,
 
     /* Load data request address */
     input data_word_t load_address_i,
-
-    /* Data from the memory mapped timer */
-    input data_word_t timer_data_i,
 
     /* Operation to execute */
     input ldu_uop_t operation_i,
@@ -79,27 +79,28 @@ module load_unit (
     /* Data loaded from memory */   
     output data_word_t data_loaded_o,
 
+    /* Illegal memory access exception */
+    output logic illegal_access_o,
+
+    /* Misaligned memory access */
+    output logic misaligned_o,
+
     /* Functional unit status */
     output logic idle_o,
 
     /* Data is valid */
-    output logic data_valid_o
-);
+    output logic data_valid_o,
 
+    /* Foward instruction packet instead of 
+     * waiting to be saved in a FF */
+    output logic foward_packet_o
+);
 
 //====================================================================================
 //      DATAPATH
 //====================================================================================
 
-    logic timer_access, cachable;
-
-    assign timer_access = (load_address_i >= (`TIMER_START)) & (load_address_i <= (`TIMER_END));
-
-    assign cachable = (load_address_i >= (`IO_END));
-
-
-    ldu_uop_t   operation;
-    data_word_t load_address;
+    ldu_uop_t operation; data_word_t load_address;
         /* Load the register as soon as the inputs 
          * become available */
         always_ff @(posedge clk_i) begin
@@ -147,11 +148,37 @@ module load_unit (
         end
     
 
+        /* Address must be aligned based on the operation: 
+         *
+         * - LOAD WORD: 4 byte boundary 
+         * - LOAD HALFWORD: 2 byte boundary
+         * - LOAD BYTE: 1 byte boundary
+         */ 
+        always_comb begin : misalignment_check_logic
+            /* Default value */
+            misaligned_o = 1'b0; 
+
+            case (operation_i)
+                /* Load byte */
+                LDB: misaligned_o = 1'b0; 
+
+                /* Load half word signed */
+                LDH: misaligned_o = load_address_i[0];
+
+                /* Load word */
+                LDW: misaligned_o = load_address_i[1:0] != '0;
+            endcase 
+        end : misalignment_check_logic
+
+        
+    /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
+    assign illegal_access_o = ((load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END))) & !privilege_i;
+
 //====================================================================================
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_MEMORY_UPDATE} load_unit_fsm_state_t;
+    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_MEMORY_UPDATE, MISALIGNED} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
@@ -173,6 +200,7 @@ module load_unit (
             
             idle_o = 1'b0;
             data_valid_o = 1'b0;
+            foward_packet_o = 1'b0;
             slice_operation = '0;
             data_selected = '0;
 
@@ -186,18 +214,16 @@ module load_unit (
                  * unit issue a load request                  */ 
                 IDLE: begin
                     idle_o = 1'b1;
+                    foward_packet_o = 1'b1;
                     
                     if (valid_operation_i) begin
-                        if (operation_i.uop != LDW) begin
+                        if (misaligned_o) begin
+                            /* Exception */ 
+                            data_valid_o = 1'b1; 
+                        end if (operation_i.uop != LDW) begin
                             state_NXT = WAIT_MEMORY_UPDATE;
 
                             idle_o = 1'b0;
-                        end else if (timer_access) begin
-                            data_selected = timer_data_i;
-
-                            slice_operation = operation_i; 
-
-                            idle_o = 1'b1;
                         end else begin  
                             state_NXT = WAIT_MEMORY; 
 

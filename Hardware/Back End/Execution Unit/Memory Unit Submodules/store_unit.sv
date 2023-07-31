@@ -61,11 +61,13 @@ module store_unit #(
     input logic rst_n_i,
     input logic flush_i,
 
+    /* Privilege level */
+    input logic privilege_i,
+
     /* Inputs are valid */
     input logic valid_operation_i,
 
-    /* Data to store and store memory location
-     * input */
+    /* Data to store and store memory location input */
     input data_word_t store_data_i,
     input data_word_t store_address_i,
 
@@ -90,41 +92,26 @@ module store_unit #(
     /* Store buffer status */
     output logic buffer_empty_o,
 
-    /* Write memory mapped timer */
-    output logic timer_write_o,
-
     /* Functional unit status */
     output logic idle_o,
-
-    /* Select instruction packet */
-    output logic ipacket_select_o,
  
     /* Illegal memory access exception */
     output logic illegal_access_o,
 
+    /* Misaligned memory access */
+    output logic misaligned_o, 
+
     /* Data is valid */
-    output logic data_valid_o
+    output logic data_valid_o,
+
+    /* Foward instruction packet instead of 
+     * waiting to be saved in a FF */
+    output logic foward_packet_o
 );
 
 //====================================================================================
 //      DATAPATH
 //====================================================================================
-
-    /* Check address properties to determine the operation */
-    logic cachable, burst_buffer_access, timer_access;
-    
-    assign timer_access = (store_address_i >= (`TIMER_START)) & (store_address_i <= (`TIMER_END));
-
-
-    /* Legal access to the memory region: cannot write into boot region */
-    assign accessable = 1'b1 /*(store_address_i >= (`BOOT_END))*/;
-
-    logic accessable_saved;
-
-        always_ff @(posedge clk_i) begin 
-            accessable_saved <= accessable;
-        end
-
 
     /* Sampled when a valid operation is supplied to provide a stable
      * output */
@@ -137,13 +124,50 @@ module store_unit #(
             store_width_CRT <= store_width_NXT;
             store_address_CRT <= store_address_NXT;
         end
+    
+    
+    logic accessable, misaligned;
 
+        /* Address must be aligned based on the operation: 
+         *
+         * - LOAD WORD: 4 byte boundary 
+         * - LOAD HALFWORD: 2 byte boundary
+         * - LOAD BYTE: 1 byte boundary
+         */ 
+        always_comb begin : misalignment_check_logic
+            /* Default value */
+            misaligned = 1'b0; 
+
+            case (operation_i)
+                /* Load byte */
+                LDB: misaligned = 1'b0; 
+
+                /* Load half word signed */
+                LDH: misaligned = store_address_i[0];
+
+                /* Load word */
+                LDW: misaligned = store_address_i[1:0] != '0;
+            endcase 
+        end : misalignment_check_logic
+ 
+
+    /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
+    assign accessable = !(((store_address_i >= (`PRIVATE_REGION_START)) & (store_address_i <= (`PRIVATE_REGION_END))) & !privilege_i);
+
+    logic accessable_saved, misaligned_saved;
+
+        always_ff @(posedge clk_i) begin 
+            if (valid_operation_i) begin 
+                accessable_saved <= accessable;
+                misaligned_saved <= misaligned_o;
+            end 
+        end
 
 //====================================================================================
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_BUFFER, WAIT_ACCEPT} store_unit_fsm_t;
+    typedef enum logic [1:0] {IDLE, WAIT_BUFFER, WAIT_ACCEPT, MISALIGNED} store_unit_fsm_t;
 
     store_unit_fsm_t state_CRT, state_NXT;
 
@@ -174,67 +198,48 @@ module store_unit #(
 
             idle_o = 1'b0;
             data_valid_o = 1'b0;
-            illegal_access_o = 1'b0; 
-            ipacket_select_o = 1'b0; 
-            timer_write_o = 1'b0;
             fsm_match = 1'b0;
+            foward_packet_o = 1'b0; 
+            illegal_access_o = !accessable; 
+            misaligned_o = misaligned;
 
             case (state_CRT)
 
                 IDLE: begin
                     idle_o = 1'b1;
+                    foward_packet_o = 1'b1;
 
                     if (valid_operation_i) begin
-                        if (timer_access) begin
-                            timer_write_o = 1'b1;
-                            ipacket_select_o = 1'b1;
+                        if (!accessable | misaligned) begin
+                            illegal_access_o = 1'b1;
 
                             data_valid_o = 1'b1;
-                            idle_o = 1'b1;
+                            idle_o = 1'b1; 
 
                             if (wait_i) begin
                                 state_NXT = WAIT_ACCEPT;
 
                                 idle_o = 1'b0;
-                                ipacket_select_o = 1'b0;
-                            end 
+                            end
                         end else begin 
-                            if (accessable) begin
-                                if (!buffer_channel.full) begin
-                                    ipacket_select_o = 1'b1; 
-
-                                    data_valid_o = 1'b1;
-                                    idle_o = 1'b1;
-
-                                    if (wait_i) begin
-                                        state_NXT = WAIT_ACCEPT;
-
-                                        idle_o = 1'b0;
-                                        ipacket_select_o = 1'b0;
-                                    end 
-                                end else begin
-                                    state_NXT = WAIT_BUFFER;
-
-                                    idle_o = 1'b0;
-                                    ipacket_select_o = 1'b0;
-                                end
-                                        
-                                /* Don't push data if the buffer is full */
-                                buffer_channel.request = !buffer_channel.full;
-                            end else begin
-                                illegal_access_o = 1'b1;
-                                ipacket_select_o = 1'b1;
+                            if (!buffer_channel.full) begin
 
                                 data_valid_o = 1'b1;
-                                idle_o = 1'b1; 
+                                idle_o = 1'b1;
 
-                                if (!wait_i) begin
+                                if (wait_i) begin
                                     state_NXT = WAIT_ACCEPT;
 
                                     idle_o = 1'b0;
-                                    ipacket_select_o = 1'b0;
                                 end 
+                            end else begin
+                                state_NXT = WAIT_BUFFER;
+
+                                idle_o = 1'b0;
                             end
+                                        
+                            /* Don't push data if the buffer is full */
+                            buffer_channel.request = !buffer_channel.full;
                         end
                     end
 
@@ -268,7 +273,9 @@ module store_unit #(
 
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
+
                     illegal_access_o = accessable_saved; 
+                    misaligned_o = misaligned_saved; 
                     
                     if (!wait_i) begin
                         state_NXT = IDLE;
