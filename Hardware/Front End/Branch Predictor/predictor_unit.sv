@@ -51,6 +51,7 @@ module predictor_unit #(
     input logic clk_i, 
     input logic rst_n_i,
     input logic stall_i,
+    input logic flush_i,
 
     /* Match in BTB, make a prediction */
     input logic predict_i,
@@ -88,7 +89,7 @@ module predictor_unit #(
             if (!rst_n_i) begin
                 pull_ptr <= '0;
                 push_ptr <= '0;
-            end else if (mispredicted_o) begin
+            end else if (mispredicted_o | flush_i) begin
                 pull_ptr <= '0;
                 push_ptr <= '0;
             end else begin 
@@ -109,7 +110,7 @@ module predictor_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 fifo_empty <= 1'b1;
-            end else if (mispredicted_o) begin
+            end else if (mispredicted_o | flush_i) begin
                 fifo_empty <= 1'b1;
             end else begin 
                 case ({push, pull})
