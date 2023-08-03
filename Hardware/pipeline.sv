@@ -16,7 +16,11 @@ module pipeline #(
     parameter BTB_SIZE = 1024, 
 
     /* Store buffer entries number */
-    parameter STORE_BUFFER_SIZE = 4
+    parameter STORE_BUFFER_SIZE = 4, 
+
+    /* Number of clock cycles to get an instruction 
+     * from memory once requested */
+    parameter MEMORY_LATENCY = 1
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -24,8 +28,8 @@ module pipeline #(
     /* Fetch interface */
     input logic fetch_valid_i, 
     input data_word_t fetch_instruction_i, 
-    output logic fetch_acknowledge_o,
     output logic fetch_o,
+    output logic invalidate_o,
     output data_word_t fetch_address_o, 
 
     /* Interrupt interface */
@@ -84,8 +88,8 @@ module pipeline #(
 
         .fetch_valid_i       ( fetch_valid_i       ),
         .fetch_instruction_i ( fetch_instruction_i ),
-        .fetch_acknowledge_o ( fetch_acknowledge   ),
         .fetch_o             ( fetch               ), 
+        .invalidate_o        ( invalidate_o        ),
         .fetch_address_o     ( fetch_address       ),
 
         .interrupt_i        ( interrupt | timer_interrupt   ),
@@ -131,17 +135,16 @@ module pipeline #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                fetch_acknowledge_o <= 1'b0;
                 fetch_o <= 1'b0;
 
                 fetch_address_o <= '0; 
             end else begin
-                fetch_acknowledge_o <= fetch_acknowledge;
                 fetch_o <= fetch;
 
                 fetch_address_o <= fetch_address; 
             end
         end
+
 
 //====================================================================================
 //      PIPELINE REGISTER
