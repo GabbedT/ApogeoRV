@@ -487,7 +487,7 @@ module back_end #(
 
     /* Flush when an interrupt or an exception is detected, also flush when the branch 
      * was not predicted and it was taken */
-    assign flush_o = flush_pipeline;
+    assign flush_o = flush_pipeline | mreturn;
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
     assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
