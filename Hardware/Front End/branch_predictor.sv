@@ -52,6 +52,7 @@ module branch_predictor #(
 ) (
     input logic clk_i, 
     input logic rst_n_i,
+    input logic flush_i,
 
     /* Current program counter */
     input data_word_t program_counter_i,
@@ -82,6 +83,7 @@ module branch_predictor #(
         .clk_i          ( clk_i           ),   
         .rst_n_i        ( rst_n_i         ),
         .stall_i        ( stall_i         ),
+        .flush_i        ( flush_i         ),
         .predict_i      ( make_prediction ),
         .executed_i     ( executed_i      ),
         .taken_i        ( taken_i         ),
