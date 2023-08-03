@@ -21,6 +21,7 @@ module directed_pipeline_test;
     logic fetch_valid_i = 0; 
     data_word_t fetch_instruction_i = 0; 
     logic fetch_o;
+    logic invalidate_o;
     logic fetch_acknowledge_o;
     data_word_t fetch_address_o; 
 
@@ -37,16 +38,9 @@ module directed_pipeline_test;
 
     memory_agent #(1024) memory (.*); 
     
-    instruction_agent instruction (clk_i, rst_n_i, fetch_o, fetch_address_o, fetch_instruction_i, fetch_valid_i); 
+    instruction_agent instruction (clk_i, rst_n_i, fetch_o, invalidate_o, fetch_address_o, fetch_instruction_i, fetch_valid_i); 
 
     always #5 clk_i <= !clk_i; 
-
-
-    task fetch(input logic [31:0] instruction);
-        wait (fetch_o);
-            fetch_instruction_i <= instruction; 
-        @(posedge clk_i);
-    endtask : fetch
 
 
     int file; logic [31:0] registers[32];
@@ -71,7 +65,7 @@ module directed_pipeline_test;
         @(posedge clk_i);
         rst_n_i <= 1'b1;
 
-        while (!(dut.apogeo_backend.exception_generated && (dut.apogeo_backend.exception_vector == 11))) begin
+        while (!(dut.apogeo_backend.exception_generated/* && (dut.apogeo_backend.exception_vector == 11)*/)) begin
             if (dut.apogeo_backend.exception_vector == 16) begin
                 repeat (40) @(posedge clk_i);
                 interrupt_i <= 1'b1; 
@@ -173,6 +167,7 @@ module instruction_agent (
     input logic clk_i,
     input logic rst_n_i,
     input logic fetch,
+    input logic invalidate,
     input logic [31:0] address,
     output logic [31:0] instruction, 
     output logic valid 
@@ -436,9 +431,12 @@ module instruction_agent (
             valid <= 1'b0; 
             instruction <= '0; 
         end else if (fetch) begin 
-            valid <= 1'b1; 
+            valid <= !invalidate; 
             instruction <= instructions[address[31:2]]; 
-        end 
+        end else begin
+            valid <= 1'b0; 
+            instruction <= instructions[address[31:2]];
+        end
     end
 
 endmodule : instruction_agent 
