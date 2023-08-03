@@ -76,7 +76,7 @@ module pipeline #(
     logic fetch_acknowledge, fetch;
     data_word_t fetch_address;
 
-    front_end #(PREDICTOR_SIZE, BTB_SIZE) apogeo_frontend (
+    front_end #(PREDICTOR_SIZE, BTB_SIZE, MEMORY_LATENCY) apogeo_frontend (
         .clk_i            ( clk_i           ),
         .rst_n_i          ( rst_n_i         ),
         .flush_i          ( flush_pipeline  ),
