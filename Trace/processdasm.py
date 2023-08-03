@@ -102,4 +102,4 @@ def fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, filePath):
 
 (tTime, tAddr, tReg, tResult) = parse_trace("trace.txt")
 (dAddr, dHex, dAsm) = parse_disassembly_file("../Software/Test/Branch/Disassembly/branch_stress.dasm")
-fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "final_trace.txt")
+fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "final_trace2.txt")
