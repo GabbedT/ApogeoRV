@@ -220,7 +220,7 @@ module scheduler (
             end else if (flush_i) begin
                 issued_instructions <= 1'b0;
             end else begin
-                issued_instructions <= issue_instruction;
+                issued_instructions <= issue_instruction & (exu_valid_i != '0);
             end
         end 
 
@@ -232,7 +232,6 @@ module scheduler (
                 generated_tag <= 6'b0;
             end else if (flush_i) begin
                 generated_tag <= 6'b0;
-
             end else if (branch_flush_i | mispredicted_i) begin
                 if (issued_instructions) begin
                     generated_tag <= generated_tag - 1'b1;
