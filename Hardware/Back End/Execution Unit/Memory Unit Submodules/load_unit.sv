@@ -228,6 +228,7 @@ module load_unit (
                             state_NXT = WAIT_MEMORY; 
 
                             load_channel.request = 1'b1;
+                            idle_o = 1'b0;
                         end
                     end
 
