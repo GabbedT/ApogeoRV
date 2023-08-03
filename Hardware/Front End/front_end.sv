@@ -49,13 +49,18 @@
 `include "decoder.sv"
 `include "scheduler.sv"
 `include "Decoder/decompressor.sv"
+`include "instruction_buffer.sv"
 
 module front_end #(
     /* Predictor table size */ 
     parameter PREDICTOR_SIZE = 32, 
 
     /* Branch target buffer cache size */
-    parameter BTB_SIZE = 32
+    parameter BTB_SIZE = 32,
+
+    /* Number of clock cycles to get an instruction 
+     * from memory once requested */
+    parameter MEMORY_LATENCY = 1
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -68,9 +73,9 @@ module front_end #(
 
     /* Fetch interface */
     input logic fetch_valid_i, 
-    input data_word_t fetch_instruction_i, 
+    input data_word_t fetch_instruction_i,
     output logic fetch_o,
-    output logic fetch_acknowledge_o,
+    output logic invalidate_o,
     output data_word_t fetch_address_o, 
 
     /* Interrupt and exception */
@@ -122,7 +127,7 @@ module front_end #(
 //      PC GENERATION STAGE
 //====================================================================================
 
-    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, fetch;
+    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, fetch, ibuffer_full;
 
         /* The code is implementing the logic for determining the next program counter address   
          * to fetch instructions from in a processor. It takes into account various factors such as    
@@ -137,86 +142,102 @@ module front_end #(
          */
         always_comb begin : next_program_counter_logic
             fetch_address_o = program_counter;
-            fetch_o = 1'b0;
+            fetch = 1'b0;
 
-                if (exception_i | interrupt_i) begin
-                    fetch_o = 1'b1;
+            if (!ibuffer_full) begin 
+                next_program_counter = (compressed) ? (program_counter + 'd2) : (program_counter + 'd4);
+            end else begin
+                next_program_counter = program_counter;
+            end
 
-                    /* Load exception handler program counter
-                     * it has maximum priority */
-                    fetch_address_o = handler_pc_i; 
-                end else if (handler_return_i) begin 
-                    fetch_o = 1'b1;
+            if (exception_i | interrupt_i) begin
+                fetch = 1'b1;
 
-                    /* Load the instruction after completing the
-                     * interrupt / exception handler code */
-                    fetch_address_o = hander_return_pc_i; 
-                end else if (executed_i) begin
-                    fetch_o = 1'b1;
+                /* Load exception handler program counter
+                 * it has maximum priority */
+                fetch_address_o = handler_pc_i; 
+            end else if (handler_return_i) begin 
+                fetch = 1'b1;
 
-                    /* If a branch or jump is executed, checks whether the
-                     * operation was predicted by the branch predictor or not */
-                    if (speculative_i) begin
-                        /* Recover PC from misprediction */
-                        if (mispredicted) begin 
-                            if (taken_i | jump_i) begin
-                                /* Take the BTA from the EXU if a branch is taken or is a jump */
-                                fetch_address_o = branch_target_addr_i;
-                            end else begin
-                                /* Recover the next instruction address */
-                                fetch_address_o = compressed_i ? (instr_address_i + 2) : (instr_address_i + 4); 
-                            end
-                        end else begin
-                            /* BTB hit have more priority */
-                            if (branch_buffer_hit) begin
-                                if (predict) begin
-                                    /* Load predicted BTA */
-                                    fetch_address_o = branch_target_address;
-                                end else if (!stall & !stall_i) begin
-                                    /* Increment normally */
-                                    fetch_address_o = next_program_counter;
-                                end
-                            end else if (!stall & !stall_i) begin 
-                                fetch_address_o = next_program_counter;
-                            end
-                        end
-                    end else begin
-                        if (taken_i | jump_i) begin 
+                /* Load the instruction after completing the
+                 * interrupt / exception handler code */
+                fetch_address_o = hander_return_pc_i; 
+            end else if (executed_i) begin
+                fetch = 1'b1;
+
+                /* If a branch or jump is executed, checks whether the
+                 * operation was predicted by the branch predictor or not */
+                if (speculative_i) begin
+                    /* Recover PC from misprediction */
+                    if (mispredicted) begin 
+                        if (taken_i | jump_i) begin
                             /* Take the BTA from the EXU if a branch is taken or is a jump */
                             fetch_address_o = branch_target_addr_i;
                         end else begin
-                            /* BTB hit have more priority */
-                            if (branch_buffer_hit) begin
-                                if (predict) begin
-                                    /* Load predicted BTA */
-                                    fetch_address_o = branch_target_address;
-                                end else if (!stall & !stall_i) begin
-                                    /* Increment normally */
-                                    fetch_address_o = next_program_counter;
-                                end
-                            end else if (!stall & !stall_i) begin 
+                            /* Recover the next instruction address */
+                            fetch_address_o = compressed_i ? (instr_address_i + 2) : (instr_address_i + 4); 
+                        end
+                    end else begin
+                        /* BTB hit have more priority */
+                        if (branch_buffer_hit) begin
+                            if (predict) begin
+                                /* Load predicted BTA */
+                                fetch_address_o = branch_target_address;
+                            end else if (!stall & !stall_i) begin
+                                /* Increment normally */
                                 fetch_address_o = next_program_counter;
+                            end
+                        end else begin 
+                            if (!stall & !stall_i) begin 
+                                fetch_address_o = next_program_counter;
+                            end else begin
+                                fetch = 1'b0;
                             end
                         end
                     end
-                end else if (!stall & !stall_i) begin 
-                    fetch_o = 1'b1;
-
-                    if (branch_buffer_hit) begin
-                        if (predict) begin
-                            /* Load predicted BTA */
-                            fetch_address_o = branch_target_address;
-                        end else begin
-                            /* Increment normally */
-                            fetch_address_o = next_program_counter;
+                end else begin
+                    if (taken_i | jump_i) begin 
+                        /* Take the BTA from the EXU if a branch is taken or is a jump */
+                        fetch_address_o = branch_target_addr_i;
+                    end else begin
+                        /* BTB hit have more priority */
+                        if (branch_buffer_hit) begin
+                            if (predict) begin
+                                /* Load predicted BTA */
+                                fetch_address_o = branch_target_address;
+                            end else if (!stall & !stall_i) begin
+                                /* Increment normally */
+                                fetch_address_o = next_program_counter;
+                            end
+                        end else begin 
+                            if (!stall & !stall_i) begin 
+                                fetch_address_o = next_program_counter;
+                            end else begin
+                                fetch = 1'b0;
+                            end
                         end
+                    end
+                end
+            end else if (!stall & !stall_i & !ibuffer_full) begin 
+                fetch = 1'b1;
+
+                if (branch_buffer_hit) begin
+                    if (predict) begin
+                        /* Load predicted BTA */
+                        fetch_address_o = branch_target_address;
                     end else begin
                         /* Increment normally */
                         fetch_address_o = next_program_counter;
                     end
-                end 
+                end else begin
+                    /* Increment normally */
+                    fetch_address_o = next_program_counter;
+                end
+            end 
         end : next_program_counter_logic
 
+    assign fetch_o = fetch & (!ibuffer_full | (branch_flush_i | mispredicted | flush_i));
+    
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
@@ -226,25 +247,69 @@ module front_end #(
             end
         end : program_counter_register
 
-    assign next_program_counter = (compressed & fetch_valid_i) ? (program_counter + 'd2) : (program_counter + 'd4);
 
 
     branch_predictor #(PREDICTOR_SIZE, BTB_SIZE) predictor_unit (
-        .clk_i                ( clk_i                 ), 
-        .rst_n_i              ( rst_n_i               ),
-        .program_counter_i    ( fetch_address_o       ),
-        .stall_i              ( stall | stall_i       ),
-        .instr_address_i      ( instr_address_i       ),
-        .branch_target_addr_i ( branch_target_addr_i  ), 
-        .executed_i           ( executed_i & !jump_i  ),
-        .taken_i              ( taken_i               ),
-        .branch_i             ( branch_i              ),
-        .jump_i               ( jump_i                ),
-        .branch_target_addr_o ( branch_target_address ),
-        .prediction_o         ( predict               ),
-        .mispredicted_o       ( mispredicted          ),
-        .hit_o                ( branch_buffer_hit     )
+        .clk_i                ( clk_i                    ), 
+        .rst_n_i              ( rst_n_i                  ),
+        .flush_i              ( branch_flush_i | flush_i ),
+        .program_counter_i    ( fetch_address_o          ),
+        .stall_i              ( stall | stall_i          ),
+        .instr_address_i      ( instr_address_i          ),
+        .branch_target_addr_i ( branch_target_addr_i     ), 
+        .executed_i           ( executed_i & !jump_i     ),
+        .taken_i              ( taken_i                  ),
+        .branch_i             ( branch_i                 ),
+        .jump_i               ( jump_i                   ),
+        .branch_target_addr_o ( branch_target_address    ),
+        .prediction_o         ( predict                  ),
+        .mispredicted_o       ( mispredicted             ),
+        .hit_o                ( branch_buffer_hit        )
     );
+
+
+//====================================================================================
+//      INSTRUCTION BUFFER
+//====================================================================================
+
+    logic buffered_fetch; 
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                buffered_fetch <= 1'b0;
+            end else if (invalidate_o) begin
+                buffered_fetch <= 1'b0;
+            end else begin 
+                buffered_fetch <= fetch_o;
+            end
+        end 
+
+    logic ibuffer_empty, ibuffer_read, ibuffer_speculative; data_word_t ibuffer_instruction, ibuffer_program_counter;
+
+    assign ibuffer_read = !stall & !stall_i & !ibuffer_empty;
+    assign invalidate_o = branch_flush_i | mispredicted | flush_i;
+
+    instruction_buffer #(MEMORY_LATENCY + 3) ibuffer (
+        .clk_i   ( clk_i        ),
+        .rst_n_i ( rst_n_i      ),
+        .flush_i ( invalidate_o ),
+
+        .fetch_instruction_i ( fetch_instruction_i ),
+        .fetch_address_i     ( fetch_address_o     ),
+        .fetch_speculative_i ( branch_buffer_hit   ),
+
+        .write_instruction_i ( fetch_valid_i  ),
+        .write_speculative_i ( buffered_fetch ),
+        .write_address_i     ( fetch_o        ),
+        .read_i              ( ibuffer_read   ),
+
+        .fetch_instruction_o ( ibuffer_instruction     ),
+        .fetch_address_o     ( ibuffer_program_counter ),
+        .fetch_speculative_o ( ibuffer_speculative     ),
+
+        .empty_o ( ibuffer_empty ),
+        .full_o  ( ibuffer_full  )
+    ); 
 
 
 //====================================================================================
@@ -253,12 +318,12 @@ module front_end #(
 
     /* RISCV defines uncompressed instructions with the first two 
      * bits setted */
-    assign compressed = (fetch_instruction_i[1:0] != '1);
+    assign compressed = (ibuffer_instruction[1:0] != '1) & !decompressor_exception;
 
     logic decompressor_exception; data_word_t expanded_instruction;
 
     decompressor decompressor_unit (
-        .compressed_i          ( fetch_instruction_i[15:0]  ),
+        .compressed_i          ( ibuffer_instruction[15:0]  ),
         .decompressed_o        ( expanded_instruction       ), 
         .exception_generated_o ( decompressor_exception     )
     );
@@ -275,8 +340,8 @@ module front_end #(
 
                 if_stage_exception_vector <= '0; 
             end else if (!stall & !stall_i) begin
-                if_stage_instruction <= compressed ? expanded_instruction : fetch_instruction_i;
-                if_stage_program_counter <= program_counter;
+                if_stage_instruction <= compressed ? expanded_instruction : ibuffer_instruction;
+                if_stage_program_counter <= ibuffer_program_counter;
 
                 if_stage_exception_vector <= `INSTR_ILLEGAL; 
             end 
@@ -298,16 +363,14 @@ module front_end #(
 
                 if_stage_exception <= 1'b0; 
             end else if (!stall & !stall_i) begin
-                if_stage_valid <= fetch_valid_i;
+                if_stage_valid <= !ibuffer_empty;
 
                 if_stage_compressed <= compressed;
-                if_stage_speculative <= branch_buffer_hit;
+                if_stage_speculative <= ibuffer_speculative;
 
                 if_stage_exception <= compressed ? decompressor_exception : 1'b0;
             end
         end 
-
-    assign fetch_acknowledge_o = if_stage_valid; 
 
 
 //====================================================================================
