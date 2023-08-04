@@ -94,14 +94,24 @@ module instruction_buffer #(
                 empty_o <= 1'b1;
                 full_o <= 1'b0;
             end else begin 
+                /* Empty logic */
                 case ({write_instruction_i, read_i})
                     PULL_DATA: begin
                         empty_o <= (instr_write_ptr == (read_ptr + 1'b1));
-                        full_o <= 1'b0;
                     end
 
                     PUSH_DATA: begin
                         empty_o <= 1'b0;
+                    end
+                endcase 
+
+                /* Full logic */
+                case ({write_address_i, read_i})
+                    PULL_DATA: begin
+                        full_o <= 1'b0;
+                    end
+
+                    PUSH_DATA: begin
                         full_o <= (read_ptr == (address_write_ptr + 1'b1));
                     end
                 endcase 
