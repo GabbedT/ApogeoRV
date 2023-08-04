@@ -43,6 +43,8 @@ module directed_pipeline_test;
     always #5 clk_i <= !clk_i; 
 
 
+    int misprediction_number = 0, branch_jump_number = 0;
+
     int file; logic [31:0] registers[32];
 
     initial begin
@@ -72,6 +74,10 @@ module directed_pipeline_test;
                 @(posedge clk_i);
                 interrupt_i <= 1'b0; 
             end
+
+            branch_jump_number += dut.executed;
+            misprediction_number += dut.apogeo_frontend.mispredicted;
+
             @(posedge clk_i);
 
             `ifdef TRACER 
