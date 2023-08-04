@@ -183,9 +183,13 @@ module front_end #(
                             if (predict) begin
                                 /* Load predicted BTA */
                                 fetch_address_o = branch_target_address;
-                            end else if (!stall & !stall_i) begin
+                            end else begin
                                 /* Increment normally */
-                                fetch_address_o = next_program_counter;
+                                if (!stall & !stall_i) begin 
+                                    fetch_address_o = next_program_counter;
+                                end else begin
+                                    fetch = 1'b0;
+                                end
                             end
                         end else begin 
                             if (!stall & !stall_i) begin 
@@ -205,9 +209,13 @@ module front_end #(
                             if (predict) begin
                                 /* Load predicted BTA */
                                 fetch_address_o = branch_target_address;
-                            end else if (!stall & !stall_i) begin
-                                /* Increment normally */
-                                fetch_address_o = next_program_counter;
+                            end else begin
+                                if (!stall & !stall_i) begin 
+                                    /* Increment normally */
+                                    fetch_address_o = next_program_counter;
+                                end else begin
+                                    fetch = 1'b0;
+                                end
                             end
                         end else begin 
                             if (!stall & !stall_i) begin 
