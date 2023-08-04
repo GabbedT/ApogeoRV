@@ -18,9 +18,8 @@ module pipeline #(
     /* Store buffer entries number */
     parameter STORE_BUFFER_SIZE = 4, 
 
-    /* Number of clock cycles to get an instruction 
-     * from memory once requested */
-    parameter MEMORY_LATENCY = 1
+    /* Maximum number of instruction held by the buffer */
+    parameter INSTRUCTION_BUFFER_SIZE = 8
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -76,7 +75,7 @@ module pipeline #(
     logic fetch_acknowledge, fetch;
     data_word_t fetch_address;
 
-    front_end #(PREDICTOR_SIZE, BTB_SIZE, MEMORY_LATENCY) apogeo_frontend (
+    front_end #(PREDICTOR_SIZE, BTB_SIZE, INSTRUCTION_BUFFER_SIZE) apogeo_frontend (
         .clk_i            ( clk_i           ),
         .rst_n_i          ( rst_n_i         ),
         .flush_i          ( flush_pipeline  ),
