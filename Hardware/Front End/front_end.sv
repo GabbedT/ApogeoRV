@@ -60,7 +60,7 @@ module front_end #(
 
     /* Number of clock cycles to get an instruction 
      * from memory once requested */
-    parameter MEMORY_LATENCY = 1
+    parameter INSTRUCTION_BUFFER_SIZE = 8
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -178,6 +178,8 @@ module front_end #(
                             fetch_address_o = compressed_i ? (instr_address_i + 2) : (instr_address_i + 4); 
                         end
                     end else begin
+                        fetch = !ibuffer_full; 
+
                         /* BTB hit have more priority */
                         if (branch_buffer_hit) begin
                             if (predict) begin
@@ -185,18 +187,11 @@ module front_end #(
                                 fetch_address_o = branch_target_address;
                             end else begin
                                 /* Increment normally */
-                                if (!stall & !stall_i) begin 
-                                    fetch_address_o = next_program_counter;
-                                end else begin
-                                    fetch = 1'b0;
-                                end
+                                fetch_address_o = next_program_counter;
                             end
                         end else begin 
-                            if (!stall & !stall_i) begin 
-                                fetch_address_o = next_program_counter;
-                            end else begin
-                                fetch = 1'b0;
-                            end
+                            /* Increment normally */
+                            fetch_address_o = next_program_counter;
                         end
                     end
                 end else begin
@@ -204,29 +199,24 @@ module front_end #(
                         /* Take the BTA from the EXU if a branch is taken or is a jump */
                         fetch_address_o = branch_target_addr_i;
                     end else begin
+                        fetch = !ibuffer_full; 
+
                         /* BTB hit have more priority */
                         if (branch_buffer_hit) begin
                             if (predict) begin
                                 /* Load predicted BTA */
                                 fetch_address_o = branch_target_address;
                             end else begin
-                                if (!stall & !stall_i) begin 
-                                    /* Increment normally */
-                                    fetch_address_o = next_program_counter;
-                                end else begin
-                                    fetch = 1'b0;
-                                end
+                                /* Increment normally */
+                                fetch_address_o = next_program_counter;
                             end
                         end else begin 
-                            if (!stall & !stall_i) begin 
-                                fetch_address_o = next_program_counter;
-                            end else begin
-                                fetch = 1'b0;
-                            end
+                            /* Increment normally */
+                            fetch_address_o = next_program_counter;
                         end
                     end
                 end
-            end else if (!stall & !stall_i & !ibuffer_full) begin 
+            end else if (!ibuffer_full) begin 
                 fetch = 1'b1;
 
                 if (branch_buffer_hit) begin
@@ -244,13 +234,13 @@ module front_end #(
             end 
         end : next_program_counter_logic
 
-    assign fetch_o = fetch & (!ibuffer_full | (branch_flush_i | mispredicted | flush_i));
+    assign fetch_o = fetch | branch_flush_i | mispredicted | flush_i;
     
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
                 program_counter <= -4;
-            end else begin
+            end else if (fetch_o) begin
                 program_counter <= fetch_address_o;
             end
         end : program_counter_register
@@ -262,7 +252,7 @@ module front_end #(
         .rst_n_i              ( rst_n_i                  ),
         .flush_i              ( branch_flush_i | flush_i ),
         .program_counter_i    ( fetch_address_o          ),
-        .stall_i              ( stall | stall_i          ),
+        .stall_i              ( ibuffer_full             ),
         .instr_address_i      ( instr_address_i          ),
         .branch_target_addr_i ( branch_target_addr_i     ), 
         .executed_i           ( executed_i & !jump_i     ),
@@ -297,7 +287,7 @@ module front_end #(
     assign ibuffer_read = !stall & !stall_i & !ibuffer_empty;
     assign invalidate_o = branch_flush_i | mispredicted | flush_i;
 
-    instruction_buffer #(MEMORY_LATENCY + 3) ibuffer (
+    instruction_buffer #(INSTRUCTION_BUFFER_SIZE) ibuffer (
         .clk_i   ( clk_i        ),
         .rst_n_i ( rst_n_i      ),
         .flush_i ( invalidate_o ),
