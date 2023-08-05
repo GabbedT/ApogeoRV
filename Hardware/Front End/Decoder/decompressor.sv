@@ -77,7 +77,7 @@ module decompressor (
 
                         /* Stack pointer register */
                         decompressed_o.I.reg_src_1 = 5'd2;
-                        decompressed_o.I.reg_dest = {1'b1, compressed_i.itype.CIW.reg_dest};
+                        decompressed_o.I.reg_dest = {2'b01, compressed_i.itype.CIW.reg_dest};
 
                         decompressed_o.I.funct3 = '0;
                         decompressed_o.I.opcode = riscv32::IMM_ARITHM;
@@ -90,8 +90,8 @@ module decompressor (
                     riscv32::CLW: begin
                         decompressed_o.I.immediate = {'0, compressed_i[5], compressed_i[12:10], compressed_i[6]} << 2;
 
-                        decompressed_o.I.reg_src_1 = compressed_i.itype.CL.reg_src_1;
-                        decompressed_o.I.reg_dest = compressed_i.itype.CL.reg_dest;
+                        decompressed_o.I.reg_src_1 = {2'b01, compressed_i.itype.CL.reg_src_1};
+                        decompressed_o.I.reg_dest = {2'b01, compressed_i.itype.CL.reg_dest};
 
                         decompressed_o.I.funct3 = 3'b010;
                         decompressed_o.I.opcode = riscv32::LOAD;
@@ -102,8 +102,8 @@ module decompressor (
                     riscv32::CSW: begin
                         {decompressed_o.S.immediate2, decompressed_o.S.immediate1} = {'0, compressed_i[5], compressed_i[12:10], compressed_i[6]} << 2;
 
-                        decompressed_o.S.reg_src_1 = compressed_i.itype.CS.reg_src_1;
-                        decompressed_o.S.reg_src_2 = compressed_i.itype.CS.reg_src_2;
+                        decompressed_o.S.reg_src_1 = {2'b01, compressed_i.itype.CS.reg_src_1};
+                        decompressed_o.S.reg_src_2 = {2'b01, compressed_i.itype.CS.reg_src_2};
 
                         decompressed_o.S.funct3 = 3'b010;
                         decompressed_o.S.opcode = riscv32::STORE;
@@ -204,8 +204,8 @@ module decompressor (
                                 /* Expands into SRLI rds, rds, shamt[5:0] */
                                 decompressed_o.R.reg_src_2 = {compressed_i[12], compressed_i[6:2]};
 
-                                decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CB.reg_src_1};
-                                decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CB.reg_src_1};
+                                decompressed_o.R.reg_src_1 = {2'b01, compressed_i.itype.CB.reg_src_1};
+                                decompressed_o.R.reg_dest = {2'b01, compressed_i.itype.CB.reg_src_1};
 
                                 decompressed_o.R.funct3 = 3'b101;
                                 decompressed_o.R.funct7 = '0;
@@ -220,8 +220,8 @@ module decompressor (
                                 /* Expands into SRAI rds, rds, shamt[5:0] */
                                 decompressed_o.R.reg_src_2 = {compressed_i[12], compressed_i[6:2]};
 
-                                decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CB.reg_src_1};
-                                decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CB.reg_src_1};
+                                decompressed_o.R.reg_src_1 = {2'b01, compressed_i.itype.CB.reg_src_1};
+                                decompressed_o.R.reg_dest = {2'b01, compressed_i.itype.CB.reg_src_1};
 
                                 decompressed_o.R.funct3 = 3'b101;
                                 decompressed_o.R.funct7 = 7'b0100000;
@@ -236,8 +236,8 @@ module decompressor (
                                 /* Expands into ANDI rds, rds, imm[5:0] */
                                 decompressed_o.I.immediate = $signed({compressed_i[12], compressed_i.itype.CB.offset1});
 
-                                decompressed_o.I.reg_src_1 = {1'b1, compressed_i.itype.CB.reg_src_1};
-                                decompressed_o.I.reg_dest = {1'b1, compressed_i.itype.CB.reg_src_1};
+                                decompressed_o.I.reg_src_1 = {2'b01, compressed_i.itype.CB.reg_src_1};
+                                decompressed_o.I.reg_dest = {2'b01, compressed_i.itype.CB.reg_src_1};
 
                                 decompressed_o.I.funct3 = 3'b111;
                                 decompressed_o.I.opcode = riscv32::IMM_ARITHM;
@@ -251,9 +251,9 @@ module decompressor (
                                 case (compressed_i[6:5])
                                     riscv32::CSUB: begin
                                         /* Expands into SUB rds, rds, rs2 */
-                                        decompressed_o.R.reg_src_2 = {1'b1, compressed_i.itype.CA.reg_src_2};
-                                        decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CA.reg_ds1};
-                                        decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_src_2 = {2'b01, compressed_i.itype.CA.reg_src_2};
+                                        decompressed_o.R.reg_src_1 = {2'b01, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_dest = {2'b01, compressed_i.itype.CA.reg_ds1};
 
                                         decompressed_o.R.funct3 = 3'b000;
                                         decompressed_o.R.funct7 = 7'b0100000;
@@ -264,9 +264,9 @@ module decompressor (
 
                                     riscv32::CXOR: begin
                                         /* Expands into XOR rds, rds, rs2 */
-                                        decompressed_o.R.reg_src_2 = {1'b1, compressed_i.itype.CA.reg_src_2};
-                                        decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CA.reg_ds1};
-                                        decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_src_2 = {2'b01, compressed_i.itype.CA.reg_src_2};
+                                        decompressed_o.R.reg_src_1 = {2'b01, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_dest = {2'b01, compressed_i.itype.CA.reg_ds1};
 
                                         decompressed_o.R.funct3 = 3'b100;
                                         decompressed_o.R.funct7 = 7'b0000000;
@@ -277,9 +277,9 @@ module decompressor (
 
                                     riscv32::COR: begin
                                         /* Expands into OR rds, rds, rs2 */
-                                        decompressed_o.R.reg_src_2 = {1'b1, compressed_i.itype.CA.reg_src_2};
-                                        decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CA.reg_ds1};
-                                        decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_src_2 = {2'b01, compressed_i.itype.CA.reg_src_2};
+                                        decompressed_o.R.reg_src_1 = {2'b01, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_dest = {2'b01, compressed_i.itype.CA.reg_ds1};
 
                                         decompressed_o.R.funct3 = 3'b110;
                                         decompressed_o.R.funct7 = 7'b0000000;
@@ -290,9 +290,9 @@ module decompressor (
 
                                     riscv32::CAND: begin
                                         /* Expands into AND rds, rds, rs2 */
-                                        decompressed_o.R.reg_src_2 = {1'b1, compressed_i.itype.CA.reg_src_2};
-                                        decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CA.reg_ds1};
-                                        decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_src_2 = {2'b01, compressed_i.itype.CA.reg_src_2};
+                                        decompressed_o.R.reg_src_1 = {2'b01, compressed_i.itype.CA.reg_ds1};
+                                        decompressed_o.R.reg_dest = {2'b01, compressed_i.itype.CA.reg_ds1};
 
                                         decompressed_o.R.funct3 = 3'b111;
                                         decompressed_o.R.funct7 = 7'b0000000;
@@ -329,7 +329,7 @@ module decompressor (
                         decompressed_o.B.immediate3 = $signed({compressed_i[12], compressed_i[6:5], compressed_i[2]});
                         decompressed_o.B.immediate4 = compressed_i[12];
 
-                        decompressed_o.B.reg_src_1 = {1'b1, compressed_i.itype.CB.reg_src_1};
+                        decompressed_o.B.reg_src_1 = {2'b01, compressed_i.itype.CB.reg_src_1};
                         decompressed_o.B.reg_src_2 = riscv32::X0;
 
                         decompressed_o.B.funct3 = 3'b0;
@@ -345,7 +345,7 @@ module decompressor (
                         decompressed_o.B.immediate3 = $signed({compressed_i[12], compressed_i[6:5], compressed_i[2]});
                         decompressed_o.B.immediate4 = compressed_i[12];
 
-                        decompressed_o.B.reg_src_1 = {1'b1, compressed_i.itype.CB.reg_src_1};
+                        decompressed_o.B.reg_src_1 = {2'b01, compressed_i.itype.CB.reg_src_1};
                         decompressed_o.B.reg_src_2 = riscv32::X0;
 
                         decompressed_o.B.funct3 = 3'b001;
@@ -364,8 +364,8 @@ module decompressor (
                         /* Expands into SLLI rd, rd, shamt[5:0] */
                         decompressed_o.R.reg_src_2 = {compressed_i[12], compressed_i[6:2]};
 
-                        decompressed_o.R.reg_src_1 = {1'b1, compressed_i.itype.CI.reg_ds1};
-                        decompressed_o.R.reg_dest = {1'b1, compressed_i.itype.CI.reg_ds1};
+                        decompressed_o.R.reg_src_1 = compressed_i.itype.CI.reg_ds1;
+                        decompressed_o.R.reg_dest = compressed_i.itype.CI.reg_ds1;
 
                         decompressed_o.R.funct3 = 3'b001;
                         decompressed_o.R.funct7 = '0;
