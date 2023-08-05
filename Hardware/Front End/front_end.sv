@@ -127,7 +127,7 @@ module front_end #(
 //      PC GENERATION STAGE
 //====================================================================================
 
-    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, compressed, fetch, ibuffer_full;
+    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full;
 
         /* The code is implementing the logic for determining the next program counter address   
          * to fetch instructions from in a processor. It takes into account various factors such as    
@@ -145,7 +145,7 @@ module front_end #(
             fetch = 1'b0;
 
             if (!ibuffer_full) begin 
-                next_program_counter = (compressed) ? (program_counter + 'd2) : (program_counter + 'd4);
+                next_program_counter = program_counter + 'd4;
             end else begin
                 next_program_counter = program_counter;
             end
@@ -284,7 +284,6 @@ module front_end #(
 
     logic ibuffer_empty, ibuffer_read, ibuffer_speculative; data_word_t ibuffer_instruction, ibuffer_program_counter;
 
-    assign ibuffer_read = !stall & !stall_i & !ibuffer_empty;
     assign invalidate_o = branch_flush_i | mispredicted | flush_i;
 
     instruction_buffer #(INSTRUCTION_BUFFER_SIZE) ibuffer (
@@ -310,20 +309,81 @@ module front_end #(
     ); 
 
 
+    logic [15:0] upper_portion; logic compressed, cross_boundary, select_upper_portion, stop_reading_buffer; 
+
+    assign ibuffer_read = !stall & !stall_i & !ibuffer_empty & !stop_reading_buffer;
+
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                upper_portion <= '0;
+                cross_boundary <= 1'b0;
+            end else if (invalidate_o) begin
+                upper_portion <= '0;
+                cross_boundary <= 1'b0;
+            end else if (ibuffer_read) begin
+                upper_portion <= ibuffer_instruction[31:16];
+
+                /* Cross boundary when we have a compressed intruction on the lower half word
+                 * and a full instruction that start from the upper half word. Or when we have
+                 * multiple full instruction that cross the word boundary */
+                cross_boundary <= ((ibuffer_instruction[17:16] == '1) & (compressed | cross_boundary));
+            end
+        end
+
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                stop_reading_buffer <= 1'b0;
+                select_upper_portion <= 1'b0;
+            end else if (invalidate_o) begin
+                stop_reading_buffer <= 1'b0;
+                select_upper_portion <= 1'b0;
+            end else if (!stall & !stall_i & !ibuffer_empty) begin
+                stop_reading_buffer <= !stop_reading_buffer & ((compressed | cross_boundary) & (ibuffer_instruction[17:16] != '1));
+
+                if (compressed) begin
+                    /* The next time a word arrives read the upper portion if compressed */
+                    select_upper_portion <= !select_upper_portion;
+                end 
+            end
+        end 
+
+
 //====================================================================================
 //      INSTRUCTION FETCH STAGE
 //====================================================================================
 
-    /* RISCV defines uncompressed instructions with the first two 
-     * bits setted */
-    assign compressed = (ibuffer_instruction[1:0] != '1) & !decompressor_exception;
+    logic decompressor_exception; logic [15:0] instruction2expand; data_word_t expanded_instruction, full_instruction;
+    
+        /* RISCV defines uncompressed instructions with the first two 
+         * bits setted */
+        always_comb begin
+            if (cross_boundary) begin
+                compressed = upper_portion[1:0] != '1;
+                instruction2expand = upper_portion;
 
-    logic decompressor_exception; data_word_t expanded_instruction;
+                /* Fuse the upper portion of the previous 32 bits with the lower portion 
+                 * of the new 32 bits */
+                full_instruction = {ibuffer_instruction[15:0], upper_portion};
+            end else begin
+                if (select_upper_portion) begin
+                    compressed = (upper_portion[1:0] != '1);
+                end else begin
+                    compressed = (ibuffer_instruction[1:0] != '1);
+                end
+
+                instruction2expand = select_upper_portion ? upper_portion : ibuffer_instruction[15:0];
+
+                full_instruction = ibuffer_instruction;
+            end   
+        end
+
 
     decompressor decompressor_unit (
-        .compressed_i          ( ibuffer_instruction[15:0]  ),
-        .decompressed_o        ( expanded_instruction       ), 
-        .exception_generated_o ( decompressor_exception     )
+        .compressed_i          ( instruction2expand      ),
+        .decompressed_o        ( expanded_instruction    ), 
+        .exception_generated_o ( decompressor_exception  )
     );
 
 
@@ -338,8 +398,8 @@ module front_end #(
 
                 if_stage_exception_vector <= '0; 
             end else if (!stall & !stall_i) begin
-                if_stage_instruction <= compressed ? expanded_instruction : ibuffer_instruction;
-                if_stage_program_counter <= ibuffer_program_counter;
+                if_stage_instruction <= compressed ? expanded_instruction : full_instruction;
+                if_stage_program_counter <= (select_upper_portion | cross_boundary) ? (ibuffer_program_counter - 'd2) : ibuffer_program_counter;
 
                 if_stage_exception_vector <= `INSTR_ILLEGAL; 
             end 
@@ -353,7 +413,7 @@ module front_end #(
                 if_stage_speculative <= 1'b0;
 
                 if_stage_exception <= 1'b0; 
-            end else if (branch_flush_i | mispredicted | flush_i) begin
+            end else if (invalidate_o) begin
                 if_stage_valid <= 1'b0;
                 
                 if_stage_compressed <= 1'b0;
@@ -363,7 +423,7 @@ module front_end #(
             end else if (!stall & !stall_i) begin
                 if_stage_valid <= !ibuffer_empty;
 
-                if_stage_compressed <= compressed;
+                if_stage_compressed <= compressed & !decompressor_exception;
                 if_stage_speculative <= ibuffer_speculative;
 
                 if_stage_exception <= compressed ? decompressor_exception : 1'b0;
@@ -476,7 +536,7 @@ module front_end #(
                 dc_stage_speculative <= 1'b0;
 
                 dc_stage_exception <= 1'b0;
-            end else if (branch_flush_i | mispredicted | flush_i) begin
+            end else if (invalidate_o) begin
                 dc_stage_exu_valid <= '0;
 
                 dc_stage_branch <= 1'b0;
