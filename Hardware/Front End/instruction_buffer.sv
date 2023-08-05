@@ -127,7 +127,7 @@ module instruction_buffer #(
 
     initial begin
         for (int i = 0; i < BUFFER_SIZE; ++i) begin
-            instruction_buffer[i] = '0;
+            instruction_buffer[i] = 32'h00000013;
         end
     end
 
