@@ -2,6 +2,45 @@
 
 typedef bit [31:0] instructions_t [$]; 
 
+    function instructions_t raw_hazard_test(); 
+        instructions_t instr;
+
+        /* Try different latencies */
+        instr.push_back(rv32._addi(1, 0, 1));
+        instr.push_back(rv32._add(1, 1, 0));
+
+
+        for (int i = 1; i <= 5; ++i) begin 
+            instr.push_back(rv32._fence(0, 0));
+            instr.push_back(rv32._addi(1, 0, 1));
+
+            for (int j = 0; j < i; ++j) begin
+                instr.push_back(rv32._addi(31 - j, 0, 0));
+            end
+
+            instr.push_back(rv32._add(1, 1, 0));
+        end 
+
+        return instr;
+    endfunction : raw_hazard_test
+
+
+    function instructions_t waw_hazard_test(); 
+        instructions_t instr;
+
+        instr.push_back(rv32._addi(1, 0, 1));
+        instr.push_back(rv32._addi(2, 0, 1));
+        instr.push_back(rv32._div(3, 2, 1));
+        instr.push_back(rv32._addi(4, 0, 1));
+
+        /* If WAW hazard is not handled correctly, this 
+         * instruction write back before the div */
+        instr.push_back(rv32._add(3, 4, 1));
+
+        return instr;
+    endfunction : waw_hazard_test
+
+
     function instructions_t arithmetic_logic_test(); 
         instructions_t instr;
 
@@ -237,6 +276,3 @@ typedef bit [31:0] instructions_t [$];
 
         write_instruction(rv32._ecall());
     endfunction : fence_test 
-
-
-    function riscv
