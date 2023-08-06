@@ -1,0 +1,39 @@
+
+compressed.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00010074 <_start>:
+   10074:	0001                	nop
+   10076:	00000033          	add	zero,zero,zero
+   1007a:	00000033          	add	zero,zero,zero
+   1007e:	0001                	nop
+   10080:	0001                	nop
+   10082:	00000033          	add	zero,zero,zero
+   10086:	0001                	nop
+   10088:	00000033          	add	zero,zero,zero
+   1008c:	0001                	nop
+   1008e:	0001                	nop
+   10090:	0001                	nop
+   10092:	9426                	add	s0,s0,s1
+   10094:	8c05                	sub	s0,s0,s1
+   10096:	8426                	mv	s0,s1
+   10098:	8c65                	and	s0,s0,s1
+   1009a:	8c45                	or	s0,s0,s1
+   1009c:	8c25                	xor	s0,s0,s1
+   1009e:	4402                	lw	s0,0(sp)
+   100a0:	c022                	sw	s0,0(sp)
+   100a2:	4004                	lw	s1,0(s0)
+   100a4:	c004                	sw	s1,0(s0)
+   100a6:	881d                	and	s0,s0,7
+   100a8:	0606                	sll	a2,a2,0x1
+   100aa:	8609                	sra	a2,a2,0x2
+   100ac:	820d                	srl	a2,a2,0x3
+   100ae:	43fd                	li	t2,31
+   100b0:	637d                	lui	t1,0x1f
+   100b2:	02a9                	add	t0,t0,10
+   100b4:	7179                	add	sp,sp,-48
+   100b6:	080c                	add	a1,sp,16
+   100b8:	9002                	ebreak
+   100ba:	0001                	nop
