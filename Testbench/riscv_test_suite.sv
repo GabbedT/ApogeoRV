@@ -4,6 +4,7 @@ typedef bit [31:0] instructions_t [$];
 
     function instructions_t raw_hazard_test(); 
         instructions_t instr;
+        Riscv32 rv32; rv32 = new();
 
         /* Try different latencies */
         instr.push_back(rv32._addi(1, 0, 1));
@@ -27,6 +28,7 @@ typedef bit [31:0] instructions_t [$];
 
     function instructions_t waw_hazard_test(); 
         instructions_t instr;
+        Riscv32 rv32; rv32 = new();
 
         instr.push_back(rv32._addi(1, 0, 1));
         instr.push_back(rv32._addi(2, 0, 1));
@@ -43,6 +45,7 @@ typedef bit [31:0] instructions_t [$];
 
     function instructions_t arithmetic_logic_test(); 
         instructions_t instr;
+        Riscv32 rv32; rv32 = new();
 
         instr.push_back(rv32._lui(1, 1));
         instr.push_back(rv32._auipc(2, 1));
@@ -154,7 +157,10 @@ typedef bit [31:0] instructions_t [$];
     endfunction : arithmetic_logic_test 
 
 
-    function csr_read_test();
+    function instructions_t csr_read_test();
+        instructions_t instr;
+        Riscv32 rv32; rv32 = new();
+        
         instr.push_back(rv32._csrrs(1, 0, rv32.csr_cycle));
         instr.push_back(rv32._csrrs(1, 0, rv32.csr_cycleh));
         instr.push_back(rv32._csrrs(1, 0, rv32.csr_instret));
@@ -205,74 +211,86 @@ typedef bit [31:0] instructions_t [$];
         instr.push_back(rv32._csrrs(1, 0, rv32.csr_mhpmevent6));
 
         instr.push_back(rv32._ecall());
+        
+        return instr;
     endfunction : csr_read_test
 
 
-    function exception_program();
+    function instructions_t exception_program();
+        instructions_t instr;
+        Riscv32 rv32; rv32 = new();
+        
         for (int i = 0; i < 32; ++i) begin
             /* Initialize all the registers to 0xFFFFFFFF */
-            write_instruction(rv32._addi(i, 0, -1));
+            instr.push_back(rv32._addi(i, 0, -1));
         end
 
-        write_instruction(rv32._addi(1, 0, 49));
-        write_instruction(rv32._slli(1, 1, 2));
-        write_instruction(rv32._csrrw(1, 1, rv32.csr_mtvec));
+        instr.push_back(rv32._addi(1, 0, 49));
+        instr.push_back(rv32._slli(1, 1, 2));
+        instr.push_back(rv32._csrrw(1, 1, rv32.csr_mtvec));
 
         /* Go into U mode */ 
-        write_instruction(rv32._mret()); 
+        instr.push_back(rv32._mret()); 
 
         /* Execute some instructions */
-        write_instruction(rv32._sub(1, 2, 3)); 
-        write_instruction(rv32._sub(4, 5, 6)); 
-        write_instruction(rv32._sub(7, 8, 9)); 
-        write_instruction(rv32._sub(10, 11, 12)); 
+        instr.push_back(rv32._sub(1, 2, 3)); 
+        instr.push_back(rv32._sub(4, 5, 6)); 
+        instr.push_back(rv32._sub(7, 8, 9)); 
+        instr.push_back(rv32._sub(10, 11, 12)); 
 
         /* Execute an instruction that generate an exception */
-        write_instruction(rv32._ebreak());
+        instr.push_back(rv32._ebreak());
 
         /* Pad some instructions */ 
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
-        write_instruction(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
+        instr.push_back(rv32._add(0, 0, 0));
 
         /* Handler start */ 
-        write_instruction(rv32._add(3, 1, 2));
-        write_instruction(rv32._ecall());
+        instr.push_back(rv32._add(3, 1, 2));
+        instr.push_back(rv32._ecall());
+        
+        return instr;
     endfunction : exception_program 
 
 
-    function fence_test();
+    function instructions_t fence_test();
+        instructions_t instr;
+        Riscv32 rv32; rv32 = new();
+        
         /* Execute a division */
-        write_instruction(rv32._addi(31, 0, 1));
-        write_instruction(rv32._div(31, 31, 31));
+        instr.push_back(rv32._addi(31, 0, 1));
+        instr.push_back(rv32._div(31, 31, 31));
 
         /* Wait for the division to end */
-        write_instruction(rv32._fence(0, 0)); 
+        instr.push_back(rv32._fence(0, 0)); 
 
         /* Check if the ADD instructions doesn't execute */
         repeat(50) begin
-            write_instruction(rv32._addi(1, 1, 1));
+            instr.push_back(rv32._addi(1, 1, 1));
         end 
 
         /* Load the timer base address */
-        write_instruction(rv32._lui(2, 1));
-        write_instruction(rv32._addi(2, 2, -`IO_START));
+        instr.push_back(rv32._lui(2, 1));
+        instr.push_back(rv32._addi(2, 2, -`IO_START));
 
         /* Load the timer value (TIMER_START + 2) */
-        write_instruction(rv32._lw(1, 2, 2));
+        instr.push_back(rv32._lw(1, 2, 2));
 
         /* Set the timer comparator to 200 and wait for interrupt */
-        write_instruction(rv32._addi(3, 0, 200));
-        write_instruction(rv32._sw(3, 2, 0));
-        write_instruction(rv32._wfi());
+        instr.push_back(rv32._addi(3, 0, 200));
+        instr.push_back(rv32._sw(3, 2, 0));
+        instr.push_back(rv32._wfi());
 
         /* Load the timer value (TIMER_START + 2) */
-        write_instruction(rv32._lw(4, 2, 2));
+        instr.push_back(rv32._lw(4, 2, 2));
 
-        write_instruction(rv32._ecall());
+        instr.push_back(rv32._ecall());
+        
+        return instr;
     endfunction : fence_test 
