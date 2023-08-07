@@ -313,11 +313,11 @@ module commit_stage (
 
     logic [1:0][1:0] register_match;
 
-    assign register_match[ITU][0] = (ipacket_write[ITU].reg_dest == foward_src_i[0]);
-    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == foward_src_i[1]);
+    assign register_match[ITU][0] = (ipacket_write[ITU].reg_dest == foward_src_i[0]) & (foward_src_i[0] != '0);
+    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == foward_src_i[1]) & (foward_src_i[0] != '0);
 
-    assign register_match[LSU][0] = (ipacket_write[LSU].reg_dest == foward_src_i[0]);
-    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == foward_src_i[1]);
+    assign register_match[LSU][0] = (ipacket_write[LSU].reg_dest == foward_src_i[0]) & (foward_src_i[0] != '0);
+    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == foward_src_i[1]) & (foward_src_i[0] != '0);
 
         always_comb begin 
             /* Priority is given to new arrived data instead of old
