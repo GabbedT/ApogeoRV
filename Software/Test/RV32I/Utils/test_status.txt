@@ -1,0 +1,39 @@
+[TEST ADD]: Ok
+[TEST ADDI]: Ok
+[TEST AND]: Ok
+[TEST ANDI]: Ok
+[TEST AUIPC]: Ok
+[TEST BEQ]: Ok
+[TEST BGE]: Ok
+[TEST BGEU]: Ok
+[TEST BLT]: Ok
+[TEST BLTU]: Ok
+[TEST BNE]: Ok
+[TEST JAL]: Ok
+[TEST JALR]: Ok
+[TEST LB]: ============== BUFFER DATA ==============
+[TEST LBU]: ============== BUFFER DATA ==============
+[TEST LH]: ============== BUFFER DATA ==============
+[TEST LHU]: ============== BUFFER DATA ==============
+[TEST LUI]: Ok
+[TEST LW]: ============== BUFFER DATA ==============
+[TEST MA_DATA]: ============== BUFFER DATA ==============
+[TEST OR]: Ok
+[TEST ORI]: Ok
+[TEST SB]: ============== BUFFER DATA ==============
+[TEST SH]: ============== BUFFER DATA ==============
+[TEST SIMPLE]: OOk
+[TEST SLL]: Ok
+[TEST SLLI]: Ok
+[TEST SLT]: Ok
+[TEST SLTI]: Ok
+[TEST SLTIU]: Ok
+[TEST SLTU]: Ok
+[TEST SRA]: Ok
+[TEST SRAI]: Ok
+[TEST SRL]: Ok
+[TEST SRLI]: Ok
+[TEST SUB]: Ok
+[TEST SW]: ============== BUFFER DATA ==============
+[TEST XOR]: Ok
+[TEST XORI]: Ok
