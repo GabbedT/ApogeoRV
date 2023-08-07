@@ -151,8 +151,10 @@ module store_unit #(
         end : misalignment_check_logic
  
 
+    logic private_region; assign private_region = (store_address_i >= (`PRIVATE_REGION_START)) & (store_address_i <= (`PRIVATE_REGION_END));
+
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign accessable = !(((store_address_i >= (`PRIVATE_REGION_START)) & (store_address_i <= (`PRIVATE_REGION_END))) & !privilege_i);
+    assign accessable = (private_region & !privilege_i) | !private_region;
 
     logic accessable_saved, misaligned_saved;
 
@@ -211,8 +213,6 @@ module store_unit #(
 
                     if (valid_operation_i) begin
                         if (!accessable | misaligned) begin
-                            illegal_access_o = 1'b1;
-
                             data_valid_o = 1'b1;
                             idle_o = 1'b1; 
 

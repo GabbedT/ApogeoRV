@@ -158,7 +158,7 @@ module load_unit (
             /* Default value */
             misaligned_o = 1'b0; 
 
-            case (operation_i)
+            case (operation_i.uop)
                 /* Load byte */
                 LDB: misaligned_o = 1'b0; 
 
@@ -170,9 +170,13 @@ module load_unit (
             endcase 
         end : misalignment_check_logic
 
-        
+
+    logic private_region; assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
+
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign illegal_access_o = ((load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END))) & !privilege_i;
+    assign accessable = (private_region & !privilege_i) | !private_region;
+
+    assign illegal_access_o = !accessable; 
 
 //====================================================================================
 //      FSM LOGIC
