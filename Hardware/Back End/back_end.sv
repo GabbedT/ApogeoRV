@@ -421,7 +421,7 @@ module back_end #(
     reorder_buffer rob (
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
-        .flush_i ( flush_pipeline ),
+        .flush_i ( flush_o        ),
         .stall_i ( stall_pipeline ),
 
         .tag_i   ( reorder_buffer_tag    ),
