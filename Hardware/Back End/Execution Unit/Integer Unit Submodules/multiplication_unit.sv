@@ -128,7 +128,7 @@ module multiplication_unit #(
     logic conversion_enable;
 
     /* If the operands signs are not equal and there's a signed operation */
-    assign conversion_enable = (multiplier_sign ^ multiplicand_sign) & (is_signed_operation_rs1 | is_signed_operation_rs2);
+    assign conversion_enable = ((multiplicand_sign & is_signed_operation_rs1) ^ (multiplier_sign & is_signed_operation_rs2));
 
 
     /* Place registers to lower the delay */
