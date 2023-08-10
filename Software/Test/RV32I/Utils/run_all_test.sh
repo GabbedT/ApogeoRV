@@ -1,7 +1,8 @@
 #!/bin/bash
 
 rm simulation*
-rm vivado* 
+rm vivado*
+rm test_status.txt 
 
 cd ../
 
@@ -13,8 +14,8 @@ for hex_file in *.hex; do
 
         cd ../../../Testbench
 
-        # Modify line 19 in instruction_memory.sv and replace "and.hex" with the actual file name
-        sed -i "19s/.*/        \$readmemh(\"${hex_file}\", instructions);/" instruction_memory.sv
+        # Modify line 27 in instruction_memory.sv and replace with the new file to read
+        sed -i "27s/.*/        \$readmemh(\"${hex_file}\", memory);/" system_memory.sv
 
         cd ../Software/Test/RV32I/Utils
 

@@ -436,7 +436,7 @@ Disassembly of section .text.init:
  580:	0020a033          	slt	zero,ra,sp
  584:	00000393          	li	t2,0
  588:	00701463          	bne	zero,t2,590 <fail>
- 58c:	02301863          	bne	zero,gp,5bc <pass>
+ 58c:	02301263          	bne	zero,gp,5b0 <pass>
 
 00000590 <fail>:
  590:	0ff0000f          	fence
@@ -446,20 +446,17 @@ Disassembly of section .text.init:
  5a0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
  5a4:	00a00513          	li	a0,10
  5a8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 5ac:	00018063          	beqz	gp,5ac <fail+0x1c>
- 5b0:	00119193          	sll	gp,gp,0x1
- 5b4:	0011e193          	or	gp,gp,1
- 5b8:	c0001073          	unimp
+ 5ac:	c0001073          	unimp
 
-000005bc <pass>:
- 5bc:	0ff0000f          	fence
- 5c0:	04f00513          	li	a0,79
- 5c4:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 5c8:	06b00513          	li	a0,107
- 5cc:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 5d0:	00a00513          	li	a0,10
- 5d4:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 5d8:	00100193          	li	gp,1
- 5dc:	c0001073          	unimp
- 5e0:	c0001073          	unimp
+000005b0 <pass>:
+ 5b0:	0ff0000f          	fence
+ 5b4:	04f00513          	li	a0,79
+ 5b8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 5bc:	06b00513          	li	a0,107
+ 5c0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 5c4:	00a00513          	li	a0,10
+ 5c8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 5cc:	00100193          	li	gp,1
+ 5d0:	c0001073          	unimp
+ 5d4:	c0001073          	unimp
 	...

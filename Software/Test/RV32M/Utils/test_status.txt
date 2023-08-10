@@ -1,0 +1,8 @@
+[TEST DIV]: Ok
+[TEST DIVU]: Ok
+[TEST MUL]: Ok
+[TEST MULH]: Ok
+[TEST MULHSU]: Ok
+[TEST MULHU]: Ok
+[TEST REM]: Ok
+[TEST REMU]: Ok

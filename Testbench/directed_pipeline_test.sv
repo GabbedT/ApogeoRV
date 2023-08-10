@@ -2,7 +2,7 @@
 `include "../Hardware/Include/Headers/apogeo_memory_map.svh"
 
 `include "instruction_memory.sv"
-`include "data_memory.sv"
+`include "system_memory.sv"
 
 /* Enable or disable tracing */
 `define TRACER
@@ -23,7 +23,6 @@ module directed_pipeline_test;
     data_word_t fetch_instruction_i = 0; 
     logic fetch_o;
     logic invalidate_o;
-    logic fetch_acknowledge_o;
     data_word_t fetch_address_o; 
 
     /* Interrupt interface */
@@ -37,8 +36,18 @@ module directed_pipeline_test;
 
     pipeline #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE) dut (.*); 
 
-    data_memory #(1024) data_memory (.*); 
-    instruction_memory instruction_memory (clk_i, rst_n_i, fetch_o, invalidate_o, fetch_address_o, fetch_instruction_i, fetch_valid_i); 
+    system_memory #(8320) _memory_ (
+        .clk_i               ( clk_i               ),
+        .rst_n_i             ( rst_n_i             ),
+        .load_channel        ( load_channel        ),
+        .store_channel       ( store_channel       ),
+        .fetch_i             ( fetch_o             ),
+        .invalidate_i        ( invalidate_o        ),
+        .fetch_address_i     ( fetch_address_o     ),
+        .fetch_instruction_o ( fetch_instruction_i ),
+        .fetch_valid_o       ( fetch_valid_i       )
+    );
+
     logic [7:0] char_buffer [$]; 
 
     always #5 clk_i <= !clk_i; 
@@ -49,8 +58,6 @@ module directed_pipeline_test;
     logic [31:0] registers[32];
 
     initial begin
-        load_channel.valid <= '0;
-        load_channel.data <= '0;
         store_channel.done <= '0;
 
         registers = {default: 0}; 

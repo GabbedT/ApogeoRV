@@ -11,18 +11,17 @@
 [TEST BNE]: Ok
 [TEST JAL]: Ok
 [TEST JALR]: Ok
-[TEST LB]: ============== BUFFER DATA ==============
-[TEST LBU]: ============== BUFFER DATA ==============
-[TEST LH]: ============== BUFFER DATA ==============
-[TEST LHU]: ============== BUFFER DATA ==============
+[TEST LB]: Ok
+[TEST LBU]: Ok
+[TEST LH]: Ok
+[TEST LHU]: Ok
 [TEST LUI]: Ok
-[TEST LW]: ============== BUFFER DATA ==============
-[TEST MA_DATA]: ============== BUFFER DATA ==============
+[TEST LW]: Ok
 [TEST OR]: Ok
 [TEST ORI]: Ok
-[TEST SB]: ============== BUFFER DATA ==============
-[TEST SH]: ============== BUFFER DATA ==============
-[TEST SIMPLE]: OOk
+[TEST SB]: Ok
+[TEST SH]: Ok
+[TEST SIMPLE]: Ok
 [TEST SLL]: Ok
 [TEST SLLI]: Ok
 [TEST SLT]: Ok
@@ -34,6 +33,6 @@
 [TEST SRL]: Ok
 [TEST SRLI]: Ok
 [TEST SUB]: Ok
-[TEST SW]: ============== BUFFER DATA ==============
+[TEST SW]: Ok
 [TEST XOR]: Ok
 [TEST XORI]: Ok

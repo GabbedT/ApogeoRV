@@ -16,15 +16,15 @@ for file in *.S; do
     riscv32-unknown-elf-gcc -E -o $filename.i $filename.S
     riscv32-unknown-elf-as -c -mabi=ilp32 -march=rv32i $filename.i -o $filename.o
     riscv32-unknown-elf-ld -T Utils/link.ld $filename.o -o $filename.elf
-    riscv32-unknown-elf-objcopy -O verilog --verilog-data-width=4 $filename.elf $filename.hex
+    riscv32-unknown-elf-objcopy -O binary $filename.elf $filename.bin
     riscv32-unknown-elf-objdump -d $filename.elf > $filename.dump
+
+    xxd -p -c 1 -g 1 $filename.bin > $filename.hex
+
 
     # Remove temporary files
     rm $filename.i 
     rm $filename.o 
     rm $filename.elf
-
-    # Delete @ lines from .hex files
-    grep -v '^@' ${filename}.hex > ${filename}_temp.hex
-    mv ${filename}_temp.hex ${filename}.hex
+    rm $filename.bin
 done 

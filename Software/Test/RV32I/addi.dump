@@ -266,7 +266,7 @@ Disassembly of section .text.init:
  340:	03208013          	add	zero,ra,50
  344:	00000393          	li	t2,0
  348:	00701463          	bne	zero,t2,350 <fail>
- 34c:	02301863          	bne	zero,gp,37c <pass>
+ 34c:	02301263          	bne	zero,gp,370 <pass>
 
 00000350 <fail>:
  350:	0ff0000f          	fence
@@ -276,20 +276,17 @@ Disassembly of section .text.init:
  360:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
  364:	00a00513          	li	a0,10
  368:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 36c:	00018063          	beqz	gp,36c <fail+0x1c>
- 370:	00119193          	sll	gp,gp,0x1
- 374:	0011e193          	or	gp,gp,1
- 378:	c0001073          	unimp
+ 36c:	c0001073          	unimp
 
-0000037c <pass>:
- 37c:	0ff0000f          	fence
- 380:	04f00513          	li	a0,79
- 384:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 388:	06b00513          	li	a0,107
- 38c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 390:	00a00513          	li	a0,10
- 394:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
- 398:	00100193          	li	gp,1
- 39c:	c0001073          	unimp
- 3a0:	c0001073          	unimp
+00000370 <pass>:
+ 370:	0ff0000f          	fence
+ 374:	04f00513          	li	a0,79
+ 378:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 37c:	06b00513          	li	a0,107
+ 380:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 384:	00a00513          	li	a0,10
+ 388:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 38c:	00100193          	li	gp,1
+ 390:	c0001073          	unimp
+ 394:	c0001073          	unimp
 	...

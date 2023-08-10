@@ -1,0 +1,155 @@
+
+remu.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	0040006f          	j	4 <reset_vector>
+
+00000004 <reset_vector>:
+   4:	00000093          	li	ra,0
+   8:	00000113          	li	sp,0
+   c:	00000193          	li	gp,0
+  10:	00000213          	li	tp,0
+  14:	00000293          	li	t0,0
+  18:	00000313          	li	t1,0
+  1c:	00000393          	li	t2,0
+  20:	00000413          	li	s0,0
+  24:	00000493          	li	s1,0
+  28:	00000513          	li	a0,0
+  2c:	00000593          	li	a1,0
+  30:	00000613          	li	a2,0
+  34:	00000693          	li	a3,0
+  38:	00000713          	li	a4,0
+  3c:	00000793          	li	a5,0
+  40:	00000813          	li	a6,0
+  44:	00000893          	li	a7,0
+  48:	00000913          	li	s2,0
+  4c:	00000993          	li	s3,0
+  50:	00000a13          	li	s4,0
+  54:	00000a93          	li	s5,0
+  58:	00000b13          	li	s6,0
+  5c:	00000b93          	li	s7,0
+  60:	00000c13          	li	s8,0
+  64:	00000c93          	li	s9,0
+  68:	00000d13          	li	s10,0
+  6c:	00000d93          	li	s11,0
+  70:	00000e13          	li	t3,0
+  74:	00000e93          	li	t4,0
+  78:	00000f13          	li	t5,0
+  7c:	00000f93          	li	t6,0
+  80:	00000193          	li	gp,0
+  84:	00100513          	li	a0,1
+  88:	01f51513          	sll	a0,a0,0x1f
+  8c:	02054263          	bltz	a0,b0 <reset_vector+0xac>
+  90:	0ff0000f          	fence
+  94:	04f00513          	li	a0,79
+  98:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+  9c:	06b00513          	li	a0,107
+  a0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+  a4:	00a00513          	li	a0,10
+  a8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+  ac:	00100193          	li	gp,1
+  b0:	30005073          	csrw	mstatus,0
+  b4:	00000297          	auipc	t0,0x0
+  b8:	01428293          	add	t0,t0,20 # c8 <test_2>
+  bc:	34129073          	csrw	mepc,t0
+  c0:	f1402573          	csrr	a0,mhartid
+  c4:	30200073          	mret
+
+000000c8 <test_2>:
+  c8:	00200193          	li	gp,2
+  cc:	01400093          	li	ra,20
+  d0:	00600113          	li	sp,6
+  d4:	0220f733          	remu	a4,ra,sp
+  d8:	00200393          	li	t2,2
+  dc:	0c771463          	bne	a4,t2,1a4 <fail>
+
+000000e0 <test_3>:
+  e0:	00300193          	li	gp,3
+  e4:	fec00093          	li	ra,-20
+  e8:	00600113          	li	sp,6
+  ec:	0220f733          	remu	a4,ra,sp
+  f0:	00200393          	li	t2,2
+  f4:	0a771863          	bne	a4,t2,1a4 <fail>
+
+000000f8 <test_4>:
+  f8:	00400193          	li	gp,4
+  fc:	01400093          	li	ra,20
+ 100:	ffa00113          	li	sp,-6
+ 104:	0220f733          	remu	a4,ra,sp
+ 108:	01400393          	li	t2,20
+ 10c:	08771c63          	bne	a4,t2,1a4 <fail>
+
+00000110 <test_5>:
+ 110:	00500193          	li	gp,5
+ 114:	fec00093          	li	ra,-20
+ 118:	ffa00113          	li	sp,-6
+ 11c:	0220f733          	remu	a4,ra,sp
+ 120:	fec00393          	li	t2,-20
+ 124:	08771063          	bne	a4,t2,1a4 <fail>
+
+00000128 <test_6>:
+ 128:	00600193          	li	gp,6
+ 12c:	800000b7          	lui	ra,0x80000
+ 130:	00100113          	li	sp,1
+ 134:	0220f733          	remu	a4,ra,sp
+ 138:	00000393          	li	t2,0
+ 13c:	06771463          	bne	a4,t2,1a4 <fail>
+
+00000140 <test_7>:
+ 140:	00700193          	li	gp,7
+ 144:	800000b7          	lui	ra,0x80000
+ 148:	fff00113          	li	sp,-1
+ 14c:	0220f733          	remu	a4,ra,sp
+ 150:	800003b7          	lui	t2,0x80000
+ 154:	04771863          	bne	a4,t2,1a4 <fail>
+
+00000158 <test_8>:
+ 158:	00800193          	li	gp,8
+ 15c:	800000b7          	lui	ra,0x80000
+ 160:	00000113          	li	sp,0
+ 164:	0220f733          	remu	a4,ra,sp
+ 168:	800003b7          	lui	t2,0x80000
+ 16c:	02771c63          	bne	a4,t2,1a4 <fail>
+
+00000170 <test_9>:
+ 170:	00900193          	li	gp,9
+ 174:	00100093          	li	ra,1
+ 178:	00000113          	li	sp,0
+ 17c:	0220f733          	remu	a4,ra,sp
+ 180:	00100393          	li	t2,1
+ 184:	02771063          	bne	a4,t2,1a4 <fail>
+
+00000188 <test_10>:
+ 188:	00a00193          	li	gp,10
+ 18c:	00000093          	li	ra,0
+ 190:	00000113          	li	sp,0
+ 194:	0220f733          	remu	a4,ra,sp
+ 198:	00000393          	li	t2,0
+ 19c:	00771463          	bne	a4,t2,1a4 <fail>
+ 1a0:	02301263          	bne	zero,gp,1c4 <pass>
+
+000001a4 <fail>:
+ 1a4:	0ff0000f          	fence
+ 1a8:	04e00513          	li	a0,78
+ 1ac:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 1b0:	06f00513          	li	a0,111
+ 1b4:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 1b8:	00a00513          	li	a0,10
+ 1bc:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 1c0:	c0001073          	unimp
+
+000001c4 <pass>:
+ 1c4:	0ff0000f          	fence
+ 1c8:	04f00513          	li	a0,79
+ 1cc:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 1d0:	06b00513          	li	a0,107
+ 1d4:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 1d8:	00a00513          	li	a0,10
+ 1dc:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfff>
+ 1e0:	00100193          	li	gp,1
+ 1e4:	c0001073          	unimp
+ 1e8:	c0001073          	unimp
+	...

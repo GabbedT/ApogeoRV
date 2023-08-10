@@ -45,11 +45,11 @@ Disassembly of section .text.init:
   8c:	02054263          	bltz	a0,b0 <reset_vector+0xac>
   90:	0ff0000f          	fence
   94:	04f00513          	li	a0,79
-  98:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
+  98:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
   9c:	06b00513          	li	a0,107
-  a0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
+  a0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
   a4:	00a00513          	li	a0,10
-  a8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
+  a8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
   ac:	00100193          	li	gp,1
   b0:	30005073          	csrw	mstatus,0
   b4:	00000297          	auipc	t0,0x0
@@ -91,7 +91,7 @@ Disassembly of section .text.init:
  12c:	00002097          	auipc	ra,0x2
  130:	ed408093          	add	ra,ra,-300 # 2000 <begin_signature>
  134:	fffff137          	lui	sp,0xfffff
- 138:	fa010113          	add	sp,sp,-96 # ffffefa0 <_end+0xffffcf90>
+ 138:	fa010113          	add	sp,sp,-96 # ffffefa0 <_end+0xffffbfa0>
  13c:	00000797          	auipc	a5,0x0
  140:	01478793          	add	a5,a5,20 # 150 <test_4+0x28>
  144:	00208123          	sb	sp,2(ra)
@@ -99,7 +99,7 @@ Disassembly of section .text.init:
  14c:	0080006f          	j	154 <test_4+0x2c>
  150:	00010713          	mv	a4,sp
  154:	fffff3b7          	lui	t2,0xfffff
- 158:	fa038393          	add	t2,t2,-96 # ffffefa0 <_end+0xffffcf90>
+ 158:	fa038393          	add	t2,t2,-96 # ffffefa0 <_end+0xffffbfa0>
  15c:	3e771063          	bne	a4,t2,53c <fail>
 
 00000160 <test_5>:
@@ -177,7 +177,7 @@ Disassembly of section .text.init:
  254:	00002097          	auipc	ra,0x2
  258:	db408093          	add	ra,ra,-588 # 2008 <tdat9>
  25c:	12345137          	lui	sp,0x12345
- 260:	67810113          	add	sp,sp,1656 # 12345678 <_end+0x12343668>
+ 260:	67810113          	add	sp,sp,1656 # 12345678 <_end+0x12342678>
  264:	fe008213          	add	tp,ra,-32
  268:	02220023          	sb	sp,32(tp) # 20 <reset_vector+0x1c>
  26c:	00008283          	lb	t0,0(ra)
@@ -189,7 +189,7 @@ Disassembly of section .text.init:
  27c:	00002097          	auipc	ra,0x2
  280:	d8c08093          	add	ra,ra,-628 # 2008 <tdat9>
  284:	00003137          	lui	sp,0x3
- 288:	09810113          	add	sp,sp,152 # 3098 <_end+0x1088>
+ 288:	09810113          	add	sp,sp,152 # 3098 <_end+0x98>
  28c:	ffa08093          	add	ra,ra,-6
  290:	002083a3          	sb	sp,7(ra)
  294:	00002217          	auipc	tp,0x2
@@ -385,30 +385,26 @@ Disassembly of section .text.init:
  52c:	00002597          	auipc	a1,0x2
  530:	ad458593          	add	a1,a1,-1324 # 2000 <begin_signature>
  534:	00a581a3          	sb	a0,3(a1)
- 538:	02301863          	bne	zero,gp,568 <pass>
+ 538:	02301263          	bne	zero,gp,55c <pass>
 
 0000053c <fail>:
  53c:	0ff0000f          	fence
  540:	04e00513          	li	a0,78
- 544:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
+ 544:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
  548:	06f00513          	li	a0,111
- 54c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
+ 54c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
  550:	00a00513          	li	a0,10
- 554:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
- 558:	00018063          	beqz	gp,558 <fail+0x1c>
- 55c:	00119193          	sll	gp,gp,0x1
- 560:	0011e193          	or	gp,gp,1
- 564:	c0001073          	unimp
+ 554:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 558:	c0001073          	unimp
 
-00000568 <pass>:
- 568:	0ff0000f          	fence
- 56c:	04f00513          	li	a0,79
- 570:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
- 574:	06b00513          	li	a0,107
- 578:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
- 57c:	00a00513          	li	a0,10
- 580:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffdfef>
- 584:	00100193          	li	gp,1
- 588:	c0001073          	unimp
- 58c:	c0001073          	unimp
-	...
+0000055c <pass>:
+ 55c:	0ff0000f          	fence
+ 560:	04f00513          	li	a0,79
+ 564:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 568:	06b00513          	li	a0,107
+ 56c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 570:	00a00513          	li	a0,10
+ 574:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 578:	00100193          	li	gp,1
+ 57c:	c0001073          	unimp
+ 580:	c0001073          	unimp
