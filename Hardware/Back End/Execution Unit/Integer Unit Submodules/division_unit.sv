@@ -152,13 +152,14 @@ module division_unit (
 
 
     /* Carry signal to know if the result needs a conversion */
-    logic conversion_enable, conversion_enable_out, dividend_sign_out;
+    logic conversion_enable, conversion_enable_out, dividend_sign_out, is_signend_out;
 
-    assign conversion_enable = (dividend_sign ^ divisor_sign) & is_signed_operation;
+    assign conversion_enable = (dividend_sign ^ divisor_sign);
 
         always_ff @(posedge clk_i) begin 
             if (clk_en_i & data_valid_i) begin
-                conversion_enable_out <= conversion_enable;
+                conversion_enable_out <= conversion_enable & (divisor_i != '0);
+                is_signend_out <= is_signed_operation;
                 dividend_sign_out <= dividend_sign;
             end
         end 
@@ -169,7 +170,7 @@ module division_unit (
 //====================================================================================
 
     data_word_t quotient, remainder;
-    logic       div_data_valid, div_idle, divide_by_zero;
+    logic       div_data_valid, divide_by_zero;
 
     non_restoring_divider #(DATA_WIDTH) divider (
         .clk_i            ( clk_i             ),
@@ -220,13 +221,13 @@ module division_unit (
             converted_quotient = last_stage_quotient;
             converted_remainder = last_stage_remainder;
 
-            if (conversion_enable_out) begin
+            if (conversion_enable_out & is_signend_out) begin
                 converted_quotient = ~(last_stage_quotient) + 1'b1;
             end
 
             /* Remainder sign is equals to dividend sign, convert remainder if 
              * signs are different */
-            if ((dividend_sign_out ^ converted_remainder[DATA_WIDTH - 1]) & conversion_enable_out) begin
+            if ((dividend_sign_out ^ last_stage_remainder[DATA_WIDTH - 1]) & is_signend_out) begin
                 converted_remainder = ~(last_stage_remainder) + 1'b1;
             end
 
