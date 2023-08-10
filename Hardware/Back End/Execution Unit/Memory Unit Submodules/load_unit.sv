@@ -148,6 +148,8 @@ module load_unit (
         end
     
 
+    logic misaligned; 
+
         /* Address must be aligned based on the operation: 
          *
          * - LOAD WORD: 4 byte boundary 
@@ -156,19 +158,21 @@ module load_unit (
          */ 
         always_comb begin : misalignment_check_logic
             /* Default value */
-            misaligned_o = 1'b0; 
+            misaligned = 1'b0; 
 
             case (operation_i.uop)
                 /* Load byte */
-                LDB: misaligned_o = 1'b0; 
+                LDB: misaligned = 1'b0; 
 
                 /* Load half word signed */
-                LDH: misaligned_o = load_address_i[0];
+                LDH: misaligned = load_address_i[0];
 
                 /* Load word */
-                LDW: misaligned_o = load_address_i[1:0] != '0;
+                LDW: misaligned = load_address_i[1:0] != '0;
             endcase 
         end : misalignment_check_logic
+
+    assign misaligned_o = misaligned & valid_operation_i;
 
 
     logic private_region; assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
@@ -176,7 +180,7 @@ module load_unit (
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
     assign accessable = (private_region & !privilege_i) | !private_region;
 
-    assign illegal_access_o = !accessable; 
+    assign illegal_access_o = !accessable & valid_operation_i; 
 
 //====================================================================================
 //      FSM LOGIC
@@ -221,7 +225,7 @@ module load_unit (
                     foward_packet_o = 1'b1;
                     
                     if (valid_operation_i) begin
-                        if (misaligned_o) begin
+                        if (misaligned_o | illegal_access_o) begin
                             /* Exception */ 
                             data_valid_o = 1'b1; 
                         end if (operation_i.uop != LDW) begin
@@ -273,7 +277,7 @@ module load_unit (
             endcase
         end : fsm_logic
 
-    assign data_loaded_o = data_sliced; 
+    assign data_loaded_o = (misaligned_o & illegal_access_o) ? '0 : data_sliced; 
 
 endmodule : load_unit
 
