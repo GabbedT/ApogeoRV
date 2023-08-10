@@ -191,7 +191,7 @@ module back_end #(
                 bypass_ipacket <= '0;
 
                 computed_address_bypass <= '0;
-            end else if (flush_pipeline | mispredicted_i | branch_flush_o) begin 
+            end else if (flush_o | mispredicted_i | branch_flush_o) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
                 bypass_jump <= 1'b0;
@@ -363,7 +363,7 @@ module back_end #(
             if (!rst_n_i) begin
                 packet_commit <= '0;
                 valid_commit <= '0;
-            end else if (flush_pipeline) begin 
+            end else if (flush_o) begin 
                 packet_commit <= '0;
                 valid_commit <= '0;
             end else if (!stall_o) begin
