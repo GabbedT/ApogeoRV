@@ -347,7 +347,8 @@ module front_end #(
                 stop_reading_buffer <= 1'b0;
                 select_upper_portion <= 1'b0;
             end else if (!stall & !stall_i & !ibuffer_empty) begin
-                stop_reading_buffer <= !stop_reading_buffer & ((compressed | cross_boundary) & (ibuffer_instruction[17:16] != '1)) & !ibuffer_taken;
+                stop_reading_buffer <= !stop_reading_buffer & ((compressed | cross_boundary) & (ibuffer_instruction[17:16] != '1)) 
+                                        & !(ibuffer_taken & ibuffer_speculative);
 
                 if (compressed) begin
                     /* The next time a word arrives read the upper portion if compressed and not speculative */
