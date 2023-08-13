@@ -15,6 +15,7 @@ module instruction_buffer #(
     input data_word_t fetch_instruction_i,
     input data_word_t fetch_address_i,
     input logic fetch_speculative_i,
+    input logic taken_i,
 
     /* Commands */
     input logic write_instruction_i,
@@ -26,6 +27,7 @@ module instruction_buffer #(
     output data_word_t fetch_instruction_o,
     output data_word_t fetch_address_o,
     output logic fetch_speculative_o,
+    output logic taken_o,
 
     /* Buffer status */
     output logic empty_o,
@@ -141,7 +143,7 @@ module instruction_buffer #(
 
 
 
-    logic [BUFFER_SIZE - 1:0] speculative_buffer;
+    logic [1:0] speculative_buffer [BUFFER_SIZE - 1:0];
 
     initial begin
         for (int i = 0; i < BUFFER_SIZE; ++i) begin
@@ -152,14 +154,14 @@ module instruction_buffer #(
         always_ff @(posedge clk_i) begin 
             if (write_speculative_i) begin
                 if (flush_i) begin
-                    speculative_buffer[0] <= 1'b0;
+                    speculative_buffer[0] <= 2'b0;
                 end else begin 
-                    speculative_buffer[speculative_write_ptr] <= fetch_speculative_i; 
+                    speculative_buffer[speculative_write_ptr] <= {fetch_speculative_i, taken_i}; 
                 end 
             end
         end 
 
-    assign fetch_speculative_o = speculative_buffer[read_ptr];
+    assign {fetch_speculative_o, taken_o} = speculative_buffer[read_ptr];
 
 
 
