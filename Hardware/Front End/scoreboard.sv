@@ -364,7 +364,7 @@ module scoreboard (
             end
         end : ldu_destination_register
 
-    assign ldu_raw_hazard = block_ldu_issue | ((src_reg_i[0] == ldu_register_dest) | (dest_reg_i == ldu_register_dest)) & !ldu_idle_i & (ldu_register_dest != '0);
+    assign ldu_raw_hazard = block_ldu_issue | ((src_reg_i[0] == ldu_register_dest) | (src_reg_i[1] == ldu_register_dest) | (dest_reg_i == ldu_register_dest)) & !ldu_idle_i & (ldu_register_dest != '0);
 
 
 //====================================================================================
