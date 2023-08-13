@@ -282,7 +282,7 @@ module front_end #(
             end
         end 
 
-    logic ibuffer_empty, ibuffer_read, ibuffer_speculative; data_word_t ibuffer_instruction, ibuffer_program_counter;
+    logic ibuffer_empty, ibuffer_read, ibuffer_speculative, ibuffer_taken; data_word_t ibuffer_instruction, ibuffer_program_counter;
 
     assign invalidate_o = branch_flush_i | mispredicted | flush_i;
 
@@ -294,6 +294,7 @@ module front_end #(
         .fetch_instruction_i ( fetch_instruction_i ),
         .fetch_address_i     ( fetch_address_o     ),
         .fetch_speculative_i ( branch_buffer_hit   ),
+        .taken_i             ( predict             ), 
 
         .write_instruction_i ( fetch_valid_i  ),
         .write_speculative_i ( buffered_fetch ),
@@ -303,13 +304,16 @@ module front_end #(
         .fetch_instruction_o ( ibuffer_instruction     ),
         .fetch_address_o     ( ibuffer_program_counter ),
         .fetch_speculative_o ( ibuffer_speculative     ),
+        .taken_o             ( ibuffer_taken           ),
 
         .empty_o ( ibuffer_empty ),
         .full_o  ( ibuffer_full  )
     ); 
 
+    logic misaligned_instruction; assign misaligned_instruction = ibuffer_program_counter[0];
 
-    logic [15:0] upper_portion; logic compressed, cross_boundary, select_upper_portion, stop_reading_buffer; 
+
+    logic [15:0] upper_portion; logic compressed, cross_boundary, select_upper_portion, stop_reading_buffer, previous_speculative; 
 
     assign ibuffer_read = !stall & !stall_i & !ibuffer_empty & !stop_reading_buffer;
 
@@ -318,10 +322,13 @@ module front_end #(
             if (!rst_n_i) begin
                 upper_portion <= '0;
                 cross_boundary <= 1'b0;
+                previous_speculative <= 1'b0;
             end else if (invalidate_o) begin
                 upper_portion <= '0;
                 cross_boundary <= 1'b0;
+                previous_speculative <= 1'b0; 
             end else if (ibuffer_read) begin
+                previous_speculative <= ibuffer_speculative;
                 upper_portion <= ibuffer_instruction[31:16];
 
                 /* Cross boundary when we have a compressed intruction on the lower half word
@@ -340,11 +347,11 @@ module front_end #(
                 stop_reading_buffer <= 1'b0;
                 select_upper_portion <= 1'b0;
             end else if (!stall & !stall_i & !ibuffer_empty) begin
-                stop_reading_buffer <= !stop_reading_buffer & ((compressed | cross_boundary) & (ibuffer_instruction[17:16] != '1));
+                stop_reading_buffer <= !stop_reading_buffer & ((compressed | cross_boundary) & (ibuffer_instruction[17:16] != '1)) & !ibuffer_taken;
 
                 if (compressed) begin
-                    /* The next time a word arrives read the upper portion if compressed */
-                    select_upper_portion <= !select_upper_portion;
+                    /* The next time a word arrives read the upper portion if compressed and not speculative */
+                    select_upper_portion <= !select_upper_portion & !ibuffer_speculative;
                 end 
             end
         end 
@@ -399,9 +406,9 @@ module front_end #(
                 if_stage_exception_vector <= '0; 
             end else if (!stall & !stall_i) begin
                 if_stage_instruction <= compressed ? expanded_instruction : full_instruction;
-                if_stage_program_counter <= (select_upper_portion | cross_boundary) ? (ibuffer_program_counter - 'd2) : ibuffer_program_counter;
+                if_stage_program_counter <= ((select_upper_portion | cross_boundary) & !previous_speculative) ? (ibuffer_program_counter - 'd2) : ibuffer_program_counter;
 
-                if_stage_exception_vector <= `INSTR_ILLEGAL; 
+                if_stage_exception_vector <= misaligned_instruction ? `INSTR_MISALIGNED : `INSTR_ILLEGAL; 
             end 
         end : fetch_stage_register
 
@@ -424,9 +431,9 @@ module front_end #(
                 if_stage_valid <= !ibuffer_empty;
 
                 if_stage_compressed <= compressed & !decompressor_exception;
-                if_stage_speculative <= ibuffer_speculative;
+                if_stage_speculative <= !((select_upper_portion | cross_boundary) & !previous_speculative) & ibuffer_speculative;
 
-                if_stage_exception <= compressed ? decompressor_exception : 1'b0;
+                if_stage_exception <= (compressed ? decompressor_exception : 1'b0) | misaligned_instruction;
             end
         end 
 
