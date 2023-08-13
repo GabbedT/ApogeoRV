@@ -5,6 +5,12 @@
         "support.h": "c",
         "beebsc.h": "c",
         "*.tcc": "c",
-        "system_error": "cpp"
+        "system_error": "cpp",
+        "array": "c",
+        "functional": "c",
+        "tuple": "c",
+        "type_traits": "c",
+        "utility": "c",
+        "image.h": "c"
     }
 }

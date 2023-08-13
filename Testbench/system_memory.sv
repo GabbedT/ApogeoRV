@@ -28,7 +28,7 @@ module system_memory #(
             memory[i] = '0;
         end 
         
-        $readmemh("crc32.hex", memory);
+        $readmemh("color2gray.hex", memory);
     end
 
 
