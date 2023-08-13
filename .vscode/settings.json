@@ -1,5 +1,10 @@
 {
     "files.associations": {
-        "inttypes.h": "c"
+        "inttypes.h": "c",
+        "alloca.h": "c",
+        "support.h": "c",
+        "beebsc.h": "c",
+        "*.tcc": "c",
+        "system_error": "cpp"
     }
 }

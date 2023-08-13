@@ -24,7 +24,11 @@ module system_memory #(
     logic [7:0] memory [MEMORY_SIZE]; 
 
     initial begin
-        $readmemh("remu.hex", memory);
+        for (int i = 0; i < MEMORY_SIZE; ++i) begin 
+            memory[i] = '0;
+        end 
+        
+        $readmemh("crc32.hex", memory);
     end
 
 
@@ -71,7 +75,7 @@ module system_memory #(
 
     logic [$clog2(MEMORY_SIZE) - 1:0] fetch_address;
 
-    assign fetch_address = {fetch_address_i[$clog2(MEMORY_SIZE) - 1:2], 2'b0};
+    assign fetch_address = {fetch_address_i[$clog2(MEMORY_SIZE) - 1:1], 1'b0};
 
         always_ff @(posedge clk_i) begin
             if (!rst_n_i) begin

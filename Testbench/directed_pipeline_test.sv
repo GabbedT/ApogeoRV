@@ -36,7 +36,7 @@ module directed_pipeline_test;
 
     pipeline #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE) dut (.*); 
 
-    system_memory #(8320) _memory_ (
+    system_memory #(16384) _memory_ (
         .clk_i               ( clk_i               ),
         .rst_n_i             ( rst_n_i             ),
         .load_channel        ( load_channel        ),
