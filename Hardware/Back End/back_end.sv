@@ -269,7 +269,7 @@ module back_end #(
     execution_unit #(STORE_BUFFER_SIZE) execute_stage (
         .clk_i          ( clk_i              ),
         .rst_n_i        ( rst_n_i            ),
-        .flush_i        ( flush_pipeline     ),
+        .flush_i        ( flush_o            ),
         .stall_i        ( stall_o            ),
         .validate_i     ( execute_store      ),
         .buffer_empty_o ( store_buffer_empty ),
