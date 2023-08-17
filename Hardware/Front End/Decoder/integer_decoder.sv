@@ -852,7 +852,8 @@ module integer_decoder (
                         immediate_valid_o[2] = 1'b1;
                         reg_dest_o = instr_i.I.reg_dest; 
 
-                        exception_vector_o = `CSR_OPERATION;
+                        exception_generated = (reg_src_o[1] == '0) & (reg_dest_o == '0) & (immediate_o[2] == 12'hC00);
+                        exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `CSR_OPERATION;
 
                         `ifdef IDECODER_DEBUG operation_string = "CSRRW"; `endif 
                     end
