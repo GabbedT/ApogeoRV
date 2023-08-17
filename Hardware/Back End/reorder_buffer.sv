@@ -84,6 +84,23 @@ module reorder_buffer (
 //      POINTERS LOGIC
 //====================================================================================
 
+    /* To avoid writing multiple times the same result, check if the tag that is being written 
+     * is the same of the previous clock cycle */ 
+    logic [5:0] previous_tag;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                previous_tag <= '1;
+            end else if (flush_i) begin 
+                previous_tag <= '1;
+            end else if (write_i) begin 
+                previous_tag <= tag_i;
+            end 
+        end 
+
+
+    logic write; assign write = write_i & (previous_tag != tag_i);
+
     /* Write pointers are managed by the decode logic, read pointers
      * are managed indirectly by the write back logic by asserting the
      * read command. */
@@ -112,7 +129,7 @@ module reorder_buffer (
                 write_ptr <= 6'b0;
             end else if (flush_i) begin 
                 write_ptr <= 6'b0;
-            end else if (write_i & !stall_i) begin
+            end else if (write & !stall_i) begin
                 write_ptr <= write_ptr_incremented;
             end
         end
@@ -130,7 +147,7 @@ module reorder_buffer (
                 full_o <= 1'b0;
                 empty_o <= 1'b1;
             end else if (!stall_i) begin 
-                case ({write_i, read_i})
+                case ({write, read_i})
                     PULL_DATA: begin
                         full_o <= 1'b0;
                         empty_o <= (write_ptr == read_ptr_incremented);
@@ -157,7 +174,7 @@ module reorder_buffer (
     end
 
         always_ff @(posedge clk_i) begin : rob_write_port
-            if (write_i & !stall_i) begin
+            if (write & !stall_i) begin
                 reorder_buffer[tag_i] <= entry_i;
             end 
         end : rob_write_port
@@ -173,7 +190,7 @@ module reorder_buffer (
             end else if (flush_i) begin
                 valid <= '0;
             end else if (!stall_i) begin 
-                if (write_i) begin
+                if (write) begin
                     /* Validate on write */
                     valid[tag_i] <= 1'b1;
                 end
@@ -198,7 +215,7 @@ module reorder_buffer (
     logic [31:0] foward_register [1:0][31:0];
 
         always_ff @(posedge clk_i) begin : register_write_port
-            if (write_i & !stall_i) begin
+            if (write & !stall_i) begin
                 for (int i = 0; i < 2; ++i) begin 
                     foward_register[i][entry_i.reg_dest] <= entry_i.result;
                 end
@@ -210,7 +227,7 @@ module reorder_buffer (
     logic [5:0] tag_register [31:0];
 
         always_ff @(posedge clk_i) begin : register_tag_write_port
-            if (write_i & !stall_i) begin
+            if (write & !stall_i) begin
                 tag_register[entry_i.reg_dest] <= tag_i;
             end 
         end : register_tag_write_port
@@ -225,7 +242,7 @@ module reorder_buffer (
             end else if (flush_i) begin 
                 valid_register <= '0;
             end else if (!stall_i) begin
-                if (write_i) begin
+                if (write) begin
                     /* On writes validate the result */
                     valid_register[entry_i.reg_dest] <= 1'b1;
                 end 
