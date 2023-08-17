@@ -146,11 +146,11 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : unit_status_register
             if (!rst_n_i) begin
                 buffer_full_o <= 1'b0;
-            end else if (csr_write_access_i) begin
-                buffer_full_o <= 1'b1;
             end else if (csr_write_validate_i | flush_i) begin
                 buffer_full_o <= 1'b0;
-            end
+            end else if (csr_write_access_i) begin
+                buffer_full_o <= 1'b1;
+            end 
         end : unit_status_register
 
 
@@ -178,7 +178,7 @@ module control_status_registers (
 
     data_word_t misa_csr;
 
-    assign misa_csr = {2'd1, 10'b0, 7'b0, M_extension, 3'b0, 1'b1, 2'b0, 1'b0, 2'b0, 1'b1, `ifdef BMU B_extension `else 1'b0 `endif, 1'b0};
+    assign misa_csr = {2'd01, 9'b0, 1'b1, 7'b0, M_extension, 3'b0, 1'b1, 2'b0, 1'b0, 2'b0, 1'b1, `ifdef BMU B_extension `else 1'b0 `endif, 1'b0};
 
     assign enable_mul_o = M_extension;
     assign enable_div_o = M_extension;
