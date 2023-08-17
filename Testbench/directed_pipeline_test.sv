@@ -73,7 +73,7 @@ module directed_pipeline_test;
         @(posedge clk_i);
         rst_n_i <= 1'b1;
 
-        while (!dut.apogeo_backend.exception_generated) begin
+        while (!(dut.apogeo_backend.exception_generated & dut.apogeo_backend.exception_vector == 2)) begin
             if (dut.apogeo_backend.exception_vector == 16) begin
                 repeat (40) @(posedge clk_i);
                 interrupt_i <= 1'b1; 
@@ -102,9 +102,9 @@ module directed_pipeline_test;
                                                            dut.apogeo_backend.reg_destination_o, 
                                                            dut.apogeo_backend.writeback_result_o); 
 
-                //    $display("%0dns , 0x%0h , x%02d , 0x%h", $time, dut.apogeo_backend.trap_iaddress, 
-                //                                            dut.apogeo_backend.reg_destination_o, 
-                //                                            dut.apogeo_backend.writeback_result_o); 
+                    $display("%0dns , 0x%0h , x%02d , 0x%h", $time, dut.apogeo_backend.trap_iaddress, 
+                                                            dut.apogeo_backend.reg_destination_o, 
+                                                            dut.apogeo_backend.writeback_result_o); 
                 end
             `endif 
         end 

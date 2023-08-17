@@ -28,7 +28,7 @@ module system_memory #(
             memory[i] = '0;
         end 
         
-        $readmemh("color2gray.hex", memory);
+        $readmemh("sbreak.hex", memory);
     end
 
 
