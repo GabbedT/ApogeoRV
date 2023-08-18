@@ -25,14 +25,24 @@
 //      CORE CONFIG
 //====================================================================================
 
-    /* Instruction buffer size */
-    `define INSTRUCTION_BUFFER_SIZE 8
-
     /* Enable bit manipulation unit and B extension */
     `define BMU
 
     /* Enable or disable cache */
     //`define CACHE_SYSTEM
+
+    `define BRANCH_PREDICTOR_DEPTH 1024
+
+    `define BRANCH_TARGET_BUFFER_DEPTH 1024
+
+
+//====================================================================================
+//      FRONTEND CONFIG
+//====================================================================================
+
+    /* Total number of entries NOT bytes */
+
+    `define INSTRUCTION_BUFFER_SIZE 8
 
     `define BRANCH_PREDICTOR_DEPTH 1024
 
@@ -57,10 +67,6 @@
     /* Number of pipeline stages in the core integer multiplier, so 
      * if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */
     `define MUL_PIPE_STAGES 2
-
-    /* Number of pipeline stages in the core floating point multiplier,
-     * so if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */ 
-    `define SIGNIFICAND_MUL_PIPE_STAGES 0
 
 
 //====================================================================================
