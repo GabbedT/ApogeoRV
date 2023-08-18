@@ -1,5 +1,5 @@
-`ifndef PIPELINE_SV
-    `define PIPELINE_SV
+`ifndef RV32APOGEO_SV
+    `define RV32APOGEO_SV
 
 `include "Back End/back_end.sv"
 `include "Front End/front_end.sv"
@@ -8,7 +8,7 @@
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
-module pipeline #(
+module rv32apogeo #(
     /* Predictor table size */ 
     parameter PREDICTOR_SIZE = 1024, 
 
@@ -309,6 +309,6 @@ module pipeline #(
 
     assign store_channel_backend.done = store_channel.done;
 
-endmodule : pipeline 
+endmodule : rv32apogeo 
 
 `endif 
