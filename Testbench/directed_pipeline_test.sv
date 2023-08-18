@@ -36,7 +36,7 @@ module directed_pipeline_test;
     load_interface load_channel(); 
     store_interface store_channel();
 
-    pipeline #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
+    rv32apogeo #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
 
     system_memory #(MEMORY_SIZE) _memory_ (
         .clk_i               ( clk_i               ),

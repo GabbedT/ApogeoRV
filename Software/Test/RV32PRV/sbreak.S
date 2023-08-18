@@ -11,7 +11,6 @@
 #include "Utils/test_macros.h"
 
 RVTEST_RV32U
-RVTEST_CODE_BEGIN_NO_PRIVILEGE
 
   #define sscratch mscratch
   #define sstatus mstatus
@@ -21,7 +20,13 @@ RVTEST_CODE_BEGIN_NO_PRIVILEGE
   #define sret mret
   #define stvec_handler mtvec_handler
 
+  .global stvec_handler
+
+RVTEST_CODE_BEGIN_NO_PRIVILEGE
+
   li TESTNUM, 2
+  la t0, stvec_handler
+  csrw stvec, t0
 
 do_break:
   sbreak

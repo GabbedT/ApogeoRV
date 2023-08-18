@@ -57,47 +57,50 @@ Disassembly of section .text.init:
   bc:	34129073          	csrw	mepc,t0
   c0:	f1402573          	csrr	a0,mhartid
   c4:	00200193          	li	gp,2
+  c8:	00000297          	auipc	t0,0x0
+  cc:	05c28293          	add	t0,t0,92 # 124 <mtvec_handler>
+  d0:	30529073          	csrw	mtvec,t0
 
-000000c8 <do_break>:
-  c8:	00100073          	ebreak
-  cc:	0080006f          	j	d4 <fail>
-  d0:	02301263          	bne	zero,gp,f4 <pass>
+000000d4 <do_break>:
+  d4:	00100073          	ebreak
+  d8:	0080006f          	j	e0 <fail>
+  dc:	02301263          	bne	zero,gp,100 <pass>
 
-000000d4 <fail>:
-  d4:	0ff0000f          	fence
-  d8:	04e00513          	li	a0,78
-  dc:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
-  e0:	06f00513          	li	a0,111
-  e4:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
-  e8:	00a00513          	li	a0,10
-  ec:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
-  f0:	c0001073          	unimp
+000000e0 <fail>:
+  e0:	0ff0000f          	fence
+  e4:	04e00513          	li	a0,78
+  e8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
+  ec:	06f00513          	li	a0,111
+  f0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
+  f4:	00a00513          	li	a0,10
+  f8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
+  fc:	c0001073          	unimp
 
-000000f4 <pass>:
-  f4:	0ff0000f          	fence
-  f8:	04f00513          	li	a0,79
-  fc:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
- 100:	06b00513          	li	a0,107
- 104:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
- 108:	00a00513          	li	a0,10
- 10c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
- 110:	00100193          	li	gp,1
- 114:	c0001073          	unimp
+00000100 <pass>:
+ 100:	0ff0000f          	fence
+ 104:	04f00513          	li	a0,79
+ 108:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
+ 10c:	06b00513          	li	a0,107
+ 110:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
+ 114:	00a00513          	li	a0,10
+ 118:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffefff>
+ 11c:	00100193          	li	gp,1
+ 120:	c0001073          	unimp
 
-00000118 <mtvec_handler>:
- 118:	00300313          	li	t1,3
- 11c:	342022f3          	csrr	t0,mcause
- 120:	305023f3          	csrr	t2,mtvec
- 124:	0023f393          	and	t2,t2,2
- 128:	00038463          	beqz	t2,130 <skip_mask>
- 12c:	0ff2f293          	zext.b	t0,t0
+00000124 <mtvec_handler>:
+ 124:	00300313          	li	t1,3
+ 128:	342022f3          	csrr	t0,mcause
+ 12c:	305023f3          	csrr	t2,mtvec
+ 130:	0023f393          	and	t2,t2,2
+ 134:	00038463          	beqz	t2,13c <skip_mask>
+ 138:	0ff2f293          	zext.b	t0,t0
 
-00000130 <skip_mask>:
- 130:	fa6292e3          	bne	t0,t1,d4 <fail>
- 134:	00000317          	auipc	t1,0x0
- 138:	f9430313          	add	t1,t1,-108 # c8 <do_break>
- 13c:	341022f3          	csrr	t0,mepc
- 140:	f8629ae3          	bne	t0,t1,d4 <fail>
- 144:	fb1ff06f          	j	f4 <pass>
- 148:	c0001073          	unimp
+0000013c <skip_mask>:
+ 13c:	fa6292e3          	bne	t0,t1,e0 <fail>
+ 140:	00000317          	auipc	t1,0x0
+ 144:	f9430313          	add	t1,t1,-108 # d4 <do_break>
+ 148:	341022f3          	csrr	t0,mepc
+ 14c:	f8629ae3          	bne	t0,t1,e0 <fail>
+ 150:	fb1ff06f          	j	100 <pass>
+ 154:	c0001073          	unimp
 	...
