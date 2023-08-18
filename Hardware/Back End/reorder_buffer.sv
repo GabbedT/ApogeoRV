@@ -217,7 +217,7 @@ module reorder_buffer (
         always_ff @(posedge clk_i) begin : register_write_port
             if (write & !stall_i) begin
                 for (int i = 0; i < 2; ++i) begin 
-                    foward_register[i][entry_i.reg_dest] <= entry_i.result;
+                    foward_register[i][entry_i.reg_dest] <= (entry_i.reg_dest == '0) ? '0 : entry_i.result;
                 end
             end 
         end : register_write_port
@@ -234,7 +234,10 @@ module reorder_buffer (
 
 
     /* Indicates it the result was written back to register file or not */
-    logic [31:0] valid_register;
+    logic [31:0] valid_register, valid_out;
+
+    /* Register X0 is always valid */
+    assign valid_out = {valid_register[31:1], 1'b1};
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : register_valid_write_port
             if (!rst_n_i) begin
@@ -257,33 +260,31 @@ module reorder_buffer (
                 end
             end
         end : register_valid_write_port
- 
+
 
     generate genvar i;
         for (i = 0; i < 2; ++i) begin
+
             always_comb begin
                 /* Default values */
                 foward_valid_o[i] = 1'b0;
                 foward_data_o[i] = '0;
                     
-                if (foward_src_i[i] != '0) begin
-                    if (foward_src_i[i] == entry_i.reg_dest) begin
-                        /* Foward data that has passed commit stage */
-                        foward_valid_o[i] = write_i;
-                        foward_data_o[i] = entry_i.result;
-                    end else if (valid_register[foward_src_i[i]]) begin
-                        /* Foward data that has been written inside the buffers */
-                        foward_valid_o[i] = 1'b1;
-                        foward_data_o[i] = foward_register[i][foward_src_i[i]];
-                    end else begin
-                        foward_valid_o[i] = (entry_o.reg_dest == foward_src_i[i]) & read_i; 
-                        foward_data_o[i] = entry_o.result; 
-                    end
-                end else begin
+                if (foward_src_i[i] == entry_i.reg_dest) begin
+                    /* Foward data that has passed commit stage */
+                    foward_valid_o[i] = write_i;
+                    foward_data_o[i] = entry_i.result;
+                end else if (valid_out[foward_src_i[i]]) begin
+                    /* Foward data that has been written inside the buffers */
                     foward_valid_o[i] = 1'b1;
-                    foward_data_o[i] = '0;
+                    foward_data_o[i] = foward_register[i][foward_src_i[i]];
+                end else begin
+                    /* Foward data that has been read */
+                    foward_valid_o[i] = (entry_o.reg_dest == foward_src_i[i]) & read_i; 
+                    foward_data_o[i] = entry_o.result; 
                 end
             end
+            
         end
     endgenerate
 
