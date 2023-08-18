@@ -64,10 +64,6 @@ module bypass_controller (
     output data_word_t [1:0] operand_o
 );
 
-//====================================================================================
-//      OPERAND 1
-//====================================================================================
-
     logic [1:0] execute_valid, commit_valid, rob_valid; 
 
     generate genvar i;  
