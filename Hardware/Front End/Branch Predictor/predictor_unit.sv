@@ -177,7 +177,7 @@ module predictor_unit #(
     assign hashed_index = branch_history_table ^ index_i;
 
 
-    logic [1:0][1:0] branch_status_read, branch_status_write; logic write;
+    logic [1:0][1:0] branch_status_read; logic [1:0] branch_status_write; logic write;
 
         always_comb begin 
             if (taken_i) begin
