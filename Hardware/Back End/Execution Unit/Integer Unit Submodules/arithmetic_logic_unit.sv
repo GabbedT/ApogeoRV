@@ -57,6 +57,7 @@ module arithmetic_logic_unit (
     input logic data_valid_i,
 
     /* Result and valid bits */
+    output logic taken_o,
     output data_word_t result_o,
     output logic data_valid_o
 );
@@ -176,6 +177,29 @@ module arithmetic_logic_unit (
                 default: result_o = '0;
             endcase
         end : output_assignment
+
+
+//====================================================================================
+//      BRANCH LOGIC
+//====================================================================================
+
+        always_comb begin
+            case (operation_i[2:0])
+                BEQ: taken_o = is_equal;
+
+                BNE: taken_o = !is_equal;
+
+                BLT: taken_o = is_less_than_s;
+
+                BLTU: taken_o = is_less_than_u;
+
+                BGE: taken_o = is_greater_or_equal_s;
+
+                BGEU: taken_o = is_greater_or_equal_u;
+
+                default: taken_o = 1'b0; 
+            endcase 
+        end
 
 endmodule : arithmetic_logic_unit
 

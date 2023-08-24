@@ -74,6 +74,7 @@ module integer_unit (
     input data_word_t operand_2_i,
 
     /* Result */
+    output logic taken_o,
     output data_word_t result_o, 
 
     /* General instruction packet and valid bit */
@@ -96,6 +97,7 @@ module integer_unit (
         .operand_B_i  ( operand_2_i            ),
         .operation_i  ( operation_i.ALU.opcode ),
         .data_valid_i ( data_valid_i.ALU       ),
+        .taken_o      ( taken_o                ),
         .result_o     ( alu_result             ),
         .data_valid_o ( alu_valid              )
     );

@@ -128,6 +128,7 @@ module execution_unit #(
     output logic stu_idle_o,
 
     /* Result */
+    output logic taken_o,
     output data_word_t [2:0] result_o,
 
     /* Instruction packet */
@@ -165,6 +166,7 @@ module execution_unit #(
         .data_valid_i ( data_valid_i.ITU        ),
         .operand_1_i  ( operand_i[0]            ),
         .operand_2_i  ( operand_i[1]            ),
+        .taken_o      ( taken_o                 ),
         .result_o     ( result_o[ITU]           ), 
         .ipacket_o    ( ipacket_o[ITU]          ),
         .data_valid_o ( data_valid_o[ITU]       )
