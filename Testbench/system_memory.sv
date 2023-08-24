@@ -28,7 +28,7 @@ module system_memory #(
             memory[i] = '0;
         end 
         
-        $readmemh("sbreak.hex", memory);
+        $readmemh("rvc.hex", memory);
     end
 
 

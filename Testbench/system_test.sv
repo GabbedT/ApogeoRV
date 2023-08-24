@@ -1,14 +1,18 @@
+`ifndef SYSTEM_TEST_INCLUDE_SV
+    `define SYSTEM_TEST_INCLUDE_SV
+
 `include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
 `include "../Hardware/Include/Headers/apogeo_memory_map.svh"
 
-module system_test(
-    input logic rst_n_i, clk_i,
+module system_test (
+    input logic reset_n_i, 
+    input logic clk_i,
     input logic [1:0] din_i, 
     output logic [1:0] dout_o
 );
 
-    localparam PREDICTOR_SIZE = 1024;
-    localparam BTB_SIZE = 1024; 
+    localparam PREDICTOR_SIZE = 512;
+    localparam BTB_SIZE = 512; 
     localparam STORE_BUFFER_SIZE = 4;
     localparam INSTRUCTION_BUFFER_SIZE = 8;
     localparam MEMORY_SIZE = 2 ** 12;
@@ -22,15 +26,22 @@ module system_test(
 
     /* Interrupt interface */
     logic interrupt_i;  
-    logic timer_interrupt_i; assign timer_interrupt_i = 1'b0;  
+    logic timer_interrupt_i;    
     logic [7:0] interrupt_vector_i;
 
     /* Memory interface */ 
     load_interface load_channel(); 
     store_interface store_channel();
 
+    logic rst_n_i, rst_sync;
 
-    rv32apogeo #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
+        always_ff @(posedge clk_i) begin 
+            rst_sync <= reset_n_i;
+            rst_n_i <= rst_sync;
+        end 
+
+
+    rv32apogeo #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) apogeo_cpu (.*); 
 
     system_memory_rtl #(MEMORY_SIZE) system_memory (
         .clk_i               ( clk_i               ),
@@ -187,7 +198,7 @@ module system_memory_rtl #(
 
         /* Write interface */
         .write_i ( store_channel.address == (`IO_START + 2) & store_channel.request ),
-        .write_data_i ( store_channel.data[0] ),
+        .write_data_i ( store_channel.data  ),
         .write_address_i ( store_channel.address[1:0] ),
     
         /* Read interface */
@@ -272,13 +283,13 @@ module system_memory_rtl #(
 //      MEMORY 
 //==========================================================
 
-    logic [3:0] port_A_enable, port_B_enable; logic [$clog2(MEMORY_SIZE) - 1:0] port_A_address; logic [3:0][$clog2(MEMORY_SIZE) - 1:0] port_B_address; 
+    logic [3:0] port_A_enable, port_B_enable; logic [$clog2(MEMORY_SIZE / 4) - 1:0] port_A_address; logic [3:0][$clog2(MEMORY_SIZE / 4) - 1:0] port_B_address; 
     logic port_A_write; logic [3:0][7:0] port_A_data_write, port_A_data_read, port_B_data_read;
 
-    assign port_A_enable = bank_enable_write; 
+    assign port_A_enable = port_A_write ? bank_enable_write : '0; 
     assign port_B_enable = fetch_i ? '1 : '0; 
 
-    assign port_A_write = store_channel.request; 
+    assign port_A_write = store_channel.request & !load_channel.request; 
     assign port_A_data_write = store_channel.data; 
 
         always_comb begin
@@ -296,9 +307,9 @@ module system_memory_rtl #(
 
 
             if (fetch_address_i[1]) begin
-                port_B_address = {{2{fetch_address_i[$clog2(MEMORY_SIZE) - 1:0]}}, {2{fetch_address_i[$clog2(MEMORY_SIZE) - 1:0] + 1}}}; 
+                port_B_address = {{2{fetch_address_i[$clog2(MEMORY_SIZE / 4) - 1:0]}}, {2{fetch_address_i[$clog2(MEMORY_SIZE / 4) - 1:0] + 1}}}; 
             end else begin
-                port_B_address = {{4{fetch_address_i[$clog2(MEMORY_SIZE) - 1:0]}}}; 
+                port_B_address = {{4{fetch_address_i[$clog2(MEMORY_SIZE / 4) - 1:0]}}}; 
             end
         end
 
@@ -370,7 +381,7 @@ module memory_bank #(
         automatic logic [3:0][7:0] temp [MEMORY_SIZE - 1:0]; 
         automatic int index = 0;
         
-        $readmemh("sbreak.hex", temp);
+       $readmemh("../Software/Test/RV32I/add.hex", temp);
         
         for (int i = 0; i < MEMORY_SIZE; ++i) begin 
             memory[i] = '0;
@@ -405,3 +416,5 @@ module memory_bank #(
     end
 
 endmodule
+
+`endif 

@@ -15,7 +15,7 @@ module directed_pipeline_test;
     localparam BTB_SIZE = 1024; 
     localparam STORE_BUFFER_SIZE = 4;
     localparam INSTRUCTION_BUFFER_SIZE = 8;
-    localparam MEMORY_SIZE = 2 ** 13;
+    localparam MEMORY_SIZE = 2 ** 14;
 
     logic clk_i = '1;
     logic rst_n_i = '0;
