@@ -142,13 +142,8 @@ module front_end #(
          */
         always_comb begin : next_program_counter_logic
             fetch_address_o = program_counter;
+            next_program_counter = program_counter + 'd4;
             fetch = 1'b0;
-
-            if (!ibuffer_full) begin 
-                next_program_counter = program_counter + 'd4;
-            end else begin
-                next_program_counter = program_counter;
-            end
 
             if (exception_i | interrupt_i) begin
                 fetch = 1'b1;
@@ -181,15 +176,10 @@ module front_end #(
                         fetch = !ibuffer_full; 
 
                         /* BTB hit have more priority */
-                        if (branch_buffer_hit) begin
-                            if (predict) begin
-                                /* Load predicted BTA */
-                                fetch_address_o = branch_target_address;
-                            end else begin
-                                /* Increment normally */
-                                fetch_address_o = next_program_counter;
-                            end
-                        end else begin 
+                        if (branch_buffer_hit & predict) begin
+                            /* Load predicted BTA */
+                            fetch_address_o = branch_target_address;
+                        end else begin
                             /* Increment normally */
                             fetch_address_o = next_program_counter;
                         end
@@ -202,15 +192,10 @@ module front_end #(
                         fetch = !ibuffer_full; 
 
                         /* BTB hit have more priority */
-                        if (branch_buffer_hit) begin
-                            if (predict) begin
-                                /* Load predicted BTA */
-                                fetch_address_o = branch_target_address;
-                            end else begin
-                                /* Increment normally */
-                                fetch_address_o = next_program_counter;
-                            end
-                        end else begin 
+                        if (branch_buffer_hit & predict) begin
+                            /* Load predicted BTA */
+                            fetch_address_o = branch_target_address;
+                        end else begin
                             /* Increment normally */
                             fetch_address_o = next_program_counter;
                         end
@@ -219,14 +204,9 @@ module front_end #(
             end else if (!ibuffer_full) begin 
                 fetch = 1'b1;
 
-                if (branch_buffer_hit) begin
-                    if (predict) begin
-                        /* Load predicted BTA */
-                        fetch_address_o = branch_target_address;
-                    end else begin
-                        /* Increment normally */
-                        fetch_address_o = next_program_counter;
-                    end
+                if (branch_buffer_hit & predict) begin
+                    /* Load predicted BTA */
+                    fetch_address_o = branch_target_address;
                 end else begin
                     /* Increment normally */
                     fetch_address_o = next_program_counter;
