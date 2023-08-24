@@ -212,12 +212,14 @@ module reorder_buffer (
     /* Foward register holds the result of the latest instruction. 
      * It's write indexed by the destination register of the instruction
      * and read indexed by the issue stage register destination */
-    logic [31:0] foward_register [1:0][31:0];
+    logic [31:0] foward_register [1:0][31:0]; logic [31:0] foward_register_data;
+
+    assign foward_register_data = (entry_i.reg_dest == '0) ? '0 : entry_i.result;
 
         always_ff @(posedge clk_i) begin : register_write_port
             if (write & !stall_i) begin
                 for (int i = 0; i < 2; ++i) begin 
-                    foward_register[i][entry_i.reg_dest] <= (entry_i.reg_dest == '0) ? '0 : entry_i.result;
+                    foward_register[i][entry_i.reg_dest] <= foward_register_data;
                 end
             end 
         end : register_write_port
@@ -244,8 +246,8 @@ module reorder_buffer (
                 valid_register <= '0;
             end else if (flush_i) begin 
                 valid_register <= '0;
-            end else if (!stall_i) begin
-                if (write) begin
+            end else begin
+                if (write & !stall_i) begin
                     /* On writes validate the result */
                     valid_register[entry_i.reg_dest] <= 1'b1;
                 end 
@@ -284,7 +286,7 @@ module reorder_buffer (
                     foward_data_o[i] = entry_o.result; 
                 end
             end
-            
+
         end
     endgenerate
 
