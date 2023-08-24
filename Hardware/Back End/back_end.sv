@@ -215,7 +215,7 @@ module back_end #(
 
     exu_uop_t bypass_operation;
     data_word_t [1:0] bypass_operands;
-    data_word_t bypass_address_offset;
+    data_word_t bypass_address_offset, bypass_base_address;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_operands_stage_register
             if (!rst_n_i) begin 
@@ -260,7 +260,7 @@ module back_end #(
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
-    logic wait_handling, handler_return, execute_store, timer_interrupt;
+    logic wait_handling, handler_return, execute_store, timer_interrupt, branch_taken;
 
     exu_valid_t valid_operation;
 
@@ -278,11 +278,11 @@ module back_end #(
         .priv_level_o         ( priv_level_o    ),
         .csr_buffer_full_o    ( csr_buffer_full ),
 
-        .operand_i    ( bypass_operands         ),
-        .address_i    ( computed_address_bypass ),
-        .data_valid_i ( valid_operation         ),
-        .operation_i  ( bypass_operation        ), 
-        .ipacket_i    ( bypass_ipacket          ),
+        .operand_i    ( bypass_operands  ),
+        .address_i    ( branch_address_o ),
+        .data_valid_i ( valid_operation  ),
+        .operation_i  ( bypass_operation ), 
+        .ipacket_i    ( bypass_ipacket   ),
 
         .branch_i       ( bypass_branch       ),
         .save_next_pc_i ( bypass_save_next_pc ),
@@ -310,14 +310,15 @@ module back_end #(
         .ldu_idle_o ( ldu_idle_o ),
         .stu_idle_o ( stu_idle_o ),
 
-        .result_o     ( result  ),
-        .ipacket_o    ( ipacket ),
-        .data_valid_o ( valid   )
+        .taken_o      ( branch_taken ),
+        .result_o     ( result       ),
+        .ipacket_o    ( ipacket      ),
+        .data_valid_o ( valid        )
     );
 
 
     /* If bit is set it's a branch taken */
-    assign branch_outcome_o = result[0];
+    assign branch_outcome_o = branch_taken;
 
     assign branch_o = bypass_branch;
     assign jump_o = bypass_jump;
@@ -383,9 +384,9 @@ module back_end #(
 //      COMMIT STAGE
 //====================================================================================
 
-    logic reorder_buffer_write, commit_buffer_empty;
-    logic [5:0] reorder_buffer_tag;
-    rob_entry_t reorder_buffer_packet;
+    logic reorder_buffer_write, rob_write, commit_buffer_empty;
+    logic [5:0] reorder_buffer_tag, rob_tag;
+    rob_entry_t reorder_buffer_packet, rob_packet;
 
     commit_stage commit (
         .clk_i   ( clk_i          ),
@@ -398,9 +399,9 @@ module back_end #(
         .ipacket_i    ( packet_commit ),
         .data_valid_i ( valid_commit  ),
 
-        .rob_write_o ( reorder_buffer_write  ),
-        .rob_tag_o   ( reorder_buffer_tag    ),
-        .rob_entry_o ( reorder_buffer_packet ),
+        .rob_write_o ( rob_write  ),
+        .rob_tag_o   ( rob_tag    ),
+        .rob_entry_o ( rob_packet ),
 
         .buffers_empty_o ( commit_buffer_empty ),
 
@@ -408,6 +409,23 @@ module back_end #(
         .foward_data_o  ( commit_data  ),
         .foward_valid_o ( commit_valid )
     ); 
+
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : rob_stage_register
+            if (!rst_n_i) begin
+                reorder_buffer_tag <= '0;
+                reorder_buffer_write <= '0;
+                reorder_buffer_packet <= '0;
+            end else if (flush_o) begin 
+                reorder_buffer_tag <= '0;
+                reorder_buffer_write <= '0;
+                reorder_buffer_packet <= '0;
+            end else if (!stall_pipeline & !reorder_buffer_full) begin
+                reorder_buffer_tag <= rob_tag;
+                reorder_buffer_write <= rob_write;
+                reorder_buffer_packet <= rob_packet;
+            end
+        end : rob_stage_register
 
 
 //====================================================================================
