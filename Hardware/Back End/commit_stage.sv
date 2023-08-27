@@ -314,10 +314,10 @@ module commit_stage (
     logic [1:0][1:0] register_match;
 
     assign register_match[ITU][0] = (ipacket_write[ITU].reg_dest == foward_src_i[0]) & (foward_src_i[0] != '0);
-    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == foward_src_i[1]) & (foward_src_i[0] != '0);
+    assign register_match[ITU][1] = (ipacket_write[ITU].reg_dest == foward_src_i[1]) & (foward_src_i[1] != '0);
 
     assign register_match[LSU][0] = (ipacket_write[LSU].reg_dest == foward_src_i[0]) & (foward_src_i[0] != '0);
-    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == foward_src_i[1]) & (foward_src_i[0] != '0);
+    assign register_match[LSU][1] = (ipacket_write[LSU].reg_dest == foward_src_i[1]) & (foward_src_i[1] != '0);
 
         always_comb begin 
             /* Priority is given to new arrived data instead of old
@@ -328,11 +328,11 @@ module commit_stage (
                      * match the register destination because no duplicate
                      * register destination can be in flight in the execution
                      * pipeline */
-                    foward_data_o[i] = (register_match[ITU][i] ? result_write[ITU] : '0) | (register_match[LSU][i] ? result_write[LSU] : '0);
+                    foward_data_o[i] = register_match[ITU][i] ? result_write[ITU] : result_write[LSU];
                     foward_valid_o[i] = (data_valid_i != '0);
                 end else begin
                     /* Take data from buffers */
-                    foward_data_o[i] = (foward_valid[ITU][i] ? foward_data[ITU][i] : '0) | (foward_valid[LSU][i] ? foward_data[LSU][i] : '0);
+                    foward_data_o[i] = foward_valid[ITU][i] ? foward_data[ITU][i] : foward_data[LSU][i];
                     foward_valid_o[i] = foward_valid[ITU][i] | foward_valid[LSU][i];
                 end 
             end 
