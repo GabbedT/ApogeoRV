@@ -128,6 +128,8 @@ module control_status_registers (
 //      UNIT STATUS
 //====================================================================================
 
+    logic interrupt; assign interrupt = interrupt_request_i | timer_interrupt_i;
+
     csr_enable_t csr_enable, csr_enable_out;
     data_word_t csr_data_out; 
 
@@ -213,7 +215,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 privilege_level <= 1'b1;
-            end else if (interrupt_request_i | exception_i) begin
+            end else if (interrupt | exception_i) begin
                 /* If an exception occours, it will be handled by 
                  * machine level code */
                 privilege_level <= 1'b1;
@@ -239,23 +241,25 @@ module control_status_registers (
 
                 mstatus_csr.MPIE <= 1'b0;
                 mstatus_csr.MPP <= USER;
-            end else if (interrupt_request_i | exception_i) begin
+            end else if (interrupt | exception_i) begin
                 /* Disable interrupts */
                 mstatus_csr.MIE <= 1'b0;
 
                 /* Save privilege status */
                 mstatus_csr.MPIE <= mstatus_csr.MIE;
-                mstatus_csr.MPP <= privilege_level;
+                mstatus_csr.MPP <= {privilege_level, privilege_level};
             end else if (machine_return_instr_i) begin
                 /* Restore old value */
                 mstatus_csr.MIE <= mstatus_csr.MPIE;
 
                 /* Restore privilege status */
                 mstatus_csr.MPIE <= 1'b1;
-                mstatus_csr.MPP <= USER;
+                mstatus_csr.MPP <= {privilege_level, privilege_level};
             end else if (csr_enable_out.mstatus & csr_write_validate_i) begin 
                 /* Write CSR */
                 mstatus_csr.MIE <= csr_data_out[3];
+                mstatus_csr.MPIE <= csr_data_out[7];
+                mstatus_csr.MPP <= csr_data_out[12:11];
             end
         end : mstatus_register
 
@@ -301,7 +305,7 @@ module control_status_registers (
             handler_pc_o <= {mtvec_csr.BASE, 2'b0};
         end else if (mtvec_csr.MODE == VECTORED_MODE) begin
             /* BASE + (CAUSE * 4) */
-            if (interrupt_request_i) begin
+            if (interrupt) begin
                 handler_pc_o <= {mtvec_csr.BASE, 2'b0} + (interrupt_vector_i << 2);
             end else begin
                 handler_pc_o <= {mtvec_csr.BASE, 2'b0};
@@ -479,7 +483,7 @@ module control_status_registers (
 
                     DATA_LOAD_EXEC: event_trigger[i] = data_load_i;
 
-                    INTERRUPT_TAKEN: event_trigger[i] = interrupt_request_i;
+                    INTERRUPT_TAKEN: event_trigger[i] = interrupt;
 
                     EXCEPTION_TAKEN: event_trigger[i] = exception_i;
 
@@ -550,7 +554,7 @@ module control_status_registers (
                 mepc_csr <= '0;
             end else if (exception_i) begin 
                 mepc_csr <= trap_instruction_pc_i;
-            end else if (interrupt_request_i) begin
+            end else if (interrupt) begin
                 mepc_csr <= compressed_i ? (trap_instruction_pc_i + 2) : (trap_instruction_pc_i + 4);
             end else if (csr_enable_out.mepc & csr_write_validate_i) begin 
                 mepc_csr <= csr_data_out;
@@ -576,7 +580,7 @@ module control_status_registers (
             if (!rst_n_i) begin 
                 mcause_csr.is_interrupt <= 1'b0;
                 mcause_csr.exception_code <= `HARDWARE_RESET_INTERRUPT;
-            end else if (interrupt_request_i) begin
+            end else if (interrupt) begin
                 /* Interrupt */ 
                 mcause_csr.is_interrupt <= 1'b1;
                 mcause_csr.exception_code <= {24'b0, interrupt_vector_i};
