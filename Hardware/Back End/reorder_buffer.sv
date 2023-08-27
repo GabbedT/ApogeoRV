@@ -268,21 +268,17 @@ module reorder_buffer (
         for (i = 0; i < 2; ++i) begin
 
             always_comb begin
-                /* Default values */
-                foward_valid_o[i] = 1'b0;
-                foward_data_o[i] = '0;
-                    
-                if (foward_src_i[i] == entry_i.reg_dest) begin
+                /* Valid data */
+                foward_valid_o[i] = (write_i & foward_src_i[i] == entry_i.reg_dest) | valid_out[foward_src_i[i]] | ((entry_o.reg_dest == foward_src_i[i]) & read_i);
+                
+                if (foward_src_i[i] == entry_i.reg_dest) begin 
                     /* Foward data that has passed commit stage */
-                    foward_valid_o[i] = write_i;
                     foward_data_o[i] = entry_i.result;
-                end else if (valid_out[foward_src_i[i]]) begin
+                end if (valid_out[foward_src_i[i]]) begin
                     /* Foward data that has been written inside the buffers */
-                    foward_valid_o[i] = 1'b1;
                     foward_data_o[i] = foward_register[i][foward_src_i[i]];
                 end else begin
                     /* Foward data that has been read */
-                    foward_valid_o[i] = (entry_o.reg_dest == foward_src_i[i]) & read_i; 
                     foward_data_o[i] = entry_o.result; 
                 end
             end
