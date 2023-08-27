@@ -53,6 +53,7 @@ module load_unit (
     /* Register control */
     input logic clk_i,
     input logic rst_n_i,
+    input logic stall_i,
 
     /* Privilege level */
     input logic privilege_i, 
@@ -178,7 +179,7 @@ module load_unit (
     logic private_region; assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
 
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign accessable = (private_region & privilege_i) | !private_region;
+    assign accessable = /* (private_region & privilege_i) | !private_region */ 1'b1;
 
     assign illegal_access_o = !accessable & valid_operation_i; 
 
@@ -186,17 +187,28 @@ module load_unit (
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_MEMORY_UPDATE, MISALIGNED} load_unit_fsm_state_t;
+    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_MEMORY_UPDATE, WAIT_STALL} load_unit_fsm_state_t;
 
     load_unit_fsm_state_t state_CRT, state_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin 
                 state_CRT <= IDLE;
-            end else begin 
+            end else if (!stall_i) begin 
                 state_CRT <= state_NXT;
+            end else if (load_channel.valid & stall_i) begin
+                state_CRT <= WAIT_STALL;
             end
         end : state_register
+
+
+    data_word_t data_saved; 
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (load_channel.valid & stall_i) begin
+                data_saved <= load_channel.data; 
+            end
+        end
 
 
         always_comb begin : fsm_logic
@@ -260,8 +272,8 @@ module load_unit (
 
                         data_selected = load_channel.data; 
                         
-                        idle_o = 1'b1;
-                        data_valid_o = 1'b1;
+                        idle_o = !stall_i;
+                        data_valid_o = !stall_i;
                     end 
                 end   
 
@@ -273,6 +285,18 @@ module load_unit (
 
                         state_NXT = WAIT_MEMORY; 
                     end
+                end
+
+
+                WAIT_STALL: begin
+                    if (!stall_i) begin
+                        state_NXT = IDLE;
+
+                        idle_o = 1'b1;
+                        data_valid_o = 1'b1;
+                    end
+
+                    data_selected = data_saved;
                 end
             endcase
         end : fsm_logic

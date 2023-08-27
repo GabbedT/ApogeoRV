@@ -59,6 +59,7 @@ module store_unit #(
     /* Register control */
     input logic clk_i,
     input logic rst_n_i,
+    input logic stall_i,
     input logic flush_i,
 
     /* Privilege level */
@@ -154,7 +155,7 @@ module store_unit #(
     logic private_region; assign private_region = (store_address_i >= (`PRIVATE_REGION_START)) & (store_address_i <= (`PRIVATE_REGION_END));
 
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign accessable = (private_region & privilege_i) | !private_region;
+    assign accessable = /* (private_region & privilege_i) | !private_region */ 1'b1;
 
     logic accessable_saved, misaligned_saved;
 
@@ -178,7 +179,7 @@ module store_unit #(
                 state_CRT <= IDLE;
             end else if (flush_i) begin
                 state_CRT <= IDLE;
-            end else begin 
+            end else if (!stall_i) begin 
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -223,7 +224,6 @@ module store_unit #(
                             end
                         end else begin 
                             if (!buffer_channel.full) begin
-
                                 data_valid_o = 1'b1;
                                 idle_o = 1'b1;
 
