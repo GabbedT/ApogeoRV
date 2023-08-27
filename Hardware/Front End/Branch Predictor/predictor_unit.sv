@@ -177,13 +177,13 @@ module predictor_unit #(
     assign hashed_index = branch_history_table ^ index_i;
 
 
-    logic [1:0][1:0] branch_status_read; logic [1:0] branch_status_write; logic write;
+    logic [1:0] branch_status_read, branch_status_write; logic write, execute_prediction;
 
         always_comb begin 
             if (taken_i) begin
-                branch_status_write = (branch_status_read[0] == '1) ? branch_status_read[0] : (branch_status_read[0] + 1'b1);
+                branch_status_write = (branch_status_read == '1) ? branch_status_read : (branch_status_read + 1'b1);
             end else begin
-                branch_status_write = (branch_status_read[0] == '0) ? branch_status_read[0] : (branch_status_read[0] - 1'b1);
+                branch_status_write = (branch_status_read == '0) ? branch_status_read : (branch_status_read - 1'b1);
             end 
 
             /* Mispredicted if different */
@@ -195,7 +195,7 @@ module predictor_unit #(
     assign pull = executed_i & !fifo_empty; assign write = executed_i;
 
     /* If high bit of the status is set then prediction is taken */
-    assign prediction_o = branch_status_read[1][1];
+    assign prediction_o = execute_prediction;
 
     assign fifo_write_data = {prediction_o, hashed_index};
 
@@ -204,28 +204,44 @@ module predictor_unit #(
 //      PREDICTOR TABLE MEMORY
 //====================================================================================
 
-    logic [1:0] predictor_table [1:0][0:TABLE_SIZE - 1]; 
+    logic [1:0] branch_status_table [0:TABLE_SIZE - 1]; 
 
     initial begin
         for (int i = 0; i < TABLE_SIZE; ++i) begin
-            predictor_table[0][i] = '0;
-            predictor_table[1][i] = '0;
+            branch_status_table[i] = '0;
         end
     end
 
-        always_ff @(posedge clk_i) begin : table_write_port
+        always_ff @(posedge clk_i) begin 
             if (write) begin
                 /* Push data */
-                predictor_table[0][fifo_read_data.index] <= branch_status_write;
-                predictor_table[1][fifo_read_data.index] <= branch_status_write;
+                branch_status_table[fifo_read_data.index] <= branch_status_write;
             end
-        end : table_write_port
+        end 
 
     /* Port used to read branch status for misprediction logic */
-    assign branch_status_read[0] = predictor_table[0][fifo_read_data.index];
+    assign branch_status_read = branch_status_table[fifo_read_data.index];
 
-    /* Port used to predict the branch */
-    assign branch_status_read[1] = predictor_table[1][hashed_index];
+
+
+    logic predictor_table [0:TABLE_SIZE - 1]; 
+
+    initial begin
+        for (int i = 0; i < TABLE_SIZE; ++i) begin
+            predictor_table[i] = '0;
+        end
+    end
+
+        always_ff @(posedge clk_i) begin 
+            if (write) begin
+                /* Push data */
+                predictor_table[fifo_read_data.index] <= branch_status_write[1];
+            end
+        end 
+
+    /* Port used to read branch status for misprediction logic */
+    assign execute_prediction = predictor_table[fifo_read_data.index];
+
 
 endmodule : predictor_unit
 
