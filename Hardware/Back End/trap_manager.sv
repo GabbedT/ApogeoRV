@@ -124,6 +124,7 @@ module trap_manager (
                         state_NXT = ACK_CYCLE;
 
                         stall_o = 1'b0;
+                        flush_o = interrupt_i;
                     end
                 end
             endcase 
