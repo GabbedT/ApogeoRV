@@ -183,6 +183,7 @@ module execution_unit #(
         .clk_i             ( clk_i                   ),
         .rst_n_i           ( rst_n_i                 ),
         .flush_i           ( flush_i                 ),
+        .stall_i           ( stall_i                 ),
         .privilege_i       ( current_privilege       ),
         .buffer_empty_o    ( buffer_empty_o          ),
         .instr_packet_i    ( ipacket_i               ),

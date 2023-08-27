@@ -65,6 +65,7 @@ module load_store_unit #(
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
+    input logic stall_i,
     output logic buffer_empty_o,
 
     /* Privilege level */
@@ -127,6 +128,7 @@ module load_store_unit #(
     store_unit #(STORE_BUFFER_SIZE) stu (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
+        .stall_i ( stall_i ),
         .flush_i ( flush_i ), 
 
         .privilege_i ( privilege_i ),
@@ -174,7 +176,7 @@ module load_store_unit #(
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
                 stu_ipacket <= '0;
-            end else if (data_valid_i.STU) begin
+            end else if (data_valid_i.STU & !stall_i) begin
                 stu_ipacket <= stu_exception_packet;
             end 
         end 
@@ -185,7 +187,7 @@ module load_store_unit #(
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
                 foward_address_match_out <= 1'b0;
-            end else if (data_valid_i.LDU) begin
+            end else if (data_valid_i.LDU & !stall_i) begin
                 foward_address_match_out <= foward_address_match;
             end else begin
                 foward_address_match_out <= 1'b0;
@@ -205,8 +207,9 @@ module load_store_unit #(
     data_word_t loaded_data;
 
     load_unit ldu (
-        .clk_i   ( clk_i                  ),
-        .rst_n_i ( rst_n_i                ),
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+        .stall_i ( stall_i ),
 
         .privilege_i ( privilege_i ),
 
@@ -226,7 +229,7 @@ module load_store_unit #(
         .data_loaded_o    ( loaded_data           ),
         .idle_o           ( ldu_idle_o            ),
         .data_valid_o     ( ldu_data_valid        ),
-        .foward_packet_o  ( ldu_foward_ipacket ) 
+        .foward_packet_o  ( ldu_foward_ipacket    ) 
     ); 
 
     instr_packet_t ldu_ipacket, ldu_exception_packet;
@@ -246,7 +249,7 @@ module load_store_unit #(
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
                 ldu_ipacket <= '0;
-            end else if (data_valid_i.LDU) begin
+            end else if (data_valid_i.LDU & !stall_i) begin
                 ldu_ipacket <= ldu_exception_packet;
             end
         end
