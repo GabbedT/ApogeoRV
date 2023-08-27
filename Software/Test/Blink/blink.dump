@@ -1,0 +1,89 @@
+
+output.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:	00000093          	li	ra,0
+   4:	20000113          	li	sp,512
+   8:	00000193          	li	gp,0
+   c:	00000213          	li	tp,0
+  10:	00000293          	li	t0,0
+  14:	00000313          	li	t1,0
+  18:	00000393          	li	t2,0
+  1c:	00000413          	li	s0,0
+  20:	00000493          	li	s1,0
+  24:	00000513          	li	a0,0
+  28:	00000593          	li	a1,0
+  2c:	00000613          	li	a2,0
+  30:	00000693          	li	a3,0
+  34:	00000713          	li	a4,0
+  38:	00000793          	li	a5,0
+  3c:	00000813          	li	a6,0
+  40:	00000893          	li	a7,0
+  44:	00000913          	li	s2,0
+  48:	00000993          	li	s3,0
+  4c:	00000a13          	li	s4,0
+  50:	00000a93          	li	s5,0
+  54:	00000b13          	li	s6,0
+  58:	00000b93          	li	s7,0
+  5c:	00000c13          	li	s8,0
+  60:	00000c93          	li	s9,0
+  64:	00000d13          	li	s10,0
+  68:	00000d93          	li	s11,0
+  6c:	00000e13          	li	t3,0
+  70:	00000e93          	li	t4,0
+  74:	00000f13          	li	t5,0
+  78:	00000f93          	li	t6,0
+  7c:	00000193          	li	gp,0
+  80:	00000513          	li	a0,0
+  84:	000022b7          	lui	t0,0x2
+  88:	88828293          	add	t0,t0,-1912 # 1888 <ihandler+0x1780>
+  8c:	30029073          	csrw	mstatus,t0
+  90:	00000297          	auipc	t0,0x0
+  94:	07828293          	add	t0,t0,120 # 108 <ihandler>
+  98:	30529073          	csrw	mtvec,t0
+  9c:	00000297          	auipc	t0,0x0
+  a0:	02028293          	add	t0,t0,32 # bc <mretaddr>
+  a4:	34129073          	csrw	mepc,t0
+  a8:	3e800293          	li	t0,1000
+  ac:	fe502a23          	sw	t0,-12(zero) # fffffff4 <ihandler+0xfffffeec>
+  b0:	00100293          	li	t0,1
+  b4:	fe502623          	sw	t0,-20(zero) # ffffffec <ihandler+0xfffffee4>
+  b8:	30200073          	mret
+
+000000bc <mretaddr>:
+  bc:	008000ef          	jal	c4 <blink>
+  c0:	c0001073          	unimp
+
+000000c4 <blink>:
+  c4:	fe010113          	add	sp,sp,-32
+  c8:	00812e23          	sw	s0,28(sp)
+  cc:	02010413          	add	s0,sp,32
+  d0:	fe042623          	sw	zero,-20(s0)
+  d4:	0140006f          	j	e8 <blink+0x24>
+  d8:	10500073          	wfi
+  dc:	fec42783          	lw	a5,-20(s0)
+  e0:	00178793          	add	a5,a5,1
+  e4:	fef42623          	sw	a5,-20(s0)
+  e8:	fec42703          	lw	a4,-20(s0)
+  ec:	01300793          	li	a5,19
+  f0:	fee7d4e3          	bge	a5,a4,d8 <blink+0x14>
+  f4:	00000013          	nop
+  f8:	00000013          	nop
+  fc:	01c12403          	lw	s0,28(sp)
+ 100:	02010113          	add	sp,sp,32
+ 104:	00008067          	ret
+
+00000108 <ihandler>:
+ 108:	ffc10113          	add	sp,sp,-4
+ 10c:	00512023          	sw	t0,0(sp)
+ 110:	ff802283          	lw	t0,-8(zero) # fffffff8 <ihandler+0xfffffef0>
+ 114:	fff2c293          	not	t0,t0
+ 118:	fe502c23          	sw	t0,-8(zero) # fffffff8 <ihandler+0xfffffef0>
+ 11c:	00000293          	li	t0,0
+ 120:	fe502823          	sw	t0,-16(zero) # fffffff0 <ihandler+0xfffffee8>
+ 124:	00512023          	sw	t0,0(sp)
+ 128:	00410113          	add	sp,sp,4
+ 12c:	30200073          	mret

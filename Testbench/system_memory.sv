@@ -28,7 +28,7 @@ module system_memory #(
             memory[i] = '0;
         end 
         
-        $readmemh("rvc.hex", memory);
+        $readmemh("blink.hex", memory);
     end
 
 

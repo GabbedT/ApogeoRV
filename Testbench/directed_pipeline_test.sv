@@ -29,7 +29,7 @@ module directed_pipeline_test;
 
     /* Interrupt interface */
     logic interrupt_i = '0; 
-    logic timer_interrupt_i = '0; 
+    logic timer_interrupt_i; 
     logic [7:0] interrupt_vector_i = '0;
 
     /* Memory interface */ 
@@ -50,9 +50,60 @@ module directed_pipeline_test;
         .fetch_valid_o       ( fetch_valid_i       )
     );
 
+    always #5 clk_i <= !clk_i; 
+
+
+    /* Char buffer logic */
     logic [7:0] char_buffer [$]; 
 
-    always #5 clk_i <= !clk_i; 
+        always_ff @(posedge clk_i) begin 
+            if (store_channel.address == '1 & store_channel.request) begin  
+                char_buffer.push_back(store_channel.data[7:0]); 
+            end
+        end 
+
+
+    /* Timer logic */ 
+    logic [31:0] compare_timer, timer_value; logic start_timer;
+
+        always_ff @(posedge clk_i) begin : timer_register
+            if (!rst_n_i) begin
+                start_timer <= 1'b0;
+
+                compare_timer <= '1;
+                timer_value <= '0;
+            end else begin
+                if (store_channel.address == -20 & store_channel.request) begin 
+                    start_timer <= store_channel.data[0]; 
+                end 
+
+                if (store_channel.address == -16 & store_channel.request) begin
+                    timer_value <= store_channel.data;
+                end else if (start_timer & !timer_interrupt_i) begin
+                    timer_value <= timer_value + 1; 
+                end
+
+                if (store_channel.address == -12 & store_channel.request) begin
+                    compare_timer <= store_channel.data;
+                end
+            end
+        end : timer_register
+
+    assign timer_interrupt_i = compare_timer == timer_value;
+
+
+    /* GPO logic */
+    logic led_output; 
+
+        always_ff @(posedge clk_i) begin : led_register
+            if (!rst_n_i) begin
+                led_output <= 1'b0;
+            end else begin
+                if (store_channel.address == -8 & store_channel.request) begin
+                    led_output <= store_channel.data[0];
+                end
+            end
+        end : led_register
 
 
     int misprediction_number = 0, branch_jump_number = 0; int file;
@@ -74,18 +125,6 @@ module directed_pipeline_test;
         rst_n_i <= 1'b1;
 
         while (!(dut.apogeo_backend.exception_generated & dut.apogeo_backend.exception_vector == 2)) begin
-            if (dut.apogeo_backend.exception_vector == 16) begin
-                repeat (40) @(posedge clk_i);
-                interrupt_i <= 1'b1; 
-                @(posedge clk_i);
-                interrupt_i <= 1'b0; 
-            end
-
-            /* Check if the CPU is writing to external buffer */
-            if (store_channel.address == '1 & store_channel.request) begin
-                char_buffer.push_back(store_channel.data[7:0]); 
-            end
-
             /* Write the registers */
             if (dut.apogeo_backend.writeback_o) begin
                 registers[dut.apogeo_backend.reg_destination_o] <= dut.apogeo_backend.writeback_result_o;
