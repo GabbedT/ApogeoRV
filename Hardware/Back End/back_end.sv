@@ -167,16 +167,7 @@ module back_end #(
         .operand_o         ( fowarded_operands    )   
     );
 
-
-    /* Branch / Memory address computation */
-    data_word_t base_address, computed_address, computed_address_bypass;
-
-    /* Choose between the instruction address and the register souce 1 as base address */
-    assign base_address = base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr;
-
-    assign computed_address = address_offset_i + base_address;
-
-
+    
     exu_valid_t bypass_valid; instr_packet_t bypass_ipacket;
     logic bypass_branch, bypass_jump, flush_pipeline;
     logic bypass_save_next_pc, bypass_base_address_reg, bypass_speculative;
@@ -189,8 +180,6 @@ module back_end #(
                 bypass_save_next_pc <= 1'b0;
                 bypass_speculative <= 1'b0;
                 bypass_ipacket <= '0;
-
-                computed_address_bypass <= '0;
             end else if (flush_o | mispredicted_i | branch_flush_o) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
@@ -198,8 +187,6 @@ module back_end #(
                 bypass_save_next_pc <= 1'b0;
                 bypass_speculative <= 1'b0;
                 bypass_ipacket <= '0;
-
-                computed_address_bypass <= '0;
             end else if (!stall_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
@@ -207,8 +194,6 @@ module back_end #(
                 bypass_save_next_pc <= save_next_pc_i;
                 bypass_speculative <= speculative_i;
                 bypass_ipacket <= ipacket_i;
-
-                computed_address_bypass <= computed_address;
             end 
         end : bypass_stage_register
 
@@ -221,9 +206,15 @@ module back_end #(
             if (!rst_n_i) begin 
                 bypass_operation <= '0;
                 bypass_operands <= '0;
+                bypass_base_address <= '0;
+                bypass_address_offset <= '0;
             end else if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
+
+                /* Branch / Memory address nets */
+                bypass_base_address <= base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr;
+                bypass_address_offset <= address_offset_i;
             end 
         end : bypass_operands_stage_register
 
@@ -236,7 +227,7 @@ module back_end #(
     assign compressed_o = bypass_ipacket.compressed;
 
     /* Send BTA to update the PC */
-    assign branch_address_o = computed_address_bypass; 
+    assign branch_address_o = bypass_base_address + bypass_address_offset; 
 
 
 
@@ -260,7 +251,7 @@ module back_end #(
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
-    logic wait_handling, handler_return, execute_store, timer_interrupt, branch_taken;
+    logic execute_store, branch_taken;
 
     exu_valid_t valid_operation;
 
@@ -367,14 +358,14 @@ module back_end #(
             end else if (flush_o) begin 
                 packet_commit <= '0;
                 valid_commit <= '0;
-            end else if (!stall_o) begin
+            end else if (!stall_pipeline & !buffer_full & !reorder_buffer_full) begin
                 packet_commit <= ipacket;
                 valid_commit <= valid;
             end
         end : commit_stage_register
 
         always_ff @(posedge clk_i) begin : commit_result_register
-            if (!stall_o) begin 
+            if (!stall_pipeline & !buffer_full & !reorder_buffer_full) begin 
                 result_commit <= result;
             end
         end : commit_result_register
@@ -410,7 +401,8 @@ module back_end #(
         .foward_valid_o ( commit_valid )
     ); 
 
-
+    logic reorder_buffer_full; 
+    
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : rob_stage_register
             if (!rst_n_i) begin
                 reorder_buffer_tag <= '0;
@@ -433,7 +425,7 @@ module back_end #(
 //====================================================================================
 
     logic reorder_buffer_clear, reorder_buffer_read, writeback_valid;
-    logic reorder_buffer_full, reorder_buffer_empty;
+    logic reorder_buffer_empty;
     rob_entry_t writeback_packet;
 
     reorder_buffer rob (
