@@ -42,11 +42,28 @@ module rv32apogeo #(
 );
 
     logic global_interrupt_enable, external_interrupt_enable, timer_interrupt_enable;
-    logic interrupt, timer_interrupt; 
+    logic interrupt, interrupt_previous, timer_interrupt, timer_interrupt_previous; 
 
     assign interrupt = interrupt_i & global_interrupt_enable & external_interrupt_enable;
     assign timer_interrupt = timer_interrupt_i & global_interrupt_enable & timer_interrupt_enable;
 
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                interrupt_previous <= 1'b0;
+                timer_interrupt_previous <= 1'b0; 
+            end else begin
+                interrupt_previous <= interrupt;
+                timer_interrupt_previous <= timer_interrupt; 
+            end
+        end
+
+
+    logic interrupt_posedge, timer_interrupt_posedge, general_interrupt; 
+
+    assign interrupt_posedge = !interrupt_previous & interrupt;
+    assign timer_interrupt_posedge = !timer_interrupt_previous & timer_interrupt;
+
+    assign general_interrupt = interrupt_posedge | timer_interrupt_posedge; 
 
 //====================================================================================
 //      FRONT END 
@@ -91,7 +108,7 @@ module rv32apogeo #(
         .invalidate_o        ( invalidate_o        ),
         .fetch_address_o     ( fetch_address       ),
 
-        .interrupt_i        ( interrupt | timer_interrupt   ),
+        .interrupt_i        ( general_interrupt             ),
         .exception_i        ( exception                     ),
         .handler_return_i   ( handler_return                ),  
         .handler_pc_i       ( handler_program_counter       ),
@@ -258,8 +275,8 @@ module rv32apogeo #(
         .load_channel  ( load_channel_backend  ),
         .store_channel ( store_channel_backend ),
 
-        .interrupt_i             ( interrupt                     ),
-        .timer_interrupt_i       ( timer_interrupt               ),
+        .interrupt_i             ( interrupt_posedge             ),
+        .timer_interrupt_i       ( timer_interrupt_posedge       ),
         .interrupt_vector_i      ( interrupt_vector_i            ),
         .global_interrupt_en_o   ( global_interrupt_enable       ),
         .external_interrupt_en_o ( external_interrupt_enable     ),
