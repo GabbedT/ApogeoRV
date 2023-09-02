@@ -179,7 +179,7 @@ module load_unit (
     logic private_region; assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
 
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign accessable = /* (private_region & privilege_i) | !private_region */ 1'b1;
+    assign accessable = (private_region & privilege_i) | !private_region;
 
     assign illegal_access_o = !accessable & valid_operation_i; 
 
@@ -204,7 +204,7 @@ module load_unit (
 
     data_word_t data_saved; 
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+        always_ff @(posedge clk_i) begin
             if (load_channel.valid & stall_i) begin
                 data_saved <= load_channel.data; 
             end
