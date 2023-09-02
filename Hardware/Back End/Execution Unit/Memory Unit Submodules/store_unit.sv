@@ -141,13 +141,13 @@ module store_unit #(
 
             case (operation_i)
                 /* Load byte */
-                LDB: misaligned = 1'b0; 
+                STB: misaligned = 1'b0; 
 
                 /* Load half word signed */
-                LDH: misaligned = store_address_i[0];
+                STH: misaligned = store_address_i[0];
 
                 /* Load word */
-                LDW: misaligned = store_address_i[1:0] != '0;
+                STW: misaligned = store_address_i[1:0] != '0;
             endcase 
         end : misalignment_check_logic
  
@@ -155,7 +155,7 @@ module store_unit #(
     logic private_region; assign private_region = (store_address_i >= (`PRIVATE_REGION_START)) & (store_address_i <= (`PRIVATE_REGION_END));
 
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign accessable = /* (private_region & privilege_i) | !private_region */ 1'b1;
+    assign accessable = (private_region & privilege_i) | !private_region;
 
     logic accessable_saved, misaligned_saved;
 
