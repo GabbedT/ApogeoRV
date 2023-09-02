@@ -35,5 +35,5 @@ int main() {
         }
     }
 
-    asm volatile ("ecall");
+    asm volatile ("unimp");
 }

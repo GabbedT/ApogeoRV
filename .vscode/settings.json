@@ -11,6 +11,8 @@
         "tuple": "c",
         "type_traits": "c",
         "utility": "c",
-        "image.h": "c"
+        "image.h": "c",
+        "time.h": "c",
+        "stdlib.h": "c"
     }
 }

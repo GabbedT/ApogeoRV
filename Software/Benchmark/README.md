@@ -9,7 +9,8 @@ The benchmarks are executed in Vivado simulation environment:
 * MEMORY LATENCY: 1 clock cycle
 
 
-Benchmark Name | Program Size | Time to Complete |
---- | --- | --- |
-CRC32 | 1366 Bytes | 0.596680ms | 
-Color2Gray | 4578 Bytes | 2.827550ms |
+Benchmark Name | Program Size | Time to Complete | Instructions Retired |
+--- | --- | --- | --- | 
+CRC32(100 Iterations) | 1366 Bytes | 53.32408ms | 3792654 |
+Color2Gray | 4578 Bytes | 2.88216ms | 91680 | 
+QSORT(1000 Int) | 4578 Bytes | 15.41026ms | 596751 |

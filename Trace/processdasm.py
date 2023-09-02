@@ -27,7 +27,11 @@ def parse_trace(filePath):
 
             # Hexadecimal number, remove 0x and convert to an integer
             iAddr.append(fields[1].strip()[2:])
-            iResult.append(int(fields[3].strip()[2:], 16))  
+
+            if ("in" in fields[3].strip() or "from" in fields[3].strip()):
+                iResult.append(fields[3].strip()) 
+            else:
+                iResult.append(int(fields[3].strip()[2:], 16))  
 
             # The register destination is an integer, just remove the leading x
             iReg.append(int(fields[2].strip()[1:]))
@@ -93,13 +97,17 @@ def fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, filePath):
 
     for i in range(len(tTime)): 
         index = dAddr.index(tAddr[i])
-        string = "[" + str(tTime[i]) + "] [0x" + str(tAddr[i].upper()) + "] [0x" + str(dHex[index].upper()) + "] | " + str(dAsm[index]) + " | x" + str(tReg[i]) + " = " + str(tResult[i]) + " , " + str(hex(tResult[i])) + "\n\n"
 
+        if (isinstance(tResult[i], int)):
+            string = "[" + str(tTime[i]) + "] [0x" + str(tAddr[i].upper()) + "] [0x" + str(dHex[index].upper()) + "] | " + str(dAsm[index]) + " | x" + str(tReg[i]) + " = " + str(tResult[i]) + " , " + str(hex(tResult[i])) + "\n\n"
+        else: 
+            string = "[" + str(tTime[i]) + "] [0x" + str(tAddr[i].upper()) + "] [0x" + str(dHex[index].upper()) + "] | " + str(dAsm[index]) + " | x" + str(tReg[i]) + " | " + str(tResult[i]) + "\n\n"
+        
         file.write(string)
 
     file.close()
 
 
 (tTime, tAddr, tReg, tResult) = parse_trace("trace.txt")
-(dAddr, dHex, dAsm) = parse_disassembly_file("../Software/Test/RV32I/add.dump")
-fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "final_trace1.txt")
+(dAddr, dHex, dAsm) = parse_disassembly_file("disasm.dump")
+fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "golden_model.txt")

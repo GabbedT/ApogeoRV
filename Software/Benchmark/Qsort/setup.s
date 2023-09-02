@@ -1,13 +1,11 @@
 .section .text
-
 .global _start 
-.local mretaddr 
 
-.extern blink 
+.extern main 
 
 _start:
     li	ra,0
-    li	sp,0x400
+    li	sp,0x5000
     li	gp,0
     li	tp,0
     li	t0,0
@@ -40,26 +38,5 @@ _start:
     li	gp,0
     li	a0,0
 
-    # Setup handler address 
-    la t0, ihandler
-    csrw mtvec, t0
-
-    # Setum MRET return address
-    la t0, mretaddr
-    csrw mepc, t0  
-
-    # Setup mstatus 
-    li t0, 6280
-    csrw mstatus, t0
-
-    # Setup timer
-    li t0, 1000 
-    sw t0, -12(zero)
-    li t0, 1
-    sw t0, -20(zero)
-
-    mret 
-
-mretaddr: 
-    jal ra, blink 
-    unimp 
+    jal ra, main
+    unimp  

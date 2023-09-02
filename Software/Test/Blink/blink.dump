@@ -38,15 +38,15 @@ Disassembly of section .text:
   78:	00000f93          	li	t6,0
   7c:	00000193          	li	gp,0
   80:	00000513          	li	a0,0
-  84:	000022b7          	lui	t0,0x2
-  88:	88828293          	add	t0,t0,-1912 # 1888 <ihandler+0x1780>
-  8c:	30029073          	csrw	mstatus,t0
+  84:	00000297          	auipc	t0,0x0
+  88:	08428293          	add	t0,t0,132 # 108 <ihandler>
+  8c:	30529073          	csrw	mtvec,t0
   90:	00000297          	auipc	t0,0x0
-  94:	07828293          	add	t0,t0,120 # 108 <ihandler>
-  98:	30529073          	csrw	mtvec,t0
-  9c:	00000297          	auipc	t0,0x0
-  a0:	02028293          	add	t0,t0,32 # bc <mretaddr>
-  a4:	34129073          	csrw	mepc,t0
+  94:	02c28293          	add	t0,t0,44 # bc <mretaddr>
+  98:	34129073          	csrw	mepc,t0
+  9c:	000022b7          	lui	t0,0x2
+  a0:	88828293          	add	t0,t0,-1912 # 1888 <ihandler+0x1780>
+  a4:	30029073          	csrw	mstatus,t0
   a8:	3e800293          	li	t0,1000
   ac:	fe502a23          	sw	t0,-12(zero) # fffffff4 <ihandler+0xfffffeec>
   b0:	00100293          	li	t0,1

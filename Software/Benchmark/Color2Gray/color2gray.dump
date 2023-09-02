@@ -104,9 +104,9 @@ Disassembly of section .text:
  13a:	08a78793          	add	a5,a5,138 # 108a <image+0xf36>
  13e:	fec42703          	lw	a4,-20(s0)
  142:	f4f765e3          	bltu	a4,a5,8c <main+0x8c>
- 146:	00000073          	ecall
- 14a:	4781                	li	a5,0
- 14c:	853e                	mv	a0,a5
- 14e:	5432                	lw	s0,44(sp)
- 150:	6145                	add	sp,sp,48
- 152:	8082                	ret
+ 146:	0000                	unimp
+ 148:	4781                	li	a5,0
+ 14a:	853e                	mv	a0,a5
+ 14c:	5432                	lw	s0,44(sp)
+ 14e:	6145                	add	sp,sp,48
+ 150:	8082                	ret

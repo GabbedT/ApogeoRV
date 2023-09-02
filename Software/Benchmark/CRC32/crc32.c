@@ -18,7 +18,7 @@
 
 /* This scale factor will be changed to equalise the runtime of the
    benchmarks. */
-#define LOCAL_SCALE_FACTOR 170
+#define LOCAL_SCALE_FACTOR 1
 
 #include <stdlib.h>
 
@@ -154,7 +154,7 @@ static int benchmark_body(int  rpt);
 int main_crc32() {
     int result = verify_benchmark(benchmark());
 
-    asm volatile ("ecall");
+    asm volatile ("unimp");
 }
 
 static long int seed = 0;
