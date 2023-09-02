@@ -61,7 +61,6 @@ module branch_target_buffer #(
     /* Predictor must speculate */ 
     output data_word_t branch_target_addr_o,
     output logic predict_o,
-    output logic jump_o,
     output logic hit_o
 );
 
@@ -73,7 +72,6 @@ module branch_target_buffer #(
 
     typedef struct packed {
         logic valid;
-        logic branch;
         logic [31:LOWER_BITS + 1] tag;
         data_word_t branch_target_address;
     } branch_target_buffer_t;
@@ -94,7 +92,7 @@ module branch_target_buffer #(
 
         always_ff @(posedge clk_i) begin : buffer_write_port
             if ((branch_i & taken_i) | jump_i) begin
-                branch_target_buffer_memory[write_index] <= {1'b1, branch_i, instr_address_i[31:LOWER_BITS + 1], branch_target_addr_i};
+                branch_target_buffer_memory[write_index] <= {1'b1, instr_address_i[31:LOWER_BITS + 1], branch_target_addr_i};
             end 
         end : buffer_write_port
 
@@ -118,9 +116,9 @@ module branch_target_buffer #(
 
 
     /* Predict indirect branches, direct branches do not need prediction */
-    assign predict_o = buffer_read.branch & hit_o;
+    assign predict_o = hit_o;
 
-    assign jump_o = !buffer_read.branch & hit_o;
+    // assign jump_o = !buffer_read.branch & hit_o;
 
     assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid; 
 

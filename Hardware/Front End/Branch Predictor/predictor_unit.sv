@@ -59,9 +59,11 @@ module predictor_unit #(
     /* Branch info */
     input logic executed_i,
     input logic taken_i,
+    input logic jump_i,
 
     /* Branch target address */
-    input logic [$clog2(TABLE_SIZE) - 1:0] index_i,
+    input data_word_t btb_address_i,
+    input data_word_t exu_address_i,
 
     /* Prediction outcome */
     output logic prediction_o,
@@ -129,12 +131,11 @@ module predictor_unit #(
     typedef struct packed {
         logic prediction; 
         logic [$clog2(TABLE_SIZE) - 1:0] index;
+        data_word_t target_address; 
     } predictor_t;
 
     predictor_t fifo_read_data, fifo_write_data;
 
-    /* Implemented with a memory with 1W and 2R ports 
-     * to avoid conflicts between fowarding and pulling */
     logic [$bits(predictor_t) - 1:0] data_buffer [BUFFER_DEPTH - 1:0];
 
     initial begin
@@ -163,7 +164,7 @@ module predictor_unit #(
             if (!rst_n_i) begin
                 branch_history_table <= '0;
             end else if (executed_i) begin
-                branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 1:1], taken_i};
+                branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 1:1], taken_i | jump_i};
             end
         end 
 
@@ -174,21 +175,22 @@ module predictor_unit #(
 
     logic [$clog2(TABLE_SIZE) - 1:0] hashed_index;
 
-    assign hashed_index = branch_history_table ^ index_i;
+    assign hashed_index = branch_history_table ^ btb_address_i[$clog2(TABLE_SIZE) - 1:0];
 
 
     logic [1:0] branch_status_read, branch_status_write; logic write, execute_prediction;
 
         always_comb begin 
-            if (taken_i) begin
+            if (taken_i | jump_i) begin
                 branch_status_write = (branch_status_read == '1) ? branch_status_read : (branch_status_read + 1'b1);
             end else begin
                 branch_status_write = (branch_status_read == '0) ? branch_status_read : (branch_status_read - 1'b1);
             end 
-
-            /* Mispredicted if different */
-            mispredicted_o = (taken_i != fifo_read_data.prediction) & executed_i & !fifo_empty; 
         end
+
+    /* Check if the branch outcome was the same of the predicted outcome. For dynamic branch addresses (JALR) check if the predicted 
+     * target address is equal to the computed address */
+    assign mispredicted_o = (((taken_i | jump_i) != fifo_read_data.prediction) | (fifo_read_data.target_address != exu_address_i)) & executed_i & !fifo_empty & !flush_i; 
 
     /* Read FIFO and update branch status when it has been executed and 
      * its condition evaluated */
@@ -197,7 +199,7 @@ module predictor_unit #(
     /* If high bit of the status is set then prediction is taken */
     assign prediction_o = execute_prediction;
 
-    assign fifo_write_data = {prediction_o, hashed_index};
+    assign fifo_write_data = {prediction_o, hashed_index, btb_address_i};
 
 
 //====================================================================================
