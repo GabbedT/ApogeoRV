@@ -228,21 +228,21 @@ module front_end #(
 
 
     branch_predictor #(PREDICTOR_SIZE, BTB_SIZE) predictor_unit (
-        .clk_i                ( clk_i                    ), 
-        .rst_n_i              ( rst_n_i                  ),
-        .flush_i              ( branch_flush_i | flush_i ),
-        .program_counter_i    ( fetch_address_o          ),
-        .stall_i              ( ibuffer_full             ),
-        .instr_address_i      ( instr_address_i          ),
-        .branch_target_addr_i ( branch_target_addr_i     ), 
-        .executed_i           ( executed_i & !jump_i     ),
-        .taken_i              ( taken_i                  ),
-        .branch_i             ( branch_i                 ),
-        .jump_i               ( jump_i                   ),
-        .branch_target_addr_o ( branch_target_address    ),
-        .prediction_o         ( predict                  ),
-        .mispredicted_o       ( mispredicted             ),
-        .hit_o                ( branch_buffer_hit        )
+        .clk_i                ( clk_i                      ), 
+        .rst_n_i              ( rst_n_i                    ),
+        .flush_i              ( branch_flush_i | flush_i   ),
+        .program_counter_i    ( fetch_address_o            ),
+        .stall_i              ( ibuffer_full               ),
+        .instr_address_i      ( instr_address_i            ),
+        .branch_target_addr_i ( branch_target_addr_i       ), 
+        .executed_i           ( executed_i & speculative_i ),
+        .taken_i              ( taken_i                    ),
+        .branch_i             ( branch_i                   ),
+        .jump_i               ( jump_i                     ),
+        .branch_target_addr_o ( branch_target_address      ),
+        .prediction_o         ( predict                    ),
+        .mispredicted_o       ( mispredicted               ),
+        .hit_o                ( branch_buffer_hit          )
     );
 
 
