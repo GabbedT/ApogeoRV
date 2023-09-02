@@ -184,7 +184,7 @@ module scheduler (
                  * the jump address is computed by adding rs1 (JALR) to the 
                  * offset. Since rs1 could be fowarded, it's passed to the 
                  * next stage */
-                operand_o[0] = (src_reg_i[0] == writeback_register_i) ? writeback_data_i : register_data[0];
+                operand_o[0] = ((src_reg_i[0] == writeback_register_i) & writeback_i) ? writeback_data_i : register_data[0];
                 immediate_valid_o[0] = 1'b0;
 
                 operand_o[1] = compressed_i ? 'd2 : 'd4;
