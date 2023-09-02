@@ -274,7 +274,7 @@ module reorder_buffer (
                 if (foward_src_i[i] == entry_i.reg_dest) begin 
                     /* Foward data that has passed commit stage */
                     foward_data_o[i] = entry_i.result;
-                end if (valid_out[foward_src_i[i]]) begin
+                end else if (valid_out[foward_src_i[i]]) begin
                     /* Foward data that has been written inside the buffers */
                     foward_data_o[i] = foward_register[i][foward_src_i[i]];
                 end else begin
