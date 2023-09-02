@@ -153,6 +153,12 @@ module commit_buffer #(
     
     logic [$bits(data_word_t) - 1:0] foward_register_1 [31:0];
 
+    initial begin
+        for (int i = 0; i < 32; ++i) begin
+            foward_register_1[i] <= '0;
+        end
+    end
+
         always_ff @(posedge clk_i) begin : register1_write_port
             if (write_i & !stall_i) begin
                 foward_register_1[ipacket_i.reg_dest] <= result_i;
@@ -165,6 +171,11 @@ module commit_buffer #(
 
     logic [$bits(data_word_t) - 1:0] foward_register_2 [31:0];
 
+    initial begin
+        for (int i = 0; i < 32; ++i) begin
+            foward_register_2[i] <= '0;
+        end
+    end
         always_ff @(posedge clk_i) begin : register2_write_port
             if (write_i & !stall_i) begin
                 foward_register_2[ipacket_i.reg_dest] <= result_i;
