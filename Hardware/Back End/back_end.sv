@@ -345,7 +345,8 @@ module back_end #(
     endgenerate
 
 
-
+    logic reorder_buffer_full; 
+    
     /* Pipeline registers */
     data_word_t [2:0] result_commit;
     instr_packet_t [2:0] packet_commit;
@@ -400,8 +401,7 @@ module back_end #(
         .foward_data_o  ( commit_data  ),
         .foward_valid_o ( commit_valid )
     ); 
-
-    logic reorder_buffer_full; 
+    
     
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : rob_stage_register
             if (!rst_n_i) begin
