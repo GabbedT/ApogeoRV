@@ -532,8 +532,8 @@ module bit_manipulation_decoder (
 
     assign exception_generated_o = exception_generated | (instr_i[1:0] != '1);
 
-    assign unit_valid_o = unit_valid & !exception_generated_o;
-    assign unit_uop_o = unit_uop & !exception_generated_o;
+    assign unit_valid_o = exception_generated_o ? '0 : unit_valid;
+    assign unit_uop_o = exception_generated_o ? '0 : unit_uop;
 
 endmodule : bit_manipulation_decoder
 
