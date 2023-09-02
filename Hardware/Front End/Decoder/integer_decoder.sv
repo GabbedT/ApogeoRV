@@ -349,6 +349,8 @@ module integer_decoder (
             end 
 
             riscv32::LOAD: begin
+                exception_vector_o = `LOAD_OPERATION; 
+
                 case (instr_i.I.funct3)
                     riscv32::LB: begin
                         build_ldu_packet(LDB, 1'b1); 
