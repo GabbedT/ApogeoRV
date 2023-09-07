@@ -18,7 +18,7 @@
     `define FPGA
     
     /* Enable asyncronous reset */
-    `define ASYNC
+//    `define ASYNC
 
 
 //====================================================================================

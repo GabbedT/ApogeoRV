@@ -29,6 +29,7 @@ module directed_pipeline_test;
 
     /* Interrupt interface */
     logic interrupt_i = '0; 
+    logic interrupt_ackn_o;
     logic timer_interrupt_i; 
     logic [7:0] interrupt_vector_i = '0;
 
