@@ -72,11 +72,7 @@ module front_end #(
     output logic issue_o,
 
     /* Fetch interface */
-    input logic fetch_valid_i, 
-    input data_word_t fetch_instruction_i,
-    output logic fetch_o,
-    output logic invalidate_o,
-    output data_word_t fetch_address_o, 
+    fetch_interface.master fetch_channel, 
 
     /* Interrupt and exception */
     input logic interrupt_i,
@@ -141,7 +137,7 @@ module front_end #(
          * - Valid Memory Instruction                                                                     
          */
         always_comb begin : next_program_counter_logic
-            fetch_address_o = program_counter;
+            fetch_channel.address = program_counter;
             next_program_counter = program_counter + 'd4;
             fetch = 1'b0;
 
@@ -150,13 +146,13 @@ module front_end #(
 
                 /* Load exception handler program counter
                  * it has maximum priority */
-                fetch_address_o = handler_pc_i; 
+                fetch_channel.address = handler_pc_i; 
             end else if (handler_return_i) begin 
                 fetch = 1'b1;
 
                 /* Load the instruction after completing the
                  * interrupt / exception handler code */
-                fetch_address_o = hander_return_pc_i; 
+                fetch_channel.address = hander_return_pc_i; 
             end else if (executed_i) begin
                 fetch = 1'b1;
 
@@ -167,10 +163,10 @@ module front_end #(
                     if (mispredicted) begin 
                         if (taken_i | jump_i) begin
                             /* Take the BTA from the EXU if a branch is taken or is a jump */
-                            fetch_address_o = branch_target_addr_i;
+                            fetch_channel.address = branch_target_addr_i;
                         end else begin
                             /* Recover the next instruction address */
-                            fetch_address_o = compressed_i ? (instr_address_i + 2) : (instr_address_i + 4); 
+                            fetch_channel.address = compressed_i ? (instr_address_i + 2) : (instr_address_i + 4); 
                         end
                     end else begin
                         fetch = !ibuffer_full; 
@@ -178,26 +174,26 @@ module front_end #(
                         /* BTB hit have more priority */
                         if (branch_buffer_hit & predict) begin
                             /* Load predicted BTA */
-                            fetch_address_o = branch_target_address;
+                            fetch_channel.address = branch_target_address;
                         end else begin
                             /* Increment normally */
-                            fetch_address_o = next_program_counter;
+                            fetch_channel.address = next_program_counter;
                         end
                     end
                 end else begin
                     if (taken_i | jump_i) begin 
                         /* Take the BTA from the EXU if a branch is taken or is a jump */
-                        fetch_address_o = branch_target_addr_i;
+                        fetch_channel.address = branch_target_addr_i;
                     end else begin
                         fetch = !ibuffer_full; 
 
                         /* BTB hit have more priority */
                         if (branch_buffer_hit & predict) begin
                             /* Load predicted BTA */
-                            fetch_address_o = branch_target_address;
+                            fetch_channel.address = branch_target_address;
                         end else begin
                             /* Increment normally */
-                            fetch_address_o = next_program_counter;
+                            fetch_channel.address = next_program_counter;
                         end
                     end
                 end
@@ -206,22 +202,22 @@ module front_end #(
 
                 if (branch_buffer_hit & predict) begin
                     /* Load predicted BTA */
-                    fetch_address_o = branch_target_address;
+                    fetch_channel.address = branch_target_address;
                 end else begin
                     /* Increment normally */
-                    fetch_address_o = next_program_counter;
+                    fetch_channel.address = next_program_counter;
                 end
             end 
         end : next_program_counter_logic
 
-    assign fetch_o = fetch | branch_flush_i | mispredicted | flush_i;
+    assign fetch_channel.fetch = fetch | branch_flush_i | mispredicted | flush_i;
     
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
                 program_counter <= -4;
-            end else if (fetch_o) begin
-                program_counter <= fetch_address_o;
+            end else if (fetch_channel.fetch) begin
+                program_counter <= fetch_channel.address;
             end
         end : program_counter_register
 
@@ -231,7 +227,7 @@ module front_end #(
         .clk_i                ( clk_i                      ), 
         .rst_n_i              ( rst_n_i                    ),
         .flush_i              ( branch_flush_i | flush_i   ),
-        .program_counter_i    ( fetch_address_o            ),
+        .program_counter_i    ( fetch_channel.address      ),
         .stall_i              ( ibuffer_full               ),
         .instr_address_i      ( instr_address_i            ),
         .branch_target_addr_i ( branch_target_addr_i       ), 
@@ -255,31 +251,31 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 buffered_fetch <= 1'b0;
-            end else if (invalidate_o) begin
+            end else if (fetch_channel.invalidate) begin
                 buffered_fetch <= 1'b0;
             end else begin 
-                buffered_fetch <= fetch_o;
+                buffered_fetch <= fetch_channel.fetch;
             end
         end 
 
     logic ibuffer_empty, ibuffer_read, ibuffer_speculative, ibuffer_taken; data_word_t ibuffer_instruction, ibuffer_program_counter;
 
-    assign invalidate_o = branch_flush_i | mispredicted | flush_i;
+    assign fetch_channel.invalidate = branch_flush_i | mispredicted | flush_i;
 
     instruction_buffer #(INSTRUCTION_BUFFER_SIZE) ibuffer (
-        .clk_i   ( clk_i        ),
-        .rst_n_i ( rst_n_i      ),
-        .flush_i ( invalidate_o ),
+        .clk_i   ( clk_i                    ),
+        .rst_n_i ( rst_n_i                  ),
+        .flush_i ( fetch_channel.invalidate ),
 
-        .fetch_instruction_i ( fetch_instruction_i ),
-        .fetch_address_i     ( fetch_address_o     ),
-        .fetch_speculative_i ( branch_buffer_hit   ),
-        .taken_i             ( predict             ), 
+        .fetch_instruction_i ( fetch_channel.instruction ),
+        .fetch_address_i     ( fetch_channel.address     ),
+        .fetch_speculative_i ( branch_buffer_hit         ),
+        .taken_i             ( predict                   ), 
 
-        .write_instruction_i ( fetch_valid_i  ),
-        .write_speculative_i ( buffered_fetch ),
-        .write_address_i     ( fetch_o        ),
-        .read_i              ( ibuffer_read   ),
+        .write_instruction_i ( fetch_channel.valid ),
+        .write_speculative_i ( buffered_fetch      ),
+        .write_address_i     ( fetch_channel.fetch ),
+        .read_i              ( ibuffer_read        ),
 
         .fetch_instruction_o ( ibuffer_instruction     ),
         .fetch_address_o     ( ibuffer_program_counter ),
@@ -303,7 +299,7 @@ module front_end #(
                 upper_portion <= '0;
                 cross_boundary <= 1'b0;
                 previous_speculative <= 1'b0;
-            end else if (invalidate_o) begin
+            end else if (fetch_channel.invalidate) begin
                 upper_portion <= '0;
                 cross_boundary <= 1'b0;
                 previous_speculative <= 1'b0; 
@@ -323,7 +319,7 @@ module front_end #(
             if (!rst_n_i) begin
                 stop_reading_buffer <= 1'b0;
                 select_upper_portion <= 1'b0;
-            end else if (invalidate_o) begin
+            end else if (fetch_channel.invalidate) begin
                 stop_reading_buffer <= 1'b0;
                 select_upper_portion <= 1'b0;
             end else if (!stall & !stall_i & !ibuffer_empty) begin
@@ -401,7 +397,7 @@ module front_end #(
                 if_stage_speculative <= 1'b0;
 
                 if_stage_exception <= 1'b0; 
-            end else if (invalidate_o) begin
+            end else if (fetch_channel.invalidate) begin
                 if_stage_valid <= 1'b0;
                 
                 if_stage_compressed <= 1'b0;
@@ -524,7 +520,7 @@ module front_end #(
                 dc_stage_speculative <= 1'b0;
 
                 dc_stage_exception <= 1'b0;
-            end else if (invalidate_o) begin
+            end else if (fetch_channel.invalidate) begin
                 dc_stage_exu_valid <= '0;
 
                 dc_stage_branch <= 1'b0;
