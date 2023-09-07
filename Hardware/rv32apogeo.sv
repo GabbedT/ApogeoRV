@@ -25,16 +25,13 @@ module rv32apogeo #(
     input logic rst_n_i,
 
     /* Fetch interface */
-    input logic fetch_valid_i, 
-    input data_word_t fetch_instruction_i, 
-    output logic fetch_o,
-    output logic invalidate_o,
-    output data_word_t fetch_address_o, 
+    fetch_interface.master fetch_channel, 
 
     /* Interrupt interface */
     input logic interrupt_i, 
     input logic timer_interrupt_i, 
     input logic [7:0] interrupt_vector_i,
+    output logic interrupt_ackn_o,
 
     /* Memory interface */ 
     load_interface.master load_channel, 
@@ -89,8 +86,9 @@ module rv32apogeo #(
     logic [1:0][4:0] frontend_register_source;
 
     /* Registred output */ 
-    logic fetch_acknowledge, fetch;
-    data_word_t fetch_address;
+    logic interrupt_ackn;
+
+    fetch_interface fetch_channel_frontend(); 
 
     front_end #(PREDICTOR_SIZE, BTB_SIZE, INSTRUCTION_BUFFER_SIZE) apogeo_frontend (
         .clk_i            ( clk_i           ),
@@ -102,11 +100,7 @@ module rv32apogeo #(
         .issue_o          ( issue           ),
         .pipeline_empty_i ( pipeline_empty  ),
 
-        .fetch_valid_i       ( fetch_valid_i       ),
-        .fetch_instruction_i ( fetch_instruction_i ),
-        .fetch_o             ( fetch               ), 
-        .invalidate_o        ( invalidate_o        ),
-        .fetch_address_o     ( fetch_address       ),
+        .fetch_channel ( fetch_channel_frontend ),
 
         .interrupt_i        ( general_interrupt             ),
         .exception_i        ( exception                     ),
@@ -151,15 +145,20 @@ module rv32apogeo #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                fetch_o <= 1'b0;
-
-                fetch_address_o <= '0; 
+                fetch_channel.fetch <= 1'b0;
+                fetch_channel.invalidate <= 1'b0; 
             end else begin
-                fetch_o <= fetch;
-
-                fetch_address_o <= fetch_address; 
+                fetch_channel.fetch <= fetch_channel_frontend.fetch;
+                fetch_channel.invalidate <= fetch_channel_frontend.invalidate;
             end
         end
+
+        always_ff @(posedge clk_i) begin 
+            fetch_channel.address <= fetch_channel_frontend.address; 
+        end
+
+    assign fetch_channel_frontend.valid = fetch_channel.valid;  
+    assign fetch_channel_frontend.instruction = fetch_channel.instruction;  
 
 
 //====================================================================================
@@ -281,7 +280,7 @@ module rv32apogeo #(
         .global_interrupt_en_o   ( global_interrupt_enable       ),
         .external_interrupt_en_o ( external_interrupt_enable     ),
         .timer_interrupt_en_o    ( timer_interrupt_enable        ),
-        .int_ack_o               ( interrupt_acknowledge_o       ),
+        .int_ack_o               ( interrupt_ackn                ),
         .exception_o             ( exception                     ),
         .handler_return_o        ( handler_return                ),
         .handler_pc_o            ( handler_program_counter       ),
@@ -295,33 +294,46 @@ module rv32apogeo #(
         .writeback_o        ( writeback          )
     );
 
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                interrupt_ackn_o <= 1'b0; 
+            end else begin
+                interrupt_ackn_o <= interrupt_ackn; 
+            end
+        end
 
+
+        /* Load channel flip flops */ 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 load_channel.request <= 1'b0;
-                load_channel.address <= '0; 
             end else begin
                 load_channel.request <= load_channel_backend.request;
-                load_channel.address <= load_channel_backend.address; 
             end
+        end
+
+        always_ff @(posedge clk_i) begin 
+            load_channel.address <= load_channel_backend.address;
         end
 
     assign load_channel_backend.data = load_channel.data;
     assign load_channel_backend.valid = load_channel.valid; 
 
 
+        /* Load channel flip flops */ 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 store_channel.request <= 1'b0;
-                store_channel.address <= '0; 
-                store_channel.data <= '0; 
                 store_channel.width <= WORD; 
             end else begin
                 store_channel.request <= store_channel_backend.request;
-                store_channel.address <= store_channel_backend.address; 
-                store_channel.data <= store_channel_backend.data; 
                 store_channel.width <= store_channel_backend.width; 
             end
+        end
+
+        always_ff @(posedge clk_i) begin 
+            store_channel.address <= store_channel_backend.address; 
+            store_channel.data <= store_channel_backend.data;
         end
 
     assign store_channel_backend.done = store_channel.done;
