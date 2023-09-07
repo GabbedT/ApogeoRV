@@ -170,7 +170,7 @@ module store_unit #(
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_BUFFER, WAIT_ACCEPT, MISALIGNED} store_unit_fsm_t;
+    typedef enum logic [1:0] {IDLE, WAIT_BUFFER, WAIT_ACCEPT} store_unit_fsm_t;
 
     store_unit_fsm_t state_CRT, state_NXT;
 

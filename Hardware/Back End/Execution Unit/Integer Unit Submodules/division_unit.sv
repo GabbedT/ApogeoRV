@@ -106,11 +106,11 @@ module division_unit (
             /* If dividend and divisor are negative numbers in signed operation,
              * convert them to unsigned */
             if (dividend_sign & is_signed_operation) begin
-                dividend = ~(dividend_i) + 1'b1;
+                dividend = -dividend_i;
             end
 
             if (divisor_sign & is_signed_operation) begin 
-                divisor = ~(divisor_i) + 1'b1;
+                divisor = -divisor_i;
             end
         end : conversion_logic
 
@@ -222,13 +222,13 @@ module division_unit (
             converted_remainder = last_stage_remainder;
 
             if (conversion_enable_out & is_signend_out) begin
-                converted_quotient = ~(last_stage_quotient) + 1'b1;
+                converted_quotient = -last_stage_quotient;
             end
 
             /* Remainder sign is equals to dividend sign, convert remainder if 
              * signs are different */
             if ((dividend_sign_out ^ last_stage_remainder[DATA_WIDTH - 1]) & is_signend_out) begin
-                converted_remainder = ~(last_stage_remainder) + 1'b1;
+                converted_remainder = -last_stage_remainder;
             end
 
             /* Output select */

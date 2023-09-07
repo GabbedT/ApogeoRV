@@ -202,13 +202,8 @@ module back_end #(
     data_word_t [1:0] bypass_operands;
     data_word_t bypass_address_offset, bypass_base_address;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_operands_stage_register
-            if (!rst_n_i) begin 
-                bypass_operation <= '0;
-                bypass_operands <= '0;
-                bypass_base_address <= '0;
-                bypass_address_offset <= '0;
-            end else if (!stall_o) begin 
+        always_ff @(posedge clk_i) begin : bypass_operands_stage_register
+            if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
 
@@ -457,7 +452,7 @@ module back_end #(
 //====================================================================================
 
     logic mreturn;
-    
+
     writeback_stage write_back (
         .rob_entry_i ( writeback_packet    ),
         .rob_valid_i ( writeback_valid     ),
