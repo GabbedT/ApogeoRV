@@ -136,6 +136,9 @@ module front_end #(
          * - Branches Predicted
          * - Valid Memory Instruction                                                                     
          */
+
+        `ifdef BRANCH_PREDICTOR 
+
         always_comb begin : next_program_counter_logic
             fetch_channel.address = program_counter;
             next_program_counter = program_counter + 'd4;
@@ -211,6 +214,47 @@ module front_end #(
         end : next_program_counter_logic
 
     assign fetch_channel.fetch = fetch | branch_flush_i | mispredicted | flush_i;
+
+    `else 
+
+        always_comb begin : next_program_counter_logic
+            fetch_channel.address = program_counter;
+            next_program_counter = program_counter + 'd4;
+            fetch = 1'b0;
+
+            if (exception_i | interrupt_i) begin
+                fetch = 1'b1;
+
+                /* Load exception handler program counter
+                 * it has maximum priority */
+                fetch_channel.address = handler_pc_i; 
+            end else if (handler_return_i) begin 
+                fetch = 1'b1;
+
+                /* Load the instruction after completing the
+                 * interrupt / exception handler code */
+                fetch_channel.address = hander_return_pc_i; 
+            end else if (executed_i) begin
+                fetch = 1'b1;
+
+                if (taken_i | jump_i) begin 
+                    /* Take the BTA from the EXU if a branch is taken or is a jump */
+                    fetch_channel.address = branch_target_addr_i;
+                end else begin
+                    fetch = !ibuffer_full;
+
+                    fetch_channel.address = next_program_counter; 
+                end
+            end else if (!ibuffer_full) begin 
+                fetch = 1'b1;
+
+                fetch_channel.address = next_program_counter;
+            end 
+        end : next_program_counter_logic
+
+    assign fetch_channel.fetch = fetch | branch_flush_i | flush_i;
+
+    `endif 
     
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
@@ -222,6 +266,7 @@ module front_end #(
         end : program_counter_register
 
 
+    `ifdef BRANCH_PREDICTOR 
 
     branch_predictor #(PREDICTOR_SIZE, BTB_SIZE) predictor_unit (
         .clk_i                ( clk_i                      ), 
@@ -240,6 +285,8 @@ module front_end #(
         .mispredicted_o       ( mispredicted               ),
         .hit_o                ( branch_buffer_hit          )
     );
+
+    `endif 
 
 
 //====================================================================================
@@ -260,7 +307,12 @@ module front_end #(
 
     logic ibuffer_empty, ibuffer_read, ibuffer_speculative, ibuffer_taken; data_word_t ibuffer_instruction, ibuffer_program_counter;
 
+
+    `ifdef BRANCH_PREDICTOR
     assign fetch_channel.invalidate = branch_flush_i | mispredicted | flush_i;
+    `else 
+    assign fetch_channel.invalidate = branch_flush_i | flush_i;
+    `endif 
 
     instruction_buffer #(INSTRUCTION_BUFFER_SIZE) ibuffer (
         .clk_i   ( clk_i                    ),
@@ -269,8 +321,14 @@ module front_end #(
 
         .fetch_instruction_i ( fetch_channel.instruction ),
         .fetch_address_i     ( fetch_channel.address     ),
-        .fetch_speculative_i ( branch_buffer_hit         ),
-        .taken_i             ( predict                   ), 
+
+        `ifdef BRANCH_PREDICTOR 
+        .taken_i             ( predict           ), 
+        .fetch_speculative_i ( branch_buffer_hit ),
+        `else
+        .taken_i             ( 1'b0              ), 
+        .fetch_speculative_i ( 1'b0              ), 
+        `endif 
 
         .write_instruction_i ( fetch_channel.valid ),
         .write_speculative_i ( buffered_fetch      ),
@@ -554,9 +612,14 @@ module front_end #(
         .stall_i          ( stall_i          ),
         .flush_i          ( flush_i          ),
         .branch_flush_i   ( branch_flush_i   ),
-        .mispredicted_i   ( mispredicted     ),
         .stall_o          ( stall            ),
         .pipeline_empty_i ( pipeline_empty_i ),
+
+        `ifdef BRANCH_PREDICTOR
+        .mispredicted_i   ( mispredicted     ),
+        `else 
+        .mispredicted_i   ( 1'b0             ),
+        `endif 
 
         .writeback_i          ( writeback_i          ),
         .writeback_register_i ( writeback_register_i ),
@@ -592,7 +655,11 @@ module front_end #(
         .operand_o         ( operand_o         ) 
     ); 
 
+    `ifdef BRANCH_PREDICTOR
     assign mispredicted_o = mispredicted;
+    `else 
+    assign mispredicted_o = 1'b0; 
+    `endif 
 
     assign branch_o = dc_stage_branch;
     assign jump_o = dc_stage_jump;
