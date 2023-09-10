@@ -5,18 +5,6 @@
 //      SYNTHESIS CONFIG
 //====================================================================================
 
-    /* Target ASIC synthesis:
-     *
-     * - Clock gating
-     * - Latch based register file */
-    // `define ASIC
-    
-    /* Target FPGA synthesis:
-     * 
-     * - Clock enable 
-     * - BRAM based register file */
-    `define FPGA
-    
     /* Enable asyncronous reset */
 //    `define ASYNC
 
@@ -28,25 +16,18 @@
     /* Enable bit manipulation unit and B extension */
     `define BMU
 
-    /* Enable or disable cache */
-    //`define CACHE_SYSTEM
-
-    `define BRANCH_PREDICTOR_DEPTH 1024
-
-    `define BRANCH_TARGET_BUFFER_DEPTH 1024
-
-
-//====================================================================================
-//      FRONTEND CONFIG
-//====================================================================================
+    /* Enable or disable branch prediction */
+    `define BRANCH_PREDICTOR 
 
     /* Total number of entries NOT bytes */
 
-    `define INSTRUCTION_BUFFER_SIZE 8
-
     `define BRANCH_PREDICTOR_DEPTH 1024
 
     `define BRANCH_TARGET_BUFFER_DEPTH 1024
+
+    `define INSTRUCTION_BUFFER_SIZE 8
+
+    `define STORE_BUFFER_DEPTH 8
 
 
 //====================================================================================
@@ -60,26 +41,11 @@
      * vendor tool, then the define with the stages number must be set based on
      * the IP pipeline configuration.
      * 
-     * If the use of a generated IP is not possible then the files "floating_point
-     * _multiplier.sv" and "multiplication_unit.sv" must be modified with the 
-     * right module */
+     * If the use of a generated IP is not possible then the file "multiplication_unit.sv" 
+     * must be modified with the right module */
 
     /* Number of pipeline stages in the core integer multiplier, so 
      * if (MUL_PIPE_STAGES == 0) the multiplier will be combinational */
     `define MUL_PIPE_STAGES 2
-
-
-//====================================================================================
-//      DATA CACHE
-//====================================================================================
-
-    /* In bytes */
-    `define DATA_CACHE_SIZE 2 ** 13
-
-    /* In bits */
-    `define DATA_CACHE_BLOCK_SIZE 128 
-
-    /* Total number of entries in the store buffer (A power of 2) */
-    `define ST_BUF_DEPTH 8
 
 `endif 
