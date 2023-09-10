@@ -50,7 +50,7 @@
 
 module store_buffer #(
     /* Number of entries contained */
-    parameter BUFFER_DEPTH = `ST_BUF_DEPTH
+    parameter BUFFER_DEPTH = `STORE_BUFFER_DEPTH
 ) (
     input logic clk_i,
     input logic rst_n_i,

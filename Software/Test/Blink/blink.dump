@@ -6,11 +6,11 @@ Disassembly of section .text:
 
 00000000 <_start>:
    0:	00001137          	lui	sp,0x1
-   4:	80010113          	add	sp,sp,-2048 # 800 <gTimerBase+0x70c>
+   4:	80010113          	add	sp,sp,-2048 # 800 <gLedMode+0x3fc>
    8:	00800293          	li	t0,8
    c:	3002a073          	csrs	mstatus,t0
   10:	00000297          	auipc	t0,0x0
-  14:	07828293          	add	t0,t0,120 # 88 <timer_handler>
+  14:	08828293          	add	t0,t0,136 # 98 <timer_handler>
   18:	30529073          	csrw	mtvec,t0
   1c:	008000ef          	jal	24 <blink>
   20:	c0001073          	unimp
@@ -20,52 +20,133 @@ Disassembly of section .text:
   28:	00812623          	sw	s0,12(sp)
   2c:	01010413          	add	s0,sp,16
   30:	000017b7          	lui	a5,0x1
-  34:	80078793          	add	a5,a5,-2048 # 800 <gTimerBase+0x70c>
-  38:	0007a023          	sw	zero,0(a5)
-  3c:	000017b7          	lui	a5,0x1
-  40:	90078793          	add	a5,a5,-1792 # 900 <gTimerBase+0x80c>
-  44:	02faf737          	lui	a4,0x2faf
-  48:	08070713          	add	a4,a4,128 # 2faf080 <gTimerBase+0x2faef8c>
-  4c:	00e7a023          	sw	a4,0(a5)
-  50:	000017b7          	lui	a5,0x1
-  54:	90078793          	add	a5,a5,-1792 # 900 <gTimerBase+0x80c>
-  58:	00478793          	add	a5,a5,4
-  5c:	0007a023          	sw	zero,0(a5)
+  34:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+  38:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+  3c:	00279793          	sll	a5,a5,0x2
+  40:	00f707b3          	add	a5,a4,a5
+  44:	00100713          	li	a4,1
+  48:	00e7a023          	sw	a4,0(a5)
+  4c:	000017b7          	lui	a5,0x1
+  50:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+  54:	02faf737          	lui	a4,0x2faf
+  58:	08070713          	add	a4,a4,128 # 2faf080 <gLedMode+0x2faec7c>
+  5c:	00e7a023          	sw	a4,0(a5)
   60:	000017b7          	lui	a5,0x1
-  64:	90078793          	add	a5,a5,-1792 # 900 <gTimerBase+0x80c>
-  68:	00c78793          	add	a5,a5,12
+  64:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+  68:	00478793          	add	a5,a5,4
   6c:	0007a023          	sw	zero,0(a5)
   70:	000017b7          	lui	a5,0x1
-  74:	90078793          	add	a5,a5,-1792 # 900 <gTimerBase+0x80c>
-  78:	00878793          	add	a5,a5,8
+  74:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+  78:	00c78793          	add	a5,a5,12
   7c:	0007a023          	sw	zero,0(a5)
-  80:	10500073          	wfi
-  84:	ffdff06f          	j	80 <blink+0x5c>
+  80:	000017b7          	lui	a5,0x1
+  84:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+  88:	00878793          	add	a5,a5,8
+  8c:	0007a023          	sw	zero,0(a5)
+  90:	10500073          	wfi
+  94:	ffdff06f          	j	90 <blink+0x6c>
 
-00000088 <timer_handler>:
-  88:	ff010113          	add	sp,sp,-16
-  8c:	00812623          	sw	s0,12(sp)
-  90:	00e12423          	sw	a4,8(sp)
-  94:	00f12223          	sw	a5,4(sp)
-  98:	01010413          	add	s0,sp,16
-  9c:	000017b7          	lui	a5,0x1
-  a0:	80078793          	add	a5,a5,-2048 # 800 <gTimerBase+0x70c>
-  a4:	0007a703          	lw	a4,0(a5)
-  a8:	000017b7          	lui	a5,0x1
-  ac:	80078793          	add	a5,a5,-2048 # 800 <gTimerBase+0x70c>
-  b0:	fff74713          	not	a4,a4
-  b4:	00e7a023          	sw	a4,0(a5)
+00000098 <timer_handler>:
+  98:	ff010113          	add	sp,sp,-16
+  9c:	00812623          	sw	s0,12(sp)
+  a0:	00d12423          	sw	a3,8(sp)
+  a4:	00e12223          	sw	a4,4(sp)
+  a8:	00f12023          	sw	a5,0(sp)
+  ac:	01010413          	add	s0,sp,16
+  b0:	40402783          	lw	a5,1028(zero) # 404 <gLedMode>
+  b4:	0a079063          	bnez	a5,154 <timer_handler+0xbc>
   b8:	000017b7          	lui	a5,0x1
-  bc:	90078793          	add	a5,a5,-1792 # 900 <gTimerBase+0x80c>
-  c0:	00c78793          	add	a5,a5,12
-  c4:	0007a023          	sw	zero,0(a5)
-  c8:	000017b7          	lui	a5,0x1
-  cc:	90078793          	add	a5,a5,-1792 # 900 <gTimerBase+0x80c>
-  d0:	00878793          	add	a5,a5,8
-  d4:	0007a023          	sw	zero,0(a5)
-  d8:	00000013          	nop
-  dc:	00c12403          	lw	s0,12(sp)
-  e0:	00812703          	lw	a4,8(sp)
-  e4:	00412783          	lw	a5,4(sp)
-  e8:	01010113          	add	sp,sp,16
-  ec:	30200073          	mret
+  bc:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+  c0:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+  c4:	00279793          	sll	a5,a5,0x2
+  c8:	00f707b3          	add	a5,a4,a5
+  cc:	0007a023          	sw	zero,0(a5)
+  d0:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+  d4:	00178793          	add	a5,a5,1
+  d8:	00f7f713          	and	a4,a5,15
+  dc:	40e02023          	sw	a4,1024(zero) # 400 <gLedIndex>
+  e0:	000017b7          	lui	a5,0x1
+  e4:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+  e8:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+  ec:	00279793          	sll	a5,a5,0x2
+  f0:	00f707b3          	add	a5,a4,a5
+  f4:	00100713          	li	a4,1
+  f8:	00e7a023          	sw	a4,0(a5)
+  fc:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 100:	02079863          	bnez	a5,130 <timer_handler+0x98>
+ 104:	00100713          	li	a4,1
+ 108:	40e02223          	sw	a4,1028(zero) # 404 <gLedMode>
+ 10c:	000017b7          	lui	a5,0x1
+ 110:	80078793          	add	a5,a5,-2048 # 800 <gLedMode+0x3fc>
+ 114:	00100713          	li	a4,1
+ 118:	00e7a023          	sw	a4,0(a5)
+ 11c:	000017b7          	lui	a5,0x1
+ 120:	80078793          	add	a5,a5,-2048 # 800 <gLedMode+0x3fc>
+ 124:	03c78793          	add	a5,a5,60
+ 128:	00100713          	li	a4,1
+ 12c:	00e7a023          	sw	a4,0(a5)
+ 130:	000017b7          	lui	a5,0x1
+ 134:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+ 138:	00c78793          	add	a5,a5,12
+ 13c:	0007a023          	sw	zero,0(a5)
+ 140:	000017b7          	lui	a5,0x1
+ 144:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+ 148:	00878793          	add	a5,a5,8
+ 14c:	0007a023          	sw	zero,0(a5)
+ 150:	0c80006f          	j	218 <timer_handler+0x180>
+ 154:	000017b7          	lui	a5,0x1
+ 158:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+ 15c:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 160:	00279793          	sll	a5,a5,0x2
+ 164:	00f707b3          	add	a5,a4,a5
+ 168:	0007a023          	sw	zero,0(a5)
+ 16c:	000017b7          	lui	a5,0x1
+ 170:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+ 174:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 178:	00f00693          	li	a3,15
+ 17c:	40f687b3          	sub	a5,a3,a5
+ 180:	00279793          	sll	a5,a5,0x2
+ 184:	00f707b3          	add	a5,a4,a5
+ 188:	0007a023          	sw	zero,0(a5)
+ 18c:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 190:	00178793          	add	a5,a5,1
+ 194:	0077f713          	and	a4,a5,7
+ 198:	40e02023          	sw	a4,1024(zero) # 400 <gLedIndex>
+ 19c:	000017b7          	lui	a5,0x1
+ 1a0:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+ 1a4:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 1a8:	00279793          	sll	a5,a5,0x2
+ 1ac:	00f707b3          	add	a5,a4,a5
+ 1b0:	00100713          	li	a4,1
+ 1b4:	00e7a023          	sw	a4,0(a5)
+ 1b8:	000017b7          	lui	a5,0x1
+ 1bc:	80078713          	add	a4,a5,-2048 # 800 <gLedMode+0x3fc>
+ 1c0:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 1c4:	00f00693          	li	a3,15
+ 1c8:	40f687b3          	sub	a5,a3,a5
+ 1cc:	00279793          	sll	a5,a5,0x2
+ 1d0:	00f707b3          	add	a5,a4,a5
+ 1d4:	00100713          	li	a4,1
+ 1d8:	00e7a023          	sw	a4,0(a5)
+ 1dc:	000017b7          	lui	a5,0x1
+ 1e0:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+ 1e4:	00c78793          	add	a5,a5,12
+ 1e8:	0007a023          	sw	zero,0(a5)
+ 1ec:	000017b7          	lui	a5,0x1
+ 1f0:	90078793          	add	a5,a5,-1792 # 900 <gLedMode+0x4fc>
+ 1f4:	00878793          	add	a5,a5,8
+ 1f8:	0007a023          	sw	zero,0(a5)
+ 1fc:	40002783          	lw	a5,1024(zero) # 400 <gLedIndex>
+ 200:	00079c63          	bnez	a5,218 <timer_handler+0x180>
+ 204:	40002223          	sw	zero,1028(zero) # 404 <gLedMode>
+ 208:	000017b7          	lui	a5,0x1
+ 20c:	80078793          	add	a5,a5,-2048 # 800 <gLedMode+0x3fc>
+ 210:	03c78793          	add	a5,a5,60
+ 214:	0007a023          	sw	zero,0(a5)
+ 218:	00000013          	nop
+ 21c:	00c12403          	lw	s0,12(sp)
+ 220:	00812683          	lw	a3,8(sp)
+ 224:	00412703          	lw	a4,4(sp)
+ 228:	00012783          	lw	a5,0(sp)
+ 22c:	01010113          	add	sp,sp,16
+ 230:	30200073          	mret
