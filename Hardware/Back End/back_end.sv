@@ -490,10 +490,17 @@ module back_end #(
         .core_sleep_i ( core_sleep                      )
     ); 
 
-    /* Flush when an interrupt or an exception is detected, also flush when the branch 
-     * was not predicted and it was taken */
+    /* Flush frontend when an interrupt or an exception is detected, or if an handler return
+     * instruction is executed */
     assign flush_o = flush_pipeline | mreturn;
+
+    `ifdef BRANCH_PREDICTOR
+    /* Flush if not speculative and branch is actually taken or is jump */
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
+    `else 
+    assign branch_flush_o = (branch_outcome_o | jump_o) & executed_o;
+    `endif 
+
     assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 

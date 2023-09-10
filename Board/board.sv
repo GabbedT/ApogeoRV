@@ -62,6 +62,7 @@ module board (
         .load_channel  ( load_channel  ),
 
         .interrupt_i        ( interrupt        ), 
+        .non_maskable_int_i ( 1'b0             ), 
         .timer_interrupt_i  ( timer_interrupt  ), 
         .interrupt_ackn_o   ( interrupt_ackn   ), 
         .interrupt_vector_i ( interrupt_vector )

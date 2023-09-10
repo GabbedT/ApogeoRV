@@ -29,6 +29,7 @@ module rv32apogeo #(
 
     /* Interrupt interface */
     input logic interrupt_i, 
+    input logic non_maskable_int_i,
     input logic timer_interrupt_i, 
     input logic [7:0] interrupt_vector_i,
     output logic interrupt_ackn_o,
@@ -39,7 +40,8 @@ module rv32apogeo #(
 );
 
     logic global_interrupt_enable, external_interrupt_enable, timer_interrupt_enable;
-    logic interrupt, interrupt_previous, timer_interrupt, timer_interrupt_previous; 
+    logic interrupt, timer_interrupt; 
+    logic interrupt_previous, non_maskable_interrupt_previous, timer_interrupt_previous;
 
     assign interrupt = interrupt_i & global_interrupt_enable & external_interrupt_enable;
     assign timer_interrupt = timer_interrupt_i & global_interrupt_enable & timer_interrupt_enable;
@@ -47,20 +49,23 @@ module rv32apogeo #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 interrupt_previous <= 1'b0;
-                timer_interrupt_previous <= 1'b0; 
+                timer_interrupt_previous <= 1'b0;
+                non_maskable_interrupt_previous <= 1'b0;  
             end else begin
                 interrupt_previous <= interrupt;
                 timer_interrupt_previous <= timer_interrupt; 
+                non_maskable_interrupt_previous <= non_maskable_int_i;
             end
         end
 
 
-    logic interrupt_posedge, timer_interrupt_posedge, general_interrupt; 
+    logic interrupt_posedge, timer_interrupt_posedge, non_maskable_interrupt_posedge, general_interrupt; 
 
     assign interrupt_posedge = !interrupt_previous & interrupt;
     assign timer_interrupt_posedge = !timer_interrupt_previous & timer_interrupt;
+    assign non_maskable_interrupt_posedge = !non_maskable_interrupt_previous & non_maskable_int_i;
 
-    assign general_interrupt = interrupt_posedge | timer_interrupt_posedge; 
+    assign general_interrupt = interrupt_posedge | timer_interrupt_posedge | non_maskable_interrupt_posedge; 
 
 //====================================================================================
 //      FRONT END 
