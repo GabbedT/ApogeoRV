@@ -40,7 +40,7 @@
     /* 
      *  General purpouse memory region 
      */
-    `define CODE_START `IO_END + 1
+    `define CODE_START `PRIVATE_REGION_END + 1
     `define CODE_END   32'hFFFF_FFFF
 
 `endif 
