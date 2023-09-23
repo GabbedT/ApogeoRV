@@ -199,6 +199,112 @@ package apogeo_operations_pkg;
 
 
 //====================================================================================
+//      FLOATING POINT UNIT
+//====================================================================================
+
+    typedef struct packed {
+        logic sign; 
+        logic [7:0] exponent; 
+        logic [22:0] significand; 
+    } float_t;
+
+    typedef struct packed {
+        logic guard; 
+        logic round; 
+        logic sticky; 
+    } round_bits_t;
+
+    /* Bias for exponent */
+    localparam BIAS = 127;
+
+    /* Maximum exponent unbiased (excluded infinities) */
+    localparam MAX_EXP = 127 + BIAS;
+
+    /* Minimum exponent unbiased (excluded denormals) */
+    localparam MIN_EXP = -126 + BIAS;
+
+    /* Canonical NaN in RISCV (quiet NaN) */
+    localparam CANONICAL_NAN = 32'h7FC00000;
+
+    /* Class values */
+    localparam N_INFINITY = 4'd0;
+    localparam N_NORMAL = 4'd1;
+    localparam N_SUBNORMAL = 4'd2;
+    localparam N_ZERO = 4'd3;
+    localparam P_ZERO = 4'd4;
+    localparam P_SUBNORMAL = 4'd5;
+    localparam P_NORMAL = 4'd6;
+    localparam P_INFINITY = 4'd7;
+    localparam S_NAN = 4'd8;
+    localparam Q_NAN = 4'd9;
+
+
+    typedef enum logic { FADD, FSUB } fadd_uop_t; 
+
+    typedef enum logic [1:0] {
+        /* Equals */
+        FP_EQ,
+
+        /* Less than */
+        FP_LT, 
+
+        /* Less equal than */
+        FP_LE, 
+
+        /* Greater than */
+        FP_GT 
+    } fcomp_uop_t;
+
+    typedef enum logic {
+        FLOAT2INT, INT2FLOAT
+    } conversion_type_t;
+
+    typedef struct packed {
+        conversion_type_t cvt_type; 
+        logic is_signed;
+    } fcvt_uop_t;
+
+    typedef enum logic [1:0] {
+        /* Classify float number */
+        FCLASS,
+
+        /* Sign injection operations */
+        FSGNJ, FSGNJN, FSGNJX 
+    } fmisc_uop_t;
+
+
+    typedef struct packed {
+        logic FPADD;
+        logic FPMUL;
+        logic FPCVT;
+        logic FPCMP;
+        logic FPMIS;
+    } fpu_valid_t;
+
+    typedef union packed {
+        struct packed {
+            fadd_uop_t opcode;
+            logic [1:0] padding;
+        } FPADD;
+
+        struct packed {
+            fcvt_uop_t opcode;
+            logic padding;
+        } FPCVT;
+
+        struct packed {
+            fcomp_uop_t opcode;
+            logic flag;
+        } FPCMP;
+
+        struct packed {
+            fmisc_uop_t opcode;
+            logic padding;
+        } FPMIS;
+    } fpu_uop_t;
+
+
+//====================================================================================
 //      LOAD STORE UNIT
 //====================================================================================
 
