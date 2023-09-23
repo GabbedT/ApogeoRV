@@ -1,7 +1,11 @@
 `ifndef SYSTEM_MEMORY_SV
     `define SYSTEM_MEMORY_SV
 
+// `define DIRECTED_TEST 
+
 `include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
+
+`include "riscv_test_suite.sv"
 
 module system_memory #(
     parameter MEMORY_SIZE = 256
@@ -21,14 +25,30 @@ module system_memory #(
     output logic fetch_valid_o  
 );
 
-    logic [7:0] memory [MEMORY_SIZE]; 
+    logic [7:0] memory [MEMORY_SIZE]; int index; 
+    instructions_t ibuffer [$]; instructions_t instr;
 
     initial begin
-        for (int i = 0; i < MEMORY_SIZE; ++i) begin 
-            memory[i] = '0;
-        end 
+       for (int i = 0; i < MEMORY_SIZE; ++i) begin 
+           memory[i] = '0;
+       end 
         
-        $readmemh("crc32.hex", memory);
+        `ifdef DIRECTED_TEST
+           index = 0; stbuf_test(ibuffer); 
+        
+           while (ibuffer.size() != '0) begin
+               instr = ibuffer.pop_front();
+                
+               memory[index + 3] = instr[31:24];
+               memory[index + 2] = instr[23:16];
+               memory[index + 1] = instr[15:8];
+               memory[index + 0] = instr[7:0];
+
+               index += 4;
+           end
+        `else  
+            $readmemh("crc32.hex", memory);
+        `endif 
     end
 
 
@@ -52,6 +72,7 @@ module system_memory #(
 
         assign load_channel.data = {memory[data_load_address + 3], memory[data_load_address + 2], memory[data_load_address + 1], memory[data_load_address]}; 
 
+
         always_ff @(posedge clk_i) begin
             if (store_channel.request) begin
                 case (store_channel.width)
@@ -73,22 +94,21 @@ module system_memory #(
 //      INSTRUCTION CHANNEL
 //==========================================================
 
-    logic [$clog2(MEMORY_SIZE) - 1:0] fetch_address;
+    logic [$clog2(MEMORY_SIZE) - 1:0] fetch_address; logic fetch_valid; 
 
     assign fetch_address = {fetch_address_i[$clog2(MEMORY_SIZE) - 1:1], 1'b0};
 
         always_ff @(posedge clk_i) begin
             if (!rst_n_i) begin
-                fetch_valid_o <= 1'b0; 
+                fetch_valid <= 1'b0; 
                 fetch_instruction_o <= '0; 
-            end else if (fetch_i) begin 
-                fetch_valid_o <= !invalidate_i; 
+            end else begin 
+                fetch_valid <= fetch_i; 
                 fetch_instruction_o <= {memory[fetch_address + 3], memory[fetch_address + 2], memory[fetch_address + 1], memory[fetch_address]}; 
-            end else begin
-                fetch_valid_o <= 1'b0; 
-                fetch_instruction_o <= {memory[fetch_address + 3], memory[fetch_address + 2], memory[fetch_address + 1], memory[fetch_address]};
-            end
+            end 
         end
+
+    assign fetch_valid_o = fetch_valid & !invalidate_i;
 
 endmodule : system_memory
 

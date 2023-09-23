@@ -1,9 +1,40 @@
+`ifndef RISCV_TEST_SUITE_SV
+    `define RISCV_TEST_SUITE_SV
+
 `include "Classes/Riscv32.sv"
 
-typedef bit [31:0] instructions_t [$]; 
+typedef bit [31:0] instructions_t; 
 
-    function instructions_t raw_hazard_test(); 
-        instructions_t instr;
+    function automatic void stbuf_test(ref instructions_t instr[$]);
+        Riscv32 rv32; rv32 = new();
+        
+        instr.push_back(rv32._addi(1, 0, -1));
+
+        /* Test load foward */
+        instr.push_back(rv32._sw(0, 1, -4));
+        instr.push_back(rv32._lw(1, 0, -4));
+
+        /* Test store buffer full */
+        for (int i = 0; i < 8; ++i) begin
+            instr.push_back(rv32._sw(0, i, -4));
+        end
+    endfunction : stbuf_test 
+
+    function automatic void rob_full_test(ref instructions_t instr[$]);
+        Riscv32 rv32; rv32 = new();
+
+        instr.push_back(rv32._addi(1, 0, 1));
+
+        for (int i = 0; i < 2; ++i) begin
+            instr.push_back(rv32._div(2, 1, 1));
+
+            for (int j = 0; j < 36; ++j) begin
+                instr.push_back(rv32._addi(1, 0, 0));
+            end
+        end
+    endfunction : rob_full_test 
+
+    function automatic void raw_hazard_test(ref instructions_t instr[$]); 
         Riscv32 rv32; rv32 = new();
 
         /* Try different latencies */
@@ -21,13 +52,10 @@ typedef bit [31:0] instructions_t [$];
 
             instr.push_back(rv32._add(1, 1, 0));
         end 
-
-        return instr;
     endfunction : raw_hazard_test
 
 
-    function instructions_t waw_hazard_test(); 
-        instructions_t instr;
+    function automatic void waw_hazard_test(ref instructions_t instr[$]); 
         Riscv32 rv32; rv32 = new();
 
         instr.push_back(rv32._addi(1, 0, 1));
@@ -38,13 +66,10 @@ typedef bit [31:0] instructions_t [$];
         /* If WAW hazard is not handled correctly, this 
          * instruction write back before the div */
         instr.push_back(rv32._add(3, 4, 1));
-
-        return instr;
     endfunction : waw_hazard_test
 
 
-    function instructions_t arithmetic_logic_test(); 
-        instructions_t instr;
+    function automatic void arithmetic_logic_test(ref instructions_t instr[$]); 
         Riscv32 rv32; rv32 = new();
 
         instr.push_back(rv32._lui(1, 1));
@@ -152,13 +177,10 @@ typedef bit [31:0] instructions_t [$];
         instr.push_back(rv32._sh3add(25, 9, 8));
 
         instr.push_back(rv32._ecall());
-
-        return instr;  
     endfunction : arithmetic_logic_test 
 
 
-    function instructions_t csr_read_test();
-        instructions_t instr;
+    function automatic void csr_read_test(ref instructions_t instr[$]);
         Riscv32 rv32; rv32 = new();
         
         instr.push_back(rv32._csrrs(1, 0, rv32.csr_cycle));
@@ -211,13 +233,10 @@ typedef bit [31:0] instructions_t [$];
         instr.push_back(rv32._csrrs(1, 0, rv32.csr_mhpmevent6));
 
         instr.push_back(rv32._ecall());
-        
-        return instr;
     endfunction : csr_read_test
 
 
-    function instructions_t exception_program();
-        instructions_t instr;
+    function automatic void exception_program(ref instructions_t instr[$]);
         Riscv32 rv32; rv32 = new();
         
         for (int i = 0; i < 32; ++i) begin
@@ -254,13 +273,10 @@ typedef bit [31:0] instructions_t [$];
         /* Handler start */ 
         instr.push_back(rv32._add(3, 1, 2));
         instr.push_back(rv32._ecall());
-        
-        return instr;
     endfunction : exception_program 
 
 
-    function instructions_t fence_test();
-        instructions_t instr;
+    function automatic void fence_test(ref instructions_t instr[$]);
         Riscv32 rv32; rv32 = new();
         
         /* Execute a division */
@@ -291,6 +307,6 @@ typedef bit [31:0] instructions_t [$];
         instr.push_back(rv32._lw(4, 2, 2));
 
         instr.push_back(rv32._ecall());
-        
-        return instr;
     endfunction : fence_test 
+
+`endif 

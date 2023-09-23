@@ -13,6 +13,7 @@
         "utility": "c",
         "image.h": "c",
         "time.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "random": "c"
     }
 }

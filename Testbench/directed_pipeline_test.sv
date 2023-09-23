@@ -29,6 +29,7 @@ module directed_pipeline_test;
 
     /* Interrupt interface */
     logic interrupt_i = '0; 
+    logic non_maskable_int_i = '0;
     logic interrupt_ackn_o;
     logic timer_interrupt_i; 
     logic [7:0] interrupt_vector_i = '0;
@@ -36,19 +37,20 @@ module directed_pipeline_test;
     /* Memory interface */ 
     load_interface load_channel(); 
     store_interface store_channel();
+    fetch_interface fetch_channel();
 
     rv32apogeo #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
 
     system_memory #(MEMORY_SIZE) _memory_ (
-        .clk_i               ( clk_i               ),
-        .rst_n_i             ( rst_n_i             ),
-        .load_channel        ( load_channel        ),
-        .store_channel       ( store_channel       ),
-        .fetch_i             ( fetch_o             ),
-        .invalidate_i        ( invalidate_o        ),
-        .fetch_address_i     ( fetch_address_o     ),
-        .fetch_instruction_o ( fetch_instruction_i ),
-        .fetch_valid_o       ( fetch_valid_i       )
+        .clk_i               ( clk_i                     ),
+        .rst_n_i             ( rst_n_i                   ),
+        .load_channel        ( load_channel              ),
+        .store_channel       ( store_channel             ),
+        .fetch_i             ( fetch_channel.fetch       ),
+        .invalidate_i        ( fetch_channel.invalidate  ),
+        .fetch_address_i     ( fetch_channel.address     ),
+        .fetch_instruction_o ( fetch_channel.instruction ),
+        .fetch_valid_o       ( fetch_channel.valid       )
     );
 
     always #5 clk_i <= !clk_i; 
@@ -147,7 +149,7 @@ module directed_pipeline_test;
         end : led_register
 
 
-    int misprediction_number = 0, branch_jump_number = 0; int file;
+    int misprediction_number = 0, branch_jump_number = 0; int file, idx;
 
     logic [31:0] registers[32];
 
@@ -225,10 +227,17 @@ module directed_pipeline_test;
             $fdisplay(file, "%02d | 0x%h", i, registers[i]); 
         end
 
-        $fdisplay(file, "============== MEMORY DUMP ==============");
+        $fdisplay(file, "============== MEMORY DUMP =============="); 
+        
+        idx = 0;
+        
+        for (int i = 0; i < MEMORY_SIZE / 4; ++i) begin
+            $fwrite(file, "%h", _memory_.memory[idx + 3]);
+            $fwrite(file, "%h", _memory_.memory[idx + 2]);
+            $fwrite(file, "%h", _memory_.memory[idx + 1]);
+            $fwrite(file, "%h\n", _memory_.memory[idx]);
 
-        for (int i = 0; i < MEMORY_SIZE; ++i) begin
-            $fwrite(file, "%h", _memory_.memory[i]);
+            idx += 4;
         end
 
         $fdisplay(file, "\n\n============== BUFFER DATA ==============");

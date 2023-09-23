@@ -810,12 +810,12 @@ Disassembly of section .text:
  c60:	0500006f          	j	cb0 <main+0x74>
  c64:	ffffd7b7          	lui	a5,0xffffd
  c68:	ff078793          	add	a5,a5,-16 # ffffcff0 <main+0xffffc3b4>
- c6c:	00878733          	add	a4,a5,s0 
+ c6c:	00878733          	add	a4,a5,s0
  c70:	fe842783          	lw	a5,-24(s0)
  c74:	00279793          	sll	a5,a5,0x2
  c78:	00f707b3          	add	a5,a4,a5
  c7c:	fec42703          	lw	a4,-20(s0)
- c80:	94e7a423          	sw	a4,-1720(a5)
+ c80:	94e7a023          	sw	a4,-1728(a5)
  c84:	fec42703          	lw	a4,-20(s0)
  c88:	00070793          	mv	a5,a4
  c8c:	00d79793          	sll	a5,a5,0xd
@@ -832,7 +832,7 @@ Disassembly of section .text:
  cb8:	dab78793          	add	a5,a5,-597 # dab <main+0x16f>
  cbc:	fae7f4e3          	bgeu	a5,a4,c64 <main+0x28>
  cc0:	ffffd7b7          	lui	a5,0xffffd
- cc4:	94878793          	add	a5,a5,-1720 # ffffc948 <main+0xffffbd0c>
+ cc4:	94078793          	add	a5,a5,-1728 # ffffc940 <main+0xffffbd04>
  cc8:	ff078793          	add	a5,a5,-16
  ccc:	00878733          	add	a4,a5,s0
  cd0:	000017b7          	lui	a5,0x1
@@ -842,11 +842,37 @@ Disassembly of section .text:
  ce0:	dac78593          	add	a1,a5,-596 # dac <main+0x170>
  ce4:	00070513          	mv	a0,a4
  ce8:	e00ff0ef          	jal	2e8 <qsort>
- cec:	00000793          	li	a5,0
- cf0:	00078513          	mv	a0,a5
- cf4:	000032b7          	lui	t0,0x3
- cf8:	00510133          	add	sp,sp,t0
- cfc:	6cc12083          	lw	ra,1740(sp)
- d00:	6c812403          	lw	s0,1736(sp)
- d04:	6d010113          	add	sp,sp,1744
- d08:	00008067          	ret
+ cec:	fff00793          	li	a5,-1
+ cf0:	fef42223          	sw	a5,-28(s0)
+ cf4:	ffffd7b7          	lui	a5,0xffffd
+ cf8:	94078793          	add	a5,a5,-1728 # ffffc940 <main+0xffffbd04>
+ cfc:	ff078793          	add	a5,a5,-16
+ d00:	008787b3          	add	a5,a5,s0
+ d04:	fef42023          	sw	a5,-32(s0)
+ d08:	fe042783          	lw	a5,-32(s0)
+ d0c:	0ff7f713          	zext.b	a4,a5
+ d10:	fe442783          	lw	a5,-28(s0)
+ d14:	00e78023          	sb	a4,0(a5)
+ d18:	fe042783          	lw	a5,-32(s0)
+ d1c:	4087d793          	sra	a5,a5,0x8
+ d20:	0ff7f713          	zext.b	a4,a5
+ d24:	fe442783          	lw	a5,-28(s0)
+ d28:	00e78023          	sb	a4,0(a5)
+ d2c:	fe042783          	lw	a5,-32(s0)
+ d30:	4107d793          	sra	a5,a5,0x10
+ d34:	0ff7f713          	zext.b	a4,a5
+ d38:	fe442783          	lw	a5,-28(s0)
+ d3c:	00e78023          	sb	a4,0(a5)
+ d40:	fe042783          	lw	a5,-32(s0)
+ d44:	4187d793          	sra	a5,a5,0x18
+ d48:	0ff7f713          	zext.b	a4,a5
+ d4c:	fe442783          	lw	a5,-28(s0)
+ d50:	00e78023          	sb	a4,0(a5)
+ d54:	00000793          	li	a5,0
+ d58:	00078513          	mv	a0,a5
+ d5c:	000032b7          	lui	t0,0x3
+ d60:	00510133          	add	sp,sp,t0
+ d64:	6cc12083          	lw	ra,1740(sp)
+ d68:	6c812403          	lw	s0,1736(sp)
+ d6c:	6d010113          	add	sp,sp,1744
+ d70:	00008067          	ret

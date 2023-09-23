@@ -21,6 +21,7 @@
 #define LOCAL_SCALE_FACTOR 1
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifdef __TURBOC__
 #pragma warn -cln
@@ -144,6 +145,8 @@ static const UNS_32_BITS crc_32_tab[] = {	/* CRC polynomial 0xedb88320 */
   0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
+char * charBuf = (char *) 0xFFFFFFFF;
+
 int rand(void);
 DWORD crc32pseudo(); 
 int benchmark (void);
@@ -151,8 +154,14 @@ int verify_benchmark (int r);
 void srand(unsigned int new_seed);
 static int benchmark_body(int  rpt);
 
-int main_crc32() {
+int main() {
     int result = verify_benchmark(benchmark());
+    
+    *charBuf = (char) result;
+    *charBuf = (char) (result >> 8);
+    *charBuf = (char) (result >> 16);
+    *charBuf = (char) (result >> 24);
+    *charBuf = '\n';
 
     asm volatile ("unimp");
 }
@@ -194,7 +203,15 @@ crc32pseudo ()
 int
 benchmark (void)
 {
-  return benchmark_body (LOCAL_SCALE_FACTOR * 100);
+  int b = benchmark_body (LOCAL_SCALE_FACTOR * 100);
+
+  *charBuf = (char) b;
+  *charBuf = (char) (b >> 8);
+  *charBuf = (char) (b >> 16);
+  *charBuf = (char) (b >> 24);
+  *charBuf = '\n';
+
+  return b; 
 }
 
 

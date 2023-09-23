@@ -15,7 +15,7 @@ uint32_t volatile gLedMode = 0;
 
 void blink() {
     /* Start with LED 0 ON */
-    *(gLedBase + gLedIndex) = 1; 
+    *(gLedBase + gLedIndex) = 1;
 
     /* Setup interrupt time */
     *gTimerBase = CLOCK_FREQ / 2; *(gTimerBase + 1) = 0;

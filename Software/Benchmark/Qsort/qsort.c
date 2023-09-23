@@ -28,6 +28,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 typedef int		 cmp_t(const void *, const void *);
 
@@ -190,5 +191,13 @@ int main()
 		val = ((val * 8191) << 7) ^ val;
 	}
 	qsort(arr, ARRAY_SIZE, sizeof(int), compare);
+
+	char * charBuf = (char *) 0xFFFFFFFF; int arrAddr = (int) arr; 
+
+	*charBuf = (char) arrAddr;
+	*charBuf = (char) (arrAddr >> 8);
+	*charBuf = (char) (arrAddr >> 16);
+	*charBuf = (char) (arrAddr >> 24);
+
 	return 0;
 }
