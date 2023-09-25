@@ -14,8 +14,8 @@ for hex_file in *.hex; do
 
         cd ../../../Testbench
 
-        # Modify line 31 in instruction_memory.sv and replace with the new file to read
-        sed -i "31s/.*/        \$readmemh(\"${hex_file}\", memory);/" system_memory.sv
+        # Modify line 50 in instruction_memory.sv and replace with the new file to read
+        sed -i "50s/.*/        \$readmemh(\"${hex_file}\", memory);/" system_memory.sv
 
         cd ../Software/Test/RV32I/Utils
 

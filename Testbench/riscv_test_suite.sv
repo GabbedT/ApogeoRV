@@ -5,6 +5,27 @@
 
 typedef bit [31:0] instructions_t; 
 
+    function automatic void float_instruction_test(ref instructions_t instr[$]);
+        Riscv32 rv32; rv32 = new();
+        
+        instr.push_back(rv32._fadd(0, 0, 0));
+        instr.push_back(rv32._fsub(0, 0, 0));
+        instr.push_back(rv32._fmul(0, 0, 0));
+        instr.push_back(rv32._fsignj(0, 0, 0));
+        instr.push_back(rv32._fsignjn(0, 0, 0));
+        instr.push_back(rv32._fsignjx(0, 0, 0));
+        instr.push_back(rv32._fmin(0, 0, 0));
+        instr.push_back(rv32._fmax(0, 0, 0));
+        instr.push_back(rv32._fcvtws(0, 0));
+        instr.push_back(rv32._fcvtwus(0, 0));
+        instr.push_back(rv32._feq(0, 0, 0));
+        instr.push_back(rv32._flt(0, 0, 0));
+        instr.push_back(rv32._fle(0, 0, 0));
+        instr.push_back(rv32._fclass(0, 0));
+        instr.push_back(rv32._fcvtsw(0, 0));
+        instr.push_back(rv32._fcvtswu(0, 0));
+    endfunction : float_instruction_test 
+
     function automatic void stbuf_test(ref instructions_t instr[$]);
         Riscv32 rv32; rv32 = new();
         

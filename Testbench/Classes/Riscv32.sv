@@ -454,4 +454,73 @@ class Riscv32;
     localparam csr_mhpmevent5 = 12'h325;  
     localparam csr_mhpmevent6 = 12'h326;  
 
+
+//====================================================================================
+//      FLOATING POINT  
+//====================================================================================
+
+    function logic [31:0] _fadd(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0000000, rs2, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fsub(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0000100, rs2, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fmul(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0001000, rs2, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+    
+    function logic [31:0] _fsignj(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010000, rs2, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fsignjn(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010000, rs2, rs1, 3'b001, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fsignjx(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010000, rs2, rs1, 3'b010, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fmin(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010100, rs2, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fmax(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b0010100, rs2, rs1, 3'b001, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fcvtws(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b1100000, 5'b00000, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fcvtwus(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b1100000, 5'b00001, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _feq(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b1010000, rs2, rs1, 3'b010, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _flt(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b1010000, rs2, rs1, 3'b001, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fle(input logic [4:0] rd, input logic [4:0] rs1, input logic [4:0] rs2);
+        return {7'b1010000, rs2, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fclass(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b1110000, 5'b00000, rs1, 3'b001, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fcvtsw(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b1101000, 5'b00000, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
+    function logic [31:0] _fcvtswu(input logic [4:0] rd, input logic [4:0] rs1);
+        return {7'b1101000, 5'b00001, rs1, 3'b000, rd, 5'b10100, 2'b11};         
+    endfunction
+
 endclass : Riscv32

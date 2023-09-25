@@ -17,14 +17,14 @@ for hex_file in *.hex; do
         # Modify line 50 in instruction_memory.sv and replace with the new file to read
         sed -i "50s/.*/        \$readmemh(\"${hex_file}\", memory);/" system_memory.sv
 
-        cd ../Software/Test/RV32M/Utils
+        cd ../Software/Test/RV32F/Utils
 
         # Run the simulation in Vivado and dump the log to a file
         vivado -mode batch -nojournal -nolog -notrace -source run_vivado.tcl -log "simulation_${file_name}.log" -tclargs "$file_name"
 
         cd ../../../../Testbench
         outcome=$(tail -n 1 testbench_output.txt) 
-        cd ../Software/Test/RV32M/Utils
+        cd ../Software/Test/RV32F/Utils
         echo "[TEST ${filename^^}]: ${outcome}" >> test_status.txt
         
         cd ../

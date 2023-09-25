@@ -1,0 +1,129 @@
+
+fcvt.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text.init:
+
+00000000 <_start>:
+   0:	0040006f          	j	4 <reset_vector>
+
+00000004 <reset_vector>:
+   4:	00000093          	li	ra,0
+   8:	00000113          	li	sp,0
+   c:	00000193          	li	gp,0
+  10:	00000213          	li	tp,0
+  14:	00000293          	li	t0,0
+  18:	00000313          	li	t1,0
+  1c:	00000393          	li	t2,0
+  20:	00000413          	li	s0,0
+  24:	00000493          	li	s1,0
+  28:	00000513          	li	a0,0
+  2c:	00000593          	li	a1,0
+  30:	00000613          	li	a2,0
+  34:	00000693          	li	a3,0
+  38:	00000713          	li	a4,0
+  3c:	00000793          	li	a5,0
+  40:	00000813          	li	a6,0
+  44:	00000893          	li	a7,0
+  48:	00000913          	li	s2,0
+  4c:	00000993          	li	s3,0
+  50:	00000a13          	li	s4,0
+  54:	00000a93          	li	s5,0
+  58:	00000b13          	li	s6,0
+  5c:	00000b93          	li	s7,0
+  60:	00000c13          	li	s8,0
+  64:	00000c93          	li	s9,0
+  68:	00000d13          	li	s10,0
+  6c:	00000d93          	li	s11,0
+  70:	00000e13          	li	t3,0
+  74:	00000e93          	li	t4,0
+  78:	00000f13          	li	t5,0
+  7c:	00000f93          	li	t6,0
+  80:	00000193          	li	gp,0
+  84:	00100513          	li	a0,1
+  88:	01f51513          	sll	a0,a0,0x1f
+  8c:	02054263          	bltz	a0,b0 <reset_vector+0xac>
+  90:	0ff0000f          	fence
+  94:	04f00513          	li	a0,79
+  98:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+  9c:	06b00513          	li	a0,107
+  a0:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+  a4:	00a00513          	li	a0,10
+  a8:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+  ac:	00100193          	li	gp,1
+  b0:	30005073          	csrw	mstatus,0
+  b4:	00002537          	lui	a0,0x2
+  b8:	30052073          	csrs	mstatus,a0
+  bc:	00305073          	csrw	fcsr,0
+  c0:	00000297          	auipc	t0,0x0
+  c4:	01028293          	add	t0,t0,16 # d0 <test_2>
+  c8:	34129073          	csrw	mepc,t0
+  cc:	f1402573          	csrr	a0,mhartid
+
+000000d0 <test_2>:
+  d0:	00200193          	li	gp,2
+  d4:	00002517          	auipc	a0,0x2
+  d8:	f2c50513          	add	a0,a0,-212 # 2000 <test_2_data>
+  dc:	00052683          	lw	a3,0(a0)
+  e0:	00200513          	li	a0,2
+  e4:	d0057ed3          	fcvt.s.w	t4,a0
+  e8:	00101073          	fsflags	zero
+  ec:	000e8513          	mv	a0,t4
+  f0:	06d51a63          	bne	a0,a3,164 <fail>
+
+000000f4 <test_3>:
+  f4:	00300193          	li	gp,3
+  f8:	00002517          	auipc	a0,0x2
+  fc:	f0c50513          	add	a0,a0,-244 # 2004 <test_3_data>
+ 100:	00052683          	lw	a3,0(a0)
+ 104:	ffe00513          	li	a0,-2
+ 108:	d0057ed3          	fcvt.s.w	t4,a0
+ 10c:	00101073          	fsflags	zero
+ 110:	000e8513          	mv	a0,t4
+ 114:	04d51863          	bne	a0,a3,164 <fail>
+
+00000118 <test_4>:
+ 118:	00400193          	li	gp,4
+ 11c:	00002517          	auipc	a0,0x2
+ 120:	eec50513          	add	a0,a0,-276 # 2008 <test_4_data>
+ 124:	00052683          	lw	a3,0(a0)
+ 128:	00200513          	li	a0,2
+ 12c:	d0157ed3          	fcvt.s.wu	t4,a0
+ 130:	00101073          	fsflags	zero
+ 134:	000e8513          	mv	a0,t4
+ 138:	02d51663          	bne	a0,a3,164 <fail>
+
+0000013c <test_5>:
+ 13c:	00500193          	li	gp,5
+ 140:	00002517          	auipc	a0,0x2
+ 144:	ecc50513          	add	a0,a0,-308 # 200c <test_5_data>
+ 148:	00052683          	lw	a3,0(a0)
+ 14c:	ffe00513          	li	a0,-2
+ 150:	d0157ed3          	fcvt.s.wu	t4,a0
+ 154:	00101073          	fsflags	zero
+ 158:	000e8513          	mv	a0,t4
+ 15c:	00d51463          	bne	a0,a3,164 <fail>
+ 160:	02301263          	bne	zero,gp,184 <pass>
+
+00000164 <fail>:
+ 164:	0ff0000f          	fence
+ 168:	04e00513          	li	a0,78
+ 16c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 170:	06f00513          	li	a0,111
+ 174:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 178:	00a00513          	li	a0,10
+ 17c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 180:	c0001073          	unimp
+
+00000184 <pass>:
+ 184:	0ff0000f          	fence
+ 188:	04f00513          	li	a0,79
+ 18c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 190:	06b00513          	li	a0,107
+ 194:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 198:	00a00513          	li	a0,10
+ 19c:	fea00fa3          	sb	a0,-1(zero) # ffffffff <_end+0xffffcfff>
+ 1a0:	00100193          	li	gp,1
+ 1a4:	c0001073          	unimp
+ 1a8:	c0001073          	unimp
+	...

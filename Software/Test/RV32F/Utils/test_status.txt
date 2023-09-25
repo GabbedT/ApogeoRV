@@ -1,0 +1,6 @@
+[TEST FADD]: 4f6b0a
+[TEST FCLASS]: 4e6f0a
+[TEST FCMP]: 4e6f0a
+[TEST FCVT]: 4e6f0a
+[TEST FCVT_W]: 4e6f0a
+[TEST FMIN]: 4e6f0a

@@ -34,7 +34,7 @@ module system_memory #(
        end 
         
         `ifdef DIRECTED_TEST
-           index = 0; stbuf_test(ibuffer); 
+           index = 0; float_instruction_test(ibuffer); 
         
            while (ibuffer.size() != '0) begin
                instr = ibuffer.pop_front();
@@ -47,7 +47,7 @@ module system_memory #(
                index += 4;
            end
         `else  
-            $readmemh("crc32.hex", memory);
+        $readmemh("fmin.hex", memory);
         `endif 
     end
 

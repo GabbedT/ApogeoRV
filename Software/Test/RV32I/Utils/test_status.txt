@@ -36,3 +36,6 @@
 [TEST SW]: 4f6b0a
 [TEST XOR]: 4f6b0a
 [TEST XORI]: 4f6b0a
+[TEST FADD]: ============== BUFFER DATA ==============
+[TEST FADD]: ============== PROGRAM TRACE ==============
+[TEST FADD]: 4f6b0a
