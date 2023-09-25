@@ -17,9 +17,9 @@
 module floating_point_unit (
     /* Register control */
     input logic clk_i,
-    input logic stall_i, 
     input logic rst_n_i,
     input logic flush_i,
+    input logic stall_i, 
 
     /* Instruction packet */
     input instr_packet_t ipacket_i,
@@ -277,8 +277,9 @@ module floating_point_unit (
         .operand_i ( operand_A_i ),
         .is_nan_i  ( is_nan_A    ),
 
-        .operation_i ( operation_i.FPCVT.opcode ),
-        .valid_i     ( valid_i.FPCVT            ),
+        .operation_i ( operation_i.FPCVT.opcode    ),
+        .is_signed_i ( operation_i.FPCVT.is_signed ),
+        .valid_i     ( valid_i.FPCVT               ),
 
         .result_o ( fpcvt_partial_result ),
         .valid_o  ( fpcvt_valid          ),

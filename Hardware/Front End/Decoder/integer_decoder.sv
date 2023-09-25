@@ -240,7 +240,7 @@ module integer_decoder (
                 immediate_o[1] = build_U_immediate();
                 immediate_valid_o[1] = 1'b1;
 
-                `ifdef IDECODER_DEBUG operation_string = "LUI"; `endif 
+                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "LUI"; `endif 
             end
 
             riscv32::AUIPC: begin
@@ -255,7 +255,7 @@ module integer_decoder (
                 immediate_o[2] = build_U_immediate();
                 immediate_valid_o = 2'b11;
 
-                `ifdef IDECODER_DEBUG operation_string = "AUIPC"; `endif 
+                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "AUIPC"; `endif 
             end
 
             riscv32::JAL: begin
@@ -273,7 +273,7 @@ module integer_decoder (
                 save_next_pc = 1'b1;
                 jump = 1'b1;
 
-                `ifdef IDECODER_DEBUG operation_string = "JAL"; `endif 
+                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "JAL"; `endif 
             end
 
             riscv32::JALR: begin
@@ -292,7 +292,7 @@ module integer_decoder (
                 save_next_pc = 1'b1;
                 jump = 1'b1;
 
-                `ifdef IDECODER_DEBUG operation_string = "JALR"; `endif 
+                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "JALR"; `endif 
             end
 
             riscv32::BRANCH: begin 
@@ -300,37 +300,37 @@ module integer_decoder (
                     riscv32::BEQ: begin
                         build_alu_packet(BEQ);
 
-                        `ifdef IDECODER_DEBUG operation_string = "BEQ"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "BEQ"; `endif 
                     end 
 
                     riscv32::BNE: begin
                         build_alu_packet(BNE);
 
-                        `ifdef IDECODER_DEBUG operation_string = "BNE"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "BNE"; `endif 
                     end 
 
                     riscv32::BLT: begin
                         build_alu_packet(BLT);
 
-                        `ifdef IDECODER_DEBUG operation_string = "BLT"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "BLT"; `endif 
                     end 
 
                     riscv32::BGE: begin
                         build_alu_packet(BGE);
 
-                        `ifdef IDECODER_DEBUG operation_string = "BGE"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "BGE"; `endif 
                     end 
 
                     riscv32::BLTU: begin
                         build_alu_packet(BLTU);
 
-                        `ifdef IDECODER_DEBUG operation_string = "BLTU"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "BLTU"; `endif 
                     end 
 
                     riscv32::BGEU: begin
                         build_alu_packet(BGEU);
 
-                        `ifdef IDECODER_DEBUG operation_string = "BGEU"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "BGEU"; `endif 
                     end 
 
                     default: exception_generated = 1'b1;
@@ -354,27 +354,27 @@ module integer_decoder (
                 case (instr_i.I.funct3)
                     riscv32::LB: begin
                         build_ldu_packet(LDB, 1'b1); 
-                        `ifdef IDECODER_DEBUG operation_string = "LB"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "LB"; `endif 
                     end
 
                     riscv32::LH: begin
                         build_ldu_packet(LDH, 1'b1); 
-                        `ifdef IDECODER_DEBUG operation_string = "LH"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "LH"; `endif 
                     end
 
                     riscv32::LW: begin
                         build_ldu_packet(LDW, 1'b0); 
-                        `ifdef IDECODER_DEBUG operation_string = "LW"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "LW"; `endif 
                     end
 
                     riscv32::LBU: begin
                         build_ldu_packet(LDB, 1'b0); 
-                        `ifdef IDECODER_DEBUG operation_string = "LBU"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "LBU"; `endif 
                     end
 
                     riscv32::LHU: begin
                         build_ldu_packet(LDH, 1'b0); 
-                        `ifdef IDECODER_DEBUG operation_string = "LHU"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "LHU"; `endif 
                     end
 
                     default: exception_generated = 1'b1;
@@ -398,19 +398,19 @@ module integer_decoder (
                     riscv32::SB: begin
                         build_stu_packet(STB);
 
-                        `ifdef IDECODER_DEBUG operation_string = "SB"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SB"; `endif 
                     end
 
                     riscv32::SH: begin
                         build_stu_packet(STH);
 
-                        `ifdef IDECODER_DEBUG operation_string = "SH"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SH"; `endif 
                     end 
 
                     riscv32::SW: begin
                         build_stu_packet(STW);
 
-                        `ifdef IDECODER_DEBUG operation_string = "SW"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SW"; `endif 
                     end  
 
                     default: begin
@@ -441,7 +441,7 @@ module integer_decoder (
                         immediate_o[2] = build_I_immediate(1'b1);
                         immediate_valid_o[2] = 1'b1;
 
-                        `ifdef IDECODER_DEBUG operation_string = "ADDI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "ADDI"; `endif 
                     end
 
                     riscv32::SLTI: begin
@@ -455,7 +455,7 @@ module integer_decoder (
                         immediate_o[2] = build_I_immediate(1'b1);
                         immediate_valid_o[2] = 1'b1;
 
-                        `ifdef IDECODER_DEBUG operation_string = "SLTI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLTI"; `endif 
                     end
 
                     riscv32::SLTIU: begin
@@ -469,7 +469,7 @@ module integer_decoder (
                         immediate_o[2] = build_I_immediate(1'b1);
                         immediate_valid_o[2] = 1'b1;
 
-                        `ifdef IDECODER_DEBUG operation_string = "SLTIU"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLTIU"; `endif 
                     end
 
                     riscv32::XORI: begin
@@ -483,7 +483,7 @@ module integer_decoder (
                         immediate_o[2] = build_I_immediate(1'b1);
                         immediate_valid_o[2] = 1'b1;
 
-                        `ifdef IDECODER_DEBUG operation_string = "XORI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "XORI"; `endif 
                     end
 
                     riscv32::ORI: begin
@@ -497,7 +497,7 @@ module integer_decoder (
                         immediate_o[2] = build_I_immediate(1'b1);
                         immediate_valid_o[2] = 1'b1;
 
-                        `ifdef IDECODER_DEBUG operation_string = "ORI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "ORI"; `endif 
                     end
 
                     riscv32::ANDI: begin
@@ -511,7 +511,7 @@ module integer_decoder (
                         immediate_o[2] = build_I_immediate(1'b1);
                         immediate_valid_o[2] = 1'b1;
 
-                        `ifdef IDECODER_DEBUG operation_string = "ANDI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "ANDI"; `endif 
                     end
 
                     riscv32::SLLI: begin
@@ -527,7 +527,7 @@ module integer_decoder (
 
                         exception_generated = (instr_i.R.funct7 != '0);
 
-                        `ifdef IDECODER_DEBUG operation_string = "SLLI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLLI"; `endif 
                     end
 
                     riscv32::SRI: begin
@@ -543,7 +543,7 @@ module integer_decoder (
                             immediate_o[2] = instr_i.R.reg_src_2;
                             immediate_valid_o[2] = 1'b1;
 
-                            `ifdef IDECODER_DEBUG operation_string = "SRAI"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SRAI"; `endif 
                         end else begin
                             /* Logic */
                             build_alu_packet(SRL); 
@@ -556,7 +556,7 @@ module integer_decoder (
                             immediate_o[2] = instr_i.R.reg_src_2;
                             immediate_valid_o[2] = 1'b1;
 
-                            `ifdef IDECODER_DEBUG operation_string = "SRLI"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SRLI"; `endif 
                         end
 
                         exception_generated = (instr_i.R.funct7[4:0] != '0) | instr_i.R.funct7[6];
@@ -578,7 +578,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "MUL"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "MUL"; `endif 
                         end
 
                         riscv32::MULH: begin
@@ -589,7 +589,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "MULH"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "MULH"; `endif 
                         end
 
                         riscv32::MULHSU: begin
@@ -600,7 +600,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "MULHSU"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "MULHSU"; `endif 
                         end
 
                         riscv32::MULHU: begin
@@ -611,7 +611,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "MULHU"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "MULHU"; `endif 
                         end
 
                         riscv32::DIV: begin
@@ -622,7 +622,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "DIV"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "DIV"; `endif 
                         end
 
                         riscv32::DIVU: begin
@@ -633,7 +633,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "DIVU"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "DIVU"; `endif 
                         end
 
                         riscv32::REM: begin
@@ -644,7 +644,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "REM"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "REM"; `endif 
                         end
 
                         riscv32::REMU: begin
@@ -655,7 +655,7 @@ module integer_decoder (
                             reg_src_o[2] = instr_i.R.reg_src_2; 
                             reg_dest_o = instr_i.R.reg_dest;
 
-                            `ifdef IDECODER_DEBUG operation_string = "REMU"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "REMU"; `endif 
                         end
 
                         default: exception_generated = 1'b1;
@@ -668,11 +668,11 @@ module integer_decoder (
                             if (instr_i.R.funct7[5]) begin
                                 build_alu_packet(SUB);
 
-                                `ifdef IDECODER_DEBUG operation_string = "SUB"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SUB"; `endif 
                             end else begin 
                                 build_alu_packet(ADD);
 
-                                `ifdef IDECODER_DEBUG operation_string = "ADD"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "ADD"; `endif 
                             end
 
                             /* Registers */
@@ -693,7 +693,7 @@ module integer_decoder (
 
                             exception_generated = (instr_i.R.funct7 != '0);
 
-                            `ifdef IDECODER_DEBUG operation_string = "SLL"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLL"; `endif 
                         end
 
                         riscv32::SLT: begin
@@ -706,7 +706,7 @@ module integer_decoder (
 
                             exception_generated = (instr_i.R.funct7 != '0);
 
-                            `ifdef IDECODER_DEBUG operation_string = "SLT"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLT"; `endif 
                         end
 
                         riscv32::SLTU: begin
@@ -719,7 +719,7 @@ module integer_decoder (
 
                             exception_generated = (instr_i.R.funct7 != '0);
 
-                            `ifdef IDECODER_DEBUG operation_string = "SLTU"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLTU"; `endif 
                         end
 
                         riscv32::XOR: begin
@@ -732,7 +732,7 @@ module integer_decoder (
 
                             exception_generated = (instr_i.R.funct7 != '0);
 
-                            `ifdef IDECODER_DEBUG operation_string = "XOR"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "XOR"; `endif 
                         end
 
                         riscv32::SR: begin
@@ -744,7 +744,7 @@ module integer_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2; 
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef IDECODER_DEBUG operation_string = "SRA"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SRA"; `endif 
                             end else begin
                                 build_alu_packet(SRL);
 
@@ -753,7 +753,7 @@ module integer_decoder (
                                 reg_src_o[2] = instr_i.R.reg_src_2; 
                                 reg_dest_o = instr_i.R.reg_dest;
 
-                                `ifdef IDECODER_DEBUG operation_string = "SRL"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SRL"; `endif 
                             end
 
                             exception_generated = (instr_i.R.funct7[4:0] != '0) | instr_i.R.funct7[6];
@@ -769,7 +769,7 @@ module integer_decoder (
 
                             exception_generated = (instr_i.R.funct7 != '0);
 
-                            `ifdef IDECODER_DEBUG operation_string = "OR"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "OR"; `endif 
                         end
 
                         riscv32::AND: begin
@@ -782,7 +782,7 @@ module integer_decoder (
 
                             exception_generated = (instr_i.R.funct7 != '0);
 
-                            `ifdef IDECODER_DEBUG operation_string = "AND"; `endif 
+                            `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "AND"; `endif 
                         end
 
                         default: exception_generated = 1'b1;
@@ -801,7 +801,7 @@ module integer_decoder (
 
                 exception_generated = (instr_i[14:12] != '0);
 
-                `ifdef IDECODER_DEBUG operation_string = "FENCE"; `endif 
+                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "FENCE"; `endif 
             end
 
             riscv32::SYSTEM: begin
@@ -814,14 +814,14 @@ module integer_decoder (
                                 exception_generated = ((instr_i[19:7] != '0) | (instr_i[31:20] != 12'b000100000101)) | (priv_level_i == USER_MODE);
                                 exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `SLEEP;
 
-                                `ifdef IDECODER_DEBUG operation_string = "SLEEP"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "SLEEP"; `endif 
                             end else begin 
                                 /* Environment Breakpoint instruction EBREAK */
                                 nop_instruction();
                                 exception_generated = 1'b1;
                                 exception_vector_o = ((instr_i[19:7] == '0) & (instr_i[31:21] == '0) & instr_i[20]) ? `BREAKPOINT : `INSTR_ILLEGAL;
 
-                                `ifdef IDECODER_DEBUG operation_string = "EBREAK"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "EBREAK"; `endif 
                             end 
                         end else begin
                             if (instr_i[29]) begin
@@ -830,14 +830,14 @@ module integer_decoder (
                                 exception_generated = (instr_i[19:7] != '0) | (instr_i[31:20] != 12'b001100000010);
                                 exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `HANDLER_RETURN;
 
-                                `ifdef IDECODER_DEBUG operation_string = "MRET"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "MRET"; `endif 
                             end else begin
                                 /* System Call instruction ECALL */
                                 nop_instruction();
                                 exception_generated = 1'b1;
                                 exception_vector_o = (instr_i[31:7] == '0) ? (priv_level_i ? `M_SYSTEM_CALL : `U_SYSTEM_CALL) : `INSTR_ILLEGAL;
 
-                                `ifdef IDECODER_DEBUG operation_string = "ECALL"; `endif 
+                                `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "ECALL"; `endif 
                             end
                         end
                     end
@@ -857,7 +857,7 @@ module integer_decoder (
                         exception_generated = (reg_src_o[1] == '0) & (reg_dest_o == '0) & (immediate_o[2] == 12'hC00);
                         exception_vector_o = exception_generated ? `INSTR_ILLEGAL : `CSR_OPERATION;
 
-                        `ifdef IDECODER_DEBUG operation_string = "CSRRW"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "CSRRW"; `endif 
                     end
 
                     riscv32::CSRRS: begin
@@ -874,7 +874,7 @@ module integer_decoder (
 
                         exception_vector_o = `CSR_OPERATION;
 
-                        `ifdef IDECODER_DEBUG operation_string = "CSRRS"; `endif
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "CSRRS"; `endif
                     end
 
                     riscv32::CSRRC: begin
@@ -892,7 +892,7 @@ module integer_decoder (
 
                         exception_vector_o = `CSR_OPERATION;
 
-                        `ifdef IDECODER_DEBUG operation_string = "CSRRC"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "CSRRC"; `endif 
                     end
 
                     riscv32::CSRRWI: begin
@@ -910,7 +910,7 @@ module integer_decoder (
 
                         exception_vector_o = `CSR_OPERATION;
 
-                        `ifdef IDECODER_DEBUG operation_string = "CSRRWI"; `endif  
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "CSRRWI"; `endif  
                     end
 
                     riscv32::CSRRSI: begin
@@ -928,7 +928,7 @@ module integer_decoder (
 
                         exception_vector_o = `CSR_OPERATION;
 
-                        `ifdef IDECODER_DEBUG operation_string = "CSRRSI"; `endif 
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "CSRRSI"; `endif 
                     end
 
                     riscv32::CSRRCI: begin
@@ -947,15 +947,17 @@ module integer_decoder (
 
                         exception_vector_o = `CSR_OPERATION;
 
-                        `ifdef IDECODER_DEBUG operation_string = "CSRRCI"; `endif  
+                        `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "CSRRCI"; `endif  
                     end
 
                     default: exception_generated = 1'b1;
                 endcase 
             end
+
+            default: exception_generated = 1'b1;
         endcase
 
-        `ifdef IDECODER_DEBUG print(operation_string); `endif 
+        `ifdef IDECODER_DEBUG if (!exception_generated_o) print(operation_string); `endif 
     end : decoder_logic
 
     assign exception_generated_o = exception_generated | (instr_i[1:0] != '1);

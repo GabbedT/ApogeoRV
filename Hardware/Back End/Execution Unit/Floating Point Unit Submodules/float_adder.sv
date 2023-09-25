@@ -175,7 +175,7 @@ module float_adder (
             if (!stall_i) begin
                 major_addend_stg0 <= major_addend;
 
-                sign_equal_stg0 <= addend_A_i.sign == addend_B_i.sign; 
+                sign_equal_stg0 <= addend_A_i.sign == addend_B.sign; 
 
                 minor_addend_sign_stg0 <= minor_addend.sign;
                 minor_addend_significand_stg0 <= minor_addend.significand;
@@ -437,6 +437,8 @@ module float_adder (
 
                 overflow_o = 1'b0;
                 underflow_o = 1'b0;
+
+                round_bits_o = '0;
             end else if (result_infinity_stg3) begin
                 result_o.sign = result_stg3.sign;
                 result_o.exponent = '1; 
@@ -444,18 +446,20 @@ module float_adder (
 
                 overflow_o = !result_stg3.sign;
                 underflow_o = result_stg3.sign;
+
+                round_bits_o = '0;
             end else begin 
                 result_o = result_stg3;
 
                 overflow_o = overflow_stg3;
                 underflow_o = underflow_stg3;
+
+                round_bits_o = (overflow_stg3 | underflow_stg3) ? '0 : round_bits_stg3;
             end
         end
 
     /* Exceptions */
     assign invalid_o = invalid_operation_stg3;
-
-    assign round_bits_o = round_bits_stg3;
 
 endmodule : float_adder
 

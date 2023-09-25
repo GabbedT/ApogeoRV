@@ -26,6 +26,7 @@ package riscv32;
     localparam REG_ARITHM = 5'b01100;
     localparam FENCE = 5'b00011;
     localparam SYSTEM = 5'b11100;
+    localparam FLOAT_REG_ARITHM = 5'b10100;
 
     /* Branch */
     localparam BEQ = 3'b000;
@@ -135,6 +136,28 @@ package riscv32;
     /* Byte */
     localparam REV8 = 3'b111;
     localparam ORCB = 3'b011;
+
+    /* Floating Point */
+    localparam FADDS = 5'b00000;
+    localparam FSUBS = 5'b00001;
+    localparam FMULS = 5'b00010;
+    localparam FSGNS = 5'b00100;
+    localparam FSELS = 5'b00101;
+    localparam FCVTWS = 5'b11000;
+    localparam FCOMPS = 5'b10100;
+    localparam FCLASS = 5'b11100;
+    localparam FCVTSW = 5'b11010;
+
+    /* Compare */
+    localparam FEQ = 2'b10;
+    localparam FLT = 2'b01;
+    localparam FLE = 2'b00;
+
+    /* Sign injection */
+    localparam FSGNJ = 2'b00;
+    localparam FSGNJN = 2'b01;
+    localparam FSGNJX = 2'b10;
+
 
     /* Compressed */
 

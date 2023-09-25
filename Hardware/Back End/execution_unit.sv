@@ -48,11 +48,15 @@
 
 `include "Execution Unit/integer_unit.sv"
 `include "Execution Unit/load_store_unit.sv"
+`include "Execution Unit/floating_point_unit.sv"
 `include "Execution Unit/control_status_registers.sv"
 
 module execution_unit #(
     /* Number of entries in the store buffer */
-    parameter STORE_BUFFER_SIZE = 8
+    parameter STORE_BUFFER_SIZE = 8,
+
+    /* Enable port for FPU */
+    parameter EXU_PORT = 2
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -129,13 +133,13 @@ module execution_unit #(
 
     /* Result */
     output logic taken_o,
-    output data_word_t [2:0] result_o,
+    output data_word_t [EXU_PORT - 1:0] result_o,
 
     /* Instruction packet */
-    output instr_packet_t [2:0] ipacket_o,
+    output instr_packet_t [EXU_PORT - 1:0] ipacket_o,
 
     /* Valid data */
-    output logic [2:0] data_valid_o
+    output logic [EXU_PORT - 1:0] data_valid_o
 );
 
 //====================================================================================
@@ -148,6 +152,8 @@ module execution_unit #(
     assign div_enable = csr_div_enable | !stall_i;
     assign mul_enable = csr_mul_enable | !stall_i;
     assign bmu_enable = csr_bmu_enable | !stall_i;
+
+    data_word_t itu_result; instr_packet_t itu_ipacket; logic itu_valid;
 
     integer_unit ITU (
         .clk_i          ( clk_i          ),
@@ -167,9 +173,9 @@ module execution_unit #(
         .operand_1_i  ( operand_i[0]            ),
         .operand_2_i  ( operand_i[1]            ),
         .taken_o      ( taken_o                 ),
-        .result_o     ( result_o[ITU]           ), 
-        .ipacket_o    ( ipacket_o[ITU]          ),
-        .data_valid_o ( data_valid_o[ITU]       )
+        .result_o     ( itu_result              ), 
+        .ipacket_o    ( itu_ipacket             ),
+        .data_valid_o ( itu_valid               )
     ); 
 
 
@@ -196,9 +202,9 @@ module execution_unit #(
         .validate_i        ( validate_i              ),
         .load_channel      ( load_channel            ),
         .store_channel     ( store_channel           ),
-        .instr_packet_o    ( ipacket_o[LSU]          ),
-        .data_o            ( result_o[LSU]           ),
-        .data_valid_o      ( data_valid_o[LSU]       )
+        .instr_packet_o    ( ipacket_o[1]          ),
+        .data_o            ( result_o[1]           ),
+        .data_valid_o      ( data_valid_o[1]       )
     );
 
     assign timer_interrupt_o = timer_interrupt; 
@@ -228,7 +234,7 @@ module execution_unit #(
         end
 
 
-    logic illegal_csr_access;
+    logic illegal_csr_access; logic overflow, underflow, inexact, invalid;
 
     control_status_registers CSRU (
         .clk_i                  ( clk_i                   ),
@@ -250,7 +256,19 @@ module execution_unit #(
         .branch_mispredicted_i  ( branch_mispredicted_i   ),
         .enable_mul_o           ( csr_mul_enable          ),
         .enable_div_o           ( csr_div_enable          ), 
-        `ifdef BMU.enable_bmu_o ( csr_bmu_enable          ), `endif 
+
+        `ifdef BMU
+            .enable_bmu_o ( csr_bmu_enable ), 
+        `endif 
+
+        `ifdef FPU 
+            .float_valid_i ( data_valid_o[2] ),
+            .invalid_i     ( invalid         ),
+            .inexact_i     ( inexact         ),
+            .overflow_i    ( overflow        ),
+            .underflow_i   ( underflow       ),
+        `endif 
+
         .trap_instruction_pc_i  ( trap_instruction_pc_i   ),
         .trap_instruction_pc_o  ( trap_instruction_pc_o   ),
         .interrupt_vector_i     ( interrupt_vector_i      ),
@@ -266,27 +284,68 @@ module execution_unit #(
         .current_privilege_o    ( current_privilege       )
     );
 
-    assign data_valid_o[CSR] = data_valid_i.CSR;
+
+    logic csru_valid; instr_packet_t csru_ipacket; data_word_t csru_result;
+
+    assign csru_valid = data_valid_i.CSR;
 
     assign priv_level_o = current_privilege;
         
         always_comb begin : csr_output_logic
             /* Default values */
-            ipacket_o[CSR] = '0;
-            result_o[CSR] = '0;
+            csru_ipacket = '0;
+            csru_result = '0;
 
             if (data_valid_i.CSR) begin
-                ipacket_o[CSR] = ipacket_i;
+                csru_ipacket = ipacket_i;
 
                 if (illegal_csr_access) begin
                     /* Low privilege access on an higher privilege CSR */
-                    ipacket_o[CSR].exception_vector = `INSTR_ILLEGAL;
-                    ipacket_o[CSR].exception_generated = 1'b1;
+                    csru_ipacket.exception_vector = `INSTR_ILLEGAL;
+                    csru_ipacket.exception_generated = 1'b1;
                 end 
 
-                result_o[CSR] = csr_data_read;
+                csru_result = csr_data_read;
             end
         end : csr_output_logic
+
+
+    assign data_valid_o[0] = itu_valid | csru_valid;
+    assign result_o[0] = itu_result | csru_result;
+    assign ipacket_o[0] = itu_ipacket | csru_ipacket;
+
+
+//====================================================================================
+//      FLOATING POINT UNIT
+//====================================================================================
+
+    `ifdef FPU 
+
+    floating_point_unit FPU (
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+        .flush_i ( flush_i ),
+        .stall_i ( stall_i ),
+
+        .ipacket_i ( ipacket_i ),
+
+        .operand_A_i ( operand_i[0] ),
+        .operand_B_i ( operand_i[1] ),
+
+        .valid_i     ( data_valid_i.FPU        ),
+        .operation_i ( operation_i.FPU.subunit ),
+
+        .result_o  ( result_o[2]     ),
+        .ipacket_o ( ipacket_o[2]    ),
+        .valid_o   ( data_valid_o[2] ),
+
+        .overflow_o  ( overflow  ),
+        .underflow_o ( underflow ),
+        .invalid_o   ( invalid   ),
+        .inexact_o   ( inexact   )
+    );
+
+    `endif 
 
 endmodule : execution_unit
 

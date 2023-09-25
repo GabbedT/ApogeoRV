@@ -13,7 +13,7 @@ package rv32_instructions_pkg;
     /* Index vectors */
     localparam ITU = 0;
     localparam LSU = 1;
-    localparam CSR = 2;
+    localparam FPU = 2;
 
     /* Privilege level */
     localparam MACHINE_MODE = 1'b1;

@@ -7,6 +7,8 @@
 
 // `define BDECODER_DEBUG
 
+// `define FDECODER_DEBUG
+
 // `define WRITEBACK_DEBUG 
 
 // `define CSR_DEBUG 

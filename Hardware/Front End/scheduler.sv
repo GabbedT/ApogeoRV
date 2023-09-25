@@ -73,6 +73,7 @@ module scheduler (
     output logic stall_o,
 
     /* Writeback data */
+    input logic csr_writeback_i,
     input logic writeback_i,
     input logic [4:0] writeback_register_i,
     input data_word_t writeback_data_i,
@@ -158,6 +159,7 @@ module scheduler (
         .csr_unit_i ( exu_valid_i.CSR ),
         .itu_unit_i ( exu_valid_i.ITU ),
         .lsu_unit_i ( exu_valid_i.LSU ),
+        `ifdef FPU .fpu_unit_i ( exu_valid_i.FPU ), `endif
 
         .ldu_operation_i ( exu_uop_i.LSU.subunit.LDU.opcode.uop ),
         .ldu_idle_i      ( ldu_idle_i                           ),
@@ -212,15 +214,23 @@ module scheduler (
 //      ROB TAG GENERATION
 //====================================================================================
 
-    logic issued_instructions;
+    logic issued_instructions, issued_csr_instruction;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 issued_instructions <= 1'b0;
+                issued_csr_instruction <= 1'b0;
             end else if (flush_i) begin
                 issued_instructions <= 1'b0;
+                issued_csr_instruction <= 1'b0;
             end else begin
                 issued_instructions <= issue_instruction & (exu_valid_i != '0);
+                
+                if (csr_writeback_i) begin
+                    issued_csr_instruction <= 1'b0; 
+                end else if (exu_valid_i.CSR) begin 
+                    issued_csr_instruction <= 1'b1; 
+                end 
             end
         end 
 
@@ -252,7 +262,7 @@ module scheduler (
     assign src_reg_o = src_reg_i; 
 
     /* If there's a dependency or fence is executed and pipeline is not empty then stall */
-    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i);
+    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i) | issued_csr_instruction;
 
     /* Packet generation */
     assign ipacket_o.compressed = compressed_i; 

@@ -164,6 +164,7 @@ package control_status_registers_pkg;
         logic mcounteren;
         logic mcountinhibit;
         logic mscratch;
+        `ifdef FPU logic fcsr; `endif 
     } csr_enable_t;
 
 
@@ -178,22 +179,12 @@ package control_status_registers_pkg;
 
 
     typedef struct packed {
-        logic [8:6]  FRM;
-        logic        NV;
-        logic        DZ;
-        logic        OF;
-        logic        UF;
-        logic        NX;
+        logic NV;
+        logic DZ;
+        logic OF;
+        logic UF;
+        logic NX;
     } fcsr_t;
-
-
-    /* Burst buffer config */
-    typedef struct packed {
-        logic [9:0] THR;
-        logic [1:0] WD; 
-        logic OP; 
-        logic SEL;
-    } bufconfig_t;
 
 endpackage : control_status_registers_pkg
 

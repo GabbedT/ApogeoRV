@@ -34,6 +34,8 @@ module float_rounding_unit (
 
     assign inexact_o = round_bits_i != '0; 
 
+    assign operand_o.sign = operand_i.sign;
+
 endmodule : float_rounding_unit
 
 `endif 

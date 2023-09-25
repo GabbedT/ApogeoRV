@@ -137,6 +137,7 @@ module back_end #(
     /* Writeback data */
     output logic [4:0] reg_destination_o,
     output data_word_t writeback_result_o,
+    output logic csr_writeback_o,
     output logic writeback_o
 );
 
@@ -226,7 +227,9 @@ module back_end #(
 
 
 
-    /* Instruction address of ROB entry readed */
+    `ifdef FPU localparam EXU_PORT = 3; `else localparam EXU_PORT = 2; `endif 
+
+    /* Instruction address of ROB entry */
     data_word_t trap_iaddress;
 
     /* Exception */
@@ -236,13 +239,13 @@ module back_end #(
     logic instruction_retired, instruction_compressed;
 
     /* Unit result data */
-    data_word_t [2:0] result;
+    data_word_t [EXU_PORT - 1:0] result;
 
     /* Unit packets */
-    instr_packet_t [2:0] ipacket;
+    instr_packet_t [EXU_PORT - 1:0] ipacket;
 
     /* Unit result valid */
-    logic [2:0] valid;
+    logic [EXU_PORT - 1:0] valid;
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
@@ -252,7 +255,8 @@ module back_end #(
 
     assign valid_operation = stall_o ? '0 : bypass_valid; 
 
-    execution_unit #(STORE_BUFFER_SIZE) execute_stage (
+
+    execution_unit #(STORE_BUFFER_SIZE, EXU_PORT) execute_stage (
         .clk_i          ( clk_i              ),
         .rst_n_i        ( rst_n_i            ),
         .flush_i        ( flush_o            ),
@@ -314,13 +318,15 @@ module back_end #(
     /* Bypass logic */
     genvar i; 
 
-    logic [1:0][2:0] dest_match;
+    logic [1:0][EXU_PORT - 1:0] dest_match;
 
     generate
-        for (i = 0; i < 3; ++i) begin
+        for (i = 0; i < EXU_PORT; ++i) begin
             assign dest_match[0][i] = ipacket[i].reg_dest == reg_src_i[0];
             assign dest_match[1][i] = ipacket[i].reg_dest == reg_src_i[1];
         end
+
+        `ifdef FPU 
 
         for (i = 0; i < 2; ++i) begin
             assign execute_valid[i] = (dest_match[i][0] & valid[0]) | (dest_match[i][1] & valid[1]) | (dest_match[i][2] & valid[2]); 
@@ -337,15 +343,33 @@ module back_end #(
                 endcase 
             end
         end
+
+        `else 
+
+        for (i = 0; i < 2; ++i) begin
+            assign execute_valid[i] = (dest_match[i][0] & valid[0]) | (dest_match[i][1] & valid[1]); 
+
+            always_comb begin 
+                case (dest_match[i])
+                    3'b01: execute_data[i] = result[0];
+
+                    3'b10: execute_data[i] = result[1];
+
+                    default: execute_data[i] = '0;
+                endcase 
+            end
+        end
+
+        `endif 
     endgenerate
 
 
     logic reorder_buffer_full; 
     
     /* Pipeline registers */
-    data_word_t [2:0] result_commit;
-    instr_packet_t [2:0] packet_commit;
-    logic [2:0] valid_commit;
+    data_word_t [EXU_PORT - 1:0] result_commit;
+    instr_packet_t [EXU_PORT - 1:0] packet_commit;
+    logic [EXU_PORT - 1:0] valid_commit;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : commit_stage_register
             if (!rst_n_i) begin
@@ -375,7 +399,7 @@ module back_end #(
     logic [5:0] reorder_buffer_tag, rob_tag;
     rob_entry_t reorder_buffer_packet, rob_packet;
 
-    commit_stage commit (
+    commit_stage #(EXU_PORT) commit (
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_pipeline ),
@@ -476,6 +500,8 @@ module back_end #(
     assign handler_return_o = mreturn & writeback_o;
 
     assign exception_o = exception_generated;
+
+    assign csr_writeback_o = execute_csr;
 
 
     trap_manager trap_controller (

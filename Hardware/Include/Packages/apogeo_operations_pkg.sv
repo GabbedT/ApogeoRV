@@ -288,7 +288,8 @@ package apogeo_operations_pkg;
         } FPADD;
 
         struct packed {
-            fcvt_uop_t opcode;
+            conversion_type_t opcode;
+            logic is_signed;
             logic padding;
         } FPCVT;
 
@@ -394,12 +395,13 @@ package apogeo_operations_pkg;
     typedef struct packed {
         itu_valid_t ITU;
         lsu_valid_t LSU;
-        logic       CSR;
+        `ifdef FPU fpu_valid_t FPU; `endif 
+        logic CSR;
     } exu_valid_t;
 
 
     /* Determine the max number of bits for padding */
-    function int max(input int itu_size, input int lsu_size, input int csr_size);
+    function int max(input int itu_size, input int lsu_size, input int csr_size `ifdef FPU , input int fpu_size `endif);
         automatic int max_size = 0;
 
         if (itu_size > max_size) begin
@@ -414,12 +416,19 @@ package apogeo_operations_pkg;
             max_size = csr_size;
         end
         
+        if (fpu_size > max_size) begin 
+            max_size = fpu_size;
+        end 
+        
         $display("MAX SIZE = %d", max_size);
         return max_size;
     endfunction : max 
 
-
-    localparam MAX_BITS = max($bits(itu_uop_t), $bits(lsu_uop_t), $bits(csr_uop_t));
+    `ifdef FPU 
+        localparam MAX_BITS = max($bits(itu_uop_t), $bits(lsu_uop_t), $bits(csr_uop_t), $bits(fpu_uop_t));
+    `else 
+        localparam MAX_BITS = max($bits(itu_uop_t), $bits(lsu_uop_t), $bits(csr_uop_t));
+    `endif 
 
 
     typedef union packed {
@@ -440,6 +449,16 @@ package apogeo_operations_pkg;
 
             logic [MAX_BITS - $bits(csr_uop_t):0] padding;
         } CSR; 
+
+        `ifdef FPU 
+
+        struct packed {
+            fpu_uop_t subunit;
+
+            logic [MAX_BITS - $bits(fpu_uop_t):0] padding;
+        } FPU;
+
+        `endif 
     } exu_uop_t;
 
 endpackage : apogeo_operations_pkg

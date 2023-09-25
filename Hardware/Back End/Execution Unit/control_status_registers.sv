@@ -81,6 +81,16 @@ module control_status_registers (
     output logic enable_div_o, 
     `ifdef BMU output logic enable_bmu_o, `endif 
 
+    `ifdef FPU 
+    input logic float_valid_i,
+
+    /* Floating point flags */
+    input logic invalid_i,
+    input logic inexact_i,
+    input logic overflow_i,
+    input logic underflow_i,
+    `endif 
+
 
     /* Program counter that caused the trap */
     input  data_word_t trap_instruction_pc_i,
@@ -593,6 +603,26 @@ module control_status_registers (
 
 
 //====================================================================================
+//      FLOATING POINT CSR
+//====================================================================================
+
+    /* Holds only floating point flags, frm field is set to RNE */
+    fcsr_t fcsr_csr;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcsr_register
+            if (!rst_n_i) begin 
+                fcsr_csr <= '0;
+            end else if (flush_i) begin
+                fcsr_csr <= '0;
+            end else if (csr_enable_out.fcsr & csr_write_validate_i) begin 
+                fcsr_csr <= csr_data_out;
+            end else if (float_valid_i) begin
+                fcsr_csr <= {invalid_i, 1'b0, overflow_i, underflow_i, inexact_i};
+            end
+        end : fcsr_register
+
+
+//====================================================================================
 //      DECODE LOGIC
 //====================================================================================
 
@@ -877,6 +907,30 @@ module control_status_registers (
                             end else begin
                                 non_existing_csr = 1'b1;
                             end
+                        end
+
+                        USER: begin
+                            case (csr_address_i.index[1:0])
+                                2'b01: begin
+                                    csr_data_read_o = fcsr_csr; 
+                                    csr_enable.fcsr = 1'b1; 
+
+                                    `ifdef CSR_DEBUG csr_name = "FFLAGS"; `endif
+                                end
+
+                                2'b10: begin
+                                    csr_data_read_o = '0; 
+
+                                    `ifdef CSR_DEBUG csr_name = "FRM"; `endif
+                                end
+
+                                2'b11: begin
+                                    csr_data_read_o = fcsr_csr; 
+                                    csr_enable.fcsr = 1'b1; 
+
+                                    `ifdef CSR_DEBUG csr_name = "FCSR"; `endif
+                                end
+                            endcase 
                         end
 
                         default: non_existing_csr = 1'b1;

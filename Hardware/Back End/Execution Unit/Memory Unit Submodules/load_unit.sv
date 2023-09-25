@@ -301,7 +301,7 @@ module load_unit (
             endcase
         end : fsm_logic
 
-    assign data_loaded_o = (misaligned_o & illegal_access_o) ? '0 : data_sliced; 
+    assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_sliced; 
 
 endmodule : load_unit
 

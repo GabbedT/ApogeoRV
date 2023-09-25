@@ -319,24 +319,37 @@ module float_multiplier #(
         always_comb begin : rounding_logic
             if (invalid_o) begin
                 result_o = CANONICAL_NAN; 
+
+                round_bits_o = '0;
             end else if (underflow_o) begin
                 /* Underflow is +/- 0 */
                 result_o.sign = final_result.sign; 
                 {result_o.exponent, result_o.significand} = '0;
+
+                round_bits_o = '0;
             end else if (overflow_o) begin
                 /* Overflow is +/- inf */
                 result_o.sign = final_result.sign; 
                 result_o.exponent = '1;
                 result_o.significand = '0;
+
+                round_bits_o = '0;
             end else begin  
-                result_o = final_result; 
+                if (result_zero_pipe[CORE_STAGES]) begin
+                    result_o.sign = final_result.sign; 
+                    {result_o.exponent, result_o.significand} = '0;
+
+                    round_bits_o = '0;
+                end else begin 
+                    result_o = final_result; 
+
+                    round_bits_o = round_bits;
+                end 
             end 
         end : rounding_logic
  
     
     assign valid_o = mul_data_valid_pipe[CORE_STAGES]; 
-
-    assign round_bits_o = round_bits;
 
     assign underflow_o = ($signed(exponent_incremented) < MIN_EXP) & (input_exp_sign == '0) & !invalid_o;
     assign overflow_o = (overflow | result_infinity_pipe[CORE_STAGES]) & !invalid_o;

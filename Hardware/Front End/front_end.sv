@@ -92,6 +92,7 @@ module front_end #(
     input data_word_t instr_address_i,
 
     /* Writeback */
+    input logic csr_writeback_i,
     input logic writeback_i,
     input logic [4:0] writeback_register_i, 
     input data_word_t writeback_data_i,
@@ -621,6 +622,7 @@ module front_end #(
         .mispredicted_i   ( 1'b0             ),
         `endif 
 
+        .csr_writeback_i      ( csr_writeback_i      ),
         .writeback_i          ( writeback_i          ),
         .writeback_register_i ( writeback_register_i ),
         .writeback_data_i     ( writeback_data_i     ),

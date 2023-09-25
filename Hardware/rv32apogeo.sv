@@ -76,7 +76,7 @@ module rv32apogeo #(
     data_word_t handler_program_counter, hander_return_program_counter; logic handler_return;
 
     /* Write back result */
-    logic writeback; logic [4:0] writeback_register; data_word_t writeback_result;
+    logic writeback, csr_writeback; logic [4:0] writeback_register; data_word_t writeback_result;
 
     /* Branch control from backend */
     logic executed, branch, jump, taken, speculative, compressed; 
@@ -122,6 +122,7 @@ module rv32apogeo #(
         .branch_target_addr_i ( branch_target_address ),
         .instr_address_i      ( instruction_address   ), 
 
+        .csr_writeback_i      ( csr_writeback      ),
         .writeback_i          ( writeback          ),
         .writeback_register_i ( writeback_register ),  
         .writeback_data_i     ( writeback_result   ),
@@ -296,6 +297,7 @@ module rv32apogeo #(
 
         .reg_destination_o  ( writeback_register ),
         .writeback_result_o ( writeback_result   ),
+        .csr_writeback_o    ( csr_writeback      ),
         .writeback_o        ( writeback          )
     );
 

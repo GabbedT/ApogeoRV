@@ -55,7 +55,8 @@ module float_converter (
     input logic is_nan_i,
 
     /* Specify the operation to execute */
-    input fcvt_uop_t operation_i,
+    input conversion_type_t operation_i,
+    input logic is_signed_i,
 
     /* Inputs are valid */
     input logic valid_i,
@@ -117,7 +118,7 @@ module float_converter (
             underflow = 1'b0;
             overflow = 1'b0;
 
-            if (operation_i.is_signed) begin 
+            if (is_signed_i) begin 
                 /* If the shift exceed the number of bits available
                  * in a signed 32 bit number */
                 if (unbiased_exponent_stg0 > 7'd31) begin
@@ -175,12 +176,12 @@ module float_converter (
      * leading zeros used for the shift */
     logic [31:0] complemented_integer;
 
-    assign complemented_integer = (operation_i.is_signed & operand_i[31]) ? -operand_i : operand_i;
+    assign complemented_integer = (is_signed_i & operand_i[31]) ? -operand_i : operand_i;
 
     /* Converted sign bit */
     logic converted_sign;
 
-    assign converted_sign = operation_i.is_signed ? operand_i[31] : 1'b0;
+    assign converted_sign = is_signed_i ? operand_i[31] : 1'b0;
 
 
     /* Count the leading zero number of the integer */
@@ -250,7 +251,7 @@ module float_converter (
 
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin
-                operation_stg0 <= operation_i.cvt_type;
+                operation_stg0 <= operation_i;
             end
         end 
 
