@@ -15,5 +15,6 @@
         "time.h": "c",
         "stdlib.h": "c",
         "random": "c"
-    }
+    },
+    "esbonio.sphinx.confDir": ""
 }
