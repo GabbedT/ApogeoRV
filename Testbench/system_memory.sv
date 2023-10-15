@@ -1,7 +1,7 @@
 `ifndef SYSTEM_MEMORY_SV
     `define SYSTEM_MEMORY_SV
 
-// `define DIRECTED_TEST 
+ `define DIRECTED_TEST 
 
 `include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
 
@@ -34,7 +34,7 @@ module system_memory #(
        end 
         
         `ifdef DIRECTED_TEST
-           index = 0; float_instruction_test(ibuffer); 
+           index = 0; store_buffer_foward_test(ibuffer); 
         
            while (ibuffer.size() != '0) begin
                instr = ibuffer.pop_front();

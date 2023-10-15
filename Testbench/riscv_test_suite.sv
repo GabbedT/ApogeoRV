@@ -5,6 +5,31 @@
 
 typedef bit [31:0] instructions_t; 
 
+    function automatic void store_buffer_foward_test(ref instructions_t instr[$]);
+        Riscv32 rv32; rv32 = new();
+        
+        /* Mem[0] = 0xFFFFFFFF */
+        instr.push_back(rv32._addi(1, 0, -1));
+        instr.push_back(rv32._sw(0, 1, -4));
+        
+        instr.push_back(rv32._addi(1, 0, 0));
+
+        /* Don't foward */
+        instr.push_back(rv32._sb(0, 1, -4));
+        instr.push_back(rv32._lw(2, 0, -4)); /* 0xFFFFFF00 */
+
+        /* Don't foward */
+        instr.push_back(rv32._sb(0, 1, -1));
+        instr.push_back(rv32._lw(2, 0, -4)); /* 0x00FFFF00 */
+
+        /* Foward */
+        instr.push_back(rv32._addi(1, 0, -1));
+        instr.push_back(rv32._sw(0, 1, -4));
+        instr.push_back(rv32._lw(2, 0, -4)); /* 0xFFFFFFFF */
+
+        instr.push_back(rv32._unimp());
+    endfunction : store_buffer_foward_test 
+
     function automatic void float_instruction_test(ref instructions_t instr[$]);
         Riscv32 rv32; rv32 = new();
         

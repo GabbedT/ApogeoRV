@@ -108,6 +108,11 @@ def fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, filePath):
     file.close()
 
 
+# Extract infos from the testbench result
 (tTime, tAddr, tReg, tResult) = parse_trace("trace.txt")
+
+# Extract infos from the disassembly file
 (dAddr, dHex, dAsm) = parse_disassembly_file("disasm.dump")
-fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "golden_model.txt")
+
+# Create the final trace file
+fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "final_trace.txt")
