@@ -72,6 +72,7 @@ module rv32apogeo #(
 //====================================================================================
 
     /* Pipeline control */ 
+    logic M_extension, B_extension, Zfinx_extension;
     logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, branch_flush, pipeline_empty;
     data_word_t handler_program_counter, hander_return_program_counter; logic handler_return;
 
@@ -104,6 +105,10 @@ module rv32apogeo #(
         .priv_level_i     ( privilege_level ),
         .issue_o          ( issue           ),
         .pipeline_empty_i ( pipeline_empty  ),
+
+        .M_ext_i                ( M_extension     ),
+        `ifdef BMU .B_ext_i     ( B_extension     ), `endif 
+        `ifdef FPU .Zfinx_ext_i ( Zfinx_extension ), `endif 
 
         .fetch_channel ( fetch_channel_frontend ),
 
@@ -250,6 +255,10 @@ module rv32apogeo #(
         .pipeline_empty_o ( pipeline_empty ),
 
         .priv_level_o ( privilege_level ),
+    
+        .M_ext_o                ( M_extension     ),
+        `ifdef BMU .B_ext_o     ( B_extension     ), `endif 
+        `ifdef FPU .Zfinx_ext_o ( Zfinx_extension ), `endif 
 
         .reg_src_i         ( backend_register_source ),
         .operand_i         ( backend_operand         ),

@@ -64,6 +64,11 @@ module decoder (
     /* Privilege level for system call */
     input logic priv_level_i,
 
+    /* Unit enabled */
+    input logic M_ext_i, 
+    `ifdef BMU input logic B_ext_i, `endif 
+    `ifdef FPU input logic Zfinx_ext_i, `endif 
+
     /* Immediate */
     output data_word_t [1:0] immediate_o,
     output logic [1:0] immediate_valid_o,
@@ -125,7 +130,8 @@ module decoder (
         .instr_i         ( instr_i         ),
         .instr_address_i ( instr_address_i ),
 
-        .priv_level_i     ( priv_level_i     ),
+        .priv_level_i ( priv_level_i ),
+        .M_ext_i      ( M_ext_i      ),
 
         .itu_unit_valid_o ( itu_valid_idec ),
         .itu_unit_uop_o   ( itu_uop_idec   ),
@@ -277,7 +283,9 @@ module decoder (
                     reg_dest_o = reg_dest_bdec;
 
                     exu_valid_o.ITU.BMU = bmu_valid_bdec;
-                    exu_uop_o.ITU.subunit = bmu_uop_bdec; 
+                    exu_uop_o.ITU.subunit = bmu_uop_bdec;
+
+                    exception_generated_o = !B_ext_i; 
                 end
 
                 3'b110: begin
@@ -289,7 +297,7 @@ module decoder (
                     exu_valid_o.FPU = fpu_valid_fdec;
                     exu_uop_o.FPU.subunit = fpu_uop_fdec; 
 
-                    exception_generated_o = exc_gen_fdec;
+                    exception_generated_o = !Zfinx_ext_i;
                 end
 
                 3'b111: begin
@@ -341,6 +349,8 @@ module decoder (
 
                     exu_valid_o.ITU.BMU = bmu_valid_bdec;
                     exu_uop_o.ITU.subunit = bmu_uop_bdec; 
+
+                    exception_generated_o = !B_ext_i;
                 end
 
                 2'b11: begin
@@ -409,7 +419,7 @@ module decoder (
                     exu_valid_o.FPU = fpu_valid_fdec;
                     exu_uop_o.FPU = fpu_uop_fdec; 
 
-                    exception_generated_o = exc_gen_fdec;
+                    exception_generated_o = !Zfinx_ext_i;
                 end
 
                 2'b11: begin

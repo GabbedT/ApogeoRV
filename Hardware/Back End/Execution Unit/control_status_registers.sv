@@ -80,6 +80,7 @@ module control_status_registers (
     output logic enable_mul_o,
     output logic enable_div_o, 
     `ifdef BMU output logic enable_bmu_o, `endif 
+    `ifdef FPU output logic enable_fpu_o, `endif 
 
     `ifdef FPU 
     input logic float_valid_i,
@@ -170,12 +171,16 @@ module control_status_registers (
 //      ISA CSR
 //====================================================================================
 
-    logic B_extension, C_extension, F_extension, M_extension, U_extension;
+    logic B_extension, Zfinx_extension, M_extension;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 `ifdef BMU 
                     B_extension <= 1'b1;
+                `endif 
+
+                `ifdef FPU 
+                    Zfinx_extension <= 1'b1; 
                 `endif 
 
                 M_extension <= 1'b1;
@@ -184,19 +189,27 @@ module control_status_registers (
                     B_extension <= csr_data_out[1];
                 `endif 
 
+                `ifdef FPU 
+                    Zfinx_extension <= csr_data_out[25]; 
+                `endif
+
                 M_extension <= csr_data_out[12];
             end
         end 
 
     data_word_t misa_csr;
 
-    assign misa_csr = {2'd01, 9'b0, 1'b1, 7'b0, M_extension, 3'b0, 1'b1, 2'b0, 1'b0, 2'b0, 1'b1, `ifdef BMU B_extension `else 1'b0 `endif, 1'b0};
+    assign misa_csr = {2'd01, `ifdef FPU Zfinx_extension, 8'b0, `else 9'b0, `endif 1'b1, 7'b0, M_extension, 3'b0, 1'b1, 2'b0, 1'b0, 2'b0, 1'b1, `ifdef BMU B_extension `else 1'b0 `endif, 1'b0};
 
     assign enable_mul_o = M_extension;
     assign enable_div_o = M_extension;
 
     `ifdef BMU 
-    assign enable_bmu_o = B_extension;
+        assign enable_bmu_o = B_extension;
+    `endif 
+
+    `ifdef FPU 
+        assign enable_fpu_o = Zfinx_extension; 
     `endif 
 
 
