@@ -23,7 +23,8 @@ Features
 The main features of **ApogeoCore** are: 
 
 * Supports the full base **RV32 ISA**
-* Supports the RISCV extensions **M, C, Zicsr, Zba, Zbb, Zbs**
+* Supports the RISCV extensions **M, C, Zicsr, Zba, Zbb, Zbs, Zfinx**
+* Disable units (MUL, DIV, FPU, BMU) during program execution.
 * **9 Pipeline Stages**: To reach maximum frequency.
 * **Instruction Prefetch**: Benefit from an instruction buffer for enhanced performance.
 * **Branch predictor**: A robust branch predictor (GSHARE + BTB) minimizes the impact of conditional and unconditional branches.
@@ -31,15 +32,15 @@ The main features of **ApogeoCore** are:
 * **Store Buffer**: Efficiently handle memory operations by not having to access the memory directly thus avoiding to stall the CPU.
 
 
-Target Application 
------------------- 
+Target Application
+------------------
 
 ApogeoCore is a versatile RISCV-V processor mainly designed to be implemented mainly low-end / mid-end embedded systems or SoC that needs an efficient CPU core. 
 However because of it's configurability it's suitable for a wide range of target applications that needs a fairly amount of performance.
 
 .. warning:: ApogeoCore has been tested and implemented only in FPGA. With the some source code modifications it will be possible to target ASIC synthesis, however this is not a goal in the short future.
 
-The RISC-V M, Zba, Zbb, Zbs extensions are implemented to handle more complex task with less latency and instructions count. 
+The RISC-V M, Zba, Zbb, Zbs and Zfinx extensions are implemented to handle more complex task with less latency and energy consumption other than lowering the memory usage due to instruction count. 
 With these capabilities, ApogeoCore is well-suited for the following target application systems:
 
 * **System On Chips**
@@ -51,8 +52,8 @@ By accommodating a broad spectrum of applications and offering exceptional confi
 RV32ApogeoCore stands as a versatile solution in the world of RISC-V processors.
 
 
-Parameters 
----------- 
+Parameters
+----------
 
 To meet the system designers demand, ApogeoCore comes with a moltitude of parameters. These parameters play a central role in defining the capabilities 
 and performance of the CPU. Whether you are designing an high-performance SoC or an energy-efficient embedded device, 

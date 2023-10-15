@@ -261,6 +261,11 @@ Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. 
      - Read implemented extensions and disable M - B extensions
      - 0x141126
 
+.. note:: To disable B extension, the bit 1 (misa[1]) must be cleared. To disable M extension, the bit 12 (misa[12]) must be cleared. To disable Zfinx extension, the bit 25 (misa[25]) must be cleared
+
+.. note:: Disabling any extension will disable the clock that is supplied to the corresponding unit. This will help with power consumption.
+
+.. warning:: The user must ensure that those extensions are enabled in the hardware configuration. If an instruction that belongs to one disabled extension is fetched, it will generate an **illegal instruction exception**.
 
 ID CSRs
 ~~~~~~~
