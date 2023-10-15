@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Backend &mdash; Apogeo Documentation 20/05/2023 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Frontend" href="frontend.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Apogeo Documentation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="external_interface.html">External Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_architecture.html">General Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="control_status_registers.html">Control Status Registers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="interrupts_and_exceptions.html">Interrupts And Exceptions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frontend.html">Frontend</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Backend</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#bypass-stage">Bypass Stage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#execution-stage">Execution Stage</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#integer-unit">Integer Unit</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#arithmetic-logic-unit">Arithmetic Logic Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#multiplication-unit">Multiplication Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#division-unit">Division Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#bit-manipulation-unit">Bit Manipulation Unit</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#control-status-registers-unit">Control Status Registers Unit</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#load-store-unit">Load Store Unit</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#load-unit">Load Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#store-unit">Store Unit</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#floating-point-unit">Floating Point Unit</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#floating-point-addition-unit">Floating Point Addition Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#floating-point-multiplication-unit">Floating Point Multiplication Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#comparison-unit">Comparison Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#conversion-unit">Conversion Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#miscellaneous-unit">Miscellaneous Unit</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rounding-unit">Rounding Unit</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#commit-stage">Commit Stage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reorder-stage">Reorder Stage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#writeback-stage">Writeback Stage</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Apogeo Documentation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Backend</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/backend.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="backend">
+<h1>Backend<a class="headerlink" href="#backend" title="Permalink to this heading"></a></h1>
+<p>The <strong>backend</strong> is the CPU layer where the instructions get actually executed after they have been fetched, decoded and issued by the frontend.
+Here resides all the logic to avoid RAW and WAW data hazards, the execution units that produces the results of the instructions, buffers to avoid structural hazards and the writeback logic.
+Even if the <em>frontend</em> and the <em>backend</em> are two separate layers, they interact with each other with signals outside the data passed through the pipeline. In particular the backend sends signals to the frontend
+to inform it about <strong>stalls</strong> and <strong>pipeline flushes</strong>, during particular conditions.</p>
+<p>The backend tasks are:</p>
+<ol class="arabic simple">
+<li><p><strong>Resolving RAW data dependencies</strong>: Destination registers of previous instructions are fowarded to the source registers of the curren.</p></li>
+<li><p><strong>Executing instructions</strong>: Feeds operand and micro-operations to the execution units.</p></li>
+<li><p><strong>Resolving structural dependencies</strong>: Mutliple unit could produce a valid result at the same time. The reorder buffer has only 1 write port available.</p></li>
+<li><p><strong>Resolving WAW data dependencies</strong>: The instructions are reordered to be written back in order.</p></li>
+<li><p><strong>Generating signals to control the pipeline</strong>: Stalling, flushing, signals to advert that specific instructions have been executed etc.</p></li>
+</ol>
+<section id="bypass-stage">
+<h2>Bypass Stage<a class="headerlink" href="#bypass-stage" title="Permalink to this heading"></a></h2>
+<p>The <strong>bypass stage</strong> is a crucial component in the CPU pipeline, it ensures data coherency and helps to drastically increase performance. Theoretically if one instruction is dependent on another, it should wait until that instruction’s result is written back to the register file.
+If the instruction is simply issued without any caution, it will read the wrong values from the register file since the correct values are still in the pipeline and not written back. One way to overcome this would be waiting until the instruction write back the result, however this
+would yeld poor performance and also make the use of the pipeline almost useless.</p>
+<p>The bypass stage takes as input the result from instructions residing in the successive stages, and in the eventuality of a register match, it fowards the most recent value. That means that <em>if there are multiple matches between register destination and
+register source, the one from the most “recent” stage is taken</em>. The most recent stage is the one logically nearer the bypass stage, for example: <cite>BYP</cite> -&gt; <cite>EXC</cite> -&gt; <cite>COM</cite> -&gt; <cite>ROB</cite> -&gt; <cite>WB</cite> the <cite>EXC</cite> is the most recent out of the stages after <cite>BYP</cite>.
+This is simply implemented as a priority multiplexer. <strong>If the source at input is an immediate, the fowarding is not applied!</strong></p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">generate</span><span class="w"> </span><span class="k">genvar</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+
+<span class="w">        </span><span class="k">assign</span><span class="w"> </span><span class="n">execute_valid</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">execute_valid_i</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">issue_immediate_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+<span class="w">        </span><span class="k">assign</span><span class="w"> </span><span class="n">commit_valid</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">commit_valid_i</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">issue_immediate_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+<span class="w">        </span><span class="k">assign</span><span class="w"> </span><span class="n">rob_valid</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rob_valid_i</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">issue_immediate_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+
+<span class="w">        </span><span class="k">always_comb</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">fowarding_logic</span>
+<span class="w">            </span><span class="k">casez</span><span class="w"> </span><span class="p">({</span><span class="n">execute_valid</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="w"> </span><span class="n">commit_valid</span><span class="p">[</span><span class="n">i</span><span class="p">],</span><span class="w"> </span><span class="n">rob_valid</span><span class="p">[</span><span class="n">i</span><span class="p">]})</span>
+<span class="w">                </span><span class="mb">3&#39;b1??</span><span class="o">:</span><span class="w"> </span><span class="n">operand_o</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">execute_data_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+
+<span class="w">                </span><span class="mb">3&#39;b01?</span><span class="o">:</span><span class="w"> </span><span class="n">operand_o</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">commit_data_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+
+<span class="w">                </span><span class="mb">3&#39;b001</span><span class="o">:</span><span class="w"> </span><span class="n">operand_o</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rob_data_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+
+<span class="w">                </span><span class="mb">3&#39;b000</span><span class="o">:</span><span class="w"> </span><span class="n">operand_o</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">issue_operand_i</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+
+<span class="w">                </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="n">operand_o</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">            </span><span class="k">endcase</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">fowarding_logic</span>
+<span class="w">    </span><span class="k">end</span>
+
+<span class="k">endgenerate</span>
+</pre></div>
+</div>
+<p>As it will be explained later, the stages where buffers resides (<cite>COM</cite> and <cite>ROB</cite>), could have multiple instructions inside waiting to be passed to the next stage. This complicates the designs because the bypass logic should check whether the instruction is valid and if there is a register match,
+it could be possible in the case of a small buffer, however in a 64 entries reorder buffer this would just use too many resources and even if this was feasible, the timing here would be terrible. Infact the bypass logic is surely one of the critical paths of the pipeline, so we need to lower the timing at all cost to meet the specifications required on the clock speed.</p>
+<p>To have a better timing / area,
+an ingenious solution is adopted, this method is called <strong>snapshot register</strong>, which is a register file that <strong>holds the future state of the architectural register file</strong>. Along with the register values, also a <em>valid bit</em> and a <em>tag</em> is saved, those are useful to invalidate the register entries during a
+read to push the instruction foward in the pipeline. To foward the values, the registers source of the instruction in <cite>BYP</cite> stage is sent to a snapshot register, here the value is simply read out of the <em>asyncronous memory</em> along with the valid bit.</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">assign</span><span class="w"> </span><span class="n">foward_register_data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">entry_i</span><span class="p">.</span><span class="n">reg_dest</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="m">&#39;0</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">entry_i</span><span class="p">.</span><span class="n">result</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">always_ff</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">register_write_port</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">write</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">stall_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">foward_register</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">entry_i</span><span class="p">.</span><span class="n">reg_dest</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">foward_register_data</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span>
+<span class="w">    </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">register_write_port</span>
+
+
+<span class="cm">/* Register the last packet that wrote the foward register */</span>
+<span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="mi">5</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">tag_register</span><span class="w"> </span><span class="p">[</span><span class="mi">31</span><span class="o">:</span><span class="mi">0</span><span class="p">];</span>
+
+<span class="w">    </span><span class="k">always_ff</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">register_tag_write_port</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">write</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">stall_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">tag_register</span><span class="p">[</span><span class="n">entry_i</span><span class="p">.</span><span class="n">reg_dest</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">tag_i</span><span class="p">;</span>
+<span class="w">        </span><span class="k">end</span>
+<span class="w">    </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">register_tag_write_port</span>
+
+
+<span class="cm">/* Indicates if the result was written back to register file or not */</span>
+<span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="mi">31</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">valid_register</span><span class="p">,</span><span class="w"> </span><span class="n">valid_out</span><span class="p">;</span>
+
+<span class="cm">/* Register X0 is always valid */</span>
+<span class="k">assign</span><span class="w"> </span><span class="n">valid_out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="n">valid_register</span><span class="p">[</span><span class="mi">31</span><span class="o">:</span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">};</span>
+
+<span class="w">    </span><span class="k">always_ff</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_i</span><span class="w"> </span><span class="no">`ifdef</span><span class="w"> </span><span class="n">ASYNC</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="k">negedge</span><span class="w"> </span><span class="n">rst_n_i</span><span class="w"> </span><span class="no">`endif</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">register_valid_write_port</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">rst_n_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">valid_register</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">flush_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">valid_register</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">write</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">stall_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="cm">/* On writes validate the result */</span>
+<span class="w">                </span><span class="n">valid_register</span><span class="p">[</span><span class="n">entry_i</span><span class="p">.</span><span class="n">reg_dest</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">read_i</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">tag_register</span><span class="p">[</span><span class="n">entry_o</span><span class="p">.</span><span class="n">reg_dest</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">read_ptr</span><span class="p">))</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="cm">/* If the instruction that wrote the result in the foward register</span>
+<span class="cm">                 * is being pulled from the ROB, invalidate the result, but only</span>
+<span class="cm">                 * if at the same time there&#39;s not the same register being written */</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">entry_o</span><span class="p">.</span><span class="n">reg_dest</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">entry_i</span><span class="p">.</span><span class="n">reg_dest</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                    </span><span class="n">valid_register</span><span class="p">[</span><span class="n">entry_o</span><span class="p">.</span><span class="n">reg_dest</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mb">1&#39;b0</span><span class="p">;</span>
+<span class="w">                </span><span class="k">end</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span>
+<span class="w">    </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">register_valid_write_port</span>
+</pre></div>
+</div>
+<p>The two ifs inside the else branch of <cite>register_valid_write_port</cite> are mutually exclusive, so it’s correct to drive <cite>valid_register</cite> inside them.</p>
+<p>In this stage also happens the selection of the base address for memory and branch instructions. It’s a selection between the first register source and the instruction address. This logic is splitted from the actual address computation to shorten the critical path from the operands fowarding to the addition between the offset and base address.</p>
+</section>
+<section id="execution-stage">
+<h2>Execution Stage<a class="headerlink" href="#execution-stage" title="Permalink to this heading"></a></h2>
+<p>The execution stage contains the four main units where instructions get actually executed. Every unit generally has inside different sub-units to execute different types of instructions, the main units are differentiated from the type of operand and from the type of operations:</p>
+<ul class="simple">
+<li><p><strong>Integer Unit</strong> (ITU): Perform operations on integer numbers: basic arithmetic, logic, comparisons, bit manipulations…</p></li>
+<li><p><strong>Load Store Unit</strong> (LSU): Execute memory instructions, and handle the memory accesses.</p></li>
+<li><p><strong>Control Status Register Unit</strong> (CSRU): Execute instructions that access the internal status of the CPU, those are CSR instructions specified in the Zicsr extension.</p></li>
+<li><p><strong>Floating Point Unit</strong> (FPU): Perform operations on floating point numbers.</p></li>
+</ul>
+<p>Every main unit has as input:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">Unit Inputs</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Operands</p></td>
+<td><p>Operands values read from register file or fowarded.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Valid Unit</p></td>
+<td><p>Multi bit vector to select a specific sub-unit. Only one bit must be active at any clock cycle.</p></td>
+</tr>
+<tr class="row-even"><td><p>Micro-Operation</p></td>
+<td><p>Specify the operation to perform on one sub-unit.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Instruction Packet</p></td>
+<td><p>To carry instruction informations along the pipeline.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Some units will have other control inputs, however this is the general interface. All the input listed except for the <em>valid unit</em>, drive all the units. So the main units and their sub-units are all connected to the same inputs, the valid unit which has a one-hot behaviour will select the unit
+that need to process the inputs. The micro-operation input is defined as a <strong>union</strong> with the width of the largest micro-operation vector, this to save registers instead of having a different micro-operation for every unit. Each unit will interpret the micro-operation value in its way, so it makes sense to use an union.</p>
+<img alt="_images/ExecutionUnitTop.png" src="_images/ExecutionUnitTop.png" />
+<p>Internally the <strong>main units, will have different output sources</strong>, the ITU will have for examples 4 different sub-units that could produce a valid result at any given time. First of all at every clock cycle, <strong>maximum 1 unit must produce a valid result</strong>; this is done thanks to the scheduler in the frontend.
+The sub-units that didn’t output a valid result, will have the output nets set to all zeros, thanks to this it’s possible to OR all the output sources from the sub-units to produce a single output for the main-unit.</p>
+<p>Each main unit can produce an independent valid output, so at every clock cycle there may be 4 different main units that produce a valid result.</p>
+<section id="integer-unit">
+<h3>Integer Unit<a class="headerlink" href="#integer-unit" title="Permalink to this heading"></a></h3>
+<section id="arithmetic-logic-unit">
+<h4>Arithmetic Logic Unit<a class="headerlink" href="#arithmetic-logic-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>arithmetic logic unit</strong> (ALU) is probably the most important execution unit. It’s fully <strong>combinational</strong> and it executes every RV32I instruction, which are the most basic and crucial instructions. Excluding the memory operations, every complex operation from multiplication to complicate floating point operations can be done with simple instructions executed in the ALU. Other than that,
+it resolves the branches comparisons.</p>
+<p>Two multiplexers are used to select the output, one big multiplexer to select the result value and one smaller to select the branch outcome. The use of the smaller multiplexer is to lower the critical path of the PC selection logic in the frontend.</p>
+<p>The operations executed are:</p>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text">ALU Operations</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ADD</p></td>
+<td><p>Add the two operands.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SUB</p></td>
+<td><p>Subtract the two operands.</p></td>
+</tr>
+<tr class="row-even"><td><p>AND</p></td>
+<td><p>Logic AND between the two operands.</p></td>
+</tr>
+<tr class="row-odd"><td><p>OR</p></td>
+<td><p>Logic OR between the two operands.</p></td>
+</tr>
+<tr class="row-even"><td><p>XOR</p></td>
+<td><p>Logic XOR between the two operands.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SLT</p></td>
+<td><p>Set the <em>LSB</em> of the result if operand A is less than B. This is a signed comparison.</p></td>
+</tr>
+<tr class="row-even"><td><p>SLTU</p></td>
+<td><p>Set the <em>LSB</em> of the result if operand A is less than B. This is a unsigned comparison.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SLL</p></td>
+<td><p>Shift left (logic) the operand A by a value specified in the first 5 bits of the operand B.</p></td>
+</tr>
+<tr class="row-even"><td><p>SRL</p></td>
+<td><p>Shift right (logic) the operand A by a value specified in the first 5 bits of the operand B.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SRA</p></td>
+<td><p>Shift right (arithmetic) the operand A by a value specified in the first 5 bits of the operand B.</p></td>
+</tr>
+<tr class="row-even"><td><p>BEQ</p></td>
+<td><p>Return <em>true</em> if operands are equal.</p></td>
+</tr>
+<tr class="row-odd"><td><p>BNE</p></td>
+<td><p>Return <em>true</em> if operands are not equal.</p></td>
+</tr>
+<tr class="row-even"><td><p>BLT</p></td>
+<td><p>Return <em>true</em> if operand A is less than operand B. This is a signed comparison.</p></td>
+</tr>
+<tr class="row-odd"><td><p>BLTU</p></td>
+<td><p>Return <em>true</em> if operand A is less than operand B. This is a unsigned comparison.</p></td>
+</tr>
+<tr class="row-even"><td><p>BGE</p></td>
+<td><p>Return <em>true</em> if operand A is greater than operand B. This is a signed comparison.</p></td>
+</tr>
+<tr class="row-odd"><td><p>BGEU</p></td>
+<td><p>Return <em>true</em> if operand A is greater than operand B. This is a unsigned comparison.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The micro-operation input vector utilize 4 total bits, the ALU fully utilize those bit and execute a total of 16 micro-operations.
+The comparisons are encoded in the first bits of the input vector, so it’s possible to use a second multiplexer with only 3 bits to select their result.</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">always_comb</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">operation_i</span><span class="p">)</span>
+<span class="w">        </span><span class="nl">ADD:</span><span class="w"> </span><span class="n">result_o</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">add_result</span><span class="p">;</span>
+
+<span class="w">        </span><span class="p">...</span>
+
+<span class="w">        </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="n">result_o</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">    </span><span class="k">endcase</span>
+<span class="k">end</span>
+
+<span class="k">always_comb</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">operation_i</span><span class="p">[</span><span class="mi">2</span><span class="o">:</span><span class="mi">0</span><span class="p">])</span>
+<span class="w">        </span><span class="nl">BEQ:</span><span class="w"> </span><span class="n">taken_o</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">is_equal</span><span class="p">;</span>
+
+<span class="w">        </span><span class="p">...</span>
+
+<span class="w">        </span><span class="k">default</span><span class="o">:</span><span class="w"> </span><span class="n">taken_o</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mb">1&#39;b0</span><span class="p">;</span>
+<span class="w">    </span><span class="k">endcase</span>
+<span class="k">end</span>
+</pre></div>
+</div>
+</section>
+<section id="multiplication-unit">
+<h4>Multiplication Unit<a class="headerlink" href="#multiplication-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>multiplication unit</strong> (MUL) performs 4 types of multiplications on two integer numbers. It’s <strong>fully pipelined</strong> and as specified by the RV32M, the multiplications performed are:</p>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text">MUL Operations</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>MUL</p></td>
+<td><p>Multiply the two operands and take the low 32 bit of the result. The multiplication is signed.</p></td>
+</tr>
+<tr class="row-odd"><td><p>MULH</p></td>
+<td><p>Multiply the two operands and take the high 32 bit of the result. The multiplication is signed.</p></td>
+</tr>
+<tr class="row-even"><td><p>MULHU</p></td>
+<td><p>Multiply the two operands and take the high 32 bit of the result. The multiplication is unsigned.</p></td>
+</tr>
+<tr class="row-odd"><td><p>MULHSU</p></td>
+<td><p>Perform a multiplication between the signed first operand and the unsigned second operand, and take the high 32 bit of the result.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Outside the actual multiplication stage where a pipelined unsigned multiplier is used, there are two additional stages to perform some pre and post-multiplication operations.</p>
+<p>In the first stage, the absolute value of each operand is done if there is a signed operation. So if the MSB of one operand is set and the operation on that operand requires it to be signed, then it’s two-complemented.
+This is done because the multiplier only supports unsigned numbers.</p>
+<p>In the last stage, the result is brought back into signed form if needed, that is if the operands signs are different and it’s a signed operation. Then after the conversion, the result is selected.</p>
+</section>
+<section id="division-unit">
+<h4>Division Unit<a class="headerlink" href="#division-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>division unit</strong> (DIV) performs 2 types of division and 2 types of remainder operations on two integer numbers. It’s a <strong>multicycle unit</strong> and as specified by the RV32M, the operations performed are:</p>
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-text">DIV Operations</span><a class="headerlink" href="#id4" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>DIV</p></td>
+<td><p>Divide the two signed operands. Take the quotient.</p></td>
+</tr>
+<tr class="row-odd"><td><p>DIVU</p></td>
+<td><p>Divide the two unsigned operands. Take the quotient.</p></td>
+</tr>
+<tr class="row-even"><td><p>REM</p></td>
+<td><p>Divide the two signed operands. Take the remainder.</p></td>
+</tr>
+<tr class="row-odd"><td><p>REMU</p></td>
+<td><p>Divide the two unsigned operands. Take the remainder.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Because the core divider works on unsigned numbers, like the multiplication unit, the operands need to be two two-complemented if the operation and the conditions requires it. That is if there’s a signed operation and one operand is negative, make it positive.
+The core divider implements a <strong>non-restoring division algorithm</strong> which execute the division in 34 cycles. In the output stage, the result is selected based on the operation and some special cases are handled:</p>
+<ul class="simple">
+<li><p>In case of a <em>DIV</em> or <em>DIVU</em> operation, if <strong>the dividend is less than the divisor</strong>, the quotient is 0. Otherwise the quotient is taken from the core divider.</p></li>
+<li><p>In case of a <em>REM</em> or <em>REMU</em> operation, if <strong>the dividend is less than the divisor</strong>, the remainder is the dividend. Otherwise the remainder is taken from the core divider.</p></li>
+</ul>
+<p>The output of the core divider is obviously converted in a two-complement form if needed.</p>
+</section>
+<section id="bit-manipulation-unit">
+<h4>Bit Manipulation Unit<a class="headerlink" href="#bit-manipulation-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>bit manipulation unit</strong> (BMU) performs different types of operations defined in the subset of RV32B: <strong>Zba</strong>, <strong>Zbb</strong>, <strong>Zbs</strong>. It’s <strong>fully pipelined</strong> and as specified by the ISA, the operations performed are:</p>
+<table class="docutils align-default" id="id5">
+<caption><span class="caption-text">BMU Operations</span><a class="headerlink" href="#id5" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>SH1ADD</p></td>
+<td><p>Shift the first operand by 1 to the left and add the result to the second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SH2ADD</p></td>
+<td><p>Shift the first operand by 2 to the left and add the result to the second operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>SH3ADD</p></td>
+<td><p>Shift the first operand by 3 to the left and add the result to the second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>ANDN</p></td>
+<td><p>Logic AND between the first operand and the negated second operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>ORN</p></td>
+<td><p>Logic OR between the first operand and the negated second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>XNOR</p></td>
+<td><p>Logic XOR between the first operand and the second operand, the result is negated.</p></td>
+</tr>
+<tr class="row-even"><td><p>CLZ</p></td>
+<td><p>Count the leading zeros of the first operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>CTZ</p></td>
+<td><p>Count the trailing zeros of the first operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>CPOP</p></td>
+<td><p>Count the number of bit sets in the first operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>MAX</p></td>
+<td><p>Write in the result the signed maximum between the operands.</p></td>
+</tr>
+<tr class="row-even"><td><p>MAXU</p></td>
+<td><p>Write in the result the unsigned maximum between the operands.</p></td>
+</tr>
+<tr class="row-odd"><td><p>MIN</p></td>
+<td><p>Write in the result the signed minimum between the operands.</p></td>
+</tr>
+<tr class="row-even"><td><p>MINU</p></td>
+<td><p>Write in the result the unsigned minimum between the operands.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SEXT.B</p></td>
+<td><p>Sign extend the least significand byte of the first operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>SEXT.H</p></td>
+<td><p>Sign extend the least significand half-word of the first operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>ZEXT.H</p></td>
+<td><p>Zero extend the least significand half-word of the first operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>ROR</p></td>
+<td><p>Rotate the first operand to the right with an amount specified in the first 5 bits of the second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>ROL</p></td>
+<td><p>Rotate the first operand to the left with an amount specified in the first 5 bits of the second operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>ORC.B</p></td>
+<td><p>Set all the bits of each byte if there’s at least 1 bit set.</p></td>
+</tr>
+<tr class="row-odd"><td><p>REV8</p></td>
+<td><p>Reverse the byte order of the first operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>BCLR</p></td>
+<td><p>Clear the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>BINV</p></td>
+<td><p>Invert the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>BSET</p></td>
+<td><p>Set the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>BEXT</p></td>
+<td><p>Extract the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="control-status-registers-unit">
+<h3>Control Status Registers Unit<a class="headerlink" href="#control-status-registers-unit" title="Permalink to this heading"></a></h3>
+<p>The <strong>control status register unit</strong> (CSRU) holds the architectural state of the CPU (excluded the register file). The unit have a read and a write port, the read data is usually used as feedback to write the new value inside the CSR.
+The operations executed are:</p>
+<table class="docutils align-default" id="id6">
+<caption><span class="caption-text">CSR Operations</span><a class="headerlink" href="#id6" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>SWAP</p></td>
+<td><p>Write the first operand in the CSR and save the CSR’s old value into the register destination.</p></td>
+</tr>
+<tr class="row-odd"><td><p>SET</p></td>
+<td><p>Read the old value of the CSR and OR it with the first operand value, save the CSR’s old value into the register destination.</p></td>
+</tr>
+<tr class="row-even"><td><p>CLEAR</p></td>
+<td><p>Read the old value of the CSR and AND it with the first operand negated value, save the CSR’s old value into the register destination.</p></td>
+</tr>
+</tbody>
+</table>
+<p>If an instruction writes a CSR, the value is saved into a buffer register. Because the CSRU rapresent the internal state of the CPU, it needs to be <em>updated once the instruction gets written back</em>. Otherwise, if an exception or an interrupt occour, the pipeline would get flushed
+but the state would be changed. Once the instruction pass the writeback stage, the buffer register gets cleared and the corresponding finally CSR written.</p>
+</section>
+<section id="load-store-unit">
+<h3>Load Store Unit<a class="headerlink" href="#load-store-unit" title="Permalink to this heading"></a></h3>
+<p>The <strong>load store unit</strong> along with the ALU, is considered the most important component of the execution unit, it manages the interactions between CPU and memory controller. It is comprised of two distinct units: the <strong>load unit</strong> (LDU) and the <strong>store unit</strong> (STU), each responsible for overseeing the respective <em>load interface</em> and <em>store interface</em>.
+These units operate independently, allowing one to issue a request while the other might be waiting, resulting in concurrent communication.</p>
+<p>Whether or not the memory can accommodate both load and store requests simultaneously it’s based on the implementation of the system, but generally speaking, <strong>loads have more priority than the stores</strong>, due to their potential to introduce critical data dependencies within the system.</p>
+<p>Within the load-store unit, a priority logic mechanism is in place to handle scenarios where both the <em>LDU and STU generate a valid signal simultaneously</em>. In such cases, the system temporarily halts the STU for a single clock cycle, giving precedence to the LDU’s result.</p>
+<section id="load-unit">
+<h4>Load Unit<a class="headerlink" href="#load-unit" title="Permalink to this heading"></a></h4>
+<p>The load unit is resposable for issuing load requests to the memory controller and elaborating the data received from the memory based on the instruction. The operations executed are:</p>
+<table class="docutils align-default" id="id7">
+<caption><span class="caption-text">LDU Operations</span><a class="headerlink" href="#id7" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>LDB</p></td>
+<td><p>Load a byte from memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p>LDH</p></td>
+<td><p>Load an half-word from memory.</p></td>
+</tr>
+<tr class="row-even"><td><p>LDW</p></td>
+<td><p>Load a word from memory.</p></td>
+</tr>
+</tbody>
+</table>
+<p>An additional bit is used to specify whether the operation is <em>signed</em> or <em>unsigned</em>.</p>
+<p>The unit is implemented as an FSM, thus it can accept one instruction only if it’s idle. The following diagram shows the states that the load unit goes through during a request to memory unit:</p>
+<img alt="_images/LDU_FSM.png" src="_images/LDU_FSM.png" />
+<p>The LDU relies on two primary data sources: <em>memory</em> and the <em>store buffer</em>, thanks to the concept of data forwarding. However this introduces a dangerous conditions that need to be managed:</p>
+<p>Consider a scenario where two operations occur consecutively: <em>a one-byte store and a one-word load, both directed at the same memory address</em>.
+In this case, the LDU is likely to find the store byte entry in the store buffer. The data now will be fowarded however it will be incorrect because it only retrieves the byte in the first 8 bits padded with zeros. This occours because the store unit uses the byte strobe signal to enable the writing of a particular byte / group of bytes, so only the bytes to be written are defined in the store buffer.</p>
+<div class="highlight-asm notranslate"><div class="highlight"><pre><span></span><span class="c1"># RAM[0x00] = 0xAABBCCDD</span>
+
+<span class="nf">SB</span><span class="w"> </span><span class="mi">0xFF</span><span class="p">,</span><span class="w"> </span><span class="mi">0x00</span><span class="w"> </span><span class="c1"># RAM[0x00] = 0xAABBCCFF</span>
+<span class="nf">LW</span><span class="w"> </span><span class="no">x1</span><span class="p">,</span><span class="w"> </span><span class="mi">0x00</span><span class="w"> </span><span class="c1"># ERROR! x1 = 0x000000FF</span>
+</pre></div>
+</div>
+<p>To overcome this, the LDU employs a simple solution: If the store unit push a non-word store (half-word or byte), the buffer notify the LDU. If the LDU receives a valid operation and the signal is still asserted, it waits until the buffer become empty, thus deasserting the signal. After that it just issue a normal load request.</p>
+<p>Another particular condition is when the <em>pipeline stalls in the same clock cycle the valid data arrives</em>. Because the interface does not blocks upon pipeline stall, meaning that the unit could miss the valid signal, the FSM quickly goes into waiting mode and saves the data arrived at the interface. Once the stall ends, the data is finally signaled as valid.</p>
+<p>The exceptions generated here are:</p>
+<ul class="simple">
+<li><p><strong>Misaligned Load</strong>: The load address must be aligned based on the operation to do. Loading a word results in a 4 byte aligned load address, loading a byte results in a 1 byte aligned load address. If this condition is not respected, this exception is raised.</p></li>
+<li><p><strong>Illegal Load Access</strong>: If U-level code tries to access a protected (M-level code only) region, this exception is raised.</p></li>
+</ul>
+</section>
+<section id="store-unit">
+<h4>Store Unit<a class="headerlink" href="#store-unit" title="Permalink to this heading"></a></h4>
+<p>The store unit is resposable for issuing store requests to the memory controller. The operations executed are:</p>
+<table class="docutils align-default" id="id8">
+<caption><span class="caption-text">STU Operations</span><a class="headerlink" href="#id8" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>STB</p></td>
+<td><p>Store a byte in memory.</p></td>
+</tr>
+<tr class="row-odd"><td><p>STH</p></td>
+<td><p>Store an half-word in memory.</p></td>
+</tr>
+<tr class="row-even"><td><p>STW</p></td>
+<td><p>Store a word in memory.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The unit consists of a primary Finite State Machine (FSM) responsible for managing the store interface, Input/Output (IO) signals, and related functions. Additionally, an important component within this setup is the <strong>store buffer</strong>, a key structural element that significantly mitigates CPU latency.</p>
+<p>The following diagram shows the states that the load unit goes through during a request to memory unit:</p>
+<img alt="_images/STU_FSM.png" src="_images/STU_FSM.png" />
+<p>When a store operation is initiated, the store unit <em>pushes information pertaining to the store operation into the buffer</em>. Once this operation is completed, the store unit transitions to the idle state, ready to accept new instructions and requests.
+However, the presence of a store buffer in the CPU system introduces a subtle challenge. As soon as an entry (consisting of address and data) is inserted into the buffer, the control unit might erroneously assume that the memory has already been updated, which might not be the case.
+Subsequent load operations targeting the same memory address could return outdated values, primarily because the <em>updated data may still be residing in the store buffer</em>. To overcome this problem, the structure implements a bypass logic: the load address is compared against every valid buffer entry in parallel with priority for the most recent values,
+and when a match is found, the value from the latest store operation is eventually brought to the load unit. This technique, is called <strong>load forwarding</strong>, and it ensures that the load operation retrieves the most current data, regardless of its location within the CPU’s internal pipeline.</p>
+<p>As mentioned in the previous paragraph, this technique works only on <em>word loads - word stores</em>. If a different type of store is pushed into the buffer, a subsequent load will wait until the buffer become empty.</p>
+<p>Given ApogeoRV’s out-of-order execution pipeline, it’s crucial to ensure that the actual store to the memory doesn’t happen until tha instruction is written back in order. While with loads this is not a problem and a load can start before, with stores the situation is different. The memory rapresent the system current state, so it must be updated
+once the CPU is sure that no exceptions or interrupts could stop or flush the instruction. To obtain this, the store buffer entries, once pushed, are still invalid. To validate entries in the store buffer, a pointer tracks the entry awaiting validation. Once the reorder buffer writes back the result of a store instruction in sequential order, this pointer is incremented and the entry is validated.</p>
+<p>In the event of an exception or interrupt, a flush command is dispatched to the buffer. Notably, the pull pointer value remains unaltered during this process, while the push pointer is set to the value of the valid pointer. This synchronized approach ensures that the CPU correctly manages exceptions and interruptions, while also maintaining data integrity within the store buffer.</p>
+<p>The exceptions generated here are:</p>
+<ul class="simple">
+<li><p><strong>Misaligned Store</strong>: The store address must be aligned based on the operation to do. Storing a word results in a 4 byte aligned load address, Storing a byte results in a 1 byte aligned load address. If this condition is not respected, this exception is raised.</p></li>
+<li><p><strong>Illegal Store Access</strong>: If U-level code tries to access a protected (M-level code only) region, this exception is raised.</p></li>
+</ul>
+</section>
+</section>
+<section id="floating-point-unit">
+<h3>Floating Point Unit<a class="headerlink" href="#floating-point-unit" title="Permalink to this heading"></a></h3>
+<p>The <strong>floating-point unit</strong> (FPUs) is the mathematical workhorses within the CPU, executing operations on <em>floating point numbers</em>.
+These specialized components are essential in handling the non-integer computations that are important for a vast array of applications, from scientific simulations to graphics rendering and financial modeling.
+At their core, FPUs are designed to perform operations on floating-point numbers, which represent real numbers in <em>scientific notation</em>: with a fixed number of significant digits and a variable exponent.
+This flexibility in representing a wide range of values, both tiny and immense, is crucial for scientific accuracy and practicality, where the precision of integer arithmetic would falter.</p>
+<p>The FPU accommodates fundamental operations like addition, subtraction, multiplication, plus other useful operations to speedup floating-point code.</p>
+<p>ApogeoRV FPU <strong>lacks of operations like: *FDIV*, *FSQRT*, *FMADD* and its variants</strong> all defined in the Zfinx specifications. While this could significantly slow down the processor in some applications, on the other end it helps to reduce the total area and power consumed by the core other. Also having more units means needing to slow down the CPU clock
+because of the critical path introduced on bypass logic. For example adding <em>FMADDs</em> instructions would require a third operand read which mean:</p>
+<ul class="simple">
+<li><p>1 more register read port or additional logic to stall the frontend for one cycle to read the operand if the register port is not desired.</p></li>
+<li><p>More pipeline registers to carry the additional register source.</p></li>
+<li><p>Additional logic in the scheduler.</p></li>
+</ul>
+<p>Additionally, <strong>the FPU can’t handle subnormal numbers</strong>, again to reach the desired power/area/speed goal.</p>
+<section id="floating-point-addition-unit">
+<h4>Floating Point Addition Unit<a class="headerlink" href="#floating-point-addition-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>addition unit</strong> perform additions and subtractions between two floating point numbers:</p>
+<p>The operation commences in the first pipeline stage by modifying the sign bit of operand B if it’s a subtraction operation. Simultaneously, an exponent subtraction is performed on the two operands, resulting in a signed 9-bit number. This number is used to determine which operand is larger. The logic also checks whether the result should be NaN or infinity in advance.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="p">(</span><span class="n">exp_subtraction</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">B</span> <span class="o">&gt;</span> <span class="n">A</span>
+<span class="k">else</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">exp_subtraction</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">A</span><span class="o">.</span><span class="n">significand</span> <span class="o">&gt;=</span> <span class="n">B</span><span class="o">.</span><span class="n">significand</span><span class="p">)</span>
+            <span class="n">A</span> <span class="o">&gt;</span> <span class="n">B</span>
+        <span class="k">else</span>
+            <span class="n">B</span> <span class="o">&gt;</span> <span class="n">A</span>
+    <span class="k">else</span>
+        <span class="n">A</span> <span class="o">&gt;</span> <span class="n">B</span>
+</pre></div>
+</div>
+<p>In the second stage, the significands are aligned by shifting the minor significand by an amount defined by the absolute value of the previous exponent subtraction. If this value is greater than or equal to 48, the significand is shifted to all zeros. Additionally, this stage computes the round bits (Guard, Round, and Sticky).</p>
+<p>In the third stage, the significands are added. This process is not straightforward because the significands are concatenated on the left by the hidden bit and a bit set to zero to accommodate the carry on the output. On the right, the minor significand is concatenated with the round bits, while the major one is concatenated with zeros. Then they are two-complemented based on their initial signs.</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">case</span><span class="w"> </span><span class="p">({</span><span class="n">major_addend</span><span class="p">.</span><span class="n">sign</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">sign</span><span class="p">})</span>
+<span class="w">    </span><span class="mb">2&#39;b00</span><span class="o">:</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="n">major_significand</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="mb">3&#39;b0</span><span class="p">};</span>
+<span class="w">        </span><span class="n">minor_significand</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="n">round_bits</span><span class="p">};</span>
+<span class="w">    </span><span class="k">end</span>
+
+<span class="w">    </span><span class="mb">2&#39;b01</span><span class="o">:</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="n">major_significand</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="mb">3&#39;b0</span><span class="p">};</span>
+<span class="w">        </span><span class="n">minor_significand</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="n">round_bits</span><span class="p">};</span>
+<span class="w">    </span><span class="k">end</span>
+
+<span class="w">    </span><span class="mb">2&#39;b10</span><span class="o">:</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="n">major_significand</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="mb">3&#39;b0</span><span class="p">};</span>
+<span class="w">        </span><span class="n">minor_significand</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="n">round_bits</span><span class="p">};</span>
+<span class="w">    </span><span class="k">end</span>
+
+<span class="w">    </span><span class="mb">2&#39;b11</span><span class="o">:</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="n">major_significand</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">major_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="mb">3&#39;b0</span><span class="p">};</span>
+<span class="w">        </span><span class="n">minor_significand</span><span class="w"> </span><span class="o">=</span><span class="w">  </span><span class="p">{</span><span class="mb">1&#39;b0</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">hidden_bit</span><span class="p">,</span><span class="w"> </span><span class="n">minor_addend</span><span class="p">.</span><span class="n">significand</span><span class="p">,</span><span class="w"> </span><span class="n">round_bits</span><span class="p">};</span>
+<span class="w">    </span><span class="k">end</span>
+<span class="k">endcase</span>
+</pre></div>
+</div>
+<p>Once the sum is computed, if the MSB of the result is set and the significands were subtracted, the absolute value of the result is computed.</p>
+<p>In the fourth stage, the result is normalized based on the carry produced in the previous stage and the amount of leading zeros.</p>
+<ul class="simple">
+<li><p>If a carry was produced, the result significand is shifted right by one, and the exponent is incremented. If the exponent reaches the maximum possible value, the overflow flag is set. The round bits are adjusted accordingly.</p></li>
+<li><p>If there are leading zeros, the result is shifted left, and the exponent is decreased by the number of leading zeros. If the exponent becomes negative or zero after subtraction, an underflow occurs.</p></li>
+</ul>
+<p>In the fifth stage the final result is computed based on the accumulated flags:</p>
+<ul class="simple">
+<li><p><strong>Invalid Operation</strong>: Result = NaN</p></li>
+<li><p><strong>Result Infinity</strong>: Result = +/- Inf</p></li>
+</ul>
+</section>
+<section id="floating-point-multiplication-unit">
+<h4>Floating Point Multiplication Unit<a class="headerlink" href="#floating-point-multiplication-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>multiplication unit</strong> perform multiplications between two floating point numbers, as the floating point adder, it’s a pipelined unit, but it’s much more simple and requires less cycles if a low latency multiplier is used.</p>
+<p>In the first stage the final result type is determined, the final result exponent is computed and the significands concatenated with their hidden bits are feeded into the core multiplier. The exponent and other flags are inserted into a shift register to match the multiplier latency. Finally a 48 bits product is produced.</p>
+<p>In the last stage the result is normalized. If the MSB of the result is set, the significand is shifted to the right and the exponent is incremented. If the exponent overflows of reaches the maximum value the overflow flag is set. The final result is then selected based on the generated flags:</p>
+<ul class="simple">
+<li><p><strong>Invalid Operation</strong>: Result = NaN</p></li>
+<li><p><strong>Overflow</strong>: Result = + Inf</p></li>
+<li><p><strong>Underflow</strong>: Result = - Inf</p></li>
+</ul>
+<p>The underflow flag is catched when the exponent result is less then the minimum possible exponent in the floating point notation and both input exponents were negative.</p>
+</section>
+<section id="comparison-unit">
+<h4>Comparison Unit<a class="headerlink" href="#comparison-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>comparison unit</strong> performs four operations on two floating point numbers combinationally:</p>
+<table class="docutils align-default" id="id9">
+<caption><span class="caption-text">FCMP Operations</span><a class="headerlink" href="#id9" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>FP_EQ</p></td>
+<td><p>Returns <em>true</em> if both operands are equal.</p></td>
+</tr>
+<tr class="row-odd"><td><p>FP_LT</p></td>
+<td><p>Returns <em>true</em> if operand A is less than operand B.</p></td>
+</tr>
+<tr class="row-even"><td><p>FP_LE</p></td>
+<td><p>Returns <em>true</em> if operand A is less or equal than operand B.</p></td>
+</tr>
+<tr class="row-odd"><td><p>FP_GT</p></td>
+<td><p>Returns <em>true</em> if operand A is greater than operand B.</p></td>
+</tr>
+</tbody>
+</table>
+<p>A bit specifies if the operation should set the LSB to the comparison result or should copy the operand that matches the comparison into the register destination.</p>
+<p>The comparison is done with priority by:</p>
+<ul class="simple">
+<li><p>Comparing the signs.</p></li>
+<li><p>Comparing the exponents.</p></li>
+<li><p>Comparing the significands.</p></li>
+</ul>
+</section>
+<section id="conversion-unit">
+<h4>Conversion Unit<a class="headerlink" href="#conversion-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>conversion unit</strong> is a pipelined unit that perform conversions of both floating-point and integer numbers (signed and unsigned). The operations performed are:</p>
+<table class="docutils align-default" id="id10">
+<caption><span class="caption-text">FCVT Operations</span><a class="headerlink" href="#id10" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>INT2FLOAT</p></td>
+<td><p>Convert an integer to a floating-point number.</p></td>
+</tr>
+<tr class="row-odd"><td><p>FLOAT2INT</p></td>
+<td><p>Convert a floating-point to an integer number.</p></td>
+</tr>
+</tbody>
+</table>
+<p>An additional bit specifies whether the operation is signed or unsigned.</p>
+<p>To convert an <strong>integer into a floating-point number</strong>, the first step involves converting the operand into a positive number if it’s negative and the operation is signed.
+Subsequently, the number of leading zeros is counted to determine the necessary shift amount, with the objective of achieving the notation 1,…
+The shift amount is calculated by subtracting the count of leading zeros from 31. Once the right shift is completed, the exponent is determined by adding the shift
+amount to the floating-point bias (which is 127). If all bits are found to be zeros after the shift, the exponent is set to zero. Finally, the sign bit is determined
+by the Most Significant Bit (MSB) of the operand, assuming the operation is signed; otherwise, it is set to zero.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Integer</span> <span class="o">=</span> <span class="mi">00010110</span><span class="p">;</span> <span class="n">LDZ</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">Shift</span> <span class="n">amount</span> <span class="o">=</span> <span class="mi">7</span> <span class="o">-</span> <span class="mi">3</span> <span class="o">=</span> <span class="mi">4</span>
+
+<span class="n">Shifted</span> <span class="n">Integer</span> <span class="o">=</span> <span class="mf">00000001.0110</span>
+</pre></div>
+</div>
+<p>To convert a <strong>floating-point number into an integer</strong>, the process begins by unbiasing the exponent, achieved by subtracting 127 from its value.
+This result serves as the basis for shifting the significand, which is concatenated with the hidden bit, to the right.
+From this 55-bit shift result (comprising 32 bits from the integer part and 23 bits from the fractional part), the high 32 bits are extracted to obtain the partial integer result.
+In the subsequent stage, flags for underflow and overflow are determined based on the previous subtraction value, as well as the signed or unsigned nature of the operation: if the subtraction yelds a value greater than 31, then the result overflowed. If the operation is signed and the MSB of the operand is set, an underflow occourred.
+The final result is then adjusted to the maximum (if overflow) or minimum value (if underflow) for either signed or unsigned integers.
+In the event of a signed operation and a set sign bit in the floating-point representation, the final result is subjected to two’s complement transformation.</p>
+</section>
+<section id="miscellaneous-unit">
+<h4>Miscellaneous Unit<a class="headerlink" href="#miscellaneous-unit" title="Permalink to this heading"></a></h4>
+<p>The <strong>miscellaneous unit</strong> is a combinational unit that performs, operations like <em>sign injections</em> and <em>operand classification</em>. The operations are:</p>
+<table class="docutils align-default" id="id11">
+<caption><span class="caption-text">FMIS Operations</span><a class="headerlink" href="#id11" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>FCLASS</p></td>
+<td><p>Returns a code based on the operand type.</p></td>
+</tr>
+<tr class="row-odd"><td><p>FSGNJ</p></td>
+<td><p>Inject the sign of the second operand.</p></td>
+</tr>
+<tr class="row-even"><td><p>FSGNJN</p></td>
+<td><p>Inject the negated sign of the second operand.</p></td>
+</tr>
+<tr class="row-odd"><td><p>FSGNJX</p></td>
+<td><p>Inject the result of the xor between the sign of the second operand and the sign of the first.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="rounding-unit">
+<h4>Rounding Unit<a class="headerlink" href="#rounding-unit" title="Permalink to this heading"></a></h4>
+<p>Every arithmetic floating point sub-unit (FADD, FMUL, FCVT), return as output a 3 bit vector rapresenting the <strong>guard, round and sticky</strong> bits. Those are product of loss of precision due to the bits left out because of the limited number of bits rapresenting the floating-point number.</p>
+<ul class="simple">
+<li><p>Guard: is the first bit after the LSB of the significand.</p></li>
+<li><p>Round: is the bit on the right of the guard bit.</p></li>
+<li><p>Sticky: is the OR of the remaining bits.</p></li>
+</ul>
+<p>Using those it’s possible to round the final result:</p>
+<table class="docutils align-default" id="id12">
+<caption><span class="caption-text">Round Operations</span><a class="headerlink" href="#id12" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 14%" />
+<col style="width: 57%" />
+<col style="width: 29%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Operation</p></th>
+<th class="head"><p>Example</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>100</p></td>
+<td><p>Halfway case: round to even. Perform the addition between the significand and its LSB.</p></td>
+<td><p>1,5623 . 500 =&gt; 1,5624   |   1,5624 . 500 =&gt; 1,5624</p></td>
+</tr>
+<tr class="row-odd"><td><p>101, 110, 111</p></td>
+<td><p>Round up: add 1 to the significand.</p></td>
+<td><p>1,5623 . 526 =&gt; 1,5624</p></td>
+</tr>
+<tr class="row-even"><td><p>000, 001, 010, 011</p></td>
+<td><p>No operations.</p></td>
+<td><p>1,5623 . 245 =&gt; 1,5623</p></td>
+</tr>
+</tbody>
+</table>
+<p>Each arithmetic sub-units output is connected to a rounding unit. This architectural choice is done to reduce the critical path caused by sharing the same hardware block.</p>
+</section>
+</section>
+</section>
+<section id="commit-stage">
+<h2>Commit Stage<a class="headerlink" href="#commit-stage" title="Permalink to this heading"></a></h2>
+<p>The commit stage serves as a <strong>buffer stage between the execution stage and the reorder stage</strong>. This stage solves the potential scenario where <em>multiple main units concurrently generate valid results</em>, resulting in a structural hazard where multiple write sources attempt to access a single write port. The reorder buffer, by design, offers only a single read and write port, and typically, the addition of an extra memory port introduces a significant expenditure of area and resources.
+While it’s feasible to duplicate memory read ports and link them to the same write data input, this approach is not applicable to write ports. Consequently, a dedicated IP block is often needed, but such resource may not always be available especially in FPGA environments. To get past these issues, each unit is linked to a buffer that <strong>contains both the buffer logic and forwarding logic</strong>, employing <em>snapshot registers</em>. These buffers are then managed by an FSM that implements a <strong>round-robin algorithm</strong>.
+In this scheme, the buffers are <em>only written to when a structural hazard arises</em>: if a single unit produces a valid result without any contention, it is directly forwarded to the reorder buffer. In cases where there is contention among multiple sources, only one source is allowed to be forwarded, mitigating the structural hazard.</p>
+</section>
+<section id="reorder-stage">
+<h2>Reorder Stage<a class="headerlink" href="#reorder-stage" title="Permalink to this heading"></a></h2>
+<p>In the reorder stage the out-of-order instructions are written inside the <strong>reorder buffer</strong>. The reorder buffer is a structure implemented as a 1R / 1W memory, it’s not a FIFO buffer: the writes are controlled directly by the instructions that arrive at the write port. Those carry along the pipeline a
+tag generated inside the issue stage acting as a write address. With the reorder buffer there is also a memory that holds 1 bit for each entry, this tags the entries as valid: during writes the associated memory bit is set while during reads it’s cleared. This memory is controlled just like the reorder buffer. A read pointer is used to point to the next valid entry.</p>
+<p>During out-of-order writes, inside the valid memory the valid bits are not continuous. Instead holes forms and the read pointer blocks once it reaches the hole. Meanwhile the other instructions can accumulate in the rob waiting for the missing instruction to come:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>             <span class="n">Ptr</span>
+              <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">11110111000</span> <span class="o">&lt;=</span> <span class="n">Writing</span> <span class="n">back</span> <span class="n">instructions</span>
+
+                 <span class="n">Ptr</span>
+                  <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00000111000</span> <span class="o">&lt;=</span> <span class="n">Hole</span> <span class="n">found</span><span class="p">,</span> <span class="n">block</span> <span class="n">write</span> <span class="n">back</span>
+
+                 <span class="n">Ptr</span>
+                  <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00001111000</span> <span class="o">&lt;=</span> <span class="n">Instruction</span> <span class="n">arrived</span><span class="p">,</span> <span class="n">write</span> <span class="n">back</span> <span class="n">resumes</span>
+
+                     <span class="n">Ptr</span>
+                      <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00000000000</span> <span class="o">&lt;=</span> <span class="n">All</span> <span class="n">instructions</span> <span class="n">written</span> <span class="n">back</span>
+</pre></div>
+</div>
+<p>The informations saved in the buffer are the same of the instruction packet except for the ROB tag.</p>
+<p>Since here instructions get stored, <em>snapshot register</em> is used to foward results back to the execution units.</p>
+<p>In the reorder stage, out-of-order instructions find their place within the reorder buffer.
+The reorder buffer is structured as a 1R / 1W (one read, one write) memory and unlike a standard FIFO buffer the control of writes is directly orchestrated by the arriving instructions at the write port, each carrying a tag generated by the issue stage that acts as a unique write address.</p>
+<p>Writeback StageThe reorder buffer is accompanied by an additional memory that corresponds to each entry with a single bit, designating their validity status. During writes, this associated memory bit is set to mark the entry as valid, and during reads, it’s cleared. The control of this memory closely mirrors that of the reorder buffer itself. A read pointer is employed to indicate the location of the next valid entry.</p>
+<p>During out-of-order writes, the validity bits within the memory are not necessarily continuous. Instead, gaps or holes may form, and the read pointer halts its progress when it encounters one. Meanwhile, other instructions can accumulate within the reorder buffer, waiting for the missing instruction to arrive and fill the hole.</p>
+<p>Here’s a visual representation of this process:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>             <span class="n">Ptr</span>
+              <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">11110111000</span> <span class="o">&lt;=</span> <span class="n">Writing</span> <span class="n">back</span> <span class="n">instructions</span>
+
+                 <span class="n">Ptr</span>
+                  <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00000111000</span> <span class="o">&lt;=</span> <span class="n">Hole</span> <span class="n">found</span><span class="p">,</span> <span class="n">block</span> <span class="n">write</span> <span class="n">back</span>
+
+                 <span class="n">Ptr</span>
+                  <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00001111000</span> <span class="o">&lt;=</span> <span class="n">Instruction</span> <span class="n">arrived</span><span class="p">,</span> <span class="n">write</span> <span class="n">back</span> <span class="n">resumes</span>
+
+                     <span class="n">Ptr</span>
+                      <span class="o">|</span>
+<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00000000000</span> <span class="o">&lt;=</span> <span class="n">All</span> <span class="n">instructions</span> <span class="n">written</span> <span class="n">back</span>
+</pre></div>
+</div>
+<p>The information stored in the buffer for each instruction packet is identical, except for the ROB tag. This is where instructions are temporarily stored, awaiting their turn for proper execution.</p>
+</section>
+<section id="writeback-stage">
+<h2>Writeback Stage<a class="headerlink" href="#writeback-stage" title="Permalink to this heading"></a></h2>
+<p>As soon as the reorder buffer has a valid entry, it gets written back only if it didn’t generate an exception. In that case, the exception is handled by the <strong>trap manager</strong> which proceeds to flush the entire pipeline. The trap manager also handles the interrupts and core sleep:</p>
+<table class="docutils align-default" id="id13">
+<caption><span class="caption-text">Trap Manager</span><a class="headerlink" href="#id13" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 67%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Event</p></th>
+<th class="head"><p>Operations</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Exception</p></td>
+<td><p>Flush the pipeline.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Interrupt</p></td>
+<td><p>Set the <em>interrupt acknowlege pin</em> for 1 clock cycle. Then reset it.</p></td>
+</tr>
+<tr class="row-even"><td><p>Sleep</p></td>
+<td><p>Stalls the core until an interrupt is received, in the next cycle acknowlege it and continue the execution.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="frontend.html" class="btn btn-neutral float-left" title="Frontend" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Tripi Gabriele.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

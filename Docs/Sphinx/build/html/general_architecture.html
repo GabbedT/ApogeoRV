@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Architecture &mdash; Apogeo Documentation 20/05/2023 documentation</title>
+  <title>General Architecture &mdash; Apogeo Documentation 20/05/2023 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -18,7 +18,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Control Status Registers" href="control_status_registers.html" />
-    <link rel="prev" title="Introduction" href="introduction.html" /> 
+    <link rel="prev" title="External Interface" href="external_interface.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -42,7 +42,8 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Architecture</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="external_interface.html">External Interface</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">General Architecture</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#instruction-set-architecture">Instruction Set Architecture</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#pipeline-general-description">Pipeline General Description</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#memory-map">Memory Map</a></li>
@@ -50,7 +51,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="control_status_registers.html">Control Status Registers</a></li>
-<li class="toctree-l1"><a class="reference internal" href="control_status_registers.html#user-mode-csrs">User Mode CSRs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="interrupts_and_exceptions.html">Interrupts And Exceptions</a></li>
 </ul>
 
         </div>
@@ -67,9 +68,9 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Architecture</li>
+      <li class="breadcrumb-item active">General Architecture</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="_sources/architecture.rst.txt" rel="nofollow"> View page source</a>
+            <a href="_sources/general_architecture.rst.txt" rel="nofollow"> View page source</a>
       </li>
   </ul>
   <hr/>
@@ -77,8 +78,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="architecture">
-<h1>Architecture<a class="headerlink" href="#architecture" title="Permalink to this heading"></a></h1>
+  <section id="general-architecture">
+<h1>General Architecture<a class="headerlink" href="#general-architecture" title="Permalink to this heading"></a></h1>
 <p>ApogeoCore’s architecture is designed to be exceptionally well balanced in terms of <em>performace / area / power</em> tradeoff.
 By strategically selecting ISA and selecting the right microarchitectural choices, the initial priority target of low power and low area has been archieved.</p>
 <p>In the later paragraphs there is a description of every important architectural detail</p>
@@ -114,6 +115,7 @@ The extensions used for ApogeoCore are:</p>
 <li><p><strong>M Extension</strong>: Multiplication and division are found in almost every program, these are operation that can take more than 100 / 1000 cycles if implemented in software.</p></li>
 <li><p><strong>B Subsets (Zba, Zbb, Zbs)</strong>: The Bitmanip extension is helpful to speedup a lot of tasks: string processing, soft float, endiannes inversion, IO operations etc. The <strong>Zbc</strong> was not included because the instructions of this subset are not often used and use a lot of hardware resources.</p></li>
 <li><p><strong>C Extension</strong>: Compresses executable programs, making it particularly useful for systems with limited available memory.</p></li>
+<li><p><strong>Zfinx Extension</strong>: Enable the use of floating point instructions on integer registers only. This is particularly useful to reduce code size and speedup floating point computations without having a large area overhead (especially on OoO machines)</p></li>
 </ul>
 </section>
 <section id="pipeline-general-description">
@@ -130,14 +132,47 @@ if there are no interruptions.</p>
 <li><p><strong>Writeback</strong>: The result is written back into the register file.</p></li>
 </ul>
 <p>This is great for pipelining, however in more complex processors, more pipeline stages needs to be added. ApogeoCore, implements the following pipeline stages:</p>
+<dl>
+<dt><strong>PC Generation</strong>:</dt><dd><p>Here the <em>program counter</em> is generated based on the control signals that comes from the execute stage / branch predictor and sent to the memory. Meanwhile the same address is feeded into the <strong>branch target buffer</strong>. The
+branch target buffer (or BTB) is a cache that holds the target addresses of the branches that are encountered during program execution. It is indexed by the lower part of the address, in the next cycle the tag (upper part of the address)
+is readed along with the <strong>branch target address</strong> (BTA), if the tag and the upper part of the address match, the BTA is valid and it’s sent to the <strong>branch predictor</strong>. Here the current <strong>global branch history</strong> saved in a shift register,
+is XORed with the PC of the previous cycle, the resulting hashed address is used as an index for the <strong>predictor table</strong>. This is a memory that holds the current prediction associated with a branch. Once the prediction is made, the prediction
+info is pushed into a FIFO buffer waiting for execute stage to produce the right branch outcome.</p>
+<p>In this stage the arriving instruction, fetch addresses and if the instruction is predicted or not gets pushed inside the <strong>instruction buffer</strong>.</p>
+</dd>
+<dt><strong>Fetch</strong>:</dt><dd><p>The instruction gets fetched from the instruction buffer. In case of a compressed instruction, this gets decompressed into the corresponding 32 bit instruction. Here resides the logic to resolve misaligned instructions, since the CPU enable the
+usage of 16 bit compressed instruction. If a 16 bit instruction is at address 0x00000000 and a 32 bit instruction follows it, the 32 bit instruction is misaligned.</p>
+</dd>
+<dt><strong>Decode</strong>:</dt><dd><p>The instruction is simply decoded and a set of control signals is generated.</p>
+</dd>
+<dt><strong>Issue</strong>:</dt><dd><p>Data dependencies are resolved inside the <strong>scoreboard</strong>, a structure that holds all the functional units status:
+* Cycles remaining to produce a valid result.
+* Register destination.
+* Idle unit status for non pipelined units.</p>
+<p>operands are fowarded from the <strong>writeback stage</strong> or read from the <strong>register file</strong>. The instruction packets get assembled to carry informations of the instruction down the pipeline.</p>
+</dd>
+</dl>
 <ul class="simple">
-<li><p><strong>PC Generation</strong>: The <em>program counter</em> is generated and sent to the memory.</p></li>
-<li><p><strong>Fetch</strong>: The instruction gets fetched from the instruction buffer. In case of a compressed instruction, this gets decompressed into the corresponding 32 bit instruction.</p></li>
-<li><p><strong>Decode</strong>: The instruction is simply decoded.</p></li>
-<li><p><strong>Issue</strong>: Data dependencies are resolved, operands are fowarded from the <strong>writeback stage</strong> or read from the register file.</p></li>
-<li><p><strong>Bypass / Foward</strong>: Operands are fowarded from the later stages.</p></li>
-<li><p><strong>Execute</strong>: Instructions get executed and branch target addresses are resolved.</p></li>
-<li><p><strong>Commit</strong>: Buffer stage to avoid structural hazards. The result is valid here.</p></li>
+<li><dl class="simple">
+<dt><strong>Bypass / Foward</strong>:</dt><dd><p>Operands are simply fowarded from the later stages.</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><strong>Execute</strong>: Instructions get executed and branch target addresses / memory addresses are resolved.</dt><dd><p>Here reside the functional units that perform operations to execute instructions:</p>
+<ul>
+<li><p><strong>ALU</strong>: Arithmetic Logic Unit, it execute every RV32I instructions (except for load and store), it is fully combinational.</p></li>
+<li><p><strong>MUL</strong>: Multiplication Unit, it execute every multiplication instruction of RV32M, it is pipelined and the latency of the multiplier can be configured.</p></li>
+<li><p><strong>DIV</strong>: Division Unit, a multicycle unit that execute every division instruction of RV32M. It can accept only one operation until it finish it’s task.</p></li>
+<li><p><strong>BMU</strong>: Bit Manipulation Unit, a pipelined unit that execute every RV32B instruction.</p></li>
+<li><p><strong>LSU</strong>: Load Store Unit, handles memory operations.</p></li>
+<li><p><strong>CSRU</strong>: Control Status Register Unit, holds the logic to handle CSR instructions.</p></li>
+<li><p><strong>FPU</strong>: Floating Point Unit, handles floating point instructions.</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><p><strong>Commit</strong>: Buffer stage to avoid structural hazards since the LSU and the other units could produce a valid result simultaneously. The result is valid here.</p></li>
 <li><p><strong>Reorder</strong>: Instruction packets get reordered because of the Out Of Order execution.</p></li>
 <li><p><strong>Writeback</strong>: Instruction results are written back into the register file <em>in order</em>. Exceptions get caught here.</p></li>
 </ul>
@@ -173,7 +208,7 @@ the memory but a control register of the IO device. In essence, memory-mapped re
 simplifies software development and system design, allowing for a more uniform and efficient interaction with various hardware components.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The logic for this must be implemented by the system designed.</p>
+<p>The logic for this must be implemented by the system designer.</p>
 </div>
 </section>
 </section>
@@ -182,7 +217,7 @@ simplifies software development and system design, allowing for a more uniform a
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="introduction.html" class="btn btn-neutral float-left" title="Introduction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="external_interface.html" class="btn btn-neutral float-left" title="External Interface" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="control_status_registers.html" class="btn btn-neutral float-right" title="Control Status Registers" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

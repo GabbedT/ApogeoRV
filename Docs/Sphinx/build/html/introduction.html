@@ -17,7 +17,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Architecture" href="architecture.html" />
+    <link rel="next" title="External Interface" href="external_interface.html" />
     <link rel="prev" title="ApogeoCore Datasheet" href="index.html" /> 
 </head>
 
@@ -48,9 +48,10 @@
 <li class="toctree-l2"><a class="reference internal" href="#parameters">Parameters</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="architecture.html">Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="external_interface.html">External Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_architecture.html">General Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="control_status_registers.html">Control Status Registers</a></li>
-<li class="toctree-l1"><a class="reference internal" href="control_status_registers.html#user-mode-csrs">User Mode CSRs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="interrupts_and_exceptions.html">Interrupts And Exceptions</a></li>
 </ul>
 
         </div>
@@ -99,7 +100,8 @@ thanks to the various synthesis configuration parameters.</p>
 <p>The main features of <strong>ApogeoCore</strong> are:</p>
 <ul class="simple">
 <li><p>Supports the full base <strong>RV32 ISA</strong></p></li>
-<li><p>Supports the RISCV extensions <strong>M, C, Zicsr, Zba, Zbb, Zbs</strong></p></li>
+<li><p>Supports the RISCV extensions <strong>M, C, Zicsr, Zba, Zbb, Zbs, Zfinx</strong></p></li>
+<li><p>Disable units (MUL, DIV, FPU, BMU) during program execution.</p></li>
 <li><p><strong>9 Pipeline Stages</strong>: To reach maximum frequency.</p></li>
 <li><p><strong>Instruction Prefetch</strong>: Benefit from an instruction buffer for enhanced performance.</p></li>
 <li><p><strong>Branch predictor</strong>: A robust branch predictor (GSHARE + BTB) minimizes the impact of conditional and unconditional branches.</p></li>
@@ -115,7 +117,7 @@ However because of it’s configurability it’s suitable for a wide range of ta
 <p class="admonition-title">Warning</p>
 <p>ApogeoCore has been tested and implemented only in FPGA. With the some source code modifications it will be possible to target ASIC synthesis, however this is not a goal in the short future.</p>
 </div>
-<p>The RISC-V M, Zba, Zbb, Zbs extensions are implemented to handle more complex task with less latency and instructions count.
+<p>The RISC-V M, Zba, Zbb, Zbs and Zfinx extensions are implemented to handle more complex task with less latency and energy consumption other than lowering the memory usage due to instruction count.
 With these capabilities, ApogeoCore is well-suited for the following target application systems:</p>
 <ul class="simple">
 <li><p><strong>System On Chips</strong></p></li>
@@ -138,6 +140,7 @@ understanding these parameters is essential to ensure that the resulting metrics
 <li><p><strong>Branch Target Buffer Size</strong></p></li>
 <li><p><strong>Store Buffer Size</strong></p></li>
 <li><p><strong>Enable B Extension</strong></p></li>
+<li><p><strong>Enable Zfinx Extension</strong></p></li>
 <li><p><strong>Enable Branch Prediction</strong></p></li>
 <li><p><strong>Multiplier Latency</strong></p></li>
 </ul>
@@ -153,7 +156,7 @@ understanding these parameters is essential to ensure that the resulting metrics
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="ApogeoCore Datasheet" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="architecture.html" class="btn btn-neutral float-right" title="Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="external_interface.html" class="btn btn-neutral float-right" title="External Interface" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

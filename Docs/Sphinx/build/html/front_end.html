@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Front End &mdash; Apogeo Documentation 20/05/2023 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Interrupts And Exceptions" href="interrupts_and_exceptions.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Apogeo Documentation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="external_interface.html">External Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_architecture.html">General Architecture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="control_status_registers.html">Control Status Registers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="interrupts_and_exceptions.html">Interrupts And Exceptions</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Front End</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#pc-generation-stage">PC Generation Stage</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#next-pc-logic">Next PC Logic</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-predictor">Branch Predictor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#instruction-buffer">Instruction Buffer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#instruction-misaligned-manager">Instruction Misaligned Manager</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decompressor">Decompressor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decoder">Decoder</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scheduler">Scheduler</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Apogeo Documentation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Front End</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/front_end.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="front-end">
+<h1>Front End<a class="headerlink" href="#front-end" title="Permalink to this heading"></a></h1>
+<p>The <strong>frontend</strong> is the CPU layer that is responsible for the initial stages of instruction processing, it feeds the execution units with instruction data and commands. To serve this purpouse, the frontend must
+execute different complex tasks:</p>
+<ul class="simple">
+<li><p><strong>Instruction Fetch</strong>: Retrieves instructions from memory and places them into the instruction buffer for further processing.</p></li>
+<li><p><strong>Manage Misaligned Instructions</strong>: Manage all the cases of an instruction word being misaligned.</p></li>
+<li><p><strong>Instruction Decompression</strong>: In case of a compressed instruction, it gets expanded into its 32 bit version.</p></li>
+<li><p><strong>Instruction Decoding</strong>: The instruction gets decoded into multiple commands.</p></li>
+<li><p><strong>Next PC Decision</strong>: The frontend determine the next PC based on branch predictor decisions and signals that comes from the <em>backend</em>.</p></li>
+<li><p><strong>Issue Scheduling</strong>: To support coherency during program execution, due to the pipelined and OoO nature of the CPU core, instructions that get issued must be scheduled.</p></li>
+</ul>
+<section id="pc-generation-stage">
+<h2>PC Generation Stage<a class="headerlink" href="#pc-generation-stage" title="Permalink to this heading"></a></h2>
+<p>During this stage, the <em>next PC gets determined</em> based on several signals / events and the valid instructions get <em>written into the instruction buffer</em>.</p>
+<section id="next-pc-logic">
+<h3>Next PC Logic<a class="headerlink" href="#next-pc-logic" title="Permalink to this heading"></a></h3>
+<p><em>To determine the next PC</em> the combinational logic uses signals coming from: <strong>outside the core</strong>, <strong>execution unit</strong>, <strong>writeback stage</strong> and <strong>predictor unit</strong>. If no particular event is detected, the <strong>PC advances by 4</strong>,
+events obiously have different priorities:</p>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">Next PC Events (High to Low priority)</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 38%" />
+<col style="width: 62%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Exception</strong></p></td>
+<td><p>Exception detected during <em>writeback</em>, PC gets loaded with the <strong>mtvec</strong> value.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Interrupt</strong></p></td>
+<td><p>External interrupt detected, PC gets loaded with the <strong>mtvec</strong> value.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Handler Return</strong></p></td>
+<td><p><strong>MRET</strong> Instruction executed, this is detected during <em>writeback</em>, PC gets loaded with the <strong>mepc</strong> value.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Branch Executed</strong></p></td>
+<td><p>The execution unit has executed a branch, PC gets loaded with the <em>branch target address</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Instruction Buffer not Full</strong></p></td>
+<td><p>PC gets incremented by 4.</p></td>
+</tr>
+</tbody>
+</table>
+<p>These are the main events that can happen during program runtime. But how are predicted branches? How a misprediction is detected?</p>
+<p>When a <strong>branch is executed</strong> during execution stage, first of all the logic checks if that branch is <strong>speculative or not</strong> (so if that branch was predicted or not). If it’s speculative, checks if the
+<strong>branch predictor</strong> has <em>detected a misprediction</em> or the branch was <em>correctly predicted</em>. If it’s mispredicted, the PC gets loaded with the branch target address (or incremented if the branch was not taken), otherwise
+the execution continues normally.</p>
+<p>During <strong>normal execution</strong> (if the buffer is not full), the logic always checks if <em>there’s a branch target buffer hit</em>, if a BTA hit is registred and the branch is taken, the PC is loaded with the
+predicted BTA, otherwise the PC is simply incremented.</p>
+<p>This is the SystemVerilog code that implements the combinational logic:</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">exception_i</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">interrupt_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="n">fetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">handler_pc_i</span><span class="p">;</span>
+<span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">handler_return_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="n">fetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hander_return_pc_i</span><span class="p">;</span>
+<span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">executed_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="n">fetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">speculative_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">mispredicted</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">taken_i</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">jump_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">branch_target_addr_i</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">compressed_i</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="p">(</span><span class="n">instr_address_i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="n">instr_address_i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">4</span><span class="p">);</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">fetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!</span><span class="n">ibuffer_full</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">branch_buffer_hit</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">predict</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">branch_target_address</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next_program_counter</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span>
+<span class="w">    </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">taken_i</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">jump_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">branch_target_addr_i</span><span class="p">;</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">fetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">!</span><span class="n">ibuffer_full</span><span class="p">;</span>
+
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">branch_buffer_hit</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">predict</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">branch_target_address</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next_program_counter</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span>
+<span class="w">    </span><span class="k">end</span>
+<span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ibuffer_full</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="n">fetch</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">branch_buffer_hit</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">predict</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">branch_target_address</span><span class="p">;</span>
+<span class="w">    </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next_program_counter</span><span class="p">;</span>
+<span class="w">    </span><span class="k">end</span>
+<span class="k">end</span>
+</pre></div>
+</div>
+<p>If none of those conditions is satisfied, the fetch unit won’t send a request. As seen if no event makes the PC jump, the logic checks always the branch predictor status:</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">branch_buffer_hit</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">predict</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">branch_target_address</span><span class="p">;</span>
+<span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">    </span><span class="n">PC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next_program_counter</span><span class="p">;</span>
+<span class="k">end</span>
+</pre></div>
+</div>
+</section>
+<section id="branch-predictor">
+<h3>Branch Predictor<a class="headerlink" href="#branch-predictor" title="Permalink to this heading"></a></h3>
+<p>The <strong>branch predictor</strong> plays a critical role in enhancing the efficiency of program execution by anticipating the outcomes of branching instructions during program execution to avoid waiting to know the outcome of the branch.
+This function is <em>particularly valuable for CPU with deep pipes and long fetch latencies</em>, without a branch predictor if a branch is taken, to start executing the new instruction, the CPU needs to wait <em>N</em> clock cyles from the
+branch’s to its execution plus <em>M</em> clock cycles to wait the new instruction arrival. ApogeoCore’s branch predictor is composed by two hardware blocks: <strong>Branch Target Buffer</strong> and
+<strong>GShare Branch Predictor</strong>.</p>
+<p>The <strong>Branch Target Buffer</strong>, or <strong>BTB</strong>, essentially operates as a cache, built from syncronous memory with a single read and a single write port. Its primary function is to retain the branch target address associated with specific branch instructions. It’s read-indexed by the lower bits of the current PC and just like a cache a BTB entry is composed by
+a <em>valid bit</em> to know if the entry has been written with valid data, a <em>tag</em> that holds the upper bits of the branch instruction address and the <em>branch target address</em>.</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">localparam</span><span class="w"> </span><span class="n">LOWER_BITS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">$</span><span class="n">clog2</span><span class="p">(</span><span class="n">BUFFER_SIZE</span><span class="p">);</span>
+
+<span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="k">packed</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">logic</span><span class="w"> </span><span class="n">valid</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="mi">31</span><span class="o">:</span><span class="n">LOWER_BITS</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="n">tag</span><span class="p">;</span>
+<span class="w">    </span><span class="n">data_word_t</span><span class="w"> </span><span class="n">branch_target_address</span><span class="p">;</span>
+<span class="p">}</span><span class="w"> </span><span class="n">branch_target_buffer_t</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>The BTB is updated with information from the current instruction in the execution unit if that instruction represents a branch or jump. A <strong>BTB Hit</strong> is registered when the upper portion of the <em>current program counter matches the tag, and the entry is marked as valid</em>.</p>
+<p>The <strong>GShare Branch Predictor</strong> operates as a <strong>global branch predictor</strong> which means that the predictions are based on the history of the most recent the branches. The branch history is saved in a shift register called <strong>branch history table</strong>, that shift whenever a branch / jump is executed, it shift in
+a logic 1 when the branch is taken or it’s a jump, logic 0 when the branch is not taken. The entire value of the shift register is XORed with the <strong>branch target address</strong> obtained from the BTB forming an index. This is used to access a table of
+2 bits counters, the memory that holds <em>the value of the counters is updated when a branch / jump is executed</em>. Based on the value of the specific counter indexed, the branch predictor takes a guess: if the bit 1 of the counter is high then the branch is taken otherwise it’s not.
+<strong>The predictor makes a predictione whenever the BTB register an hit</strong>, if that’s the case, the information of the prediction is saved into a queue awaiting execution and branch resolution. Inside a queue entry it’s saved: the <em>predicted outcome</em>, the <em>hashed index</em> and
+the <em>branch target address</em>:</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">typedef</span><span class="w"> </span><span class="k">struct</span><span class="w"> </span><span class="k">packed</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">logic</span><span class="w"> </span><span class="n">prediction</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">logic</span><span class="w"> </span><span class="p">[$</span><span class="n">clog2</span><span class="p">(</span><span class="n">TABLE_SIZE</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">index</span><span class="p">;</span>
+<span class="w">    </span><span class="n">data_word_t</span><span class="w"> </span><span class="n">target_address</span><span class="p">;</span>
+<span class="p">}</span><span class="w"> </span><span class="n">predictor_t</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>The queue is <em>pushed on BTB hit</em> and is subsequently <em>popped when the execution unit resolve a branch / jump</em>. During the pop operation, the predictor determines whether a misprediction occurred by <em>comparing the execution unit’s outcome with the prediction bit in the queue entry read</em>. Then it uses the
+index from the entry to update the corresponding counter. If the branch is taken, the counter is incremented otherwise it’s decremented.</p>
+<p>These two hardware components collaborate closely to predict the next program counter: the fetch unit forwards the PC to the BTB, and if a BTB hit occurs, the predictor makes a preliminary decision, which is subsequently confirmed or refuted during execution.</p>
+</section>
+<section id="instruction-buffer">
+<h3>Instruction Buffer<a class="headerlink" href="#instruction-buffer" title="Permalink to this heading"></a></h3>
+<p>The <strong>instruction buffer</strong> <em>decouples the fetch interface from the pipeline</em>. The arrival of new instructions and the request of a new instruction from the pipeline advance at different rates. The pipeline has different source of stalls, during this time new instructions can’t be executed,
+discarding or stalling the incoming instructions would degrade the overall performance of the CPU. The instruction buffer is the solution, <em>fetch unit can still supply new instruction while the pipeline is in stall</em>, by doing this the fetch unit is effectively prefetching new instructions in advance.</p>
+<p>The instruction buffer is composed by three sub-buffers: the <strong>address buffer</strong>, the <strong>instruction word buffer</strong> and the <strong>speculative buffer</strong>. Each sub-buffer is written by its own write signal: when a new instruction is fetched, first the fetch address is sent to the memory. The fetch address is the first
+to be written inside its buffer. After one clock cycle, the speculative buffer gets written with the BTB access result and with the prediction done. When the instruction requested arrives (after N cycles), it gets written finally in the instruction word buffer.</p>
+<p>Once all three buffers are written, they are read simultaneoulsy by the fetch stage logic. The buffers have the same write / read frequency, however the writes of the <em>speculative buffer</em> are out of phase of 1 clock cycle, and the writes writes of the <em>instruction word buffer</em> are out of phase of N clock cycle
+depending on the memory latency.</p>
+</section>
+<section id="instruction-misaligned-manager">
+<h3>Instruction Misaligned Manager<a class="headerlink" href="#instruction-misaligned-manager" title="Permalink to this heading"></a></h3>
+<p>The instruction buffer always supplies a 4 byte word to the pipeline. However by enabling the <strong>RISC-V C Extension</strong>, it’s possible to find 2 byte instructions, because of this a word retrieved from the instruction buffer can contain:</p>
+<ul class="simple">
+<li><p>One full instruction (F)</p></li>
+<li><p>Two compressed instructions (C/C)</p></li>
+<li><p>One compressed instruction and the lower half of a full instruction (HF/C)</p></li>
+<li><p>The upper half of a full instruction and one compressed instruction (C/HF)</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>F</strong>: Full Instruction, <strong>C/C</strong>: Two Compressed Instructions, <strong>HF/C</strong>: Compressed Instruction on lower half of the entry and Half Full Instruction on upper half, <strong>C/HF</strong>: Half Full Instruction on lower half and Compressed Instruction on upper half of the entry</p>
+</div>
+<p>The first case is trivial: just send the word through the pipeline.</p>
+<p>The second case is also really simple: just delay the read of the instruction buffer by 1 clock cycle (under no stall conditions) and expand the two compressed instructions back to back.</p>
+<p>The third and the fourth cases happen during a full word misalignmnent. When the HF/C word is read, first expand the compressed instruction and send it through the pipeline, meanwhile, save the lower half in a register. In the next cycle the instruction buffer entry is read,
+that will be a C/HF word, in this case combine the previos saved lower half with the upper half that resides in the low 16 bit of the buffer entry and send the fused word through the pipeline.</p>
+</section>
+<section id="decompressor">
+<h3>Decompressor<a class="headerlink" href="#decompressor" title="Permalink to this heading"></a></h3>
+<p>The <strong>decompressor</strong> simply receives a 16 bit compressed instruction and expand it in the 32 bit equivalent full instruction.</p>
+</section>
+<section id="decoder">
+<h3>Decoder<a class="headerlink" href="#decoder" title="Permalink to this heading"></a></h3>
+<p>The <strong>decoder</strong> takes a 32 bit instruction as input and generates a set of signals adn micro operations that can be used to drive and control the pipeline:</p>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text">Generated Signals</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 20%" />
+<col style="width: 53%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Width</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Immediate</strong></p></td>
+<td><p>32 (x2)</p></td>
+<td><p>Immediate value generated directly from the instruction word.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Immediate Valid</strong></p></td>
+<td><p>1 (x2)</p></td>
+<td><p>The operand is an immediate or a register.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Base Address Register</strong></p></td>
+<td><p>1</p></td>
+<td><p>Used for branch and memory instructions, select if the base address is a register or an immediate.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Save Next PC</strong></p></td>
+<td><p>1</p></td>
+<td><p>Used for JAL and JALR instruction where the return address is saved in a register.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Address Offset</strong></p></td>
+<td><p>32</p></td>
+<td><p>Used for branch and memory instructions, this is the offset that will be added to the base address.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Fence</strong></p></td>
+<td><p>1</p></td>
+<td><p>Instruction is FENCE.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Jump</strong></p></td>
+<td><p>1</p></td>
+<td><p>Instruction is a jump.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Branch</strong></p></td>
+<td><p>1</p></td>
+<td><p>Instruction is a branch.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Register Source</strong></p></td>
+<td><p>5 (x2)</p></td>
+<td><p>Register source address in register file.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Register Destination</strong></p></td>
+<td><p>5</p></td>
+<td><p>Register destination address in register file.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Execution Unit Valid</strong></p></td>
+<td><p>Depends On Configuration</p></td>
+<td><p>Select the unit where the instruction must be executed.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Execution Unit Micro-Operation</strong></p></td>
+<td><p>Depends On Configuration</p></td>
+<td><p>Define the operation to execute on the operands inside a specific unit.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Exception Generated</strong></p></td>
+<td><p>1</p></td>
+<td><p>An exception has been generated.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Exception Vector</strong></p></td>
+<td><p>5</p></td>
+<td><p>Not only define the exception but also gives important informations for debug and signals generation in writeback stage.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The decoder is composed by 3 sub-decoder to enable better modularity. The first is an <strong>integer decoder</strong> used to decode I, M and Zicsr instructions. Then we have a <strong>bit manipulation decoder</strong> and a <strong>floating point decoder</strong> to decode
+respectively B and Zfinx instructions. The final set of signals will be selected from the decoded that have not generated an exception.</p>
+<p>The exception vector is used to debug the core from the writeback stage, detect exceptions and special operations like <cite>WFI</cite>, <cite>MRET</cite> etc.</p>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text">Exception Codes</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Code</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>Instruction address misaligned.</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p>Instruction access fault.</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p>Illegal instruction.</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>Breakpoint.</p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>Load address misaligned.</p></td>
+</tr>
+<tr class="row-odd"><td><p>5</p></td>
+<td><p>Load access fault.</p></td>
+</tr>
+<tr class="row-even"><td><p>6</p></td>
+<td><p>Store address misaligned.</p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p>Store/AMO access fault.</p></td>
+</tr>
+<tr class="row-even"><td><p>8</p></td>
+<td><p>Environment call from U-mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p>11</p></td>
+<td><p>Environment call from M-mode.</p></td>
+</tr>
+<tr class="row-even"><td><p>16</p></td>
+<td><p>Executed <cite>WFI</cite> instruction, used to put core in sleep.</p></td>
+</tr>
+<tr class="row-odd"><td><p>17</p></td>
+<td><p>Executed <cite>MRET</cite> instruction, used to control next PC logic.</p></td>
+</tr>
+<tr class="row-even"><td><p>18</p></td>
+<td><p>Executed <em>store</em> instruction, used to debug core.</p></td>
+</tr>
+<tr class="row-odd"><td><p>19</p></td>
+<td><p>Executed <em>load</em> instruction, used to debug core.</p></td>
+</tr>
+<tr class="row-even"><td><p>20</p></td>
+<td><p>Executed <em>branch</em> instruction, used to debug core.</p></td>
+</tr>
+<tr class="row-odd"><td><p>21</p></td>
+<td><p>Executed <em>jump</em> instruction, used to debug core.</p></td>
+</tr>
+<tr class="row-even"><td><p>22</p></td>
+<td><p>Executed <em>csr</em> instruction, used to debug core and to update CSRs state.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="scheduler">
+<h3>Scheduler<a class="headerlink" href="#scheduler" title="Permalink to this heading"></a></h3>
+<p>The scheduler has multiple jobs:</p>
+<ul class="simple">
+<li><p>Reading the operands from the register files.</p></li>
+<li><p>Fowarding the written back result.</p></li>
+<li><p>Select the operand to issue.</p></li>
+<li><p>Determine when to issue the instruction.</p></li>
+<li><p>Generate a reorder buffer tag.</p></li>
+</ul>
+<p>Selecting the operands is rather easy, they are read from the register file using the decoded register addresses. If there is a match between a currently writing register destination and a register source, the value of that register
+destination is fowarded as value of the matching register source. To enable instruction reordering in the reorder buffer, a reorder buffer tag is generated. This is used as write address inside the ROB, the tag is just a value that increments each time
+an instruction is issued. During branch mispredictions or branch flushes the value is decremented.</p>
+<p>The scheduler implements a <strong>scoreboard algorithm</strong> to keep track of all the data and structural dependencies in the execution unit caused by units that takes multiple clock cycles to produce a valid result. For each unit the following informations are saved:</p>
+<ul class="simple">
+<li><p>Unit is executing.</p></li>
+<li><p>Register destination.</p></li>
+<li><p>Cycles remaining until valid result.</p></li>
+</ul>
+<p>This is true for each unit except <strong>load and store unit</strong> that can have variable latencies so it’s not possible to save the remaining time. For multicycle units this is straightforward: those informations are kept until the end of operation.</p>
+<p>For pipelined unit this is different, but it’s possible to consider an
+N cycles deep pipelined unit as N different virtual multicycles unit of N clock cycles of latency. A shift register of N bits is used to select the virtual unit, the shift register has only one bit high at a certain time and once the bit arrives at the end, it wraps around.
+Once an operation is issued to that unit the bit get shifted to the left in the next clock cycle. In the same clock cycle if the i-th bit of the shift register is high, the i-th virtual unit informations are loaded with: register destination and the time remaining. If the pipeline is
+not stalled, the time remaining is decremented each cycle.</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="cm">/* Select the unit stage */</span>
+<span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="n">UNIT_LATENCY</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">virtual_unit_select</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">always_ff</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_i</span><span class="w"> </span><span class="no">`ifdef</span><span class="w"> </span><span class="n">ASYNC</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="k">negedge</span><span class="w"> </span><span class="n">rst_n_i</span><span class="w"> </span><span class="no">`endif</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">selector</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">rst_n_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">virtual_unit_select</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">flush_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="n">virtual_unit_select</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stall_i</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">issue_next_cycle</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">virtual_unit_select</span><span class="p">[</span><span class="n">UNIT_LATENCY</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">])</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="cm">/* Wrap around the shifted bit */</span>
+<span class="w">                </span><span class="n">virtual_unit_select</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="cm">/* Shift the bit every time an</span>
+<span class="cm">                 * operation arrives */</span>
+<span class="w">                </span><span class="n">virtual_unit_select</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">virtual_unit_select</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span>
+<span class="w">    </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">selector</span>
+
+
+<span class="cm">/* Since the unit is pipelined, the scoreboard needs to keep track of every stage */</span>
+<span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="n">UNIT_LATENCY</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">vunit_executing</span><span class="p">,</span><span class="w"> </span><span class="n">vunit_raw_hazard</span><span class="p">,</span><span class="w"> </span><span class="n">vunit_latency_hazard</span><span class="p">;</span>
+<span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="n">UNIT_LATENCY</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="mi">0</span><span class="p">][</span><span class="mi">31</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">vunit_register_dest</span><span class="p">;</span>
+<span class="kt">logic</span><span class="w"> </span><span class="p">[</span><span class="n">UNIT_LATENCY</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="mi">0</span><span class="p">][$</span><span class="n">clog2</span><span class="p">(</span><span class="n">UNIT_LATENCY</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="o">:</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="n">vunit_count</span><span class="p">;</span>
+
+<span class="k">generate</span><span class="w"> </span><span class="k">genvar</span><span class="w"> </span><span class="n">i</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">UNIT_LATENCY</span><span class="p">;</span><span class="w"> </span><span class="o">++</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">        </span><span class="k">always_ff</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_i</span><span class="w"> </span><span class="no">`ifdef</span><span class="w"> </span><span class="n">ASYNC</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="k">negedge</span><span class="w"> </span><span class="n">rst_n_i</span><span class="w"> </span><span class="no">`endif</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">vunit_status_register</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">rst_n_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">flush_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stall_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">issue_next_cycle</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">virtual_unit_select</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                    </span><span class="cm">/* If the current stage counter is selected</span>
+<span class="cm">                     * load status */</span>
+<span class="w">                    </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">UNIT_LATENCY</span><span class="p">;</span>
+<span class="w">                </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                    </span><span class="cm">/* Keep decrementing the latency counter until the</span>
+<span class="cm">                     * unit produces a valid result */</span>
+<span class="w">                    </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mb">1&#39;b1</span><span class="p">;</span>
+<span class="w">                </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                    </span><span class="cm">/* The unit has finished */</span>
+<span class="w">                    </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">                </span><span class="k">end</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">vunit_status_register</span>
+
+<span class="w">        </span><span class="k">always_ff</span><span class="w"> </span><span class="p">@(</span><span class="k">posedge</span><span class="w"> </span><span class="n">clk_i</span><span class="w"> </span><span class="no">`ifdef</span><span class="w"> </span><span class="n">ASYNC</span><span class="w"> </span><span class="k">or</span><span class="w"> </span><span class="k">negedge</span><span class="w"> </span><span class="n">rst_n_i</span><span class="w"> </span><span class="no">`endif</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">vunit_destination_register</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">rst_n_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="n">vunit_register_dest</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">;</span>
+<span class="w">            </span><span class="k">end</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">stall_i</span><span class="p">)</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">issue_next_cycle</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">virtual_unit_select</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="k">begin</span>
+<span class="w">                    </span><span class="cm">/* Load register in the next cycle if the instruction</span>
+<span class="cm">                     * dispatched is being issued in the next cycle */</span>
+<span class="w">                    </span><span class="n">vunit_register_dest</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">dest_reg_i</span><span class="p">;</span>
+<span class="w">                </span><span class="k">end</span>
+<span class="w">            </span><span class="k">end</span>
+<span class="w">        </span><span class="k">end</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">vunit_destination_register</span>
+
+<span class="w">        </span><span class="k">assign</span><span class="w"> </span><span class="n">vunit_executing</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">&#39;d1</span><span class="p">);</span>
+
+<span class="w">        </span><span class="p">...</span>
+
+<span class="w">    </span><span class="k">end</span>
+
+<span class="k">endgenerate</span>
+</pre></div>
+</div>
+<p>If a new operation needs to be issued, for each unit and virtual unit, it’s done a <strong>RAW and WAW hazard check</strong> and a <strong>latency hazard check</strong>:</p>
+<div class="highlight-systemverilog notranslate"><div class="highlight"><pre><span></span><span class="k">assign</span><span class="w"> </span><span class="n">vunit_raw_hazard</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">((</span><span class="n">src_reg_i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">vunit_register_dest</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="p">(</span><span class="n">src_reg_i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">vunit_register_dest</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span><span class="w"> </span><span class="o">&amp;</span>
+<span class="w">                                    </span><span class="n">vunit_executing</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">vunit_register_dest</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="m">&#39;0</span><span class="p">);</span>
+
+<span class="k">assign</span><span class="w"> </span><span class="n">vunit_waw_hazard</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">dest_reg_i</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">vunit_register_dest</span><span class="p">[</span><span class="n">i</span><span class="p">]);</span>
+
+<span class="k">assign</span><span class="w"> </span><span class="n">vunit_latency_hazard</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">latency</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">vunit_count</span><span class="p">[</span><span class="n">i</span><span class="p">])</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">vunit_executing</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+</pre></div>
+</div>
+<p>For RAW hazard check, each register source in input is checked against every register destination in <em>every executing unit or virtual unit</em>. To avoid WAW hazards every register destination inside the execution stage must be different: <em>there must not be instructions with the same register</em>
+destination. Latency hazard checks are done to ensure that <em>no more than one unit produces a valid result in the same clock cycle</em> (this is valid for units inside each major processing unit: ITU, LSU, FPU).</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="interrupts_and_exceptions.html" class="btn btn-neutral float-left" title="Interrupts And Exceptions" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Tripi Gabriele.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
