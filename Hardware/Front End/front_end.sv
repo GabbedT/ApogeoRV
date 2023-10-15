@@ -71,6 +71,11 @@ module front_end #(
     input logic pipeline_empty_i,
     output logic issue_o,
 
+    /* Unit enabled */
+    input logic M_ext_i, 
+    `ifdef BMU input logic B_ext_i, `endif 
+    `ifdef FPU input logic Zfinx_ext_i, `endif 
+
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
 
@@ -498,6 +503,10 @@ module front_end #(
         .instr_i         ( if_stage_instruction     ),
         .instr_address_i ( if_stage_program_counter ),
         .priv_level_i    ( priv_level_i             ),
+
+        .M_ext_i                ( M_ext_i     ),
+        `ifdef BMU .B_ext_i     ( B_ext_i     ), `endif 
+        `ifdef FPU .Zfinx_ext_i ( Zfinx_ext_i ), `endif 
 
         .immediate_o       ( immediate       ),
         .immediate_valid_o ( immediate_valid ),
