@@ -72,6 +72,11 @@ module back_end #(
     output logic priv_level_o,
     output logic pipeline_empty_o,
 
+    /* Units enabled */
+    output logic M_ext_o,
+    `ifdef BMU output logic B_ext_o, `endif 
+    `ifdef FPU output logic Zfinx_ext_o, `endif 
+
     /* Operands */
     input logic [1:0][4:0] reg_src_i,
     input logic [1:0] immediate_valid_i,
@@ -253,16 +258,23 @@ module back_end #(
 
     exu_valid_t valid_operation;
 
-    assign valid_operation = stall_o ? '0 : bypass_valid; 
 
+    logic stall, buffer_hazard; 
+
+    assign valid_operation = stall ? '0 : bypass_valid; 
 
     execution_unit #(STORE_BUFFER_SIZE, EXU_PORT) execute_stage (
-        .clk_i          ( clk_i              ),
-        .rst_n_i        ( rst_n_i            ),
-        .flush_i        ( flush_o            ),
-        .stall_i        ( stall_o            ),
-        .validate_i     ( execute_store      ),
-        .buffer_empty_o ( store_buffer_empty ),
+        .clk_i           ( clk_i              ),
+        .rst_n_i         ( rst_n_i            ),
+        .flush_i         ( flush_o            ),
+        .stall_i         ( stall              ),
+        .validate_i      ( execute_store      ),
+        .buffer_empty_o  ( store_buffer_empty ),
+        .buffer_hazard_o ( buffer_hazard      ),
+
+        .M_ext_o                ( M_ext_o     ),
+        `ifdef BMU .B_ext_o     ( B_ext_o     ), `endif 
+        `ifdef FPU .Zfinx_ext_o ( Zfinx_ext_o ), `endif 
 
         .validate_csr_write_i ( execute_csr     ),
         .priv_level_o         ( priv_level_o    ),
@@ -456,8 +468,8 @@ module back_end #(
         .tag_i   ( reorder_buffer_tag    ),
         .entry_i ( reorder_buffer_packet ),
 
-        .write_i    ( reorder_buffer_write ),
-        .read_i     ( reorder_buffer_read  ),
+        .write_i ( reorder_buffer_write ),
+        .read_i  ( reorder_buffer_read  ),
 
         .full_o  ( reorder_buffer_full  ),
         .empty_o ( reorder_buffer_empty ),
@@ -527,7 +539,9 @@ module back_end #(
     assign branch_flush_o = (branch_outcome_o | jump_o) & executed_o;
     `endif 
 
-    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
+    assign stall = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
+    assign stall_o = stall | buffer_hazard;
+
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 
     assign reorder_buffer_clear = flush_pipeline;
