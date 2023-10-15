@@ -118,8 +118,6 @@ module branch_target_buffer #(
     /* Predict indirect branches, direct branches do not need prediction */
     assign predict_o = hit_o;
 
-    // assign jump_o = !buffer_read.branch & hit_o;
-
     assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid; 
 
     assign branch_target_addr_o = buffer_read.branch_target_address;

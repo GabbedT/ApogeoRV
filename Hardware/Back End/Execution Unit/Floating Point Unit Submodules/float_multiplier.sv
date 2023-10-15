@@ -316,7 +316,7 @@ module float_multiplier #(
         end : normalization_logic
 
 
-        always_comb begin : rounding_logic
+        always_comb begin : final_result_logic
             if (invalid_o) begin
                 result_o = CANONICAL_NAN; 
 
@@ -346,12 +346,12 @@ module float_multiplier #(
                     round_bits_o = round_bits;
                 end 
             end 
-        end : rounding_logic
+        end : final_result_logic
  
     
     assign valid_o = mul_data_valid_pipe[CORE_STAGES]; 
 
-    assign underflow_o = ($signed(exponent_incremented) < MIN_EXP) & (input_exp_sign == '0) & !invalid_o;
+    assign underflow_o = ($signed(result_exp_pipe[CORE_STAGES]) < MIN_EXP) & (input_exp_sign == '0) & !invalid_o;
     assign overflow_o = (overflow | result_infinity_pipe[CORE_STAGES]) & !invalid_o;
 
     assign invalid_o = invalid_operation_pipe[CORE_STAGES];

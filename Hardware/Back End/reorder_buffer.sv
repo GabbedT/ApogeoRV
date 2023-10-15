@@ -235,7 +235,7 @@ module reorder_buffer (
         end : register_tag_write_port
 
 
-    /* Indicates it the result was written back to register file or not */
+    /* Indicates if the result was written back to register file or not */
     logic [31:0] valid_register, valid_out;
 
     /* Register X0 is always valid */

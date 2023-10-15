@@ -140,7 +140,7 @@ module arithmetic_logic_unit (
 
     assign data_valid_o = data_valid_i;
 
-        always_comb begin : output_assignment
+        always_comb begin : output_selection
             case (operation_i)
                 ADD: result_o = add_result;
 
@@ -176,14 +176,14 @@ module arithmetic_logic_unit (
 
                 default: result_o = '0;
             endcase
-        end : output_assignment
+        end : output_selection
 
 
 //====================================================================================
 //      BRANCH LOGIC
 //====================================================================================
 
-        always_comb begin
+        always_comb begin : outcome_selection
             case (operation_i[2:0])
                 BEQ: taken_o = is_equal;
 
@@ -199,7 +199,7 @@ module arithmetic_logic_unit (
 
                 default: taken_o = 1'b0; 
             endcase 
-        end
+        end : outcome_selection
 
 endmodule : arithmetic_logic_unit
 
