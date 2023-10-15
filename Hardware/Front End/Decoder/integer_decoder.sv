@@ -53,6 +53,9 @@ module integer_decoder (
     /* Privilege level for system call */
     input logic priv_level_i,
 
+    /* M extension enabled */
+    input logic M_ext_i,
+
     /* Micro instructions */
     output itu_valid_t itu_unit_valid_o,
     output itu_uop_t itu_unit_uop_o,
@@ -661,7 +664,7 @@ module integer_decoder (
                         default: exception_generated = 1'b1;
                     endcase 
 
-                    exception_generated = instr_i[31:25] != 7'b0000001;
+                    exception_generated = (instr_i[31:25] != 7'b0000001) | !M_ext_i;
                 end else begin 
                     case (instr_i.R.funct3) 
                         riscv32::ADD: begin
