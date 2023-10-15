@@ -64,6 +64,12 @@ module execution_unit #(
     input logic stall_i,
     input logic validate_i,
     output logic buffer_empty_o,
+    output logic buffer_hazard_o,
+
+    /* Decoder valid instruction select */
+    output logic M_ext_o,
+    `ifdef BMU output logic B_ext_o, `endif 
+    `ifdef FPU output logic Zfinx_ext_o, `endif 
 
     /* CSR nets */ 
     input logic validate_csr_write_i,
@@ -186,25 +192,26 @@ module execution_unit #(
     logic timer_interrupt, current_privilege;
 
     load_store_unit #(STORE_BUFFER_SIZE) LSU (
-        .clk_i             ( clk_i                   ),
-        .rst_n_i           ( rst_n_i                 ),
-        .flush_i           ( flush_i                 ),
-        .stall_i           ( stall_i                 ),
-        .privilege_i       ( current_privilege       ),
-        .buffer_empty_o    ( buffer_empty_o          ),
-        .instr_packet_i    ( ipacket_i               ),
-        .data_valid_i      ( data_valid_i.LSU        ),
-        .address_i         ( address_i               ),
-        .data_i            ( operand_i[1]            ),
-        .operation_i       ( operation_i.LSU.subunit ),
-        .ldu_idle_o        ( ldu_idle_o              ),
-        .stu_idle_o        ( stu_idle_o              ),
-        .validate_i        ( validate_i              ),
-        .load_channel      ( load_channel            ),
-        .store_channel     ( store_channel           ),
-        .instr_packet_o    ( ipacket_o[1]          ),
-        .data_o            ( result_o[1]           ),
-        .data_valid_o      ( data_valid_o[1]       )
+        .clk_i          ( clk_i                   ),
+        .rst_n_i        ( rst_n_i                 ),
+        .flush_i        ( flush_i                 ),
+        .stall_i        ( stall_i                 ),
+        .stall_o        ( buffer_hazard_o         ),
+        .privilege_i    ( current_privilege       ),
+        .buffer_empty_o ( buffer_empty_o          ),
+        .instr_packet_i ( ipacket_i               ),
+        .data_valid_i   ( data_valid_i.LSU        ),
+        .address_i      ( address_i               ),
+        .data_i         ( operand_i[1]            ),
+        .operation_i    ( operation_i.LSU.subunit ),
+        .ldu_idle_o     ( ldu_idle_o              ),
+        .stu_idle_o     ( stu_idle_o              ),
+        .validate_i     ( validate_i              ),
+        .load_channel   ( load_channel            ),
+        .store_channel  ( store_channel           ),
+        .instr_packet_o ( ipacket_o[1]            ),
+        .data_o         ( result_o[1]             ),
+        .data_valid_o   ( data_valid_o[1]         )
     );
 
     assign timer_interrupt_o = timer_interrupt; 
@@ -234,7 +241,7 @@ module execution_unit #(
         end
 
 
-    logic illegal_csr_access; logic overflow, underflow, inexact, invalid;
+    logic illegal_csr_access; logic overflow, underflow, inexact, invalid; logic csr_fpu_enable;
 
     control_status_registers CSRU (
         .clk_i                  ( clk_i                   ),
@@ -261,6 +268,10 @@ module execution_unit #(
             .enable_bmu_o ( csr_bmu_enable ), 
         `endif 
 
+        `ifdef FPU
+            .enable_fpu_o ( csr_fpu_enable ), 
+        `endif 
+
         `ifdef FPU 
             .float_valid_i ( data_valid_o[2] ),
             .invalid_i     ( invalid         ),
@@ -284,6 +295,9 @@ module execution_unit #(
         .current_privilege_o    ( current_privilege       )
     );
 
+    assign M_ext_o = csr_mul_enable;
+    `ifdef BMU assign B_ext_o = csr_bmu_enable; `endif 
+    `ifdef FPU assign Zfinx_ext_o = csr_fpu_enable; `endif 
 
     logic csru_valid; instr_packet_t csru_ipacket; data_word_t csru_result;
 
@@ -321,11 +335,13 @@ module execution_unit #(
 
     `ifdef FPU 
 
+    logic fpu_stall; assign fpu_stall = !csr_fpu_enable | stall_i;
+
     floating_point_unit FPU (
-        .clk_i   ( clk_i   ),
-        .rst_n_i ( rst_n_i ),
-        .flush_i ( flush_i ),
-        .stall_i ( stall_i ),
+        .clk_i   ( clk_i     ),
+        .rst_n_i ( rst_n_i   ),
+        .flush_i ( flush_i   ),
+        .stall_i ( fpu_stall ),
 
         .ipacket_i ( ipacket_i ),
 
