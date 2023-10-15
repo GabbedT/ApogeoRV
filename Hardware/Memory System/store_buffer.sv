@@ -64,8 +64,10 @@ module store_buffer #(
 
     /* Foward data nets */
     input data_word_t foward_address_i,
+    input store_width_t foward_width_i,
     output data_word_t foward_data_o,
-    output logic address_match_o
+    output logic address_match_o,
+    output logic wait_o
 );
 
 //====================================================================================
@@ -187,6 +189,13 @@ module store_buffer #(
     /* Implemented with a memory with 1W and 1R port */
     logic [$bits(store_width_t) - 1:0] store_width_buffer [BUFFER_DEPTH - 1:0];
 
+    /* Initialize data */
+    initial begin
+        for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
+            store_width_buffer[i] = '0;
+        end
+    end
+
         always_ff @(posedge clk_i) begin : write_store_width_port
             if (push_channel.request) begin
                 /* Push data */
@@ -234,6 +243,10 @@ module store_buffer #(
                 for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
                     metadata_buffer[i].valid <= '0;
                 end
+            end else if (flush_i) begin 
+                for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
+                    metadata_buffer[i].valid <= '0;
+                end
             end else begin 
                 if (pull_channel.request) begin
                     /* Invalidate on pull */
@@ -254,7 +267,7 @@ module store_buffer #(
 
 
 //====================================================================================
-//      MERGE AND FOWARD LOGIC
+//      FOWARD LOGIC
 //====================================================================================
 
     /* A valid entry, used to partially validate pushed values before the store operation
@@ -266,8 +279,12 @@ module store_buffer #(
                 for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
                     foward_valid[i] <= '0;
                 end
+            end else if (flush_i) begin 
+                for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
+                    foward_valid[i] <= '0;
+                end
             end else begin 
-                if (pull_channel.request) begin
+                if (pull_channel.done) begin
                     /* Invalidate on pull */
                     foward_valid[pull_ptr] <= 1'b0;
                 end
@@ -280,25 +297,36 @@ module store_buffer #(
         end 
 
 
-    logic [BUFFER_DEPTH - 1:0] pop_address_match;
+    logic [BUFFER_DEPTH - 1:0] address_match, width_match, foward_match, wait_match;
 
         always_comb begin : address_match_logic
             /* Default values */
             foward_ptr = '0;
-            pop_address_match = '0;
+            width_match = '0;
+            foward_match = '0;
+            address_match = '0;
 
             for (int i = BUFFER_DEPTH - 1; i >= 0; --i) begin
-                /* Check if any read address match an entry, start from the head of the buffer, so the most recent
-                 * data is matched */
-                pop_address_match[i] = (foward_address_i[31:2] == metadata_buffer[i].address[31:2]) & foward_valid[i];
+                /* Check if any read address match an entry, start from the head of the buffer, so the most recent data is matched */
+                address_match[i] = (foward_address_i == metadata_buffer[i].address) & foward_valid[i];
+                width_match[i] = foward_width_i == store_width_buffer[i];
+
+                /* Final validity check */
+                foward_match[i] = address_match[i] & width_match[i];
+
+                /* Wait if address match but not the width */
+                wait_match[i] = (foward_address_i[31:2] == metadata_buffer[i].address[31:2]) & foward_valid[i] & !width_match[i];
                 
-                if (pop_address_match[i]) begin
+                /* Priority encoder */
+                if (foward_match[i]) begin
                     foward_ptr = i;
                 end
             end
         end : address_match_logic
 
-    assign address_match_o = (pop_address_match != '0);
+    assign wait_o = wait_match != '0;
+
+    assign address_match_o = (foward_match != '0);
 
 endmodule : store_buffer
 

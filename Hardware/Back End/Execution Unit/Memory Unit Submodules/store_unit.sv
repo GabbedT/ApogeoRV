@@ -87,11 +87,11 @@ module store_unit #(
 
     /* Buffer foward data nets */
     input data_word_t foward_address_i,
+    input store_width_t foward_width_i,
     output data_word_t foward_data_o,
     output logic foward_match_o,
-
-    /* Store buffer status */
     output logic buffer_empty_o,
+    output logic wait_o,
 
     /* Functional unit status */
     output logic idle_o,
@@ -200,8 +200,8 @@ module store_unit #(
             buffer_channel.packet = '0;
 
             idle_o = 1'b0;
-            data_valid_o = 1'b0;
             fsm_match = 1'b0;
+            data_valid_o = 1'b0;
             foward_packet_o = 1'b0; 
             illegal_access_o = !accessable; 
             misaligned_o = misaligned;
@@ -256,7 +256,7 @@ module store_unit #(
                     buffer_channel.request = !buffer_channel.full; 
                     buffer_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
-                    fsm_match = foward_address_i == store_address_i[31:2];
+                    fsm_match = (foward_address_i == store_address_CRT) & (foward_width_i == store_width_CRT);
 
                     if (!buffer_channel.full) begin 
                         if (!wait_i) begin
@@ -291,7 +291,7 @@ module store_unit #(
 //      STORE BUFFER
 //====================================================================================
 
-    data_word_t buffer_foward_data; logic buffer_match; 
+    data_word_t buffer_foward_data; logic buffer_match, buffer_wait; 
 
     store_buffer #(STORE_BUFFER_SIZE) str_buffer (
         .clk_i   ( clk_i   ),
@@ -304,12 +304,13 @@ module store_unit #(
         .valid_i ( validate_i ),
 
         .foward_address_i ( foward_address_i   ),
+        .foward_width_i   ( foward_width_i     ),
         .foward_data_o    ( buffer_foward_data ),
-        .address_match_o  ( buffer_match       )
+        .address_match_o  ( buffer_match       ),
+        .wait_o           ( wait_o             )
     );
 
-    assign buffer_empty_o = buffer_channel.empty; 
-
+    assign buffer_empty_o = buffer_channel.empty;
 
 //====================================================================================
 //      FOWARD LOGIC

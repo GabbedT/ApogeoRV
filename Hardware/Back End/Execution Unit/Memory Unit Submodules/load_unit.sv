@@ -73,9 +73,10 @@ module load_unit (
     /* Fowarding nets */
     input logic foward_match_i,
     input data_word_t foward_data_i,
+    output store_width_t load_size_o,
 
     /* Status */
-    input logic buffer_empty_i, 
+    input logic buffer_wait_i,
     
     /* Data loaded from memory */   
     output data_word_t data_loaded_o,
@@ -223,6 +224,7 @@ module load_unit (
             foward_packet_o = 1'b0;
             slice_operation = '0;
             data_selected = '0;
+            load_size_o = WORD;
 
             case (state_CRT)
 
@@ -240,7 +242,7 @@ module load_unit (
                         if (misaligned_o | illegal_access_o) begin
                             /* Exception */ 
                             data_valid_o = 1'b1; 
-                        end if (operation_i.uop != LDW) begin
+                        end if (buffer_wait_i) begin
                             state_NXT = WAIT_MEMORY_UPDATE;
 
                             idle_o = 1'b0;
@@ -253,12 +255,16 @@ module load_unit (
                     end
 
                     load_channel.address = load_address_i;
+                    load_size_o = store_width_t'(operation_i.uop);
                 end
 
 
                 /* Waits for memory to supply data */
                 WAIT_MEMORY: begin
                     slice_operation = operation; 
+
+                    load_channel.address = load_address;
+                    load_size_o = store_width_t'(operation.uop);
 
                     if (foward_match_i) begin
                         state_NXT = IDLE;
@@ -279,12 +285,14 @@ module load_unit (
 
 
                 WAIT_MEMORY_UPDATE: begin
-                    if (buffer_empty_i) begin
+                    if (!buffer_wait_i) begin
                         load_channel.request = 1'b1;
-                        load_channel.address = load_address;
 
                         state_NXT = WAIT_MEMORY; 
                     end
+
+                    load_channel.address = load_address;
+                    load_size_o = store_width_t'(operation.uop);
                 end
 
 

@@ -67,6 +67,7 @@ module load_store_unit #(
     input logic flush_i,
     input logic stall_i,
     output logic buffer_empty_o,
+    output logic stall_o,
 
     /* Privilege level */
     input logic privilege_i,
@@ -122,8 +123,8 @@ module load_store_unit #(
     logic stu_data_accepted, stu_illegal_access, stu_misaligned, stu_data_valid, ldu_data_valid, stu_foward_ipacket;
 
     /* Store buffer fowarding nets */
-    logic foward_address_match, buffer_empty;
-    data_word_t foward_data;
+    logic foward_address_match, ldu_wait_buffer;
+    data_word_t foward_data; store_width_t ldu_load_size;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
         .clk_i   ( clk_i   ),
@@ -143,10 +144,11 @@ module load_store_unit #(
 
         .validate_i       ( validate_i           ),
         .foward_address_i ( load_channel.address ),
+        .foward_width_i   ( ldu_load_size        ),
         .foward_data_o    ( foward_data          ),
         .foward_match_o   ( foward_address_match ),
-
-        .buffer_empty_o ( buffer_empty ),
+        .buffer_empty_o   ( buffer_empty_o       ),
+        .wait_o           ( ldu_wait_buffer      ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
@@ -155,8 +157,7 @@ module load_store_unit #(
         .foward_packet_o  ( stu_foward_ipacket )
     );
 
-    assign buffer_empty_o = buffer_empty;
-    
+    assign stall_o = ldu_wait_buffer & !ldu_idle_o;
 
     instr_packet_t stu_ipacket, stu_exception_packet;
 
@@ -221,8 +222,9 @@ module load_store_unit #(
 
         .foward_match_i ( foward_address_match_out ),
         .foward_data_i  ( foward_data_out          ),
+        .load_size_o    ( ldu_load_size            ),
 
-        .buffer_empty_i ( buffer_empty ), 
+        .buffer_wait_i  ( ldu_wait_buffer ),
 
         .misaligned_o     ( ldu_misaligned_access ),
         .illegal_access_o ( ldu_illegal_access    ),
