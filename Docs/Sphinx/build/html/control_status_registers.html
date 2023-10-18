@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control Status Registers &mdash; Apogeo Documentation 20/05/2023 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Interrupts And Exceptions" href="interrupts_and_exceptions.html" />
+    <link rel="prev" title="General Architecture" href="general_architecture.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Apogeo Documentation
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="external_interface.html">External Interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_architecture.html">General Architecture</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Control Status Registers</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#csr-list">CSR List</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#machine-mode-csrs">Machine Mode CSRs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#isa-csr">ISA CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id-csrs">ID CSRs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#status-csr">Status CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#trap-vector-csr">Trap-Vector CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#interrupt-status-csrs">Interrupt Status CSRs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception-program-counter-csr">Exception Program Counter CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exception-cause-csr">Exception Cause CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#hardware-performance-monitor-csrs">Hardware Performance Monitor CSRs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#counter-enable-csr">Counter-Enable CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#counter-inhibit-csr">Counter-Inhibit CSR</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scratch-register">Scratch Register</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#time-register">Time Register</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#user-mode-csrs">User Mode CSRs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#floating-point-register">Floating Point Register</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="interrupts_and_exceptions.html">Interrupts And Exceptions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frontend.html">Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backend.html">Backend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Apogeo Documentation</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Control Status Registers</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/control_status_registers.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="control-status-registers">
+<h1>Control Status Registers<a class="headerlink" href="#control-status-registers" title="Permalink to this heading"></a></h1>
+<p>RV32-Apogeo doesn’t implement all CSRs proposed by RISC-V specifications, only essentials ones are actually keeped to reduce area ovehead. Specification says that there are bit fields with certains properties.</p>
+<p>Some bit fields specify a precise behaviour for a subset of the possible bit combinations:</p>
+<ul class="simple">
+<li><p><strong>WLRL</strong> (Write Legal Read Legal): <strong>No illegal instruction exceptions are raised</strong> in case of an illegal bit combination write, in this case the write doesn’t change the CSR state and the lastest legal value will be read.</p></li>
+<li><p><strong>WARL</strong> (Write Any Read Legal): Any combination of bit write will always be legal.</p></li>
+</ul>
+<p>Some CSRs can only be readed (<strong>RO</strong>, read only) or can be freely accessed (<strong>RW</strong>, read / write).</p>
+<p>All CSRs have a privilege mode associated. RV32-Apogeo implements 3 different modes:</p>
+<ul class="simple">
+<li><p><strong>M</strong>: Machine mode</p></li>
+<li><p><strong>U</strong>: User mode</p></li>
+</ul>
+<p>A CSR with <em>X</em> mode can only be accessed by an instruction in <em>Y</em> mode that have the same or higher privilege level.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>A CSR instruction will make every subsequent instruction stall until it gets completed.</p>
+</div>
+<section id="csr-list">
+<h2>CSR List<a class="headerlink" href="#csr-list" title="Permalink to this heading"></a></h2>
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">User CSR Listing</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+<col style="width: 39%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Privilege</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0x001</p></td>
+<td><p>fflags</p></td>
+<td><p>U</p></td>
+<td><p>RW</p></td>
+<td><p>Floating-Point Accrued Exceptions</p></td>
+</tr>
+<tr class="row-odd"><td><p>0x002</p></td>
+<td><p>frm</p></td>
+<td><p>U</p></td>
+<td><p>RW</p></td>
+<td><p>Floating-Point Dynamic Rounding Mode.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x003</p></td>
+<td><p>fcsr</p></td>
+<td><p>U</p></td>
+<td><p>RW</p></td>
+<td><p>Floating-Point Control and Status Register (frm + fflags).</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xC00</p></td>
+<td><p>cycle</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Cycle counter for <strong>RDCYCLE</strong> instruction.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xC01</p></td>
+<td><p>time</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Timer for <strong>RDTIME</strong> instruction.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xC02</p></td>
+<td><p>instret</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Instructions-retired counter for <strong>RDINSTRET</strong> instruction.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xC03</p></td>
+<td><p>hpmcounter3</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Performance-monitoring counter.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xC06</p></td>
+<td><p>hpmcounter6</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Performance-monitoring counter.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xC80</p></td>
+<td><p>cycleh</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Upper 32 bits of <em>cycle</em>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xC81</p></td>
+<td><p>timeh</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Upper 32 bits of <em>time</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xC82</p></td>
+<td><p>instreth</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Upper 32 bits of <em>instret</em>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xC83</p></td>
+<td><p>hpmcounter3h</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Upper 32 bits of hpmcounter3.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xC86</p></td>
+<td><p>hpmcounter6h</p></td>
+<td><p>U</p></td>
+<td><p>RO</p></td>
+<td><p>Upper 32 bits of hpmcounter6.</p></td>
+</tr>
+</tbody>
+</table>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text">Machine CSR Listing</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 17%" />
+<col style="width: 13%" />
+<col style="width: 13%" />
+<col style="width: 39%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Privilege</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0xF11</p></td>
+<td><p>mvendorid</p></td>
+<td><p>M</p></td>
+<td><p>RO</p></td>
+<td><p>Vendor ID.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xF12</p></td>
+<td><p>marchid</p></td>
+<td><p>M</p></td>
+<td><p>RO</p></td>
+<td><p>Architecture ID.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xF13</p></td>
+<td><p>mimpid</p></td>
+<td><p>M</p></td>
+<td><p>RO</p></td>
+<td><p>Implementation ID.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xF14</p></td>
+<td><p>mhartid</p></td>
+<td><p>M</p></td>
+<td><p>RO</p></td>
+<td><p>Hardware thread ID.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x300</p></td>
+<td><p>mstatus</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine status register.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0x301</p></td>
+<td><p>misa</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>ISA and extensions.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x304</p></td>
+<td><p>mie</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine interrupt-enable register.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0x305</p></td>
+<td><p>mtvec</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine trap-handler base address.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x340</p></td>
+<td><p>mscratch</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Scratch register for machine trap handlers.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0x341</p></td>
+<td><p>mepc</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine exception program counter.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x342</p></td>
+<td><p>mcause</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine trap cause.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0x344</p></td>
+<td><p>mip</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine interrupt pending.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xB00</p></td>
+<td><p>mcycle</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine cycle counter.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xB02</p></td>
+<td><p>minstret</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine instructions-retired counter.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xB03</p></td>
+<td><p>mhpmcounter3</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine performance-monitoring counter.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xB06</p></td>
+<td><p>mhpmcounter6</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine performance-monitoring counter.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xB80</p></td>
+<td><p>mcycleh</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Upper 32 bits of <em>mcycle</em>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xB82</p></td>
+<td><p>minstreth</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Upper 32 bits of <em>minstreth</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p>0xB83</p></td>
+<td><p>mhpmcounter3h</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Upper 32 bits of <em>mhpmcounter3</em>.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0xB86</p></td>
+<td><p>mhpmcounter6h</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Upper 32 bits of <em>mhpmcounter6</em>.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x320</p></td>
+<td><p>mcountinhibit</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine counter-inhibit register.</p></td>
+</tr>
+<tr class="row-odd"><td><p>0x323</p></td>
+<td><p>mhpmevent3</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine performance-monitoring event selector.</p></td>
+</tr>
+<tr class="row-even"><td><p>0x326</p></td>
+<td><p>mhpmevent6</p></td>
+<td><p>M</p></td>
+<td><p>RW</p></td>
+<td><p>Machine performance-monitoring event selector.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="machine-mode-csrs">
+<h2>Machine Mode CSRs<a class="headerlink" href="#machine-mode-csrs" title="Permalink to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The bits that are present in the official RISC-V specifications but not present in the table will return a 0 if read.</p>
+</div>
+<section id="isa-csr">
+<h3>ISA CSR<a class="headerlink" href="#isa-csr" title="Permalink to this heading"></a></h3>
+<p>Machine ISA (<strong>misa</strong>) CSR contains informations about the implemented CPU ISA. Extensions implemented can be read through this register. Another use is to disable M and F extensions, by clearing the corresponding bit into the <em>Extensions</em> bit field.</p>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text">MISA CSR</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 45%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[12:11]</p></td>
+<td><p>Machine XLEN</p></td>
+<td><p>RO</p></td>
+<td><p>Encodes the native base integer ISA</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-odd"><td><p>[25:0]</p></td>
+<td><p>Extensions</p></td>
+<td><p>RW</p></td>
+<td><p>Read implemented extensions and disable M - B extensions</p></td>
+<td><p>0x141126</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To disable B extension, the bit 1 (misa[1]) must be cleared. To disable M extension, the bit 12 (misa[12]) must be cleared. To disable Zfinx extension, the bit 25 (misa[25]) must be cleared</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Disabling any extension will disable the clock that is supplied to the corresponding unit. This will help with power consumption.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>The user must ensure that those extensions are enabled in the hardware configuration. If an instruction that belongs to one disabled extension is fetched, it will generate an <strong>illegal instruction exception</strong>.</p>
+</div>
+</section>
+<section id="id-csrs">
+<h3>ID CSRs<a class="headerlink" href="#id-csrs" title="Permalink to this heading"></a></h3>
+<p>CSRs like <strong>mvendorid</strong>, <strong>marchid</strong>, <strong>mimpid</strong> and <strong>mhartid</strong> privide a simple mechanism to identify the CPU core. They are all <em>read-only</em> registers and will return a 0 except for <em>marchid</em> CSR. A read to that will return the value: <strong>0x41504F47</strong> (APOG in ASCII).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>It’s possible do shut off multiplier, divisor and bit manipulation unit by clearing the M and B bit of <strong>marchid</strong> CSR. Every M / B instruction will then result in an exception.</p>
+</div>
+</section>
+<section id="status-csr">
+<h3>Status CSR<a class="headerlink" href="#status-csr" title="Permalink to this heading"></a></h3>
+<p>The machine status register: <strong>mstatus</strong>, keeps track of and controls the hart’s current operating state.</p>
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-text">MSTATUS CSR</span><a class="headerlink" href="#id4" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 45%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[12:11]</p></td>
+<td><p>MPP</p></td>
+<td><p>RW</p></td>
+<td><p>Save the preceeding privilege mode after a trap</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-odd"><td><p>[7]</p></td>
+<td><p>MPIE</p></td>
+<td><p>RO</p></td>
+<td><p>Save the preceeding interrupt enable bit after a trap</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p>[3]</p></td>
+<td><p>MIE</p></td>
+<td><p>RW</p></td>
+<td><p>Global interrupt enable</p></td>
+<td><p>1</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>On reset, MPP bit is set to 1, which means that after the execution of <cite>MRET</cite> instruction, the core won’t switch to <em>user mode</em>. If the programmer wants to do that, he needs to write 0 to MPP and then execute <cite>MRET</cite></p>
+</div>
+</section>
+<section id="trap-vector-csr">
+<h3>Trap-Vector CSR<a class="headerlink" href="#trap-vector-csr" title="Permalink to this heading"></a></h3>
+<p>The <strong>mtvec</strong> register hold the base address of the memory location that will be loaded into the PC. RISC-V supports 2 different modes of interrupt handling:</p>
+<ul class="simple">
+<li><p>Direct: PC will be loaded directly with the BASE address</p></li>
+<li><p>Vectored: When an <em>interrupt</em> occours the PC is loaded with BASE + (4 * CAUSE_VECTOR). The vector is received from the external interrupting device or from an external interrupt controller. In case of a syncronous exception (<em>trap</em>), the processor behave as the mode is <em>direct</em>.</p></li>
+</ul>
+<table class="docutils align-default" id="id5">
+<caption><span class="caption-text">MTVEC CSR</span><a class="headerlink" href="#id5" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 45%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[31:2]</p></td>
+<td><p>BASE</p></td>
+<td><p>RW</p></td>
+<td><p>Base address</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[1:0]</p></td>
+<td><p>MODE</p></td>
+<td><p>RW</p></td>
+<td><p>Exception handling mode</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="interrupt-status-csrs">
+<h3>Interrupt Status CSRs<a class="headerlink" href="#interrupt-status-csrs" title="Permalink to this heading"></a></h3>
+<p>The <strong>mip</strong> and <strong>mie</strong> registers control the machine interrupt. The <strong>mip</strong> register keeps track of <em>pending interrupts</em> while through <strong>mie</strong> register single interrupts can be disabled. On an interrupt cause ‘i’ correspond the bit ‘i’ in MIP and MIE set.</p>
+<p>An interrupt will be taken if:
+* Current privilege mode is M and mstatus.MIE is set, or the current privilege mode is less privileged than M-mode.
+* Bit ‘i’ is set in both MIE and MIP.</p>
+<p>The <strong>mip</strong> register has the following field implemented:</p>
+<table class="docutils align-default" id="id6">
+<caption><span class="caption-text">MIP CSR</span><a class="headerlink" href="#id6" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 45%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[11]</p></td>
+<td><p>MEIP</p></td>
+<td><p>RO</p></td>
+<td><p>External interrupt pending</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[7]</p></td>
+<td><p>MTIP</p></td>
+<td><p>RO</p></td>
+<td><p>Timer interrupt pending</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+<p>The <strong>mie</strong> register has the following field implemented:</p>
+<table class="docutils align-default" id="id7">
+<caption><span class="caption-text">MIE CSR</span><a class="headerlink" href="#id7" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 45%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[11]</p></td>
+<td><p>MEIP</p></td>
+<td><p>RO</p></td>
+<td><p>External interrupt enable</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[7]</p></td>
+<td><p>MTIP</p></td>
+<td><p>RO</p></td>
+<td><p>Timer interrupt enable</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>MEIE</strong> and <strong>MEIP</strong> bits refers to external interrupts handled by the interrupt controller. Apogeo has 1 single general interrupt pin which is managed by the interrupt controller based on priority levels. <strong>MTIE</strong> and <strong>MTIP</strong> bits refers to the external memory mapped CSR (timer). The <strong>time</strong> CSR interrupt has priority over the external one.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The pending bits are <em>read only</em> and can only be cleared by performing special operation. To clear the timer interrupt pending bit for example, it’s necessary to manually change the <em>timer compare register</em> or change the <em>timer value</em>. For the external interrupt, the hardware will take care of it by running an acknowledge cycle to announce the interrupt controller that the core is going to service the request.</p>
+</div>
+</section>
+<section id="exception-program-counter-csr">
+<h3>Exception Program Counter CSR<a class="headerlink" href="#exception-program-counter-csr" title="Permalink to this heading"></a></h3>
+<p>When an exception is taken into M-mode, the PC of the interrupting instruction is saved into <strong>mepc</strong> register, later is restored to continue executing the program.</p>
+</section>
+<section id="exception-cause-csr">
+<h3>Exception Cause CSR<a class="headerlink" href="#exception-cause-csr" title="Permalink to this heading"></a></h3>
+<p>To identify the exception cause <strong>mcause</strong> register save useful info.</p>
+<table class="docutils align-default" id="id8">
+<caption><span class="caption-text">MCAUSE CSR</span><a class="headerlink" href="#id8" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 45%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[31]</p></td>
+<td><p>Interrupt</p></td>
+<td><p>RO</p></td>
+<td><p>Cause is an interrupt or an exception</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[30:0]</p></td>
+<td><p>Exception Code</p></td>
+<td><p>RO</p></td>
+<td><p>Exception identifier</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+<table class="docutils align-default" id="id9">
+<caption><span class="caption-text">Interrupt Codes</span><a class="headerlink" href="#id9" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 73%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Code</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>Non Maskable Interrupt (NMI)</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>Machine software interrupt</p></td>
+</tr>
+<tr class="row-even"><td><p>7</p></td>
+<td><p>Machine timer interrupt</p></td>
+</tr>
+<tr class="row-odd"><td><p>11</p></td>
+<td><p>Machine external interrupt</p></td>
+</tr>
+<tr class="row-even"><td><p>16…</p></td>
+<td><p>Platform Use</p></td>
+</tr>
+<tr class="row-odd"><td><p>‘1 (All bits 1)</p></td>
+<td><p>Hardware reset</p></td>
+</tr>
+</tbody>
+</table>
+<table class="docutils align-default" id="id10">
+<caption><span class="caption-text">Exception Codes</span><a class="headerlink" href="#id10" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 27%" />
+<col style="width: 73%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Code</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p>Instruction address misaligned</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p>Instruction access fault</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p>Illegal instruction</p></td>
+</tr>
+<tr class="row-odd"><td><p>3</p></td>
+<td><p>Breakpoint</p></td>
+</tr>
+<tr class="row-even"><td><p>4</p></td>
+<td><p>Load address misaligned</p></td>
+</tr>
+<tr class="row-odd"><td><p>5</p></td>
+<td><p>Load access fault</p></td>
+</tr>
+<tr class="row-even"><td><p>6</p></td>
+<td><p>Store address misaligned</p></td>
+</tr>
+<tr class="row-odd"><td><p>7</p></td>
+<td><p>Store/AMO access fault</p></td>
+</tr>
+<tr class="row-even"><td><p>8</p></td>
+<td><p>Environment call from U-mode</p></td>
+</tr>
+<tr class="row-odd"><td><p>9</p></td>
+<td><p>Environment call from M-mode</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="hardware-performance-monitor-csrs">
+<h3>Hardware Performance Monitor CSRs<a class="headerlink" href="#hardware-performance-monitor-csrs" title="Permalink to this heading"></a></h3>
+<p>Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The <strong>mcycle</strong> CSR simply increment every clock cycle, <strong>minstret</strong> CSR increment itself when an instruction is retired from the <em>reorder buffer</em>.</p>
+<p>RV32-Apogeo implements other 4 general purpouse counters: <strong>mhpmcounter3</strong> -&gt; <strong>mhpmcounter6</strong>.
+The increment-enable event can be selected through the <strong>mhpmevent3</strong> -&gt; <strong>mhpmevent6</strong>.</p>
+<p>The events available are:</p>
+<ul class="simple">
+<li><p>Machine cycle</p></li>
+<li><p>Data store executed</p></li>
+<li><p>Data load executed</p></li>
+<li><p>Interrupt taken</p></li>
+<li><p>Exception taken</p></li>
+<li><p>Branch mispredicted</p></li>
+<li><p>Branch encountered</p></li>
+</ul>
+<p>The codes of the events goes from 1 (machine cycle) to 7 (branch encountered).</p>
+</section>
+<section id="counter-enable-csr">
+<h3>Counter-Enable CSR<a class="headerlink" href="#counter-enable-csr" title="Permalink to this heading"></a></h3>
+<p>Reads in U-mode to those CSRs are permitted only if the corresponding bit in <strong>mcounteren</strong> CSR is asserted (bit set to 1). If the bit is cleared and U-mode code tries to read the associated CSR, an <em>illegal instruction exception is raised</em>. The <strong>time</strong> CSR can always be always accessed by lower level privilege.</p>
+<table class="docutils align-default" id="id11">
+<caption><span class="caption-text">MCOUNTEREN CSR</span><a class="headerlink" href="#id11" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 40%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[6:3]</p></td>
+<td><p>HPMn</p></td>
+<td><p>RW</p></td>
+<td><p>Enable access to <em>hpmcountern</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[2]</p></td>
+<td><p>IR</p></td>
+<td><p>RW</p></td>
+<td><p>Enable access to <em>instret</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p>[0]</p></td>
+<td><p>CY</p></td>
+<td><p>RW</p></td>
+<td><p>Enable access to <em>cycle</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="counter-inhibit-csr">
+<h3>Counter-Inhibit CSR<a class="headerlink" href="#counter-inhibit-csr" title="Permalink to this heading"></a></h3>
+<p>The <strong>mcountinhibit</strong> enable the associated CSR to the asserted bit to increment (bit set to 0).</p>
+<table class="docutils align-default" id="id12">
+<caption><span class="caption-text">MCOUNTERINHIBIT CSR</span><a class="headerlink" href="#id12" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 40%" />
+<col style="width: 15%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Bits</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[6:3]</p></td>
+<td><p>HPMn</p></td>
+<td><p>RW</p></td>
+<td><p>Enable increment the counter of <em>hpmcountern</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[2]</p></td>
+<td><p>IR</p></td>
+<td><p>RW</p></td>
+<td><p>Enable increment the counter of <em>instret</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p>[0]</p></td>
+<td><p>CY</p></td>
+<td><p>RW</p></td>
+<td><p>Enable increment the counter of <em>cycle</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="scratch-register">
+<h3>Scratch Register<a class="headerlink" href="#scratch-register" title="Permalink to this heading"></a></h3>
+<p>The <strong>mscratch</strong> register is used to store temporary information by M-mode code, typically, it is used to hold a pointer to a machine-mode hart-local context space and swapped with a user register upon entry to an M-mode trap handler.</p>
+</section>
+<section id="time-register">
+<h3>Time Register<a class="headerlink" href="#time-register" title="Permalink to this heading"></a></h3>
+<p>The <strong>time</strong> register is a simple 64 bits counter. The peculiarity of this CSR is that it’s <em>memory mapped</em>, this means that the CSR will be accesses only through load and store instructions instead of special CSR instructions. The register can be accessed by both U-mode and M-mode code.</p>
+<p>It has two 64 bits register, which translate in four 32 bits registers. The <strong>time</strong> register itself hold the current value of the CSR, the <strong>timecmp</strong> register holds the value that will trigger an interrupt once the counter reach that.</p>
+<p>The base address of the register can be configured, the default value is the first address of the IO space.</p>
+<table class="docutils align-default" id="id13">
+<caption><span class="caption-text">MCOUNTERINHIBIT CSR</span><a class="headerlink" href="#id13" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 36%" />
+<col style="width: 14%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>BASE + 0</p></td>
+<td><p>time</p></td>
+<td><p>RW</p></td>
+<td><p>Lower 32 bits of the <em>time</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>BASE + 1</p></td>
+<td><p>timeh</p></td>
+<td><p>RW</p></td>
+<td><p>Higher 32 bits of the <em>time</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p>BASE + 2</p></td>
+<td><p>timecmp</p></td>
+<td><p>RW</p></td>
+<td><p>Lower 32 bits of the <em>timecmp</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>BASE + 3</p></td>
+<td><p>timecmph</p></td>
+<td><p>RW</p></td>
+<td><p>Higher 32 bits of the <em>timecmp</em> CSR</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+<p>The software should always write first to the lower 32 bits of any register and then proceed to the higher 32 bits to prevent any bug.</p>
+</section>
+</section>
+<section id="user-mode-csrs">
+<h2>User Mode CSRs<a class="headerlink" href="#user-mode-csrs" title="Permalink to this heading"></a></h2>
+<p>The user mode CSRs are mostly <strong>shadows of the M-mode CSRs</strong>, that means a read of a particular CSR, will target a machine mode CSR. The <strong>M-mode performance counters</strong> are all accessable by U-level code <em>only if the relative bit of mcounteren CSR is asserted</em>.
+There are some registers that can be accessed freely by U-level code without checking the <em>mcounteren</em> CSR.</p>
+<section id="floating-point-register">
+<h3>Floating Point Register<a class="headerlink" href="#floating-point-register" title="Permalink to this heading"></a></h3>
+<p>The <strong>fcsr</strong> register contains the <strong>fflags</strong> and <strong>frm</strong> registers, those can be accessed independentely without any additional shift operation to bring the values in the low bit of the result register.
+The <strong>fflags</strong> register is directly connected with the floating point unit exception flags and it’s updated every time a floating point operation is executed, RISC-V doesn’t require raising exceptions when a floating point flag gets set. That means that if we issue 2 float operations, the first
+generate a flag and the second do not, we’ll lose the exception flag status.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>To catch a possible exception from a float operation, the programmer must execute the instruction first, followed by a <cite>fence</cite> to wait until the pipeline gets cleared and <strong>only then</strong> read the CSR register.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Floating Point flags are set after the operation is executed, not after it gets written back. Reading the floating point register after an exception gets caught or an interrupt is received, could possibly return an invalid value.</p>
+</div>
+<table class="docutils align-default" id="id14">
+<caption><span class="caption-text">FCSR CSR</span><a class="headerlink" href="#id14" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 14%" />
+<col style="width: 14%" />
+<col style="width: 36%" />
+<col style="width: 14%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Address</p></th>
+<th class="head"><p>Name</p></th>
+<th class="head"><p>Access Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default Value</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>[0]</p></td>
+<td><p>NX</p></td>
+<td><p>RW</p></td>
+<td><p>Inexact flag.</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[1]</p></td>
+<td><p>UF</p></td>
+<td><p>RW</p></td>
+<td><p>Underflow flag.</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p>[2]</p></td>
+<td><p>OF</p></td>
+<td><p>RW</p></td>
+<td><p>Overflow flag.</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[3]</p></td>
+<td><p>DV</p></td>
+<td><p>RW</p></td>
+<td><p>Divide by zero flag.</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-even"><td><p>[4]</p></td>
+<td><p>NV</p></td>
+<td><p>RW</p></td>
+<td><p>Invalid operation flag.</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>[7:5]</p></td>
+<td><p>frm</p></td>
+<td><p>RW</p></td>
+<td><p>Rounding mode.</p></td>
+<td><p>0</p></td>
+</tr>
+</tbody>
+</table>
+<p>Bits from 0 to 4 rapresent the <strong>fflags</strong> CSR, bits from 5 to 7 rapresent the <strong>frm</strong> CSR. Writing to <strong>frm</strong> doesn’t affect anything in the core since only <em>round to even</em> and <em>round up</em> rounding modes are implemented and are
+entirely dependend on the result round bits (guard, round and sticky). Reading <strong>frm</strong> will return always 0.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="general_architecture.html" class="btn btn-neutral float-left" title="General Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="interrupts_and_exceptions.html" class="btn btn-neutral float-right" title="Interrupts And Exceptions" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2023, Tripi Gabriele.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
