@@ -94,7 +94,7 @@ module scoreboard (
 
     localparam FADD_LATENCY = 6;
 
-    localparam FMUL_LATENCY = 4;
+    localparam FMUL_LATENCY = 3;
 
     localparam FCVT_LATENCY = 3;
 
