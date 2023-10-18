@@ -115,45 +115,7 @@ module float_multiplier #(
     logic [8:0] result_exponent;
 
     assign result_exponent = (multiplicand_i.exponent + multiplier_i.exponent) - BIAS;
-
-
-    /* Stage register nets coming from 0-th stage */
-    logic [8:0]  result_exponent_stg0;
-    logic [23:0] multiplicand_significand_stg0, multiplier_significand_stg0;
-    logic multiplicand_exponent_sign_stg0, multiplier_exponent_sign_stg0, invalid_operation_stg0, result_sign_stg0;
-    logic result_zero_stg0, result_infinity_stg0;
-
-        always_ff @(posedge clk_i) begin : stage0_register
-            if (!stall_i) begin 
-                multiplicand_significand_stg0 <= {!is_subnormal_A_i, multiplicand_i.significand};
-                multiplicand_exponent_sign_stg0 <= multiplicand_i.exponent[7];
-
-                multiplier_significand_stg0 <= {!is_subnormal_B_i, multiplier_i.significand}; 
-                multiplier_exponent_sign_stg0 <= multiplier_i.exponent[7];
-
-                /* An invalid exception is raised if one of the invalid combinations of operands is detected */
-                invalid_operation_stg0 <= invalid_operation;
-                result_zero_stg0 <= is_zero_A_i | is_zero_B_i; 
-                result_infinity_stg0 <= is_infinity_A_i | is_infinity_B_i; 
-
-                result_exponent_stg0 <= result_exponent;
-                result_sign_stg0 <= result_sign; 
-            end  
-        end : stage0_register
-        
-        
-    logic data_valid_stg0;
     
-        always_ff @(posedge clk_i `ifndef ASYNC or negedge rst_n_i `endif) begin 
-            if (!rst_n_i) begin
-                data_valid_stg0 <= 1'b0;
-            end else if (flush_i) begin
-                data_valid_stg0 <= 1'b0;
-            end else begin
-                data_valid_stg0 <= valid_i;
-            end 
-        end 
-
 
 //====================================================================================
 //      SIGNALS PIPELINE  
@@ -170,21 +132,21 @@ module float_multiplier #(
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin  
                 if (CORE_STAGES == 0) begin 
-                    invalid_operation_pipe <= invalid_operation_stg0;
-                    result_infinity_pipe <= result_infinity_stg0;
-                    result_zero_pipe <= result_zero_stg0;
-                    result_sign_pipe <= result_sign_stg0;
+                    invalid_operation_pipe <= invalid_operation;
+                    result_infinity_pipe <= is_infinity_A_i | is_infinity_B_i;
+                    result_zero_pipe <= is_zero_A_i | is_zero_B_i;
+                    result_sign_pipe <= result_sign;
 
-                    multiplicand_exp_sign_pipe <= multiplicand_exponent_sign_stg0;
-                    multiplier_exp_sign_pipe <= multiplier_exponent_sign_stg0;
+                    multiplicand_exp_sign_pipe <= multiplicand_i.exponent[7];
+                    multiplier_exp_sign_pipe <= multiplier_i.exponent[7];
                 end else begin 
-                    invalid_operation_pipe <= {invalid_operation_pipe[CORE_STAGES - 1:0], invalid_operation_stg0};
-                    result_infinity_pipe <= {result_infinity_pipe[CORE_STAGES - 1:0], result_infinity_stg0};
-                    result_zero_pipe <= {result_zero_pipe[CORE_STAGES - 1:0], result_zero_stg0};
-                    result_sign_pipe <= {result_sign_pipe[CORE_STAGES - 1:0], result_sign_stg0};
+                    invalid_operation_pipe <= {invalid_operation_pipe[CORE_STAGES - 1:0], invalid_operation};
+                    result_infinity_pipe <= {result_infinity_pipe[CORE_STAGES - 1:0], is_infinity_A_i | is_infinity_B_i};
+                    result_zero_pipe <= {result_zero_pipe[CORE_STAGES - 1:0], is_zero_A_i | is_zero_B_i};
+                    result_sign_pipe <= {result_sign_pipe[CORE_STAGES - 1:0], result_sign};
 
-                    multiplicand_exp_sign_pipe <= {multiplicand_exp_sign_pipe[CORE_STAGES - 1:0], multiplicand_exponent_sign_stg0};
-                    multiplier_exp_sign_pipe <= {multiplier_exp_sign_pipe[CORE_STAGES - 1:0], multiplier_exponent_sign_stg0};
+                    multiplicand_exp_sign_pipe <= {multiplicand_exp_sign_pipe[CORE_STAGES - 1:0], multiplicand_i.exponent[7]};
+                    multiplier_exp_sign_pipe <= {multiplier_exp_sign_pipe[CORE_STAGES - 1:0], multiplier_i.exponent[7]};
                 end 
             end  
         end
@@ -196,9 +158,9 @@ module float_multiplier #(
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin 
                 if (CORE_STAGES == 0) begin 
-                    result_exp_pipe <= result_exponent_stg0;
+                    result_exp_pipe <= result_exponent;
                 end else begin 
-                    result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], result_exponent_stg0};
+                    result_exp_pipe <= {result_exp_pipe[CORE_STAGES - 1:0], result_exponent};
                 end 
             end  
         end
@@ -216,11 +178,11 @@ module float_multiplier #(
     generate 
         if (CORE_STAGES != 0) begin 
             significand_multiplier significand_core_multiplier (
-                .CLK ( clk_i                         ),
-                .A   ( multiplicand_significand_stg0 ), 
-                .B   ( multiplier_significand_stg0   ),
-                .CE  ( !stall_i                      ),
-                .P   ( significand_product           )
+                .CLK ( clk_i                                           ),
+                .A   ( {!is_subnormal_A_i, multiplicand_i.significand} ), 
+                .B   ( {!is_subnormal_B_i, multiplier_i.significand}   ),
+                .CE  ( !stall_i                                        ),
+                .P   ( significand_product                             )
             );
 
             always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
@@ -229,15 +191,15 @@ module float_multiplier #(
                 end else if (flush_i) begin 
                     mul_data_valid_pipe <= '0;
                 end else begin 
-                    mul_data_valid_pipe <= {mul_data_valid_pipe[CORE_STAGES - 1:0], data_valid_stg0};
+                    mul_data_valid_pipe <= {mul_data_valid_pipe[CORE_STAGES - 1:0], valid_i};
                 end
             end 
 
         end else begin
             significand_multiplier significand_core_multiplier (
-                .A( multiplicand_significand_stg0 ), 
-                .B( multiplier_significand_stg0   ),  
-                .P( significand_product           )  
+                .A( {!is_subnormal_A_i, multiplicand_i.significand} ), 
+                .B( {!is_subnormal_B_i, multiplier_i.significand}   ),  
+                .P( significand_product                             )  
             );
             
             always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
@@ -246,7 +208,7 @@ module float_multiplier #(
                 end else if (flush_i) begin 
                     mul_data_valid_pipe <= 1'b0;
                 end else begin 
-                    mul_data_valid_pipe <= data_valid_stg0;
+                    mul_data_valid_pipe <= valid_i;
                 end
             end 
         end 
