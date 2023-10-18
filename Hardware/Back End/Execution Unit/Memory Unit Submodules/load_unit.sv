@@ -203,11 +203,13 @@ module load_unit (
         end : state_register
 
 
-    data_word_t data_saved; 
+    data_word_t data_saved; logic load_data; 
 
         always_ff @(posedge clk_i) begin
             if (load_channel.valid & stall_i) begin
                 data_saved <= load_channel.data; 
+            end else if (load_data) begin
+                data_saved <= data_sliced;
             end
         end
 
@@ -220,6 +222,7 @@ module load_unit (
             load_channel.address = load_address; 
             
             idle_o = 1'b0;
+            load_data = 1'b0;
             data_valid_o = 1'b0;
             foward_packet_o = 1'b0;
             slice_operation = '0;
@@ -266,20 +269,16 @@ module load_unit (
                     load_channel.address = load_address;
                     load_size_o = store_width_t'(operation.uop);
 
+                    load_data = foward_match_i | load_channel.valid;
+
                     if (foward_match_i) begin
-                        state_NXT = IDLE;
+                        state_NXT = WAIT_STALL;
 
                         data_selected = foward_data_i;
-
-                        idle_o = 1'b1;
-                        data_valid_o = 1'b1;
                     end else if (load_channel.valid) begin
-                        state_NXT = IDLE;
+                        state_NXT = WAIT_STALL;
 
                         data_selected = load_channel.data; 
-                        
-                        idle_o = !stall_i;
-                        data_valid_o = !stall_i;
                     end 
                 end   
 
@@ -303,13 +302,11 @@ module load_unit (
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;
                     end
-
-                    data_selected = data_saved;
                 end
             endcase
         end : fsm_logic
 
-    assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_sliced; 
+    assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_saved; 
 
 endmodule : load_unit
 
