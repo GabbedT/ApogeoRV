@@ -39,7 +39,8 @@ CPUs can be really simple yet powerful. Also thanks to the multitude of extensio
 The extensions used for ApogeoCore are:
 
 * **M Extension**: Multiplication and division are found in almost every program, these are operation that can take more than 100 / 1000 cycles if implemented in software. 
-* **B Subsets (Zba, Zbb, Zbs)**: The Bitmanip extension is helpful to speedup a lot of tasks: string processing, soft float, endiannes inversion, IO operations etc. The **Zbc** was not included because the instructions of this subset are not often used and use a lot of hardware resources. 
+* **B Subsets (Zba, Zbs)**: The Bitmanip extension is helpful to speedup a tasks like address generations and single bit operations. The **Zbc** was not included because the instructions of this subset are not often used and use a lot of hardware resources. 
+* **Zbb Subset**: Supports some useful instruction to speedup string operations, endianness conversion and max / min comparisons.
 * **C Extension**: Compresses executable programs, making it particularly useful for systems with limited available memory.
 * **Zfinx Extension**: Enable the use of floating point instructions on integer registers only. This is particularly useful to reduce code size and speedup floating point computations without having a large area overhead (especially on OoO machines)
 

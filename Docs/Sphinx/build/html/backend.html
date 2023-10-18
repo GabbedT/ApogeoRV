@@ -17,6 +17,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="License" href="license.html" />
     <link rel="prev" title="Frontend" href="frontend.html" /> 
 </head>
 
@@ -78,6 +79,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#writeback-stage">Writeback Stage</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 
         </div>
@@ -252,6 +254,48 @@ that need to process the inputs. The micro-operation input is defined as a <stro
 <p>Internally the <strong>main units, will have different output sources</strong>, the ITU will have for examples 4 different sub-units that could produce a valid result at any given time. First of all at every clock cycle, <strong>maximum 1 unit must produce a valid result</strong>; this is done thanks to the scheduler in the frontend.
 The sub-units that didn’t output a valid result, will have the output nets set to all zeros, thanks to this it’s possible to OR all the output sources from the sub-units to produce a single output for the main-unit.</p>
 <p>Each main unit can produce an independent valid output, so at every clock cycle there may be 4 different main units that produce a valid result.</p>
+<p>Here’s a table with all the latencies of every sub-unit:</p>
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text">Units Latencies</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<colgroup>
+<col style="width: 11%" />
+<col style="width: 89%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Unit</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ALU</p></td>
+<td><p>0</p></td>
+</tr>
+<tr class="row-odd"><td><p>MUL</p></td>
+<td><p>4</p></td>
+</tr>
+<tr class="row-even"><td><p>DIV</p></td>
+<td><p>35</p></td>
+</tr>
+<tr class="row-odd"><td><p>BMU</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-even"><td><p>FADD</p></td>
+<td><p>5</p></td>
+</tr>
+<tr class="row-odd"><td><p>FMUL</p></td>
+<td><p>2</p></td>
+</tr>
+<tr class="row-even"><td><p>FCMP</p></td>
+<td><p>1</p></td>
+</tr>
+<tr class="row-odd"><td><p>FCVT</p></td>
+<td><p>2</p></td>
+</tr>
+<tr class="row-even"><td><p>FMIS</p></td>
+<td><p>2</p></td>
+</tr>
+</tbody>
+</table>
 <section id="integer-unit">
 <h3>Integer Unit<a class="headerlink" href="#integer-unit" title="Permalink to this heading"></a></h3>
 <section id="arithmetic-logic-unit">
@@ -260,8 +304,8 @@ The sub-units that didn’t output a valid result, will have the output nets set
 it resolves the branches comparisons.</p>
 <p>Two multiplexers are used to select the output, one big multiplexer to select the result value and one smaller to select the branch outcome. The use of the smaller multiplexer is to lower the critical path of the PC selection logic in the frontend.</p>
 <p>The operations executed are:</p>
-<table class="docutils align-default" id="id2">
-<caption><span class="caption-text">ALU Operations</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id3">
+<caption><span class="caption-text">ALU Operations</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -349,8 +393,8 @@ The comparisons are encoded in the first bits of the input vector, so it’s pos
 <section id="multiplication-unit">
 <h4>Multiplication Unit<a class="headerlink" href="#multiplication-unit" title="Permalink to this heading"></a></h4>
 <p>The <strong>multiplication unit</strong> (MUL) performs 4 types of multiplications on two integer numbers. It’s <strong>fully pipelined</strong> and as specified by the RV32M, the multiplications performed are:</p>
-<table class="docutils align-default" id="id3">
-<caption><span class="caption-text">MUL Operations</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id4">
+<caption><span class="caption-text">MUL Operations</span><a class="headerlink" href="#id4" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -383,8 +427,8 @@ This is done because the multiplier only supports unsigned numbers.</p>
 <section id="division-unit">
 <h4>Division Unit<a class="headerlink" href="#division-unit" title="Permalink to this heading"></a></h4>
 <p>The <strong>division unit</strong> (DIV) performs 2 types of division and 2 types of remainder operations on two integer numbers. It’s a <strong>multicycle unit</strong> and as specified by the RV32M, the operations performed are:</p>
-<table class="docutils align-default" id="id4">
-<caption><span class="caption-text">DIV Operations</span><a class="headerlink" href="#id4" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id5">
+<caption><span class="caption-text">DIV Operations</span><a class="headerlink" href="#id5" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -420,8 +464,8 @@ The core divider implements a <strong>non-restoring division algorithm</strong> 
 <section id="bit-manipulation-unit">
 <h4>Bit Manipulation Unit<a class="headerlink" href="#bit-manipulation-unit" title="Permalink to this heading"></a></h4>
 <p>The <strong>bit manipulation unit</strong> (BMU) performs different types of operations defined in the subset of RV32B: <strong>Zba</strong>, <strong>Zbb</strong>, <strong>Zbs</strong>. It’s <strong>fully pipelined</strong> and as specified by the ISA, the operations performed are:</p>
-<table class="docutils align-default" id="id5">
-<caption><span class="caption-text">BMU Operations</span><a class="headerlink" href="#id5" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id6">
+<caption><span class="caption-text">BMU Operations</span><a class="headerlink" href="#id6" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -441,24 +485,6 @@ The core divider implements a <strong>non-restoring division algorithm</strong> 
 <tr class="row-even"><td><p>SH3ADD</p></td>
 <td><p>Shift the first operand by 3 to the left and add the result to the second operand.</p></td>
 </tr>
-<tr class="row-odd"><td><p>ANDN</p></td>
-<td><p>Logic AND between the first operand and the negated second operand.</p></td>
-</tr>
-<tr class="row-even"><td><p>ORN</p></td>
-<td><p>Logic OR between the first operand and the negated second operand.</p></td>
-</tr>
-<tr class="row-odd"><td><p>XNOR</p></td>
-<td><p>Logic XOR between the first operand and the second operand, the result is negated.</p></td>
-</tr>
-<tr class="row-even"><td><p>CLZ</p></td>
-<td><p>Count the leading zeros of the first operand.</p></td>
-</tr>
-<tr class="row-odd"><td><p>CTZ</p></td>
-<td><p>Count the trailing zeros of the first operand.</p></td>
-</tr>
-<tr class="row-even"><td><p>CPOP</p></td>
-<td><p>Count the number of bit sets in the first operand.</p></td>
-</tr>
 <tr class="row-odd"><td><p>MAX</p></td>
 <td><p>Write in the result the signed maximum between the operands.</p></td>
 </tr>
@@ -469,51 +495,43 @@ The core divider implements a <strong>non-restoring division algorithm</strong> 
 <td><p>Write in the result the signed minimum between the operands.</p></td>
 </tr>
 <tr class="row-even"><td><p>MINU</p></td>
-<td><p>Write in the result the unsigned minimum between the operands.</p></td>
-</tr>
-<tr class="row-odd"><td><p>SEXT.B</p></td>
-<td><p>Sign extend the least significand byte of the first operand.</p></td>
-</tr>
-<tr class="row-even"><td><p>SEXT.H</p></td>
-<td><p>Sign extend the least significand half-word of the first operand.</p></td>
-</tr>
-<tr class="row-odd"><td><p>ZEXT.H</p></td>
-<td><p>Zero extend the least significand half-word of the first operand.</p></td>
-</tr>
-<tr class="row-even"><td><p>ROR</p></td>
-<td><p>Rotate the first operand to the right with an amount specified in the first 5 bits of the second operand.</p></td>
-</tr>
-<tr class="row-odd"><td><p>ROL</p></td>
 <td><p>Rotate the first operand to the left with an amount specified in the first 5 bits of the second operand.</p></td>
 </tr>
-<tr class="row-even"><td><p>ORC.B</p></td>
+<tr class="row-odd"><td><p>ORC.B</p></td>
 <td><p>Set all the bits of each byte if there’s at least 1 bit set.</p></td>
 </tr>
-<tr class="row-odd"><td><p>REV8</p></td>
+<tr class="row-even"><td><p>REV8</p></td>
 <td><p>Reverse the byte order of the first operand.</p></td>
 </tr>
-<tr class="row-even"><td><p>BCLR</p></td>
+<tr class="row-odd"><td><p>BCLR</p></td>
 <td><p>Clear the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
 </tr>
-<tr class="row-odd"><td><p>BINV</p></td>
+<tr class="row-even"><td><p>BINV</p></td>
 <td><p>Invert the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
 </tr>
-<tr class="row-even"><td><p>BSET</p></td>
+<tr class="row-odd"><td><p>BSET</p></td>
 <td><p>Set the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
 </tr>
-<tr class="row-odd"><td><p>BEXT</p></td>
+<tr class="row-even"><td><p>BEXT</p></td>
 <td><p>Extract the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.</p></td>
 </tr>
 </tbody>
 </table>
+<p>The majority of <strong>Zbb</strong> instructions were omitted due to their limited value in significantly expanding the area footprint of the bit manipulation unit. Instead, a select subset of <em>Zbb</em> was chosen:</p>
+<ul class="simple">
+<li><p><em>MAX, MAXU, MIN, MINU</em>: These instructions are frequently employed, even in C code.</p></li>
+<li><p><em>REV8</em>: Essential for converting data endianness, especially in network applications.</p></li>
+<li><p><em>ORC.B</em>: Valuable for string processing, graphics, and more.</p></li>
+</ul>
+<p>For utilization, programmers should compile these instructions in separate assembly files with the <em>Zbb</em> extension enabled and then invoke them from the C code.</p>
 </section>
 </section>
 <section id="control-status-registers-unit">
 <h3>Control Status Registers Unit<a class="headerlink" href="#control-status-registers-unit" title="Permalink to this heading"></a></h3>
 <p>The <strong>control status register unit</strong> (CSRU) holds the architectural state of the CPU (excluded the register file). The unit have a read and a write port, the read data is usually used as feedback to write the new value inside the CSR.
 The operations executed are:</p>
-<table class="docutils align-default" id="id6">
-<caption><span class="caption-text">CSR Operations</span><a class="headerlink" href="#id6" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id7">
+<caption><span class="caption-text">CSR Operations</span><a class="headerlink" href="#id7" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -547,8 +565,8 @@ These units operate independently, allowing one to issue a request while the oth
 <section id="load-unit">
 <h4>Load Unit<a class="headerlink" href="#load-unit" title="Permalink to this heading"></a></h4>
 <p>The load unit is resposable for issuing load requests to the memory controller and elaborating the data received from the memory based on the instruction. The operations executed are:</p>
-<table class="docutils align-default" id="id7">
-<caption><span class="caption-text">LDU Operations</span><a class="headerlink" href="#id7" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id8">
+<caption><span class="caption-text">LDU Operations</span><a class="headerlink" href="#id8" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -582,7 +600,7 @@ In this case, the LDU is likely to find the store byte entry in the store buffer
 <span class="nf">LW</span><span class="w"> </span><span class="no">x1</span><span class="p">,</span><span class="w"> </span><span class="mi">0x00</span><span class="w"> </span><span class="c1"># ERROR! x1 = 0x000000FF</span>
 </pre></div>
 </div>
-<p>To overcome this, the LDU employs a simple solution: If the store unit push a non-word store (half-word or byte), the buffer notify the LDU. If the LDU receives a valid operation and the signal is still asserted, it waits until the buffer become empty, thus deasserting the signal. After that it just issue a normal load request.</p>
+<p>To overcome this, the store buffer can foward only entries that matches perfectly both address and load width. If the bits [31:2] of the load address match one of the entries and the widths are different, the load unit is put into a wait state stalling the pipeline to avoid deadlocks due to arrival of other store instructions that could potentially stalls the LDU even more.</p>
 <p>Another particular condition is when the <em>pipeline stalls in the same clock cycle the valid data arrives</em>. Because the interface does not blocks upon pipeline stall, meaning that the unit could miss the valid signal, the FSM quickly goes into waiting mode and saves the data arrived at the interface. Once the stall ends, the data is finally signaled as valid.</p>
 <p>The exceptions generated here are:</p>
 <ul class="simple">
@@ -593,8 +611,8 @@ In this case, the LDU is likely to find the store byte entry in the store buffer
 <section id="store-unit">
 <h4>Store Unit<a class="headerlink" href="#store-unit" title="Permalink to this heading"></a></h4>
 <p>The store unit is resposable for issuing store requests to the memory controller. The operations executed are:</p>
-<table class="docutils align-default" id="id8">
-<caption><span class="caption-text">STU Operations</span><a class="headerlink" href="#id8" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id9">
+<caption><span class="caption-text">STU Operations</span><a class="headerlink" href="#id9" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -717,8 +735,8 @@ because of the critical path introduced on bypass logic. For example adding <em>
 <section id="comparison-unit">
 <h4>Comparison Unit<a class="headerlink" href="#comparison-unit" title="Permalink to this heading"></a></h4>
 <p>The <strong>comparison unit</strong> performs four operations on two floating point numbers combinationally:</p>
-<table class="docutils align-default" id="id9">
-<caption><span class="caption-text">FCMP Operations</span><a class="headerlink" href="#id9" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id10">
+<caption><span class="caption-text">FCMP Operations</span><a class="headerlink" href="#id10" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -754,8 +772,8 @@ because of the critical path introduced on bypass logic. For example adding <em>
 <section id="conversion-unit">
 <h4>Conversion Unit<a class="headerlink" href="#conversion-unit" title="Permalink to this heading"></a></h4>
 <p>The <strong>conversion unit</strong> is a pipelined unit that perform conversions of both floating-point and integer numbers (signed and unsigned). The operations performed are:</p>
-<table class="docutils align-default" id="id10">
-<caption><span class="caption-text">FCVT Operations</span><a class="headerlink" href="#id10" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id11">
+<caption><span class="caption-text">FCVT Operations</span><a class="headerlink" href="#id11" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -795,8 +813,8 @@ In the event of a signed operation and a set sign bit in the floating-point repr
 <section id="miscellaneous-unit">
 <h4>Miscellaneous Unit<a class="headerlink" href="#miscellaneous-unit" title="Permalink to this heading"></a></h4>
 <p>The <strong>miscellaneous unit</strong> is a combinational unit that performs, operations like <em>sign injections</em> and <em>operand classification</em>. The operations are:</p>
-<table class="docutils align-default" id="id11">
-<caption><span class="caption-text">FMIS Operations</span><a class="headerlink" href="#id11" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id12">
+<caption><span class="caption-text">FMIS Operations</span><a class="headerlink" href="#id12" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 11%" />
 <col style="width: 89%" />
@@ -831,8 +849,8 @@ In the event of a signed operation and a set sign bit in the floating-point repr
 <li><p>Sticky: is the OR of the remaining bits.</p></li>
 </ul>
 <p>Using those it’s possible to round the final result:</p>
-<table class="docutils align-default" id="id12">
-<caption><span class="caption-text">Round Operations</span><a class="headerlink" href="#id12" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id13">
+<caption><span class="caption-text">Round Operations</span><a class="headerlink" href="#id13" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 14%" />
 <col style="width: 57%" />
@@ -847,7 +865,7 @@ In the event of a signed operation and a set sign bit in the floating-point repr
 <tbody>
 <tr class="row-even"><td><p>100</p></td>
 <td><p>Halfway case: round to even. Perform the addition between the significand and its LSB.</p></td>
-<td><p>1,5623 . 500 =&gt; 1,5624   |   1,5624 . 500 =&gt; 1,5624</p></td>
+<td><p>1,5623 . 500 =&gt; 1,5624      1,5624 . 500 =&gt; 1,5624</p></td>
 </tr>
 <tr class="row-odd"><td><p>101, 110, 111</p></td>
 <td><p>Round up: add 1 to the significand.</p></td>
@@ -871,28 +889,6 @@ In this scheme, the buffers are <em>only written to when a structural hazard ari
 </section>
 <section id="reorder-stage">
 <h2>Reorder Stage<a class="headerlink" href="#reorder-stage" title="Permalink to this heading"></a></h2>
-<p>In the reorder stage the out-of-order instructions are written inside the <strong>reorder buffer</strong>. The reorder buffer is a structure implemented as a 1R / 1W memory, it’s not a FIFO buffer: the writes are controlled directly by the instructions that arrive at the write port. Those carry along the pipeline a
-tag generated inside the issue stage acting as a write address. With the reorder buffer there is also a memory that holds 1 bit for each entry, this tags the entries as valid: during writes the associated memory bit is set while during reads it’s cleared. This memory is controlled just like the reorder buffer. A read pointer is used to point to the next valid entry.</p>
-<p>During out-of-order writes, inside the valid memory the valid bits are not continuous. Instead holes forms and the read pointer blocks once it reaches the hole. Meanwhile the other instructions can accumulate in the rob waiting for the missing instruction to come:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>             <span class="n">Ptr</span>
-              <span class="o">|</span>
-<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">11110111000</span> <span class="o">&lt;=</span> <span class="n">Writing</span> <span class="n">back</span> <span class="n">instructions</span>
-
-                 <span class="n">Ptr</span>
-                  <span class="o">|</span>
-<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00000111000</span> <span class="o">&lt;=</span> <span class="n">Hole</span> <span class="n">found</span><span class="p">,</span> <span class="n">block</span> <span class="n">write</span> <span class="n">back</span>
-
-                 <span class="n">Ptr</span>
-                  <span class="o">|</span>
-<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00001111000</span> <span class="o">&lt;=</span> <span class="n">Instruction</span> <span class="n">arrived</span><span class="p">,</span> <span class="n">write</span> <span class="n">back</span> <span class="n">resumes</span>
-
-                     <span class="n">Ptr</span>
-                      <span class="o">|</span>
-<span class="n">Valid</span> <span class="n">Memory</span><span class="p">:</span> <span class="mi">00000000000</span> <span class="o">&lt;=</span> <span class="n">All</span> <span class="n">instructions</span> <span class="n">written</span> <span class="n">back</span>
-</pre></div>
-</div>
-<p>The informations saved in the buffer are the same of the instruction packet except for the ROB tag.</p>
-<p>Since here instructions get stored, <em>snapshot register</em> is used to foward results back to the execution units.</p>
 <p>In the reorder stage, out-of-order instructions find their place within the reorder buffer.
 The reorder buffer is structured as a 1R / 1W (one read, one write) memory and unlike a standard FIFO buffer the control of writes is directly orchestrated by the arriving instructions at the write port, each carrying a tag generated by the issue stage that acts as a unique write address.</p>
 <p>Writeback StageThe reorder buffer is accompanied by an additional memory that corresponds to each entry with a single bit, designating their validity status. During writes, this associated memory bit is set to mark the entry as valid, and during reads, it’s cleared. The control of this memory closely mirrors that of the reorder buffer itself. A read pointer is employed to indicate the location of the next valid entry.</p>
@@ -920,8 +916,8 @@ The reorder buffer is structured as a 1R / 1W (one read, one write) memory and u
 <section id="writeback-stage">
 <h2>Writeback Stage<a class="headerlink" href="#writeback-stage" title="Permalink to this heading"></a></h2>
 <p>As soon as the reorder buffer has a valid entry, it gets written back only if it didn’t generate an exception. In that case, the exception is handled by the <strong>trap manager</strong> which proceeds to flush the entire pipeline. The trap manager also handles the interrupts and core sleep:</p>
-<table class="docutils align-default" id="id13">
-<caption><span class="caption-text">Trap Manager</span><a class="headerlink" href="#id13" title="Permalink to this table"></a></caption>
+<table class="docutils align-default" id="id14">
+<caption><span class="caption-text">Trap Manager</span><a class="headerlink" href="#id14" title="Permalink to this table"></a></caption>
 <colgroup>
 <col style="width: 33%" />
 <col style="width: 67%" />
@@ -951,6 +947,7 @@ The reorder buffer is structured as a 1R / 1W (one read, one write) memory and u
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="frontend.html" class="btn btn-neutral float-left" title="Frontend" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="license.html" class="btn btn-neutral float-right" title="License" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

@@ -22,8 +22,9 @@ Features
 
 The main features of **ApogeoCore** are: 
 
-* Supports the full base **RV32 ISA**
-* Supports the RISCV extensions **M, C, Zicsr, Zba, Zbb, Zbs, Zfinx**
+* Supports the full base **RV32 ISA**.
+* Supports the RISCV extensions **M, C, Zicsr, Zba, Zbs, Zfinx**.
+* Supports a subset of **Zbb** extension.
 * Disable units (MUL, DIV, FPU, BMU) during program execution.
 * **9 Pipeline Stages**: To reach maximum frequency.
 * **Instruction Prefetch**: Benefit from an instruction buffer for enhanced performance.

@@ -52,6 +52,9 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="control_status_registers.html">Control Status Registers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interrupts_and_exceptions.html">Interrupts And Exceptions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="frontend.html">Frontend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="backend.html">Backend</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 </ul>
 
         </div>
@@ -113,7 +116,8 @@ and softwares has been produced, as well as a great amount of online documentati
 The extensions used for ApogeoCore are:</p>
 <ul class="simple">
 <li><p><strong>M Extension</strong>: Multiplication and division are found in almost every program, these are operation that can take more than 100 / 1000 cycles if implemented in software.</p></li>
-<li><p><strong>B Subsets (Zba, Zbb, Zbs)</strong>: The Bitmanip extension is helpful to speedup a lot of tasks: string processing, soft float, endiannes inversion, IO operations etc. The <strong>Zbc</strong> was not included because the instructions of this subset are not often used and use a lot of hardware resources.</p></li>
+<li><p><strong>B Subsets (Zba, Zbs)</strong>: The Bitmanip extension is helpful to speedup a tasks like address generations and single bit operations. The <strong>Zbc</strong> was not included because the instructions of this subset are not often used and use a lot of hardware resources.</p></li>
+<li><p><strong>Zbb Subset</strong>: Supports some useful instruction to speedup string operations, endianness conversion and max / min comparisons.</p></li>
 <li><p><strong>C Extension</strong>: Compresses executable programs, making it particularly useful for systems with limited available memory.</p></li>
 <li><p><strong>Zfinx Extension</strong>: Enable the use of floating point instructions on integer registers only. This is particularly useful to reduce code size and speedup floating point computations without having a large area overhead (especially on OoO machines)</p></li>
 </ul>

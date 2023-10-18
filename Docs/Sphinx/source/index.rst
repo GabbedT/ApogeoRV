@@ -10,4 +10,5 @@ ApogeoCore Datasheet
    control_status_registers
    interrupts_and_exceptions
    frontend 
-   backend
+   backend 
+   license

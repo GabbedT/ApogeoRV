@@ -155,6 +155,33 @@ The sub-units that didn't output a valid result, will have the output nets set t
 
 Each main unit can produce an independent valid output, so at every clock cycle there may be 4 different main units that produce a valid result. 
 
+Here's a table with all the latencies of every sub-unit:
+
+.. list-table:: Units Latencies
+   :widths: 5 40
+   :header-rows: 1
+
+   * - Unit 
+     - Description
+   * - ALU 
+     - 0
+   * - MUL 
+     - 4
+   * - DIV 
+     - 35
+   * - BMU 
+     - 1
+   * - FADD 
+     - 5
+   * - FMUL 
+     - 2
+   * - FCMP 
+     - 1
+   * - FCVT 
+     - 2
+   * - FMIS 
+     - 2
+  
 
 Integer Unit
 ~~~~~~~~~~~~
@@ -309,18 +336,6 @@ The **bit manipulation unit** (BMU) performs different types of operations defin
      - Shift the first operand by 2 to the left and add the result to the second operand.
    * - SH3ADD 
      - Shift the first operand by 3 to the left and add the result to the second operand.
-   * - ANDN 
-     - Logic AND between the first operand and the negated second operand.
-   * - ORN 
-     - Logic OR between the first operand and the negated second operand.
-   * - XNOR
-     - Logic XOR between the first operand and the second operand, the result is negated.
-   * - CLZ 
-     - Count the leading zeros of the first operand.
-   * - CTZ 
-     - Count the trailing zeros of the first operand.
-   * - CPOP 
-     - Count the number of bit sets in the first operand.
    * - MAX
      - Write in the result the signed maximum between the operands.
    * - MAXU 
@@ -328,16 +343,6 @@ The **bit manipulation unit** (BMU) performs different types of operations defin
    * - MIN 
      - Write in the result the signed minimum between the operands.
    * - MINU 
-     - Write in the result the unsigned minimum between the operands.
-   * - SEXT.B 
-     - Sign extend the least significand byte of the first operand.
-   * - SEXT.H
-     - Sign extend the least significand half-word of the first operand.
-   * - ZEXT.H 
-     - Zero extend the least significand half-word of the first operand.
-   * - ROR 
-     - Rotate the first operand to the right with an amount specified in the first 5 bits of the second operand.
-   * - ROL 
      - Rotate the first operand to the left with an amount specified in the first 5 bits of the second operand.
    * - ORC.B
      - Set all the bits of each byte if there's at least 1 bit set.
@@ -351,6 +356,14 @@ The **bit manipulation unit** (BMU) performs different types of operations defin
      - Set the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.
    * - BEXT 
      - Extract the bit of the first operand. The bit position is specified by the first 5 bits of the second operand.
+
+The majority of **Zbb** instructions were omitted due to their limited value in significantly expanding the area footprint of the bit manipulation unit. Instead, a select subset of *Zbb* was chosen:
+
+* *MAX, MAXU, MIN, MINU*: These instructions are frequently employed, even in C code.
+* *REV8*: Essential for converting data endianness, especially in network applications.
+* *ORC.B*: Valuable for string processing, graphics, and more.
+
+For utilization, programmers should compile these instructions in separate assembly files with the *Zbb* extension enabled and then invoke them from the C code.
 
 
 Control Status Registers Unit
@@ -422,7 +435,7 @@ In this case, the LDU is likely to find the store byte entry in the store buffer
     SB 0xFF, 0x00 # RAM[0x00] = 0xAABBCCFF
     LW x1, 0x00 # ERROR! x1 = 0x000000FF 
 
-To overcome this, the LDU employs a simple solution: If the store unit push a non-word store (half-word or byte), the buffer notify the LDU. If the LDU receives a valid operation and the signal is still asserted, it waits until the buffer become empty, thus deasserting the signal. After that it just issue a normal load request.
+To overcome this, the store buffer can foward only entries that matches perfectly both address and load width. If the bits [31:2] of the load address match one of the entries and the widths are different, the load unit is put into a wait state stalling the pipeline to avoid deadlocks due to arrival of other store instructions that could potentially stalls the LDU even more.
 
 Another particular condition is when the *pipeline stalls in the same clock cycle the valid data arrives*. Because the interface does not blocks upon pipeline stall, meaning that the unit could miss the valid signal, the FSM quickly goes into waiting mode and saves the data arrived at the interface. Once the stall ends, the data is finally signaled as valid.
 
