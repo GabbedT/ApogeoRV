@@ -142,4 +142,5 @@ def generate_float2int_test():
             f.write(af.hex + hex(ai)[2:] + "\n")
 
 
-generate_float2int_test()
+# Main 
+generate_multiplication_test()
