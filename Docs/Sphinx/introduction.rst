@@ -1,8 +1,8 @@
 Introduction
 ============
 
-.. Overview
-.. --------
+Overview
+--------
 
 Welcome to the RV32Apogeo Documentation! Whether you are a hardware engineer, software developer, or a newcomer to microprocessor design, this documentation will 
 provide you with valuable insights on how this core works in detail: 
@@ -17,8 +17,8 @@ open source project as a main CPU core.
 **RV32Apogeo or ApogeoCore** is a synthesizable RISCV core. It aim to offer high performance with low power and low footprint and high flexibility 
 thanks to the various synthesis configuration parameters.  
 
-.. Features 
-.. --------
+Features 
+--------
 
 The main features of **ApogeoCore** are: 
 
@@ -33,8 +33,8 @@ The main features of **ApogeoCore** are:
 * **Store Buffer**: Efficiently handle memory operations by not having to access the memory directly thus avoiding to stall the CPU.
 
 
-.. Target Application
-.. ------------------
+Target Application
+------------------
 
 ApogeoCore is a versatile RISCV-V processor mainly designed to be implemented mainly low-end / mid-end embedded systems or SoC that needs an efficient CPU core. 
 However because of it's configurability it's suitable for a wide range of target applications that needs a fairly amount of performance.
@@ -53,8 +53,8 @@ By accommodating a broad spectrum of applications and offering exceptional confi
 RV32ApogeoCore stands as a versatile solution in the world of RISC-V processors.
 
 
-.. Parameters
-.. ----------
+Parameters
+----------
 
 To meet the system designers demand, ApogeoCore comes with a moltitude of parameters. These parameters play a central role in defining the capabilities 
 and performance of the CPU. Whether you are designing an high-performance SoC or an energy-efficient embedded device, 
