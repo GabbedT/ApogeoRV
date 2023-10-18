@@ -155,7 +155,7 @@ The queue is *pushed on BTB hit* and is subsequently *popped when the execution 
 index from the entry to update the corresponding counter. If the branch is taken, the counter is incremented otherwise it's decremented.
 
 
-.. image:: souce/images/Predictor.png
+.. image:: source/images/Predictor.png
   :alt: Simplified block diagram of the branch predictor
 
 These two hardware components collaborate closely to predict the next program counter: the fetch unit forwards the PC to the BTB, and if a BTB hit occurs, the predictor makes a preliminary decision, which is subsequently confirmed or refuted during execution.
@@ -187,7 +187,7 @@ The instruction buffer typically provides a 4-byte word to the pipeline. However
 
 .. note:: **F**: Full Instruction, **C/C**: Two Compressed Instructions, **HF/C**: Compressed Instruction on lower half of the entry and Half Full Instruction on upper half, **C/HF**: Half Full Instruction on lower half and Compressed Instruction on upper half of the entry
 
-.. image:: souce/images/MisalignedFSM.png
+.. image:: source/images/MisalignedFSM.png
 
 For the first case, it's straightforward: simply send the word through the pipeline without any modifications. 
 
