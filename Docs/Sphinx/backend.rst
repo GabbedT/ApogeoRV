@@ -147,7 +147,7 @@ Some units will have other control inputs, however this is the general interface
 that need to process the inputs. The micro-operation input is defined as a **union** with the width of the largest micro-operation vector, this to save registers instead of having a different micro-operation for every unit. Each unit will interpret the micro-operation value in its way, so it makes sense to use an union. 
 
 
-.. image:: images/ExecutionUnitTop.png
+.. image:: source/images/ExecutionUnitTop.png
 
 
 Internally the **main units, will have different output sources**, the ITU will have for examples 4 different sub-units that could produce a valid result at any given time. First of all at every clock cycle, **maximum 1 unit must produce a valid result**; this is done thanks to the scheduler in the frontend. 
@@ -421,7 +421,7 @@ An additional bit is used to specify whether the operation is *signed* or *unsig
 
 The unit is implemented as an FSM, thus it can accept one instruction only if it's idle. The following diagram shows the states that the load unit goes through during a request to memory unit:
 
-.. image:: images/LDU_FSM.png
+.. image:: source/images/LDU_FSM.png
 
 The LDU relies on two primary data sources: *memory* and the *store buffer*, thanks to the concept of data forwarding. However this introduces a dangerous conditions that need to be managed:
 
@@ -467,7 +467,7 @@ The unit consists of a primary Finite State Machine (FSM) responsible for managi
 
 The following diagram shows the states that the load unit goes through during a request to memory unit:
 
-.. image:: images/STU_FSM.png
+.. image:: source/images/STU_FSM.png
 
 When a store operation is initiated, the store unit *pushes information pertaining to the store operation into the buffer*. Once this operation is completed, the store unit transitions to the idle state, ready to accept new instructions and requests.
 However, the presence of a store buffer in the CPU system introduces a subtle challenge. As soon as an entry (consisting of address and data) is inserted into the buffer, the control unit might erroneously assume that the memory has already been updated, which might not be the case. 
