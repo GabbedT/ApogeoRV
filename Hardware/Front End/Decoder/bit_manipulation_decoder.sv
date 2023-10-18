@@ -140,54 +140,6 @@ module bit_manipulation_decoder (
                                 `ifdef BDECODER_DEBUG if (!exception_generated) print("BCLRI"); `endif 
                             end
 
-                            /* CLZ, CTZ, CPOP, SIGN EXTEND */
-                            3'b110: begin
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                exception_generated = (instr_i.R.reg_src_2[4:3] != '0);
-
-                                case (instr_i.R.reg_src_2[2:0])
-                                    riscv32::CLZ: begin
-                                        bmu_operation.BITC.opcode = CLZ;
-                                        build_packet(bmu_operation, COUNT);
-
-                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("CLZ"); `endif 
-                                    end
-
-                                    riscv32::CTZ: begin
-                                        bmu_operation.BITC.opcode = CTZ;
-                                        build_packet(bmu_operation, COUNT);
-
-                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("CTZ"); `endif 
-                                    end
-
-                                    riscv32::CPOP: begin
-                                        bmu_operation.BITC.opcode = CPOP;
-                                        build_packet(bmu_operation, COUNT);
-
-                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("CPOP"); `endif 
-                                    end
-
-                                    riscv32::SEXTB: begin
-                                        bmu_operation.EXT.opcode = SEXTB;
-                                        build_packet(bmu_operation, EXTEND);
-
-                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("SEXTB"); `endif 
-                                    end
-
-                                    riscv32::SEXTH: begin
-                                        bmu_operation.EXT.opcode = SEXTH;
-                                        build_packet(bmu_operation, EXTEND);
-
-                                        `ifdef BDECODER_DEBUG if (!exception_generated) print("SEXTH"); `endif 
-                                    end
-
-                                    default: exception_generated = 1'b1;
-                                endcase  
-                            end
-
                             riscv32::BINVI: begin
                                 bmu_operation.OPLOGIC.opcode = BINV;
                                 build_packet(bmu_operation, LOGICOP);
@@ -223,21 +175,6 @@ module bit_manipulation_decoder (
                                 immediate_valid_o = 1'b1;
 
                                 `ifdef BDECODER_DEBUG if (!exception_generated) print("BEXTI"); `endif 
-                            end
-
-                            riscv32::RORI: begin
-                                bmu_operation.ROT.opcode = ROR;
-                                build_packet(bmu_operation, ROTATE);
-
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                /* Immediate is contained in register source */
-                                immediate_o = {'0, instr_i.R.reg_src_2};
-                                immediate_valid_o = 1'b1;
-
-                                `ifdef BDECODER_DEBUG if (!exception_generated) print("RORI"); `endif 
                             end
 
                             riscv32::REV8: begin
@@ -303,18 +240,6 @@ module bit_manipulation_decoder (
 
                                 `ifdef BDECODER_DEBUG if (!exception_generated) print("BCLR"); `endif 
                             end
-  
-                            riscv32::ROL: begin
-                                bmu_operation.ROT.opcode = ROL;
-                                build_packet(bmu_operation, ROTATE);
-
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_src_o[2] = instr_i.R.reg_src_2;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ROL"); `endif 
-                            end
    
                             riscv32::BINV: begin
                                 bmu_operation.OPLOGIC.opcode = BINV;
@@ -375,29 +300,6 @@ module bit_manipulation_decoder (
                                 `ifdef BDECODER_DEBUG if (!exception_generated) print("MIN"); `endif 
                             end
 
-                            riscv32::ZEXTH: begin
-                                bmu_operation.EXT.opcode = ZEXTH;
-                                build_packet(bmu_operation, EXTEND);
-
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ZEXTH"); `endif 
-                            end
-
-                            riscv32::XNOR: begin
-                                bmu_operation.OPLOGIC.opcode = XNOR;
-                                build_packet(bmu_operation, LOGICOP);
-
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_src_o[2] = instr_i.R.reg_src_2;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                `ifdef BDECODER_DEBUG if (!exception_generated) print("XNOR"); `endif 
-                            end
-
                             default: exception_generated = 1'b1;
                         endcase 
                     end
@@ -429,18 +331,6 @@ module bit_manipulation_decoder (
 
                                 `ifdef BDECODER_DEBUG if (!exception_generated) print("BEXT"); `endif 
                             end 
-
-                            riscv32::ROR: begin
-                                bmu_operation.ROT.opcode = ROR;
-                                build_packet(bmu_operation, ROTATE);
-
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_src_o[2] = instr_i.R.reg_src_2;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ROR"); `endif 
-                            end
 
                             default: exception_generated = 1'b1;
                         endcase 
@@ -476,50 +366,22 @@ module bit_manipulation_decoder (
                                 `ifdef BDECODER_DEBUG if (!exception_generated) print("SH3ADD"); `endif 
                             end
 
-                            riscv32::ORN: begin
-                                bmu_operation.OPLOGIC.opcode = ORN;
-                                build_packet(bmu_operation, LOGICOP);
-
-                                /* Register */
-                                reg_src_o[1] = instr_i.R.reg_src_1;
-                                reg_src_o[2] = instr_i.R.reg_src_2;
-                                reg_dest_o = instr_i.R.reg_dest;
-
-                                exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[3:0] != '0);
-
-                                `ifdef BDECODER_DEBUG if (!exception_generated) print("ORN"); `endif 
-                            end
-
                             default: exception_generated = 1'b1;
                         endcase 
                     end
 
                     3'b111: begin
-                        if (instr_i.R.funct7[5] == riscv32::ANDN) begin
-                            bmu_operation.OPLOGIC.opcode = ANDN;
-                            build_packet(bmu_operation, LOGICOP);
+                        bmu_operation.CMP.opcode = MAXU; 
+                        build_packet(bmu_operation, COMPARE);
 
-                            /* Register */
-                            reg_src_o[1] = instr_i.R.reg_src_1;
-                            reg_src_o[2] = instr_i.R.reg_src_2;
-                            reg_dest_o = instr_i.R.reg_dest;
+                        /* Register */
+                        reg_src_o[1] = instr_i.R.reg_src_1;
+                        reg_src_o[2] = instr_i.R.reg_src_2;
+                        reg_dest_o = instr_i.R.reg_dest;
 
-                            exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[4:0] != '0); 
+                        exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[4:0] != 4'b00101); 
 
-                            `ifdef BDECODER_DEBUG if (!exception_generated) print("ANDN"); `endif 
-                        end else if (instr_i.R.funct7[5] == riscv32::MAXU) begin
-                            bmu_operation.CMP.opcode = MAXU; 
-                            build_packet(bmu_operation, COMPARE);
-
-                            /* Register */
-                            reg_src_o[1] = instr_i.R.reg_src_1;
-                            reg_src_o[2] = instr_i.R.reg_src_2;
-                            reg_dest_o = instr_i.R.reg_dest;
-
-                            exception_generated = instr_i.R.funct7[6] | (instr_i.R.funct7[4:0] != 4'b00101); 
-
-                            `ifdef BDECODER_DEBUG if (!exception_generated) print("MAXU"); `endif 
-                        end 
+                        `ifdef BDECODER_DEBUG if (!exception_generated) print("MAXU"); `endif 
                     end
 
                     default: exception_generated = 1'b1;

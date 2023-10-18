@@ -113,114 +113,6 @@ module bit_manipulation_unit (
 
 
 //====================================================================================
-//      LOGIC OPERATIONS
-//====================================================================================
-
-    /* ANDN logic */
-    data_word_t andn_result;
-
-    assign andn_result = operand_A_i & (~operand_B_i);
-
-
-    /* ORN logic */
-    data_word_t orn_result;
-
-    assign orn_result = operand_A_i | (~operand_B_i);
-
-
-    /* XNOR logic */
-    data_word_t xnor_result;
-
-    assign xnor_result = ~(operand_A_i ^ operand_B_i);
-
-    /* 
-     *  Stage and selection logics are in the bit
-     *  operations section. 
-     */
-
-
-//====================================================================================
-//      COUNT OPERATIONS
-//====================================================================================
-
-    /* CPOP logic */
-    logic [$clog2(DATA_WIDTH):0] cpop_result;
-
-    /* Count the number of setted bits in a word, it is
-     * implemented as a sequential operation, so it will
-     * not accept any operands until the end of the 
-     * previous computation */
-    population_count_combinational #(DATA_WIDTH) cpop (
-        .operand_i ( operand_A_i ),
-        .count_o   ( cpop_result )
-    );
-
-
-    /* CTZ and CLZ logic */
-    data_word_t                      reversed_operand_A, count_zeros_operand; 
-    logic [$clog2(DATA_WIDTH) - 1:0] count_zeros_result; 
-    logic                            all_zeros;
-
-        /* Count trailing zeroes (CTZ) is a CLZ with the inverted bits */
-        always_comb begin : ctz_assignment_logic
-            for (int i = 0; i < DATA_WIDTH; ++i) begin
-                reversed_operand_A[(DATA_WIDTH - 1) - i] = operand_A_i[i];
-            end
-        end : ctz_assignment_logic
-
-    assign count_zeros_operand = (operation_i.select.BITC.opcode == CLZ) ? operand_A_i : reversed_operand_A;
-
-    count_leading_zeros #(DATA_WIDTH) clz32 (
-        .operand_i     ( count_zeros_operand ),
-        .lz_count_o    ( count_zeros_result  ),
-        .is_all_zero_o ( all_zeros           )
-    );
-
-
-    /* Stage logic */
-    logic [$clog2(DATA_WIDTH):0] bit_count_result_in, bit_count_result_out;       
-
-        always_comb begin : bit_count_selection
-            /* Default value */
-            bit_count_result_in = '0;
-
-            if (operation_i.select.BITC.opcode == CPOP) begin
-                bit_count_result_in = cpop_result;
-            end else begin
-                bit_count_result_in = {1'b0, count_zeros_result};
-            end
-        end : bit_count_selection      
-
-    /* Count zeroes output */
-    logic       all_zeros_out;
-    logic [1:0] bit_count_out;
-    
-    localparam CPOP_OP = 2;
-
-        always_ff @(posedge clk_i) begin : bit_count_stage_register
-            if (clk_en_i) begin
-                bit_count_result_out <= bit_count_result_in;
-                bit_count_out <= operation_i.select.BITC.opcode;
-                all_zeros_out <= all_zeros;
-            end
-        end : bit_count_stage_register
-
-
-    /* Final output processing */
-    data_word_t bit_count_final_result;
-
-        always_comb begin : bit_count_final_logic
-            /* Append zeroes */
-            if (bit_count_out == CPOP_OP) begin
-                bit_count_final_result = {'0, bit_count_result_out};
-            end else begin
-                bit_count_final_result[$clog2(DATA_WIDTH):0] = {all_zeros_out, (all_zeros_out == 1'b1) ? 4'b0 : bit_count_result_out};
-                bit_count_final_result[DATA_WIDTH - 1:$clog2(DATA_WIDTH) + 1] = '0;
-            end
-        end : bit_count_final_logic
-
-
-//====================================================================================
 //      COMPARISON OPERATIONS
 //====================================================================================
 
@@ -260,69 +152,6 @@ module bit_manipulation_unit (
                 compare_operation_out <= compare_operation_in;
             end
         end : compare_operation_stage_register
-
-
-//====================================================================================
-//      SIGN EXTEND OPERATIONS
-//====================================================================================
-
-    data_word_t sextb_result, sexth_result, zexth_result;
-
-    assign sextb_result = $signed(operand_A_i[7:0]);
-    assign sexth_result = $signed(operand_A_i[15:0]);
-    assign zexth_result = $unsigned(operand_A_i[15:0]);
-
-
-    /* Stage logic */
-    data_word_t extension_result_in, extension_result_out;
-
-        always_comb begin : extension_selection
-            /* Default value */
-            extension_result_in = '0;
-
-            case (operation_i.select.EXT.opcode)
-                ZEXTH:   extension_result_in = zexth_result;
-
-                SEXTB:   extension_result_in = sextb_result;
-
-                SEXTH:   extension_result_in = sexth_result;
-            endcase
-        end : extension_selection
-
-        always_ff @(posedge clk_i) begin : extension_stage_register
-            if (clk_en_i) begin
-                extension_result_out <= extension_result_in;
-            end
-        end : extension_stage_register
-
-
-//====================================================================================
-//      ROTATE OPERATIONS
-//====================================================================================
-
-    data_word_t rol_result, ror_result;
-
-    assign rol_result = (operand_A_i << operand_B_i[$clog2(DATA_WIDTH) - 1:0]) | (operand_A_i >> (DATA_WIDTH - operand_B_i[$clog2(DATA_WIDTH) - 1:0]));
-    
-    assign ror_result = (operand_A_i >> operand_B_i[$clog2(DATA_WIDTH) - 1:0]) | (operand_A_i << (DATA_WIDTH - operand_B_i[$clog2(DATA_WIDTH) - 1:0]));
-
-
-    /* Stage logic  */
-    data_word_t rotate_result_in, rotate_result_out;
-
-        always_comb begin : rotate_operation_selection
-            case (operation_i.select.ROT.opcode)
-                ROL: rotate_result_in = rol_result;
-
-                ROR: rotate_result_in = ror_result;
-            endcase
-        end : rotate_operation_selection
-
-        always_ff @(posedge clk_i) begin : rotate_operation_stage_register
-            if (clk_en_i) begin
-                rotate_result_out <= rotate_result_in;
-            end
-        end : rotate_operation_stage_register
 
 
 //====================================================================================
@@ -373,9 +202,9 @@ module bit_manipulation_unit (
 //      BIT OPERATIONS
 //====================================================================================
 
-    logic [$clog2(DATA_WIDTH) - 1:0] index;
+    logic [4:0] index;
 
-    assign index = operand_B_i[$clog2(DATA_WIDTH) - 1:0];
+    assign index = operand_B_i[4:0];
 
     
     /* Bit clear logic */
@@ -411,12 +240,6 @@ module bit_manipulation_unit (
             bit_logic_op_result_in = '0;
 
             case (operation_i.select.OPLOGIC.opcode)
-                ANDN:  bit_logic_op_result_in = andn_result;
-
-                ORN:   bit_logic_op_result_in = orn_result;
-
-                XNOR:  bit_logic_op_result_in = xnor_result;
-
                 BCLR: bit_logic_op_result_in = bclr_result;
 
                 BEXT: bit_logic_op_result_in = bext_result;
@@ -455,13 +278,7 @@ module bit_manipulation_unit (
             case (valid_operation_out)
                 SHADD: result_o = shift_and_add_result_out;
 
-                COUNT: result_o = bit_count_final_result;
-
                 COMPARE: result_o = compare_operation_out;
-
-                EXTEND: result_o = extension_result_out;
-
-                ROTATE: result_o = rotate_result_out; 
 
                 BYTEOP: result_o = byte_operation_result_out; 
 
