@@ -219,9 +219,12 @@ module back_end #(
             end 
         end : bypass_operands_stage_register
 
-
+    
+    
+    logic stall, buffer_hazard;
+    
     /* Control flow instruction has been executed */
-    assign executed_o = (bypass_branch | bypass_jump) & !stall_o;
+    assign executed_o = (bypass_branch | bypass_jump) & !stall;
 
     /* Send instruction address and instruction type bit to recover from misprediction */
     assign instr_address_o = bypass_ipacket.instr_addr;
@@ -256,10 +259,7 @@ module back_end #(
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
     logic execute_store, branch_taken;
 
-    exu_valid_t valid_operation;
-
-
-    logic stall, buffer_hazard; 
+    exu_valid_t valid_operation; 
 
     assign valid_operation = stall ? '0 : bypass_valid; 
 
