@@ -165,6 +165,8 @@ Here's a table with all the latencies of every sub-unit:
      - Description
    * - ALU 
      - 0
+   * - CSRU 
+     - 0
    * - MUL 
      - 4
    * - DIV 
