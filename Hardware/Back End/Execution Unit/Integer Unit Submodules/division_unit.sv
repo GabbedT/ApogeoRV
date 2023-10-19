@@ -28,7 +28,7 @@
 // ------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : Division unit of the RV32 Apogeo, can handle both signed and unsigned 
+// DESCRIPTION : Division unit of the ApogeoRV, can handle both signed and unsigned 
 //               operations. The core circuit implements the non restoring division
 //               algorithm, thus numbers must be converted based on the type of
 //               operation. It is sequential thus it can accept only one operation

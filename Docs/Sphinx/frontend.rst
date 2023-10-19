@@ -118,7 +118,7 @@ Branch Predictor
 
 The **branch predictor** plays a critical role in enhancing the efficiency of program execution by anticipating the outcomes of branching instructions during program execution to avoid waiting to know the outcome of the branch.
 This function is *particularly valuable for CPU with deep pipes and long fetch latencies*, without a branch predictor if a branch is taken, to start executing the new instruction, the CPU needs to wait *N* clock cyles from the 
-branch's to its execution plus *M* clock cycles to wait the new instruction arrival. ApogeoCore's branch predictor is composed by two hardware blocks: **Branch Target Buffer** and 
+branch's to its execution plus *M* clock cycles to wait the new instruction arrival. ApogeoRV's branch predictor is composed by two hardware blocks: **Branch Target Buffer** and 
 **GShare Branch Predictor**.
 
 The **Branch Target Buffer**, or **BTB**, essentially operates as a cache, built from syncronous memory with a single read and a single write port. Its primary function is to retain the branch target address associated with specific branch instructions. It's read-indexed by the lower bits of the current PC and just like a cache a BTB entry is composed by 

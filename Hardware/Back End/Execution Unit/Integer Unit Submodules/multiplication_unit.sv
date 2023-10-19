@@ -28,7 +28,7 @@
 // ------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : Multiplication unit of RV32 Apogeo can handle both signed and unsigned
+// DESCRIPTION : Multiplication unit of ApogeoRV can handle both signed and unsigned
 //               operations. It is fully pipelined so it can accept new operands every
 //               cycle. The functional unit can be configured for ASIC or FPGA through 
 //               a `define (ASIC / FPGA). When ASIC is selected, a custom array long

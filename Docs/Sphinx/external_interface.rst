@@ -1,7 +1,7 @@
 External Interface 
 ==================
 
-ApogeoCore has three main memory interfaces and an interrupt interface that is connected to an interrupt controller. The signals timing and relations are extremly simple to easily connect the interfaces 
+ApogeoRV has three main memory interfaces and an interrupt interface that is connected to an interrupt controller. The signals timing and relations are extremly simple to easily connect the interfaces 
 to a different bus (AXI, Wishbone etc.) through an adapter.
 
 Memory Interface

@@ -28,7 +28,7 @@
 // ------------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : Bit Manipulation Unit of the RV32 Apogeo, the module support the execution 
+// DESCRIPTION : Bit Manipulation Unit of the ApogeoRV, the module support the execution 
 //               of a subset of RISCV 'B' extension. All the operations have 1 cycle latency
 //               and they are pipelined (except for CPOP operations) so BMU can still
 //               accept one operation per clock cycle. The reason behind the pipelining

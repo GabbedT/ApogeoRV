@@ -1,7 +1,7 @@
 Control Status Registers 
 ======================== 
 
-RV32-Apogeo doesn't implement all CSRs proposed by RISC-V specifications, only essentials ones are actually keeped to reduce area ovehead. Specification says that there are bit fields with certains properties. 
+ApogeoRV doesn't implement all CSRs proposed by RISC-V specifications, only essentials ones are actually keeped to reduce area ovehead. Specification says that there are bit fields with certains properties. 
 
 Some bit fields specify a precise behaviour for a subset of the possible bit combinations:
 
@@ -10,7 +10,7 @@ Some bit fields specify a precise behaviour for a subset of the possible bit com
 
 Some CSRs can only be readed (**RO**, read only) or can be freely accessed (**RW**, read / write).
 
-All CSRs have a privilege mode associated. RV32-Apogeo implements 3 different modes:
+All CSRs have a privilege mode associated. ApogeoRV implements 3 different modes:
 
 * **M**: Machine mode
 * **U**: User mode
@@ -391,7 +391,7 @@ The **mie** register has the following field implemented:
      - 0
 
 
-**MEIE** and **MEIP** bits refers to external interrupts handled by the interrupt controller. Apogeo has 1 single general interrupt pin which is managed by the interrupt controller based on priority levels. **MTIE** and **MTIP** bits refers to the external memory mapped CSR (timer). The **time** CSR interrupt has priority over the external one.
+**MEIE** and **MEIP** bits refers to external interrupts handled by the interrupt controller. *ApogeoRV* has 1 single general interrupt pin which is managed by the interrupt controller based on priority levels. **MTIE** and **MTIP** bits refers to the external memory mapped CSR (timer). The **time** CSR interrupt has priority over the external one.
 
 .. note:: The pending bits are *read only* and can only be cleared by performing special operation. To clear the timer interrupt pending bit for example, it's necessary to manually change the *timer compare register* or change the *timer value*. For the external interrupt, the hardware will take care of it by running an acknowledge cycle to announce the interrupt controller that the core is going to service the request.
 
@@ -480,7 +480,7 @@ Hardware Performance Monitor CSRs
 
 Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The **mcycle** CSR simply increment every clock cycle, **minstret** CSR increment itself when an instruction is retired from the *reorder buffer*. 
 
-RV32-Apogeo implements other 4 general purpouse counters: **mhpmcounter3** -> **mhpmcounter6**.
+ApogeoRV implements other 4 general purpouse counters: **mhpmcounter3** -> **mhpmcounter6**.
 The increment-enable event can be selected through the **mhpmevent3** -> **mhpmevent6**. 
 
 The events available are:

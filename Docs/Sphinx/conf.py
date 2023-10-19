@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'ApogeoCore Documentation'
+project = 'ApogeoRV Documentation'
 copyright = '2023, Tripi Gabriele'
 author = 'Tripi Gabriele'
 release = '20/05/2023'

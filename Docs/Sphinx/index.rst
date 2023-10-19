@@ -1,4 +1,4 @@
-ApogeoCore Datasheet
+ApogeoRV Datasheet
 ==================================
 
 .. toctree:: 

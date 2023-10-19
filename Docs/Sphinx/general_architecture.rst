@@ -1,7 +1,7 @@
 General Architecture 
 ==================== 
 
-ApogeoCore's architecture is designed to be exceptionally well balanced in terms of *performace / area / power* tradeoff. 
+ApogeoRV's architecture is designed to be exceptionally well balanced in terms of *performace / area / power* tradeoff. 
 By strategically selecting ISA and selecting the right microarchitectural choices, the initial priority target of low power and low area has been archieved. 
 
 In the later paragraphs there is a description of every important architectural detail 
@@ -36,7 +36,7 @@ RISC-V has a lot of benefit othen than being open source. It's easy to learn, wh
 * **Reduced Number of Instructions**
 
 CPUs can be really simple yet powerful. Also thanks to the multitude of extensions, the designer can choose the best ISA subset that suits a particular target application. 
-The extensions used for ApogeoCore are:
+The extensions used for ApogeoRV are:
 
 * **M Extension**: Multiplication and division are found in almost every program, these are operation that can take more than 100 / 1000 cycles if implemented in software. 
 * **B Subsets (Zba, Zbs)**: The Bitmanip extension is helpful to speedup a tasks like address generations and single bit operations. The **Zbc** was not included because the instructions of this subset are not often used and use a lot of hardware resources. 
@@ -59,7 +59,7 @@ The standard CPU instruction cycle consist in 4 different stages:
 * **Execute**: The instruction gets executed. 
 * **Writeback**: The result is written back into the register file. 
 
-This is great for pipelining, however in more complex processors, more pipeline stages needs to be added. ApogeoCore, implements the following pipeline stages: 
+This is great for pipelining, however in more complex processors, more pipeline stages needs to be added. ApogeoRV, implements the following pipeline stages: 
 
 **PC Generation**: 
     Here the *program counter* is generated based on the control signals that comes from the execute stage / branch predictor and sent to the memory. Meanwhile the same address is feeded into the **branch target buffer**. The 

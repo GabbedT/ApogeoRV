@@ -4,23 +4,22 @@ Introduction
 Overview
 --------
 
-Welcome to the RV32Apogeo Documentation! Whether you are a hardware engineer, software developer, or a newcomer to microprocessor design, this documentation will 
+Welcome to the ApogeoRV Documentation! Whether you are a hardware engineer, software developer, or a newcomer to microprocessor design, this documentation will 
 provide you with valuable insights on how this core works in detail: 
 you will learn the microarchitectural and architectural details, the design choices an the tradeoffs done during design phase.
-Additionally, you may explore the process of designing a real-world microprocessor.
 
 *This is an academic project, it doesn't aim to replace any of the already existing CPUs*, however it can be perfectly used in any 
 open source project as a main CPU core. 
 
 .. important:: *This is an academic project, it doesn't aim to replace any of the already existing CPUs*, however it can be perfectly used in any open source project as a main CPU core. 
 
-**RV32Apogeo or ApogeoCore** is a synthesizable RISCV core. It aim to offer high performance with low power and low footprint and high flexibility 
+**ApogeoRV** is a synthesizable RISCV core. It aim to offer high performance with low power and low footprint and high flexibility 
 thanks to the various synthesis configuration parameters.  
 
 Features 
 --------
 
-The main features of **ApogeoCore** are: 
+The main features of **ApogeoRV** are: 
 
 * Supports the full base **RV32 ISA**.
 * Supports the RISCV extensions **M, C, Zicsr, Zba, Zbs, Zfinx**.
@@ -36,13 +35,13 @@ The main features of **ApogeoCore** are:
 Target Application
 ------------------
 
-ApogeoCore is a versatile RISCV-V processor mainly designed to be implemented mainly low-end / mid-end embedded systems or SoC that needs an efficient CPU core. 
+ApogeoRV is a versatile RISCV-V processor mainly designed to be implemented mainly low-end / mid-end embedded systems or SoC that needs an efficient CPU core. 
 However because of it's configurability it's suitable for a wide range of target applications that needs a fairly amount of performance.
 
-.. warning:: ApogeoCore has been tested and implemented only in FPGA. With the some source code modifications it will be possible to target ASIC synthesis, however this is not a goal in the short future.
+.. warning:: ApogeoRV has been tested and implemented only in FPGA. With the some source code modifications it will be possible to target ASIC synthesis, however this is not a goal in the short future.
 
 The RISC-V M, Zba, Zbb, Zbs and Zfinx extensions are implemented to handle more complex task with less latency and energy consumption other than lowering the memory usage due to instruction count. 
-With these capabilities, ApogeoCore is well-suited for the following target application systems:
+With these capabilities, ApogeoRV is well-suited for the following target application systems:
 
 * **System On Chips**
 * **Microcontrollers**
@@ -50,13 +49,13 @@ With these capabilities, ApogeoCore is well-suited for the following target appl
 * **Digital Signal Processing** 
 
 By accommodating a broad spectrum of applications and offering exceptional configurability, 
-RV32ApogeoCore stands as a versatile solution in the world of RISC-V processors.
+ApogeoRVCore stands as a versatile solution in the world of RISC-V processors.
 
 
 Parameters
 ----------
 
-To meet the system designers demand, ApogeoCore comes with a moltitude of parameters. These parameters play a central role in defining the capabilities 
+To meet the system designers demand, ApogeoRV comes with a moltitude of parameters. These parameters play a central role in defining the capabilities 
 and performance of the CPU. Whether you are designing an high-performance SoC or an energy-efficient embedded device, 
 understanding these parameters is essential to ensure that the resulting metrics aligns with your specific requirements. Every parameter is found inside the `apogeo_configuration.svh` file.
 
