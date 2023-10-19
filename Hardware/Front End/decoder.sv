@@ -273,11 +273,11 @@ module decoder (
                 end
 
                 3'b101: begin
-                    immediate_o[0] = immediate_bdec;
-                    immediate_o[1] = '0;
+                    immediate_o[0] = '0;
+                    immediate_o[1] = immediate_bdec;
 
-                    immediate_valid_o[0] = is_immediate_bdec;
-                    immediate_valid_o[1] = '0;
+                    immediate_valid_o[0] = 1'b0;
+                    immediate_valid_o[1] = is_immediate_bdec;
 
                     reg_src_o = reg_src_bdec;
                     reg_dest_o = reg_dest_bdec;
@@ -338,11 +338,11 @@ module decoder (
                 end
 
                 2'b10: begin
-                    immediate_o[0] = immediate_bdec;
-                    immediate_o[1] = '0;
+                    immediate_o[0] = '0;
+                    immediate_o[1] = immediate_bdec;
 
-                    immediate_valid_o[0] = is_immediate_bdec;
-                    immediate_valid_o[1] = '0;
+                    immediate_valid_o[0] = 1'b0;
+                    immediate_valid_o[1] = is_immediate_bdec;
 
                     reg_src_o = reg_src_bdec;
                     reg_dest_o = reg_dest_bdec;
