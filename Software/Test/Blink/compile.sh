@@ -6,7 +6,7 @@ truncate -s 0 ../../../Board/Program/blink1.hex
 truncate -s 0 ../../../Board/Program/blink2.hex
 truncate -s 0 ../../../Board/Program/blink3.hex
 
-riscv32-unknown-elf-gcc -O2 -mno-fdiv -c -nostartfiles -march=rv32im_zfinx_zba_zbb_zbs -mabi=ilp32 blink.c -o blink.o
+riscv32-unknown-elf-gcc -mno-fdiv -c -nostartfiles -march=rv32im_zfinx_zba_zbs -mabi=ilp32 blink.c -o blink.o
 riscv32-unknown-elf-as -c -march=rv32im_zicsr_zfinx_zba_zbb -mabi=ilp32 setup.s -o setup.o
 riscv32-unknown-elf-ld -T link.ld -o output.elf setup.o blink.o /opt/riscv/lib/gcc/riscv32-unknown-elf/12.2.0/libgcc.a
 riscv32-unknown-elf-size output.elf

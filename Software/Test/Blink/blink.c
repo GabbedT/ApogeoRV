@@ -18,7 +18,7 @@ void blink() {
     *(gLedBase + gLedIndex) = 1;
 
     /* Setup interrupt time */
-    *gTimerBase = CLOCK_FREQ / 2; *(gTimerBase + 1) = 0;
+    *gTimerBase = CLOCK_FREQ / 1000000; *(gTimerBase + 1) = 0;
 
     /* Reset the timer */
     *(gTimerBase + 3) = 0; *(gTimerBase + 2) = 0;
