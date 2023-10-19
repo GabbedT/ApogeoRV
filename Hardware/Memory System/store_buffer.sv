@@ -126,7 +126,7 @@ module store_buffer #(
                 push_channel.full <= 1'b0;
                 push_channel.empty <= 1'b1;
             end else if (flush_i) begin 
-                push_channel.full <= ((valid_ptr + 1'b1) == push_ptr);
+                push_channel.full <= ((valid_ptr + 1'b1) == pull_ptr);
                 push_channel.empty <= (valid_ptr == pull_ptr);
             end else begin 
                 case ({push_channel.request, pull_channel.done})
