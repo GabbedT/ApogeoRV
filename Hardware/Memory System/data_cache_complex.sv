@@ -29,21 +29,9 @@ module data_cache_complex #(
 
     /* Load unit interface */
     load_interface.master ldu_channel,
-    input logic load_cachable_i,
-    output data_word_t foward_data_o,
-    output logic foward_match_o,
 
     /* Store unit interface */
     store_interface.master stu_channel,
-    store_buffer_push_interface.master buffer_channel,
-
-    /* Burst buffer CSR interface */
-    output logic [9:0] buffer_size_o,
-    input data_word_t base_address_i,
-    input logic [9:0] threshold_i,
-    input logic [1:0] store_width_i,
-    input logic burst_type_i,
-    input logic buffer_select_i,
 
     /* Memory load interface */
     load_interface.master load_channel,
@@ -63,36 +51,7 @@ module data_cache_complex #(
     localparam INDEX = $clog2(CACHE_SIZE / BLOCK_SIZE);
 
     localparam TAG = 32 - (2 + OFFSET + INDEX);
-
-
-//====================================================================================
-//      STORE BUFFER
-//====================================================================================
-
-    store_buffer_pull_interface buffer_push_channel;
-    store_buffer_pull_interface buffer_pull_channel; 
-    logic buffer_head_valid; 
-
-    store_buffer #(STORE_BUFFER_SIZE) store_buffer (
-        .clk_i   ( clk_i   ),
-        .rst_n_i ( rst_n_i ),
-        .flush_i ( flush_i ),
     
-        .push_channel ( buffer_push_channel ),
-        .pull_channel ( buffer_pull_channel ),
-
-        .valid_i ( valid_i ),
-
-        .foward_address_i ( load_channel.address ),
-        .foward_data_o    ( foward_data_o        ),
-        .address_match_o  ( foward_match_o       ),
-
-        .valid_o ( buffer_head_valid )
-    );
-
-    assign buffer_push_channel.push_request = buffer_channel.push_request & !buffer_select_i;
-    assign buffer_push_channel.full = buffer_channel.full;
-    assign buffer_push_channel.pac = buffer_channel.packet;
 
 //====================================================================================
 //      CACHE
