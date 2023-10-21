@@ -19,11 +19,10 @@ During this stage, the *next PC gets determined* based on several signals / even
 Next PC Logic 
 ~~~~~~~~~~~~~
 
-*To determine the next PC* the combinational logic uses signals coming from: **outside the core**, **execution unit**, **writeback stage** and **predictor unit**. If no particular event is detected, the **PC advances by 4**,
-events obiously have different priorities:
+*To determine the next PC* the combinational logic uses signals coming from: **outside the core**, **execution unit**, **writeback stage** and **predictor unit**. If no particular event is detected, the **PC advances by 4**. Events obiously have different priorities:
 
 .. list-table:: Next PC Events (High to Low priority)
-   :widths: 25 40
+   :widths: 25 30
    :header-rows: 1
 
    * - Name 
@@ -140,7 +139,7 @@ The BTB is updated with information from the current instruction in the executio
 The **GShare Branch Predictor** operates as a **global branch predictor** which means that the predictions are based on the history of the most recent the branches. The branch history is saved in a shift register called **branch history table**, that shift whenever a branch / jump is executed, it shift in 
 a logic 1 when the branch is taken or it's a jump, logic 0 when the branch is not taken. The entire value of the shift register is XORed with the **branch target address** obtained from the BTB forming an index. This is used to access a table of 
 2 bits counters, the memory that holds *the value of the counters is updated when a branch / jump is executed*. Based on the value of the specific counter indexed, the branch predictor takes a guess: if the bit 1 of the counter is high then the branch is taken otherwise it's not.
-**The predictor makes a predictione whenever the BTB register an hit**, if that's the case, the information of the prediction is saved into a queue awaiting execution and branch resolution. Inside a queue entry it's saved: the *predicted outcome*, the *hashed index* and 
+**The predictor makes a prediction whenever the BTB register an hit**, if that's the case, the information of the prediction is saved into a queue awaiting execution and branch resolution. Inside a queue entry it's saved: the *predicted outcome*, the *hashed index* and 
 the *branch target address*:
 
 .. code-block:: systemverilog
@@ -151,7 +150,7 @@ the *branch target address*:
         data_word_t target_address; 
     } predictor_t;
 
-The queue is *pushed on BTB hit* and is subsequently *popped when the execution unit resolve a branch / jump*. During the pop operation, the predictor determines whether a misprediction occurred by *comparing the execution unit's outcome with the prediction bit in the queue entry read*. Then it uses the 
+The queue is *pushed on BTB hit* and is subsequently *popped when the execution unit resolve the branch / jump*. During pop operation, the predictor determines whether a misprediction occurred by *comparing the execution unit's outcome with the prediction bit in the queue entry read*. Then it uses the 
 index from the entry to update the corresponding counter. If the branch is taken, the counter is incremented otherwise it's decremented.
 
 
@@ -165,7 +164,7 @@ Instruction Buffer
 ~~~~~~~~~~~~~~~~~~
 
 The **instruction buffer** *decouples the fetch interface from the pipeline*. The arrival of new instructions and the request of a new instruction from the pipeline advance at different rates. The pipeline has different source of stalls, during this time new instructions can't be executed, 
-discarding or stalling the incoming instructions would degrade the overall performance of the CPU. The instruction buffer is the solution, *fetch unit can still supply new instruction while the pipeline is in stall*, by doing this the fetch unit is effectively prefetching new instructions in advance.
+discarding or stalling the incoming instructions would degrade the overall performance of the CPU. The instruction buffer is the solution, *fetch unit can still supply new instruction while the pipeline is in stall* and by doing this the fetch unit is effectively prefetching new instructions further increasing performance.
 
 The instruction buffer is composed by three sub-buffers: the **address buffer**, the **instruction word buffer** and the **speculative buffer**. Each sub-buffer is written by its own write signal: when a new instruction is fetched, first the fetch address is sent to the memory. The fetch address is the first 
 to be written inside its buffer. After one clock cycle, the speculative buffer gets written with the BTB access result and with the prediction done. When the instruction requested arrives (after N cycles), it gets written finally in the instruction word buffer. 
@@ -210,10 +209,10 @@ Decode Stage
 Decoder
 ~~~~~~~
 
-The **decoder** takes a 32 bit instruction as input and generates a set of signals adn micro operations that can be used to drive and control the pipeline:
+The **decoder** takes a 32 bit instruction as input and generates a set of signals and micro operations that can be used to drive and control the pipeline:
 
 .. list-table:: Generated Signals
-   :widths: 20 15 40
+   :widths: 20 15 25
    :header-rows: 1
 
    * - Name 

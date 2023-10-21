@@ -1,16 +1,16 @@
 Control Status Registers 
 ======================== 
 
-ApogeoRV doesn't implement all CSRs proposed by RISC-V specifications, only essentials ones are actually keeped to reduce area ovehead. Specification says that there are bit fields with certains properties. 
+ApogeoRV doesn't implement all CSRs proposed by RISC-V specifications, only the essentials ones are actually keeped to reduce area ovehead. 
 
 Some bit fields specify a precise behaviour for a subset of the possible bit combinations:
 
 * **WLRL** (Write Legal Read Legal): **No illegal instruction exceptions are raised** in case of an illegal bit combination write, in this case the write doesn't change the CSR state and the lastest legal value will be read.
 * **WARL** (Write Any Read Legal): Any combination of bit write will always be legal.
 
-Some CSRs can only be readed (**RO**, read only) or can be freely accessed (**RW**, read / write).
+Some CSRs can only be read (**RO**, read only) or can be freely accessed (**RW**, read / write).
 
-All CSRs have a privilege mode associated. ApogeoRV implements 3 different modes:
+All CSRs have a privilege mode associated. ApogeoRV implements 2 different modes:
 
 * **M**: Machine mode
 * **U**: User mode
@@ -238,7 +238,7 @@ Machine Mode CSRs
 ISA CSR
 ~~~~~~~
 
-Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. Extensions implemented can be read through this register. Another use is to disable M and F extensions, by clearing the corresponding bit into the *Extensions* bit field.
+Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. Extensions implemented can be read through this register. Another use is to disable `M` and `Zfinx` extensions, by clearing the corresponding bit into the *Extensions* bit field.
 
 
 .. list-table:: MISA CSR
@@ -250,20 +250,30 @@ Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. 
      - Access Mode
      - Description
      - Default Value
-   * - [12:11]
+   * - [31:30]
      - Machine XLEN 
      - RO 
      - Encodes the native base integer ISA
      - 1
-   * - [25:0]
-     - Extensions 
+   * - [25]
+     - Zfinx Extension 
      - RW 
-     - Read implemented extensions and disable M - B extensions
-     - 0x141126
+     - Enable / Disable Zfinx extension
+     - 0 
+   * - [12]
+     - M Extension 
+     - RW 
+     - Enable / Disable M extension
+     - 0     
+   * - [1]
+     - B Extension 
+     - RW 
+     - Enable / Disable B extension
+     - 0
 
-.. note:: To disable B extension, the bit 1 (misa[1]) must be cleared. To disable M extension, the bit 12 (misa[12]) must be cleared. To disable Zfinx extension, the bit 25 (misa[25]) must be cleared
 
-.. note:: Disabling any extension will disable the clock that is supplied to the corresponding unit. This will help with power consumption.
+.. note:: To disable B extension, the bit 1 (misa[1]) must be cleared. To disable M extension, the bit 12 (misa[12]) must be cleared. To disable Zfinx extension, the bit 25 (misa[25]) must be cleared. Disabling any extension will disable the clock that is supplied to the corresponding unit. This will help with power consumption.
+
 
 .. warning:: The user must ensure that those extensions are enabled in the hardware configuration. If an instruction that belongs to one disabled extension is fetched, it will generate an **illegal instruction exception**.
 
@@ -272,7 +282,6 @@ ID CSRs
 
 CSRs like **mvendorid**, **marchid**, **mimpid** and **mhartid** privide a simple mechanism to identify the CPU core. They are all *read-only* registers and will return a 0 except for *marchid* CSR. A read to that will return the value: **0x41504F47** (APOG in ASCII). 
 
-.. note:: It's possible do shut off multiplier, divisor and bit manipulation unit by clearing the M and B bit of **marchid** CSR. Every M / B instruction will then result in an exception.
 
 Status CSR
 ~~~~~~~~~~
@@ -304,7 +313,7 @@ The machine status register: **mstatus**, keeps track of and controls the hartâ€
      - Global interrupt enable
      - 1
 
-.. note:: On reset, MPP bit is set to 1, which means that after the execution of `MRET` instruction, the core won't switch to *user mode*. If the programmer wants to do that, he needs to write 0 to MPP and then execute `MRET`
+.. note:: On reset, MPP bit is set to 0, which means that after the execution of `MRET` instruction, the core will switch to *user mode*. If the programmer doesn't want to do that, he must to write 1 to MPP and then execute `MRET`.
 
 
 Trap-Vector CSR 
@@ -342,6 +351,7 @@ Interrupt Status CSRs
 The **mip** and **mie** registers control the machine interrupt. The **mip** register keeps track of *pending interrupts* while through **mie** register single interrupts can be disabled. On an interrupt cause 'i' correspond the bit 'i' in MIP and MIE set.
 
 An interrupt will be taken if:
+
 * Current privilege mode is M and mstatus.MIE is set, or the current privilege mode is less privileged than M-mode.
 * Bit 'i' is set in both MIE and MIP.
 
@@ -478,7 +488,7 @@ To identify the exception cause **mcause** register save useful info.
 Hardware Performance Monitor CSRs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The **mcycle** CSR simply increment every clock cycle, **minstret** CSR increment itself when an instruction is retired from the *reorder buffer*. 
+Those are 64 bits registers (divided in two registers of 32 bits) that increment themselves as an event occour. The **mcycle** CSR simply increment every clock cycle even during pipeline stalls, **minstret** CSR increment itself when an instruction is retired from the *reorder buffer*. 
 
 ApogeoRV implements other 4 general purpouse counters: **mhpmcounter3** -> **mhpmcounter6**.
 The increment-enable event can be selected through the **mhpmevent3** -> **mhpmevent6**. 

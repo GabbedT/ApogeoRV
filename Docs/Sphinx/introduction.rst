@@ -6,14 +6,11 @@ Overview
 
 Welcome to the ApogeoRV Documentation! Whether you are a hardware engineer, software developer, or a newcomer to microprocessor design, this documentation will 
 provide you with valuable insights on how this core works in detail: 
-you will learn the microarchitectural and architectural details, the design choices an the tradeoffs done during design phase.
+you will learn the microarchitectural and architectural details, the design choices and the tradeoffs done during design phase.
 
-*This is an academic project, it doesn't aim to replace any of the already existing CPUs*, however it can be perfectly used in any 
-open source project as a main CPU core. 
+.. important:: *This is an academic project, it doesn't aim to replace any of the already existing CPUs*, however it can be perfectly used in any open source project as a main scalar core. 
 
-.. important:: *This is an academic project, it doesn't aim to replace any of the already existing CPUs*, however it can be perfectly used in any open source project as a main CPU core. 
-
-**ApogeoRV** is a synthesizable RISCV core. It aim to offer high performance with low power and low footprint and high flexibility 
+**ApogeoRV** is a synthesizable RISC-V core. It aim to offer high performance with low power and low footprint and high flexibility 
 thanks to the various synthesis configuration parameters.  
 
 Features 
@@ -24,7 +21,7 @@ The main features of **ApogeoRV** are:
 * Supports the full base **RV32 ISA**.
 * Supports the RISCV extensions **M, C, Zicsr, Zba, Zbs, Zfinx**.
 * Supports a subset of **Zbb** extension.
-* Disable units (MUL, DIV, FPU, BMU) during program execution.
+* Disable execution units (MUL, DIV, FPU, BMU) during program execution to reduce power consumption.
 * **9 Pipeline Stages**: To reach maximum frequency.
 * **Instruction Prefetch**: Benefit from an instruction buffer for enhanced performance.
 * **Branch predictor**: A robust branch predictor (GSHARE + BTB) minimizes the impact of conditional and unconditional branches.
@@ -35,7 +32,7 @@ The main features of **ApogeoRV** are:
 Target Application
 ------------------
 
-ApogeoRV is a versatile RISCV-V processor mainly designed to be implemented mainly low-end / mid-end embedded systems or SoC that needs an efficient CPU core. 
+ApogeoRV is a versatile RISC-V processor mainly designed to be implemented mainly on low-end / mid-end embedded systems or SoC that needs an efficient CPU core. 
 However because of it's configurability it's suitable for a wide range of target applications that needs a fairly amount of performance.
 
 .. warning:: ApogeoRV has been tested and implemented only in FPGA. With the some source code modifications it will be possible to target ASIC synthesis, however this is not a goal in the short future.
@@ -49,7 +46,7 @@ With these capabilities, ApogeoRV is well-suited for the following target applic
 * **Digital Signal Processing** 
 
 By accommodating a broad spectrum of applications and offering exceptional configurability, 
-ApogeoRVCore stands as a versatile solution in the world of RISC-V processors.
+ApogeoRV stands as a versatile solution in the world of RISC-V processors.
 
 
 Parameters

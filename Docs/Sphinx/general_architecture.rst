@@ -55,11 +55,11 @@ if there are no interruptions.
 The standard CPU instruction cycle consist in 4 different stages: 
 
 * **Fetch**: The instruction is fetched from memory. 
-* **Decode**: The fetched instruction is decoded, control signals and micro operations are encoded here. 
+* **Decode**: The fetched instruction is decoded, control signals and micro operations are generated here. 
 * **Execute**: The instruction gets executed. 
 * **Writeback**: The result is written back into the register file. 
 
-This is great for pipelining, however in more complex processors, more pipeline stages needs to be added. ApogeoRV, implements the following pipeline stages: 
+While it's completely feasible to design a processor with only these 4 pipeline stages, complex processors to take advantage of an higher frequency clock, use more pipeline stages by splitting the main stages in sub-stages. ApogeoRV, implements the following pipeline stages: 
 
 **PC Generation**: 
     Here the *program counter* is generated based on the control signals that comes from the execute stage / branch predictor and sent to the memory. Meanwhile the same address is feeded into the **branch target buffer**. The 
@@ -79,6 +79,7 @@ This is great for pipelining, however in more complex processors, more pipeline 
 
 **Issue**: 
     Data dependencies are resolved inside the **scoreboard**, a structure that holds all the functional units status:
+
     * Cycles remaining to produce a valid result. 
     * Register destination. 
     * Idle unit status for non pipelined units.
@@ -114,7 +115,7 @@ The CPU's memory map is a simplified structure with predefined memory regions, e
 to system designers who can customize their own memory map on top of the existing structure. The regions are predefined but their size can be modified by modifying the parameters 
 inside the `apogeo_memory_map.svh` file. 
 
-Starting from `0x00000000` there is the **Boot Region**, This is where the CPU begins execution after a reset. The program counter is set to `0x00000000.`, here is located the **boot program**. The main task of this program is usually 
+Starting from `0x00000000` there is the **Boot Region**, This is where the CPU begins execution after a reset. The program counter is set to `0x00000000`, here is located the **boot program**. The main task of this program is usually 
 to initialize registers, CSRs, system hardware etc. 
 
 .. warning:: This region is only accessable by **M mode code**. A store instruction inside the region boundaries will result in a **store access fault** exception.

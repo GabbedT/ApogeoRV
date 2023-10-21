@@ -2,15 +2,15 @@ Backend
 =======
 
 The **backend** is the CPU layer where the instructions get actually executed after they have been fetched, decoded and issued by the frontend. 
-Here resides all the logic to avoid RAW and WAW data hazards, the execution units that produces the results of the instructions, buffers to avoid structural hazards and the writeback logic. 
+Here resides all the logic to avoid RAW (by fowarding result) and WAW (by reordering instructions) data hazards, the execution units that produces the results of the instructions, buffers to avoid structural hazards and the writeback logic. 
 Even if the *frontend* and the *backend* are two separate layers, they interact with each other with signals outside the data passed through the pipeline. In particular the backend sends signals to the frontend
 to inform it about **stalls** and **pipeline flushes**, during particular conditions.
 
 The backend tasks are:
 
-1. **Resolving RAW data dependencies**: Destination registers of previous instructions are fowarded to the source registers of the curren.
+1. **Resolving RAW data dependencies**: Destination registers of previous instructions are fowarded to the source registers of the current.
 2. **Executing instructions**: Feeds operand and micro-operations to the execution units.
-3. **Resolving structural dependencies**: Mutliple unit could produce a valid result at the same time. The reorder buffer has only 1 write port available.
+3. **Resolve structural dependencies**: Multiple unit could produce a valid result at the same time. The reorder buffer has only 1 write port available.
 4. **Resolving WAW data dependencies**: The instructions are reordered to be written back in order.
 5. **Generating signals to control the pipeline**: Stalling, flushing, signals to advert that specific instructions have been executed etc.
 
@@ -22,7 +22,7 @@ The **bypass stage** is a crucial component in the CPU pipeline, it ensures data
 If the instruction is simply issued without any caution, it will read the wrong values from the register file since the correct values are still in the pipeline and not written back. One way to overcome this would be waiting until the instruction write back the result, however this 
 would yeld poor performance and also make the use of the pipeline almost useless. 
 
-The bypass stage takes as input the result from instructions residing in the successive stages, and in the eventuality of a register match, it fowards the most recent value. That means that *if there are multiple matches between register destination and 
+The bypass stage takes as input the result and destination register addresses from instructions residing in the successive stages and the register sources from the frontend that needs to be compared, and in the eventuality of a register match between a register source and a register destination, it fowards the most recent value. That means that *if there are multiple matches between register destination and 
 register source, the one from the most "recent" stage is taken*. The most recent stage is the one logically nearer the bypass stage, for example: `BYP` -> `EXC` -> `COM` -> `ROB` -> `WB` the `EXC` is the most recent out of the stages after `BYP`.
 This is simply implemented as a priority multiplexer. **If the source at input is an immediate, the fowarding is not applied!**
 
@@ -54,7 +54,7 @@ This is simply implemented as a priority multiplexer. **If the source at input i
     endgenerate 
 
 
-As it will be explained later, the stages where buffers resides (`COM` and `ROB`), could have multiple instructions inside waiting to be passed to the next stage. This complicates the designs because the bypass logic should check whether the instruction is valid and if there is a register match,
+As it will be explained later, the stages where buffers resides (`COM` and `ROB`), could have multiple instructions inside waiting to be passed to the next stage. This complicates the design because the bypass logic should check whether the instruction is valid and if there is a register match for every buffer entry,
 it could be possible in the case of a small buffer, however in a 64 entries reorder buffer this would just use too many resources and even if this was feasible, the timing here would be terrible. Infact the bypass logic is surely one of the critical paths of the pipeline, so we need to lower the timing at all cost to meet the specifications required on the clock speed. 
 
 To have a better timing / area, 
@@ -141,16 +141,16 @@ Every main unit has as input:
    * - Micro-Operation 
      - Specify the operation to perform on one sub-unit.
    * - Instruction Packet 
-     - To carry instruction informations along the pipeline.
+     - Carries instruction informations along the pipeline.
 
-Some units will have other control inputs, however this is the general interface. All the input listed except for the *valid unit*, drive all the units. So the main units and their sub-units are all connected to the same inputs, the valid unit which has a one-hot behaviour will select the unit 
-that need to process the inputs. The micro-operation input is defined as a **union** with the width of the largest micro-operation vector, this to save registers instead of having a different micro-operation for every unit. Each unit will interpret the micro-operation value in its way, so it makes sense to use an union. 
+Some units will have other control inputs, however this is the general interface. All the input listed except for the *valid unit*, drive every unit. So the main units and their sub-units are all driven by the same inputs, the *valid unit* which has a one-hot behaviour will select the unit 
+that need to process the inputs. The micro-operation input is defined as a **union** with the width of the largest micro-operation vector, this to save registers instead of having a different micro-operation for every sub-unit: each unit will interpret the micro-operation value in its way. 
 
 
 .. image:: source/images/ExecutionUnitTop.png
 
 
-Internally the **main units, will have different output sources**, the ITU will have for examples 4 different sub-units that could produce a valid result at any given time. First of all at every clock cycle, **maximum 1 unit must produce a valid result**; this is done thanks to the scheduler in the frontend. 
+Internally the **main units, will have different output sources**, the ITU will have for examples 4 different sub-units that could produce a valid result at any given time. First of all at every clock cycle, **maximum 1 sub-unit must produce a valid result**; this is done thanks to the scheduler in the frontend. 
 The sub-units that didn't output a valid result, will have the output nets set to all zeros, thanks to this it's possible to OR all the output sources from the sub-units to produce a single output for the main-unit.
 
 Each main unit can produce an independent valid output, so at every clock cycle there may be 4 different main units that produce a valid result. 
@@ -158,31 +158,42 @@ Each main unit can produce an independent valid output, so at every clock cycle 
 Here's a table with all the latencies of every sub-unit:
 
 .. list-table:: Units Latencies
-   :widths: 5 40
+   :widths: 5 5 10
    :header-rows: 1
 
    * - Unit 
-     - Description
+     - Latency
+     - Architecture
    * - ALU 
      - 0
+     - Combinational
    * - CSRU 
      - 0
+     - Combinational
    * - MUL 
      - 4
+     - Pipelined
    * - DIV 
      - 35
+     - Multicycle
    * - BMU 
      - 1
+     - Pipelined
    * - FADD 
      - 5
+     - Pipelined
    * - FMUL 
      - 2
+     - Pipelined
    * - FCMP 
      - 1
+     - Pipelined
    * - FCVT 
      - 2
+     - Pipelined
    * - FMIS 
-     - 2
+     - 0
+     - Combinational
   
 
 Integer Unit
@@ -199,7 +210,7 @@ Two multiplexers are used to select the output, one big multiplexer to select th
 The operations executed are: 
 
 .. list-table:: ALU Operations
-   :widths: 5 40
+   :widths: 5 30
    :header-rows: 1
 
    * - Name 
@@ -269,7 +280,7 @@ ___________________
 The **multiplication unit** (MUL) performs 4 types of multiplications on two integer numbers. It's **fully pipelined** and as specified by the RV32M, the multiplications performed are:
 
 .. list-table:: MUL Operations
-   :widths: 5 40
+   :widths: 5 30
    :header-rows: 1
 
    * - Name 
@@ -298,7 +309,7 @@ _____________
 The **division unit** (DIV) performs 2 types of division and 2 types of remainder operations on two integer numbers. It's a **multicycle unit** and as specified by the RV32M, the operations performed are:
 
 .. list-table:: DIV Operations
-   :widths: 5 40
+   :widths: 5 20
    :header-rows: 1
 
    * - Name 
@@ -327,7 +338,7 @@ _____________________
 The **bit manipulation unit** (BMU) performs different types of operations defined in the subset of RV32B: **Zba**, **Zbb**, **Zbs**. It's **fully pipelined** and as specified by the ISA, the operations performed are:
 
 .. list-table:: BMU Operations
-   :widths: 5 40
+   :widths: 5 30
    :header-rows: 1
 
    * - Name 
@@ -375,7 +386,7 @@ The **control status register unit** (CSRU) holds the architectural state of the
 The operations executed are: 
 
 .. list-table:: CSR Operations
-   :widths: 5 40
+   :widths: 5 30
    :header-rows: 1
 
    * - Name 
@@ -388,7 +399,7 @@ The operations executed are:
      - Read the old value of the CSR and AND it with the first operand negated value, save the CSR's old value into the register destination.
 
 If an instruction writes a CSR, the value is saved into a buffer register. Because the CSRU rapresent the internal state of the CPU, it needs to be *updated once the instruction gets written back*. Otherwise, if an exception or an interrupt occour, the pipeline would get flushed 
-but the state would be changed. Once the instruction pass the writeback stage, the buffer register gets cleared and the corresponding finally CSR written.
+but the state would still be changed. Once the instruction pass the writeback stage, the buffer register gets cleared and the corresponding finally CSR written.
 
 
 Load Store Unit
@@ -404,10 +415,10 @@ Within the load-store unit, a priority logic mechanism is in place to handle sce
 Load Unit
 _________
 
-The load unit is resposable for issuing load requests to the memory controller and elaborating the data received from the memory based on the instruction. The operations executed are:
+The load unit is responsable for issuing load requests to the memory controller and elaborating the data received from the memory based on the instruction. The operations executed are:
 
 .. list-table:: LDU Operations
-   :widths: 5 40
+   :widths: 5 20
    :header-rows: 1
 
    * - Name 
@@ -425,7 +436,7 @@ The unit is implemented as an FSM, thus it can accept one instruction only if it
 
 .. image:: source/images/LDU_FSM.png
 
-The LDU relies on two primary data sources: *memory* and the *store buffer*, thanks to the concept of data forwarding. However this introduces a dangerous conditions that need to be managed:
+The LDU relies on two primary data sources: *memory* and the *store buffer*, thanks to the concept of data forwarding. However this introduces a dangerous condition that needs to be managed:
 
 Consider a scenario where two operations occur consecutively: *a one-byte store and a one-word load, both directed at the same memory address*.
 In this case, the LDU is likely to find the store byte entry in the store buffer. The data now will be fowarded however it will be incorrect because it only retrieves the byte in the first 8 bits padded with zeros. This occours because the store unit uses the byte strobe signal to enable the writing of a particular byte / group of bytes, so only the bytes to be written are defined in the store buffer.
@@ -453,7 +464,7 @@ __________
 The store unit is resposable for issuing store requests to the memory controller. The operations executed are:
 
 .. list-table:: STU Operations
-   :widths: 5 40
+   :widths: 5 15
    :header-rows: 1
 
    * - Name 
@@ -476,9 +487,7 @@ However, the presence of a store buffer in the CPU system introduces a subtle ch
 Subsequent load operations targeting the same memory address could return outdated values, primarily because the *updated data may still be residing in the store buffer*. To overcome this problem, the structure implements a bypass logic: the load address is compared against every valid buffer entry in parallel with priority for the most recent values, 
 and when a match is found, the value from the latest store operation is eventually brought to the load unit. This technique, is called **load forwarding**, and it ensures that the load operation retrieves the most current data, regardless of its location within the CPU's internal pipeline. 
 
-As mentioned in the previous paragraph, this technique works only on *word loads - word stores*. If a different type of store is pushed into the buffer, a subsequent load will wait until the buffer become empty.
-
-Given ApogeoRV's out-of-order execution pipeline, it's crucial to ensure that the actual store to the memory doesn't happen until tha instruction is written back in order. While with loads this is not a problem and a load can start before, with stores the situation is different. The memory rapresent the system current state, so it must be updated 
+Given ApogeoRV's out-of-order execution pipeline, it's crucial to ensure that the actual store to the memory doesn't happen until the instruction is written back in order. While with loads this is not a problem and a load can start before, with stores the situation is different. The memory rapresent the system current state, so it must be updated 
 once the CPU is sure that no exceptions or interrupts could stop or flush the instruction. To obtain this, the store buffer entries, once pushed, are still invalid. To validate entries in the store buffer, a pointer tracks the entry awaiting validation. Once the reorder buffer writes back the result of a store instruction in sequential order, this pointer is incremented and the entry is validated.
 
 In the event of an exception or interrupt, a flush command is dispatched to the buffer. Notably, the pull pointer value remains unaltered during this process, while the push pointer is set to the value of the valid pointer. This synchronized approach ensures that the CPU correctly manages exceptions and interruptions, while also maintaining data integrity within the store buffer.
@@ -496,11 +505,11 @@ Floating Point Unit
 The **floating-point unit** (FPUs) is the mathematical workhorses within the CPU, executing operations on *floating point numbers*.
 These specialized components are essential in handling the non-integer computations that are important for a vast array of applications, from scientific simulations to graphics rendering and financial modeling. 
 At their core, FPUs are designed to perform operations on floating-point numbers, which represent real numbers in *scientific notation*: with a fixed number of significant digits and a variable exponent. 
-This flexibility in representing a wide range of values, both tiny and immense, is crucial for scientific accuracy and practicality, where the precision of integer arithmetic would falter. 
+This flexibility in representing a wide range of values, both tiny and immense, is crucial for scientific accuracy and practicality, where the precision of integer arithmetic would not be enough. 
 
 The FPU accommodates fundamental operations like addition, subtraction, multiplication, plus other useful operations to speedup floating-point code.
 
-ApogeoRV FPU **lacks of operations like: *FDIV*, *FSQRT*, *FMADD* and its variants** all defined in the Zfinx specifications. While this could significantly slow down the processor in some applications, on the other end it helps to reduce the total area and power consumed by the core other. Also having more units means needing to slow down the CPU clock 
+ApogeoRV FPU **lacks of operations like: *FDIV*, *FSQRT*, *FMADD* and its variants** all defined in the Zfinx specifications. While this could significantly slow down the processor in some applications, on the other end it helps to reduce the total area and power consumed by the core. Also having more units means needing to slow down the CPU clock 
 because of the critical path introduced on bypass logic. For example adding *FMADDs* instructions would require a third operand read which mean:
 
 * 1 more register read port or additional logic to stall the frontend for one cycle to read the operand if the register port is not desired.
@@ -573,7 +582,7 @@ In the fifth stage the final result is computed based on the accumulated flags:
 Floating Point Multiplication Unit
 __________________________________
 
-The **multiplication unit** perform multiplications between two floating point numbers, as the floating point adder, it's a pipelined unit, but it's much more simple and requires less cycles if a low latency multiplier is used.
+The **multiplication unit** perform multiplications between two floating point numbers, as the floating point adder, it's a pipelined unit, but it's much more simpler and requires less cycles if a low latency multiplier is used.
 
 In the first stage the final result type is determined, the final result exponent is computed and the significands concatenated with their hidden bits are feeded into the core multiplier. The exponent and other flags are inserted into a shift register to match the multiplier latency. Finally a 48 bits product is produced.
 
@@ -583,7 +592,7 @@ In the last stage the result is normalized. If the MSB of the result is set, the
 * **Overflow**: Result = + Inf
 * **Underflow**: Result = - Inf
 
-The underflow flag is catched when the exponent result is less then the minimum possible exponent in the floating point notation and both input exponents were negative.
+The underflow flag is caught when the exponent result is less then the minimum possible exponent in the floating point notation and both input exponents were negative.
 
 Comparison Unit
 _______________
@@ -591,7 +600,7 @@ _______________
 The **comparison unit** performs four operations on two floating point numbers combinationally:
 
 .. list-table:: FCMP Operations
-   :widths: 5 40
+   :widths: 5 25
    :header-rows: 1
 
    * - Name 
@@ -620,7 +629,7 @@ _______________
 The **conversion unit** is a pipelined unit that perform conversions of both floating-point and integer numbers (signed and unsigned). The operations performed are: 
 
 .. list-table:: FCVT Operations
-   :widths: 5 40
+   :widths: 5 20
    :header-rows: 1
 
    * - Name 
@@ -659,7 +668,7 @@ __________________
 The **miscellaneous unit** is a combinational unit that performs, operations like *sign injections* and *operand classification*. The operations are:
 
 .. list-table:: FMIS Operations
-   :widths: 5 40
+   :widths: 5 25
    :header-rows: 1
 
    * - Name 
@@ -686,7 +695,7 @@ Every arithmetic floating point sub-unit (FADD, FMUL, FCVT), return as output a 
 Using those it's possible to round the final result: 
 
 .. list-table:: Round Operations
-   :widths: 10 40 20
+   :widths: 10 20 20
    :header-rows: 1
 
    * - Bits 
