@@ -619,6 +619,8 @@ module control_status_registers (
 //      FLOATING POINT CSR
 //====================================================================================
 
+    `ifdef FPU 
+
     /* Holds only floating point flags, frm field is set to RNE */
     fcsr_t fcsr_csr;
 
@@ -634,6 +636,7 @@ module control_status_registers (
             end
         end : fcsr_register
 
+    `endif 
 
 //====================================================================================
 //      DECODE LOGIC
@@ -922,6 +925,8 @@ module control_status_registers (
                             end
                         end
 
+                        `ifdef FPU 
+
                         USER: begin
                             case (csr_address_i.index[1:0])
                                 2'b01: begin
@@ -945,6 +950,8 @@ module control_status_registers (
                                 end
                             endcase 
                         end
+
+                        `endif 
 
                         default: non_existing_csr = 1'b1;
                     endcase 

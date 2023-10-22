@@ -365,9 +365,11 @@ package apogeo_operations_pkg;
             max_size = csr_size;
         end
         
-        if (fpu_size > max_size) begin 
-            max_size = fpu_size;
-        end 
+        `ifdef FPU 
+            if (fpu_size > max_size) begin 
+                max_size = fpu_size;
+            end 
+        `endif 
         
         $display("MAX SIZE = %d", max_size);
         return max_size;
