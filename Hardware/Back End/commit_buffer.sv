@@ -48,7 +48,8 @@ module commit_buffer #(
 
     /* Commands */
     input logic write_i,
-    input logic read_i,
+    input logic push_i,
+    input logic pop_i,
 
     /* Data write */
     input data_word_t result_i,
@@ -89,11 +90,11 @@ module commit_buffer #(
                 read_ptr <= '0;
                 write_ptr <= '0;
             end else if (!stall_i) begin 
-                if (write_i) begin
+                if (push_i) begin
                     write_ptr <= inc_write_ptr;
                 end
 
-                if (read_i) begin
+                if (pop_i) begin
                     read_ptr <= inc_read_ptr;
                 end
             end 
@@ -112,7 +113,7 @@ module commit_buffer #(
                 full_o <= 1'b0;
                 empty_o <= 1'b1;
             end else if (!stall_i) begin 
-                case ({write_i, read_i})
+                case ({push_i, pop_i})
                     PULL_DATA: begin
                         full_o <= 1'b0;
                         empty_o <= (write_ptr == inc_read_ptr);
@@ -134,7 +135,7 @@ module commit_buffer #(
     logic [$bits(data_word_t) + $bits(instr_packet_t) - 1:0] buffer_memory [BUFFER_DEPTH - 1:0]; 
 
         always_ff @(posedge clk_i) begin : write_port
-            if (write_i & !stall_i) begin
+            if (push_i & !stall_i) begin
                 buffer_memory[write_ptr] <= {result_i, ipacket_i};
             end
         end : write_port
@@ -186,17 +187,6 @@ module commit_buffer #(
     assign foward_result_o[1] = (foward_src_i[1] == '0) ? '0 : foward_register_2[foward_src_i[1]];
 
 
-
-    /* Register the last packet that wrote the foward register */
-    logic [5:0] tag_register [31:0];
-
-        always_ff @(posedge clk_i) begin : register_tag_write_port
-            if (write_i & !stall_i) begin
-                tag_register[ipacket_i.reg_dest] <= ipacket_i.rob_tag;
-            end 
-        end : register_tag_write_port
-
-
     /* Indicates it the result was written back to register file or not */
     logic [31:0] valid_register;
         
@@ -210,15 +200,6 @@ module commit_buffer #(
                     /* On writes validate the result */
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
                 end 
-                
-                if (read_i & (tag_register[ipacket_o.reg_dest] == ipacket_o.rob_tag)) begin
-                    /* If the instruction that wrote the result in the foward register
-                     * is being pulled from the buffer, invalidate the result but only 
-                     * if at the same time there's not the same register being written */
-                    if (ipacket_o.reg_dest != ipacket_i.reg_dest) begin 
-                        valid_register[ipacket_o.reg_dest] <= 1'b0;
-                    end 
-                end
 
                 if (invalidate_i) begin
                     /* If another buffer is pushing a register, it has

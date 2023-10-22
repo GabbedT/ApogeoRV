@@ -56,10 +56,6 @@ module bypass_controller (
     input data_word_t [1:0] commit_data_i,
     input logic [1:0] commit_valid_i,
 
-    /* Result from reorder buffer */ 
-    input data_word_t [1:0] rob_data_i,
-    input logic [1:0] rob_valid_i,
-
     /* Operands supplied to the execution unit */
     output data_word_t [1:0] operand_o
 );
@@ -72,20 +68,17 @@ module bypass_controller (
 
             assign execute_valid[i] = execute_valid_i[i] & !issue_immediate_i[i];
             assign commit_valid[i] = commit_valid_i[i] & !issue_immediate_i[i];
-            assign rob_valid[i] = rob_valid_i[i] & !issue_immediate_i[i]; 
 
             always_comb begin : fowarding_logic 
                 /* Prior stages have the priority over later stages since they hold 
                  * the most recent value. If an immediate has been supplied, no 
                  * dependency hazard can be created */
-                casez ({execute_valid[i], commit_valid[i], rob_valid[i]})
-                    3'b1??: operand_o[i] = execute_data_i[i];
+                casez ({execute_valid[i], commit_valid[i]})
+                    2'b1?: operand_o[i] = execute_data_i[i];
 
-                    3'b01?: operand_o[i] = commit_data_i[i];
+                    2'b01: operand_o[i] = commit_data_i[i];
 
-                    3'b001: operand_o[i] = rob_data_i[i];
-
-                    3'b000: operand_o[i] = issue_operand_i[i];
+                    2'b00: operand_o[i] = issue_operand_i[i];
 
                     default: operand_o[i] = '0;
                 endcase 

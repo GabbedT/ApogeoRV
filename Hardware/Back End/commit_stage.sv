@@ -131,14 +131,15 @@ module commit_stage #(
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
-        .write_i         ( push_buffer[ITU]     ),
-        .read_i          ( pull_buffer[ITU]     ),
+        .write_i         ( data_valid_i[ITU]    ),
+        .push_i          ( push_buffer[ITU]     ),
+        .pop_i           ( pull_buffer[ITU]     ),
         .result_i        ( result_write[ITU]    ),
         .ipacket_i       ( ipacket_write[ITU]   ),
         .result_o        ( result_read[ITU]     ),
         .ipacket_o       ( ipacket_read[ITU]    ),
         .invalidate_i    ( invalidate[ITU]      ),
-        .invalid_reg_i   ( invalid_address[LSU] ),
+        .invalid_reg_i   ( invalid_address[ITU] ),
         .foward_src_i    ( foward_src_i         ),
         .foward_result_o ( foward_data[ITU]     ),
         .foward_valid_o  ( foward_valid[ITU]    ),
@@ -169,7 +170,7 @@ module commit_stage #(
     /* Invalidate the data if the other buffer is pushing a result
      * as it is becoming the most recent data */
     `ifdef FPU 
-        assign invalid_address[LSU] = (data_valid_i[ITU] ? ipacket_write[FPU].reg_dest : '0) | (data_valid_i[ITU] ? ipacket_write[ITU].reg_dest : '0);
+        assign invalid_address[LSU] = (data_valid_i[FPU] ? ipacket_write[FPU].reg_dest : '0) | (data_valid_i[ITU] ? ipacket_write[ITU].reg_dest : '0);
         assign invalidate[LSU] = data_valid[ITU] | data_valid[FPU];
     `else 
         assign invalid_address[LSU] = ipacket_write[ITU].reg_dest;
@@ -181,8 +182,9 @@ module commit_stage #(
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
-        .write_i         ( push_buffer[LSU]     ),
-        .read_i          ( pull_buffer[LSU]     ),
+        .write_i         ( data_valid_i[LSU]    ),
+        .push_i          ( push_buffer[LSU]     ),
+        .pop_i           ( pull_buffer[LSU]     ),
         .result_i        ( result_write[LSU]    ),
         .ipacket_i       ( ipacket_write[LSU]   ),
         .result_o        ( result_read[LSU]     ),
@@ -223,8 +225,9 @@ module commit_stage #(
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
-        .write_i         ( push_buffer[FPU]     ),
-        .read_i          ( pull_buffer[FPU]     ),
+        .write_i         ( data_valid_i[FPU]    ),
+        .push_i          ( push_buffer[FPU]     ),
+        .pop_i           ( pull_buffer[FPU]     ),
         .result_i        ( result_write[FPU]    ),
         .ipacket_i       ( ipacket_write[FPU]   ),
         .result_o        ( result_read[FPU]     ),
@@ -485,11 +488,11 @@ module commit_stage #(
                 end else begin
                     /* Take data from buffers */
                     if (foward_valid[ITU][i]) begin
-                        foward_data_o[i] = foward_data[ITU];
+                        foward_data_o[i] = foward_data[ITU][i];
                     end else if (foward_valid[LSU][i]) begin
-                        foward_data_o[i] = foward_data[LSU];
+                        foward_data_o[i] = foward_data[LSU][i];
                     end else begin
-                        foward_data_o[i] = foward_data[FPU];
+                        foward_data_o[i] = foward_data[FPU][i];
                     end
 
                     foward_valid_o[i] = foward_valid[ITU][i] | foward_valid[LSU][i] | foward_valid[FPU][i];

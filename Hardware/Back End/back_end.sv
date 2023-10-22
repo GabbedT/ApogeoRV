@@ -157,8 +157,8 @@ module back_end #(
     data_word_t [1:0] fowarded_operands; 
 
     /* Data fowarded */
-    data_word_t [1:0] execute_data, commit_data, reorder_buffer_data;
-    logic [1:0] execute_valid, commit_valid, reorder_buffer_valid;
+    data_word_t [1:0] execute_data, commit_data;
+    logic [1:0] execute_valid, commit_valid;
 
 
     bypass_controller bypass (
@@ -168,8 +168,6 @@ module back_end #(
         .execute_valid_i   ( execute_valid        ),
         .commit_data_i     ( commit_data          ),
         .commit_valid_i    ( commit_valid         ),
-        .rob_data_i        ( reorder_buffer_data  ),
-        .rob_valid_i       ( reorder_buffer_valid ),
         .operand_o         ( fowarded_operands    )   
     );
 
@@ -473,10 +471,6 @@ module back_end #(
 
         .full_o  ( reorder_buffer_full  ),
         .empty_o ( reorder_buffer_empty ),
-
-        .foward_src_i   ( reg_src_i            ),
-        .foward_data_o  ( reorder_buffer_data  ), 
-        .foward_valid_o ( reorder_buffer_valid ),
 
         .valid_o ( writeback_valid  ),
         .entry_o ( writeback_packet )
