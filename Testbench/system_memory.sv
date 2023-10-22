@@ -1,7 +1,7 @@
 `ifndef SYSTEM_MEMORY_SV
     `define SYSTEM_MEMORY_SV
 
- `define DIRECTED_TEST 
+//  `define DIRECTED_TEST 
 
 `include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
 
@@ -47,7 +47,7 @@ module system_memory #(
                index += 4;
            end
         `else  
-        $readmemh("fmin.hex", memory);
+        $readmemh("color2gray.hex", memory);
         `endif 
     end
 

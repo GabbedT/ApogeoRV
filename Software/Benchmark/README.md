@@ -1,3 +1,5 @@
+# Benchmark
+
 Some benchmarks are taken from the repository: https://github.com/embench/embench-iot/tree/master
 
 The benchmarks are executed in Vivado simulation environment: 
@@ -7,10 +9,22 @@ The benchmarks are executed in Vivado simulation environment:
 * STORE BUFFER SIZE: 4 entries
 * INSTRUCTION BUFFER SIZE: 8 entries
 * MEMORY LATENCY: 1 clock cycle
+* MARCH: rv32imc_zba_zbs
 
+## GCC -O0 Optimization 
 
 Benchmark Name | Program Size | Time to Complete | Instructions Retired |
 --- | --- | --- | --- | 
 CRC32(100 Iterations) | 1366 Bytes | 53.32408ms | 3792654 |
-Color2Gray | 4578 Bytes | 2.88216ms | 91680 | 
+Color2Gray | 4578 Bytes | 3.14669ms | 91680 | 
 QSORT(1000 Int) | 4578 Bytes | 15.41026ms | 596751 |
+
+## GCC -O1 Optimization 
+
+Benchmark Name | Program Size | Time to Complete | Instructions Retired | 
+Color2Gray | 4408 | 1.01824ms | 25519 | 
+
+## GCC -O2 Optimization 
+
+Benchmark Name | Program Size | Time to Complete | Instructions Retired | 
+Color2Gray | 4370 | 1.00559ms | 26667 | 

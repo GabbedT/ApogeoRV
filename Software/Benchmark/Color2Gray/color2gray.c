@@ -3,11 +3,21 @@
 
 #define PIXEL_START 54
 
+#define TESTBENCH
+
+#ifdef TESTBENCH 
+    #define print(x) *bufferPtr = x
+#else 
+    #include <stdio.h>
+
+    #define print(x) printf("%02x", x);
+#endif
+
 const uint32_t imageSize = 4234;
 
 int main() {
     /* Pointer to buffer memory region that acts like a print function */
-    uint8_t *bufferPtr = (uint8_t *) 0xFFFFFFFF;
+    volatile uint8_t *bufferPtr = (uint8_t *) 0xFFFFFFFF;
 
     /* Extract image informations */
     uint32_t imageWidth = (image[0x15] << 24) | (image[0x14] << 16) | (image[0x13] << 8) | image[0x12];
@@ -24,16 +34,18 @@ int main() {
 
             /* Write to buffer */
             for (int j = 0; j < 3; ++j) {
-                *bufferPtr = p;
+                print(p);
             }
 
             i += 3;
         } else {
-            *bufferPtr = image[i]; 
+            print(image[i]);
 
             ++i; 
         }
     }
 
-    asm volatile ("unimp");
+    #ifdef TESTBENCH
+        asm volatile ("unimp");
+    #endif 
 }

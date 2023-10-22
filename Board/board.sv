@@ -53,7 +53,7 @@ module board (
     logic interrupt, timer_interrupt; logic interrupt_ackn; logic [31:0] writeback_address; logic writeback;   
     logic [7:0] interrupt_vector;
 
-    rv32apogeo #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) apogeo_cpu (
+    ApogeoRV #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) apogeo_cpu (
         .clk_i   ( clk_i   ),
         .rst_n_i ( reset_n ),
 

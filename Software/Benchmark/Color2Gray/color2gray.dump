@@ -2,111 +2,47 @@
 color2gray.elf:     file format elf32-littleriscv
 
 
-Disassembly of section .text:
+Disassembly of section .text.startup:
 
 00000000 <main>:
-   0:	7179                	add	sp,sp,-48
-   2:	d622                	sw	s0,44(sp)
-   4:	1800                	add	s0,sp,48
-   6:	57fd                	li	a5,-1
-   8:	fef42223          	sw	a5,-28(s0)
-   c:	15400793          	li	a5,340
-  10:	0157c783          	lbu	a5,21(a5)
-  14:	01879713          	sll	a4,a5,0x18
-  18:	15400793          	li	a5,340
-  1c:	0147c783          	lbu	a5,20(a5)
-  20:	07c2                	sll	a5,a5,0x10
-  22:	8f5d                	or	a4,a4,a5
-  24:	15400793          	li	a5,340
-  28:	0137c783          	lbu	a5,19(a5)
-  2c:	07a2                	sll	a5,a5,0x8
-  2e:	8fd9                	or	a5,a5,a4
-  30:	15400713          	li	a4,340
-  34:	01274703          	lbu	a4,18(a4)
-  38:	8fd9                	or	a5,a5,a4
-  3a:	fef42023          	sw	a5,-32(s0)
-  3e:	15400793          	li	a5,340
-  42:	0197c783          	lbu	a5,25(a5)
-  46:	01879713          	sll	a4,a5,0x18
-  4a:	15400793          	li	a5,340
-  4e:	0187c783          	lbu	a5,24(a5)
-  52:	07c2                	sll	a5,a5,0x10
-  54:	8f5d                	or	a4,a4,a5
-  56:	15400793          	li	a5,340
-  5a:	0177c783          	lbu	a5,23(a5)
-  5e:	07a2                	sll	a5,a5,0x8
-  60:	8fd9                	or	a5,a5,a4
-  62:	15400713          	li	a4,340
-  66:	01674703          	lbu	a4,22(a4)
-  6a:	8fd9                	or	a5,a5,a4
-  6c:	fcf42e23          	sw	a5,-36(s0)
-  70:	fdc42703          	lw	a4,-36(s0)
-  74:	fe042783          	lw	a5,-32(s0)
-  78:	02f70733          	mul	a4,a4,a5
-  7c:	87ba                	mv	a5,a4
-  7e:	0786                	sll	a5,a5,0x1
-  80:	97ba                	add	a5,a5,a4
-  82:	fcf42c23          	sw	a5,-40(s0)
-  86:	fe042623          	sw	zero,-20(s0)
-  8a:	a07d                	j	138 <main+0x138>
-  8c:	fec42703          	lw	a4,-20(s0)
-  90:	03500793          	li	a5,53
-  94:	08e7f263          	bgeu	a5,a4,118 <main+0x118>
-  98:	fd842783          	lw	a5,-40(s0)
-  9c:	03678793          	add	a5,a5,54
-  a0:	fec42703          	lw	a4,-20(s0)
-  a4:	06f77a63          	bgeu	a4,a5,118 <main+0x118>
-  a8:	15400713          	li	a4,340
-  ac:	fec42783          	lw	a5,-20(s0)
-  b0:	97ba                	add	a5,a5,a4
-  b2:	0007c783          	lbu	a5,0(a5)
-  b6:	86be                	mv	a3,a5
-  b8:	fec42783          	lw	a5,-20(s0)
-  bc:	0785                	add	a5,a5,1
-  be:	15400713          	li	a4,340
-  c2:	97ba                	add	a5,a5,a4
-  c4:	0007c783          	lbu	a5,0(a5)
-  c8:	97b6                	add	a5,a5,a3
-  ca:	fec42703          	lw	a4,-20(s0)
-  ce:	0709                	add	a4,a4,2
-  d0:	15400693          	li	a3,340
-  d4:	9736                	add	a4,a4,a3
-  d6:	00074703          	lbu	a4,0(a4)
-  da:	973e                	add	a4,a4,a5
-  dc:	478d                	li	a5,3
-  de:	02f747b3          	div	a5,a4,a5
-  e2:	fcf40ba3          	sb	a5,-41(s0)
-  e6:	fe042423          	sw	zero,-24(s0)
-  ea:	a821                	j	102 <main+0x102>
-  ec:	fe442783          	lw	a5,-28(s0)
-  f0:	fd744703          	lbu	a4,-41(s0)
-  f4:	00e78023          	sb	a4,0(a5)
-  f8:	fe842783          	lw	a5,-24(s0)
-  fc:	0785                	add	a5,a5,1
-  fe:	fef42423          	sw	a5,-24(s0)
- 102:	fe842703          	lw	a4,-24(s0)
- 106:	4789                	li	a5,2
- 108:	fee7d2e3          	bge	a5,a4,ec <main+0xec>
- 10c:	fec42783          	lw	a5,-20(s0)
- 110:	078d                	add	a5,a5,3
- 112:	fef42623          	sw	a5,-20(s0)
- 116:	a00d                	j	138 <main+0x138>
- 118:	15400713          	li	a4,340
- 11c:	fec42783          	lw	a5,-20(s0)
- 120:	97ba                	add	a5,a5,a4
- 122:	0007c703          	lbu	a4,0(a5)
- 126:	fe442783          	lw	a5,-28(s0)
- 12a:	00e78023          	sb	a4,0(a5)
- 12e:	fec42783          	lw	a5,-20(s0)
- 132:	0785                	add	a5,a5,1
- 134:	fef42623          	sw	a5,-20(s0)
- 138:	6785                	lui	a5,0x1
- 13a:	08a78793          	add	a5,a5,138 # 108a <image+0xf36>
- 13e:	fec42703          	lw	a4,-20(s0)
- 142:	f4f765e3          	bltu	a4,a5,8c <main+0x8c>
- 146:	0000                	unimp
- 148:	4781                	li	a5,0
- 14a:	853e                	mv	a0,a5
- 14c:	5432                	lw	s0,44(sp)
- 14e:	6145                	add	sp,sp,48
- 150:	8082                	ret
+   0:	08400613          	li	a2,132
+   4:	01865503          	lhu	a0,24(a2)
+   8:	01465783          	lhu	a5,20(a2)
+   c:	01665683          	lhu	a3,22(a2)
+  10:	01265703          	lhu	a4,18(a2)
+  14:	0542                	sll	a0,a0,0x10
+  16:	07c2                	sll	a5,a5,0x10
+  18:	8fd9                	or	a5,a5,a4
+  1a:	8d55                	or	a0,a0,a3
+  1c:	02f50533          	mul	a0,a0,a5
+  20:	6805                	lui	a6,0x1
+  22:	4781                	li	a5,0
+  24:	03500893          	li	a7,53
+  28:	430d                	li	t1,3
+  2a:	08980813          	add	a6,a6,137 # 1089 <image+0x1005>
+  2e:	20a52533          	sh1add	a0,a0,a0
+  32:	03650513          	add	a0,a0,54
+  36:	00f606b3          	add	a3,a2,a5
+  3a:	0006c583          	lbu	a1,0(a3)
+  3e:	00178713          	add	a4,a5,1
+  42:	00f8f463          	bgeu	a7,a5,4a <main+0x4a>
+  46:	00a7ea63          	bltu	a5,a0,5a <main+0x5a>
+  4a:	feb00fa3          	sb	a1,-1(zero) # ffffffff <__global_pointer$+0xffffe6ef>
+  4e:	87ba                	mv	a5,a4
+  50:	fef873e3          	bgeu	a6,a5,36 <main+0x36>
+  54:	0000                	unimp
+  56:	4501                	li	a0,0
+  58:	8082                	ret
+  5a:	9732                	add	a4,a4,a2
+  5c:	00074703          	lbu	a4,0(a4)
+  60:	0026c683          	lbu	a3,2(a3)
+  64:	078d                	add	a5,a5,3
+  66:	972e                	add	a4,a4,a1
+  68:	9736                	add	a4,a4,a3
+  6a:	02674733          	div	a4,a4,t1
+  6e:	0ff77713          	zext.b	a4,a4
+  72:	fee00fa3          	sb	a4,-1(zero) # ffffffff <__global_pointer$+0xffffe6ef>
+  76:	fee00fa3          	sb	a4,-1(zero) # ffffffff <__global_pointer$+0xffffe6ef>
+  7a:	fee00fa3          	sb	a4,-1(zero) # ffffffff <__global_pointer$+0xffffe6ef>
+  7e:	faf87ce3          	bgeu	a6,a5,36 <main+0x36>
+  82:	bfc9                	j	54 <main+0x54>
