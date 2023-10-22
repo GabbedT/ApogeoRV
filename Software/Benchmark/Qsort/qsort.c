@@ -173,7 +173,7 @@ loop:	SWAPINIT(long, a, es);
 /*		qsort(pn - r, r / es, es, cmp);*/
 }
 
-#define ARRAY_SIZE 3500
+#define ARRAY_SIZE 100
 
 int compare (const void *a, const void *b)
 {

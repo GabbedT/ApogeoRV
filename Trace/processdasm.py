@@ -112,7 +112,7 @@ def fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, filePath):
 (tTime, tAddr, tReg, tResult) = parse_trace("trace.txt")
 
 # Extract infos from the disassembly file
-(dAddr, dHex, dAsm) = parse_disassembly_file("disasm.dump")
+(dAddr, dHex, dAsm) = parse_disassembly_file("disassembly.txt")
 
 # Create the final trace file
 fuse_infos(tTime, tAddr, tReg, tResult, dAddr, dHex, dAsm, "final_trace.txt")

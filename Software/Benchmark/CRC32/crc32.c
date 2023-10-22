@@ -145,7 +145,7 @@ static const UNS_32_BITS crc_32_tab[] = {	/* CRC polynomial 0xedb88320 */
   0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
-char * charBuf = (char *) 0xFFFFFFFF;
+volatile char * charBuf = (char *) 0xFFFFFFFF;
 
 int rand(void);
 DWORD crc32pseudo(); 
@@ -203,7 +203,7 @@ crc32pseudo ()
 int
 benchmark (void)
 {
-  int b = benchmark_body (LOCAL_SCALE_FACTOR * 100);
+  int b = benchmark_body (LOCAL_SCALE_FACTOR);
 
   *charBuf = (char) b;
   *charBuf = (char) (b >> 8);

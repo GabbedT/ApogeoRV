@@ -39,7 +39,7 @@ module directed_pipeline_test;
     store_interface store_channel();
     fetch_interface fetch_channel();
 
-    rv32apogeo #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
+    ApogeoRV #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
 
     system_memory #(MEMORY_SIZE) _memory_ (
         .clk_i               ( clk_i                     ),

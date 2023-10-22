@@ -15,7 +15,7 @@ The benchmarks are executed in Vivado simulation environment:
 
 Benchmark Name | Program Size | Time to Complete | Instructions Retired |
 --- | --- | --- | --- | 
-CRC32(100 Iterations) | 1366 Bytes | 53.32408ms | 3792654 |
+CRC32(100 Iterations) | 1548 Bytes | 53.32408ms | 3792654 |
 Color2Gray | 4578 Bytes | 3.14669ms | 91680 | 
 QSORT(1000 Int) | 4578 Bytes | 15.41026ms | 596751 |
 

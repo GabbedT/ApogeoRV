@@ -47,7 +47,7 @@ module system_memory #(
                index += 4;
            end
         `else  
-        $readmemh("color2gray.hex", memory);
+        $readmemh("qsort.hex", memory);
         `endif 
     end
 

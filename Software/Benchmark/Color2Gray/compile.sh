@@ -7,6 +7,6 @@ riscv32-unknown-elf-objcopy -O binary color2gray.elf color2gray.bin
 riscv32-unknown-elf-size color2gray.elf
 xxd -p -c 1 -g 1 color2gray.bin > color2gray.hex
 
-# rm color2gray.elf
+rm color2gray.elf
 rm color2gray.bin
 rm color2gray.o
