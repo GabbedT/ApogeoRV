@@ -95,12 +95,13 @@ module instruction_buffer #(
                 read_ptr <= '0;
 
                 instr_write_ptr <= '0;
+                speculative_write_ptr <= '0;
 
                 if (write_address_i) begin
-                    speculative_write_ptr <= 'b1;
+                    // speculative_write_ptr <= 'b1;
                     address_write_ptr <= 'b1;
                 end else begin
-                    speculative_write_ptr <= '0;
+                    // speculative_write_ptr <= '0;
                     address_write_ptr <= '0;
                 end
             end else begin 
@@ -196,11 +197,7 @@ module instruction_buffer #(
 
         always_ff @(posedge clk_i) begin 
             if (write_speculative_i) begin
-                if (flush_i) begin
-                    speculative_buffer[0] <= 2'b0;
-                end else begin 
-                    speculative_buffer[speculative_write_ptr] <= {fetch_speculative_i, taken_i}; 
-                end 
+                speculative_buffer[speculative_write_ptr] <= {fetch_speculative_i, taken_i}; 
             end
         end 
 

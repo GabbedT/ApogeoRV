@@ -299,12 +299,10 @@ module front_end #(
 //      INSTRUCTION BUFFER
 //====================================================================================
 
-    logic buffered_fetch; 
+    logic buffered_fetch, buffered_invalidate; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                buffered_fetch <= 1'b0;
-            end else if (fetch_channel.invalidate) begin
                 buffered_fetch <= 1'b0;
             end else begin 
                 buffered_fetch <= fetch_channel.fetch;
