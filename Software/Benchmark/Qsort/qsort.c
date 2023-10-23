@@ -173,7 +173,7 @@ loop:	SWAPINIT(long, a, es);
 /*		qsort(pn - r, r / es, es, cmp);*/
 }
 
-#define ARRAY_SIZE 100
+#define ARRAY_SIZE 1000
 
 int compare (const void *a, const void *b)
 {
@@ -192,7 +192,11 @@ int main()
 	}
 	qsort(arr, ARRAY_SIZE, sizeof(int), compare);
 
-	char * charBuf = (char *) 0xFFFFFFFF; int arrAddr = (int) arr; 
+	// for (int i = 0; i < ARRAY_SIZE; ++i) {
+	// 	printf("%04x\n", arr[i]);
+	// }
+
+	volatile char * charBuf = (char *) 0xFFFFFFFF; int arrAddr = (int) arr; 
 
 	*charBuf = (char) arrAddr;
 	*charBuf = (char) (arrAddr >> 8);
