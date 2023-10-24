@@ -369,10 +369,14 @@ module front_end #(
                 previous_speculative <= ibuffer_speculative;
                 upper_portion <= ibuffer_instruction[31:16];
 
+                if (ibuffer_speculative & ibuffer_taken) begin
+                    cross_boundary <= 1'b0;
+                end else begin 
                 /* Cross boundary when we have a compressed intruction on the lower half word
                  * and a full instruction that start from the upper half word. Or when we have
                  * multiple full instruction that cross the word boundary */
                 cross_boundary <= ((ibuffer_instruction[17:16] == '1) & (compressed | cross_boundary));
+                end 
             end
         end
 
@@ -445,7 +449,7 @@ module front_end #(
                 if_stage_exception_vector <= '0; 
             end else if (!stall & !stall_i) begin
                 if_stage_instruction <= compressed ? expanded_instruction : full_instruction;
-                if_stage_program_counter <= ((select_upper_portion | cross_boundary) & !previous_speculative) ? (ibuffer_program_counter - 'd2) : ibuffer_program_counter;
+                if_stage_program_counter <= ((select_upper_portion | cross_boundary)) ? (ibuffer_program_counter - 'd2) : ibuffer_program_counter;
 
                 if_stage_exception_vector <= misaligned_instruction ? `INSTR_MISALIGNED : `INSTR_ILLEGAL; 
             end 
