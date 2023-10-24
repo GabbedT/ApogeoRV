@@ -11,6 +11,8 @@ _start:
     # Enable interrupt 
     li t0, 8
     csrs mstatus, t0 
+    li t0, -1
+    csrs mie, t0 
 
     # Setup handler address 
     la t0, timer_handler
