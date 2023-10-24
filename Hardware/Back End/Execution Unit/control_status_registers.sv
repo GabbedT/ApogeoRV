@@ -353,8 +353,8 @@ module control_status_registers (
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin 
-                mie_csr.MEIE <= 1'b1; 
-                mie_csr.MTIE <= 1'b1; 
+                mie_csr.MEIE <= 1'b0; 
+                mie_csr.MTIE <= 1'b0; 
             end else if (csr_enable_out.mie & csr_write_validate_i) begin 
                 mie_csr.MEIE <= csr_data_out[11]; 
                 mie_csr.MTIE <= csr_data_out[7]; 
