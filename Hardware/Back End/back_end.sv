@@ -374,33 +374,6 @@ module back_end #(
     endgenerate
 
 
-    logic reorder_buffer_full; 
-    
-    /* Pipeline registers */
-    data_word_t [EXU_PORT - 1:0] result_commit;
-    instr_packet_t [EXU_PORT - 1:0] packet_commit;
-    logic [EXU_PORT - 1:0] valid_commit;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : commit_stage_register
-            if (!rst_n_i) begin
-                packet_commit <= '0;
-                valid_commit <= '0;
-            end else if (flush_o) begin 
-                packet_commit <= '0;
-                valid_commit <= '0;
-            end else if (!stall_pipeline & !buffer_full & !reorder_buffer_full) begin
-                packet_commit <= ipacket;
-                valid_commit <= valid;
-            end
-        end : commit_stage_register
-
-        always_ff @(posedge clk_i) begin : commit_result_register
-            if (!stall_pipeline & !buffer_full & !reorder_buffer_full) begin 
-                result_commit <= result;
-            end
-        end : commit_result_register
-
-
 //====================================================================================
 //      COMMIT STAGE
 //====================================================================================
@@ -416,9 +389,9 @@ module back_end #(
         .stall_i ( stall_pipeline ),
         .stall_o ( buffer_full    ),
 
-        .result_i     ( result_commit ),
-        .ipacket_i    ( packet_commit ),
-        .data_valid_i ( valid_commit  ),
+        .result_i     ( result ),
+        .ipacket_i    ( ipacket ),
+        .data_valid_i ( valid  ),
 
         .rob_write_o ( rob_write  ),
         .rob_tag_o   ( rob_tag    ),
