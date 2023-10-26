@@ -372,10 +372,10 @@ module front_end #(
                 if (ibuffer_speculative & ibuffer_taken) begin
                     cross_boundary <= 1'b0;
                 end else begin 
-                /* Cross boundary when we have a compressed intruction on the lower half word
-                 * and a full instruction that start from the upper half word. Or when we have
-                 * multiple full instruction that cross the word boundary */
-                cross_boundary <= ((ibuffer_instruction[17:16] == '1) & (compressed | cross_boundary));
+                    /* Cross boundary when we have a compressed intruction on the lower half word
+                    * and a full instruction that start from the upper half word. Or when we have
+                    * multiple full instruction that cross the word boundary */
+                    cross_boundary <= ((ibuffer_instruction[17:16] == '1) & (compressed | cross_boundary));
                 end 
             end
         end
@@ -394,7 +394,7 @@ module front_end #(
 
                 if (compressed) begin
                     /* The next time a word arrives read the upper portion if compressed and not speculative */
-                    select_upper_portion <= !select_upper_portion & !ibuffer_speculative;
+                    select_upper_portion <= !select_upper_portion & !(ibuffer_speculative & ibuffer_taken);
                 end 
             end
         end 
