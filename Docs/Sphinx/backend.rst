@@ -34,17 +34,14 @@ This is simply implemented as a priority multiplexer. **If the source at input i
 
             assign execute_valid[i] = execute_valid_i[i] & !issue_immediate_i[i];
             assign commit_valid[i] = commit_valid_i[i] & !issue_immediate_i[i];
-            assign rob_valid[i] = rob_valid_i[i] & !issue_immediate_i[i]; 
 
             always_comb begin : fowarding_logic 
                 casez ({execute_valid[i], commit_valid[i], rob_valid[i]})
-                    3'b1??: operand_o[i] = execute_data_i[i];
+                    2'b1?: operand_o[i] = execute_data_i[i];
 
-                    3'b01?: operand_o[i] = commit_data_i[i];
+                    2'b01: operand_o[i] = commit_data_i[i];
 
-                    3'b001: operand_o[i] = rob_data_i[i];
-
-                    3'b000: operand_o[i] = issue_operand_i[i];
+                    2'b00: operand_o[i] = issue_operand_i[i];
 
                     default: operand_o[i] = '0;
                 endcase 
@@ -54,65 +51,10 @@ This is simply implemented as a priority multiplexer. **If the source at input i
     endgenerate 
 
 
-As it will be explained later, the stages where buffers resides (`COM` and `ROB`), could have multiple instructions inside waiting to be passed to the next stage. This complicates the design because the bypass logic should check whether the instruction is valid and if there is a register match for every buffer entry,
+As it will be explained later, the buffers situated between `EXC` and `COM` stages, could have multiple instructions inside waiting to be fowarded to the next stage. This complicates the design because the bypass logic should check whether the instruction is valid and if there is a register match for every buffer entry,
 it could be possible in the case of a small buffer, however in a 64 entries reorder buffer this would just use too many resources and even if this was feasible, the timing here would be terrible. Infact the bypass logic is surely one of the critical paths of the pipeline, so we need to lower the timing at all cost to meet the specifications required on the clock speed. 
 
-To have a better timing / area, 
-an ingenious solution is adopted, this method is called **snapshot register**, which is a register file that **holds the future state of the architectural register file**. Along with the register values, also a *valid bit* and a *tag* is saved, those are useful to invalidate the register entries during a 
-read to push the instruction foward in the pipeline. To foward the values, the registers source of the instruction in `BYP` stage is sent to a snapshot register, here the value is simply read out of the *asyncronous memory* along with the valid bit.
-
-.. code-block:: systemverilog
-
-    assign foward_register_data = (entry_i.reg_dest == '0) ? '0 : entry_i.result;
-
-        always_ff @(posedge clk_i) begin : register_write_port
-            if (write & !stall_i) begin
-                for (int i = 0; i < 2; ++i) begin 
-                    foward_register[i][entry_i.reg_dest] <= foward_register_data;
-                end
-            end 
-        end : register_write_port
-
-
-    /* Register the last packet that wrote the foward register */
-    logic [5:0] tag_register [31:0];
-
-        always_ff @(posedge clk_i) begin : register_tag_write_port
-            if (write & !stall_i) begin
-                tag_register[entry_i.reg_dest] <= tag_i;
-            end 
-        end : register_tag_write_port
-
-
-    /* Indicates if the result was written back to register file or not */
-    logic [31:0] valid_register, valid_out;
-
-    /* Register X0 is always valid */
-    assign valid_out = {valid_register[31:1], 1'b1};
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : register_valid_write_port
-            if (!rst_n_i) begin
-                valid_register <= '0;
-            end else if (flush_i) begin 
-                valid_register <= '0;
-            end else begin
-                if (write & !stall_i) begin
-                    /* On writes validate the result */
-                    valid_register[entry_i.reg_dest] <= 1'b1;
-                end 
-                
-                if (read_i & (tag_register[entry_o.reg_dest] == read_ptr)) begin
-                    /* If the instruction that wrote the result in the foward register
-                     * is being pulled from the ROB, invalidate the result, but only 
-                     * if at the same time there's not the same register being written */
-                    if (entry_o.reg_dest != entry_i.reg_dest) begin 
-                        valid_register[entry_o.reg_dest] <= 1'b0;
-                    end 
-                end
-            end
-        end : register_valid_write_port
-
-The two ifs inside the else branch of `register_valid_write_port` are mutually exclusive, so it's correct to drive `valid_register` inside them.
+To have a better timing / area, an ingenious solution is adopted, this method is called **snapshot register**, which will be explained later :ref:`here <commit stage>`. 
 
 In this stage also happens the selection of the base address for memory and branch instructions. It's a selection between the first register source and the instruction address. This logic is splitted from the actual address computation to shorten the critical path from the operands fowarding to the addition between the offset and base address.
 
@@ -717,8 +659,62 @@ Commit Stage
 ------------
 
 The commit stage serves as a **buffer stage between the execution stage and the reorder stage**. This stage solves the potential scenario where *multiple main units concurrently generate valid results*, resulting in a structural hazard where multiple write sources attempt to access a single write port. The reorder buffer, by design, offers only a single read and write port, and typically, the addition of an extra memory port introduces a significant expenditure of area and resources.
-While it's feasible to duplicate memory read ports and link them to the same write data input, this approach is not applicable to write ports. Consequently, a dedicated IP block is often needed, but such resource may not always be available especially in FPGA environments. To get past these issues, each unit is linked to a buffer that **contains both the buffer logic and forwarding logic**, employing *snapshot registers*. These buffers are then managed by an FSM that implements a **round-robin algorithm**.
-In this scheme, the buffers are *only written to when a structural hazard arises*: if a single unit produces a valid result without any contention, it is directly forwarded to the reorder buffer. In cases where there is contention among multiple sources, only one source is allowed to be forwarded, mitigating the structural hazard.
+While it's feasible to duplicate memory read ports and link them to the same write data input, this approach is not applicable to write ports. Consequently, a dedicated IP block is often needed, but such resource may not always be available especially in FPGA environments. To get past these issues, each unit is linked to a buffer that **contains both the buffer logic and forwarding logic**, employing *snapshot registers*. These buffers acts like stage registers and are then managed by an FSM that implements a **round-robin algorithm**.
+The buffers are *written when a valid result is produced* by an execution unit and they can be written simultaneoulsy, then only one of them can be read by the FSM controller, the result is finally sent to the ROB.
+
+To foward saved results in the buffers, registers called **snapshot registers** are employed, this is a register file that **holds the future state of the architectural register file**. Along with the register values, also a *valid bit* is saved, those are useful to invalidate the register entries in case of a pipeline flush due to an exception or an interrupt. 
+To foward the values, the registers source of the instruction in `BYP` stage is sent to a snapshot register, here the value is simply read out of the *asyncronous memory* along with the valid bit. Each buffer contains a snapshot register, for every entry only one shall be valid out of the three registers, because of this, once a register gets pushed into a buffers the same register is invalidated in the other two.
+
+.. code-block:: systemverilog
+
+    logic [$bits(data_word_t) - 1:0] foward_register [1:0][31:0];
+
+    initial begin
+        for (int i = 0; i < 32; ++i) begin
+            foward_register[0][i] <= '0;
+            foward_register[1][i] <= '0;
+        end
+    end
+        always_ff @(posedge clk_i) begin 
+            if (write_i & !stall_i) begin
+                foward_register[0][ipacket_i.reg_dest] <= result_i;
+                foward_register[1][ipacket_i.reg_dest] <= result_i;
+            end 
+        end
+
+    /* Read port */
+    assign foward_result_o[0] = (foward_src_i[0] == '0) ? '0 : foward_register[0][foward_src_i[0]];
+    assign foward_result_o[1] = (foward_src_i[1] == '0) ? '0 : foward_register[1][foward_src_i[1]];
+
+
+    /* Indicates it the result was written back to register file or not */
+    logic [31:0] valid_register;
+        
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                valid_register <= '0;
+            end else if (flush_i) begin 
+                valid_register <= '0;
+            end else if (!stall_i) begin
+                /* MUTUALLY EXCLUSIVE IFs */
+                
+                if (write_i) begin
+                    /* On writes validate the result */
+                    valid_register[ipacket_i.reg_dest] <= 1'b1;
+                end 
+
+                if (invalidate_i) begin
+                    /* If another buffer is pushing a register, it has
+                     * the most recent value, this must be invalidated
+                     * since is old */
+                    valid_register[invalid_reg_i] <= 1'b0;
+                end 
+            end
+        end 
+
+    /* Read port */
+    assign foward_valid_o[0] = (foward_src_i[0] == '0) ? 1'b1 : valid_register[foward_src_i[0]];
+    assign foward_valid_o[1] = (foward_src_i[1] == '0) ? 1'b1 : valid_register[foward_src_i[1]];
 
 Reorder Stage
 -------------
@@ -726,7 +722,7 @@ Reorder Stage
 In the reorder stage, out-of-order instructions find their place within the reorder buffer. 
 The reorder buffer is structured as a 1R / 1W (one read, one write) memory and unlike a standard FIFO buffer the control of writes is directly orchestrated by the arriving instructions at the write port, each carrying a tag generated by the issue stage that acts as a unique write address.
 
-Writeback StageThe reorder buffer is accompanied by an additional memory that corresponds to each entry with a single bit, designating their validity status. During writes, this associated memory bit is set to mark the entry as valid, and during reads, it's cleared. The control of this memory closely mirrors that of the reorder buffer itself. A read pointer is employed to indicate the location of the next valid entry.
+The reorder buffer is accompanied by an additional memory that corresponds to each entry with a single bit, designating their validity status. During writes, this associated memory bit is set to mark the entry as valid, and during reads, it's cleared. The control of this memory closely mirrors that of the reorder buffer itself. A read pointer is employed to indicate the location of the next valid entry.
 
 During out-of-order writes, the validity bits within the memory are not necessarily continuous. Instead, gaps or holes may form, and the read pointer halts its progress when it encounters one. Meanwhile, other instructions can accumulate within the reorder buffer, waiting for the missing instruction to arrive and fill the hole.
 

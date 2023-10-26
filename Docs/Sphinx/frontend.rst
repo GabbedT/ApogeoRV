@@ -11,6 +11,8 @@ execute different complex tasks:
 * **Next PC Decision**: The frontend determine the next PC based on branch predictor decisions and signals that comes from the *backend*. 
 * **Issue Scheduling**: To support coherency during program execution, due to the pipelined and OoO nature of the CPU core, instructions that get issued must be scheduled.
 
+.. image:: source/images/Frontend.png
+
 PC Generation Stage 
 -------------------
 
