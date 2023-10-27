@@ -12,3 +12,4 @@ Changes from ApogeoRV v1.0.0:
     * Shortened the critical path on bypass stage
     * Decreased LUT usage from 8446 to 7967 in the board configuration (Post-Synthesis)
     * Decreased LUT usage from 8021 to 7597 in the board configuration (Post-Implementation)
+- Decreased by 1 clock cycle the LDU operation (27 / 10 / 2023)
