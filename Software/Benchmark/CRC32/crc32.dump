@@ -4,191 +4,129 @@ crc32.elf:     file format elf32-littleriscv
 
 Disassembly of section .text:
 
-00000000 <main>:
-   0:	1101                	add	sp,sp,-32
-   2:	ce06                	sw	ra,28(sp)
-   4:	cc22                	sw	s0,24(sp)
-   6:	1000                	add	s0,sp,32
-   8:	2a29                	jal	122 <benchmark>
-   a:	87aa                	mv	a5,a0
-   c:	853e                	mv	a0,a5
-   e:	22f9                	jal	1dc <verify_benchmark>
-  10:	fea42623          	sw	a0,-20(s0)
-  14:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
-  18:	fec42703          	lw	a4,-20(s0)
-  1c:	0ff77713          	zext.b	a4,a4
-  20:	00e78023          	sb	a4,0(a5)
-  24:	fec42783          	lw	a5,-20(s0)
-  28:	4087d713          	sra	a4,a5,0x8
-  2c:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
-  30:	0ff77713          	zext.b	a4,a4
-  34:	00e78023          	sb	a4,0(a5)
-  38:	fec42783          	lw	a5,-20(s0)
-  3c:	4107d713          	sra	a4,a5,0x10
-  40:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
-  44:	0ff77713          	zext.b	a4,a4
-  48:	00e78023          	sb	a4,0(a5)
-  4c:	fec42783          	lw	a5,-20(s0)
-  50:	4187d713          	sra	a4,a5,0x18
-  54:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
-  58:	0ff77713          	zext.b	a4,a4
-  5c:	00e78023          	sb	a4,0(a5)
-  60:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
-  64:	4729                	li	a4,10
-  66:	00e78023          	sb	a4,0(a5)
-  6a:	0000                	unimp
-  6c:	4781                	li	a5,0
-  6e:	853e                	mv	a0,a5
-  70:	40f2                	lw	ra,28(sp)
-  72:	4462                	lw	s0,24(sp)
-  74:	6105                	add	sp,sp,32
-  76:	8082                	ret
+00000000 <_start>:
+   0:	00002137          	lui	sp,0x2
+   4:	100000ef          	jal	104 <main>
+   8:	c0001073          	unimp
 
-00000078 <rand>:
-  78:	1141                	add	sp,sp,-16
-  7a:	c622                	sw	s0,12(sp)
-  7c:	0800                	add	s0,sp,16
-  7e:	60802703          	lw	a4,1544(zero) # 608 <seed>
-  82:	41c657b7          	lui	a5,0x41c65
-  86:	e6d78793          	add	a5,a5,-403 # 41c64e6d <__global_pointer$+0x41c64069>
-  8a:	02f70733          	mul	a4,a4,a5
-  8e:	678d                	lui	a5,0x3
-  90:	03978793          	add	a5,a5,57 # 3039 <__global_pointer$+0x2235>
-  94:	973e                	add	a4,a4,a5
-  96:	800007b7          	lui	a5,0x80000
-  9a:	17fd                	add	a5,a5,-1 # 7fffffff <__global_pointer$+0x7ffff1fb>
-  9c:	8f7d                	and	a4,a4,a5
-  9e:	60e02423          	sw	a4,1544(zero) # 608 <seed>
-  a2:	60802783          	lw	a5,1544(zero) # 608 <seed>
-  a6:	87c1                	sra	a5,a5,0x10
-  a8:	853e                	mv	a0,a5
-  aa:	4432                	lw	s0,12(sp)
-  ac:	0141                	add	sp,sp,16
-  ae:	8082                	ret
+0000000c <rand>:
+   c:	6705                	lui	a4,0x1
+   e:	00472503          	lw	a0,4(a4) # 1004 <seed>
+  12:	41c657b7          	lui	a5,0x41c65
+  16:	e6d78793          	add	a5,a5,-403 # 41c64e6d <seed+0x41c63e69>
+  1a:	02f50533          	mul	a0,a0,a5
+  1e:	678d                	lui	a5,0x3
+  20:	03978793          	add	a5,a5,57 # 3039 <seed+0x2035>
+  24:	953e                	add	a0,a0,a5
+  26:	49f51513          	bclr	a0,a0,0x1f
+  2a:	00a72223          	sw	a0,4(a4)
+  2e:	8141                	srl	a0,a0,0x10
+  30:	8082                	ret
 
-000000b0 <srand>:
-  b0:	1101                	add	sp,sp,-32
-  b2:	ce22                	sw	s0,28(sp)
-  b4:	1000                	add	s0,sp,32
-  b6:	fea42623          	sw	a0,-20(s0)
-  ba:	fec42703          	lw	a4,-20(s0)
-  be:	60e02423          	sw	a4,1544(zero) # 608 <seed>
-  c2:	0001                	nop
-  c4:	4472                	lw	s0,28(sp)
-  c6:	6105                	add	sp,sp,32
-  c8:	8082                	ret
+00000032 <srand>:
+  32:	6785                	lui	a5,0x1
+  34:	00a7a223          	sw	a0,4(a5) # 1004 <seed>
+  38:	8082                	ret
 
-000000ca <crc32pseudo>:
-  ca:	1101                	add	sp,sp,-32
-  cc:	ce06                	sw	ra,28(sp)
-  ce:	cc22                	sw	s0,24(sp)
-  d0:	ca26                	sw	s1,20(sp)
-  d2:	1000                	add	s0,sp,32
-  d4:	54fd                	li	s1,-1
-  d6:	fe042623          	sw	zero,-20(s0)
-  da:	a035                	j	106 <crc32pseudo+0x3c>
-  dc:	3f71                	jal	78 <rand>
-  de:	87aa                	mv	a5,a0
-  e0:	0ff7f793          	zext.b	a5,a5
-  e4:	8fa5                	xor	a5,a5,s1
-  e6:	0ff7f793          	zext.b	a5,a5
-  ea:	20400713          	li	a4,516
-  ee:	078a                	sll	a5,a5,0x2
-  f0:	97ba                	add	a5,a5,a4
-  f2:	4398                	lw	a4,0(a5)
-  f4:	0084d793          	srl	a5,s1,0x8
-  f8:	00f744b3          	xor	s1,a4,a5
-  fc:	fec42783          	lw	a5,-20(s0)
- 100:	0785                	add	a5,a5,1
- 102:	fef42623          	sw	a5,-20(s0)
- 106:	fec42703          	lw	a4,-20(s0)
- 10a:	3ff00793          	li	a5,1023
- 10e:	fce7d7e3          	bge	a5,a4,dc <crc32pseudo+0x12>
- 112:	fff4c793          	not	a5,s1
- 116:	853e                	mv	a0,a5
- 118:	40f2                	lw	ra,28(sp)
- 11a:	4462                	lw	s0,24(sp)
- 11c:	44d2                	lw	s1,20(sp)
- 11e:	6105                	add	sp,sp,32
- 120:	8082                	ret
+0000003a <crc32pseudo>:
+  3a:	6305                	lui	t1,0x1
+  3c:	00432783          	lw	a5,4(t1) # 1004 <seed>
+  40:	41c65837          	lui	a6,0x41c65
+  44:	658d                	lui	a1,0x3
+  46:	40000713          	li	a4,1024
+  4a:	557d                	li	a0,-1
+  4c:	14c00893          	li	a7,332
+  50:	e6d80813          	add	a6,a6,-403 # 41c64e6d <seed+0x41c63e69>
+  54:	03958593          	add	a1,a1,57 # 3039 <seed+0x2035>
+  58:	030787b3          	mul	a5,a5,a6
+  5c:	00855693          	srl	a3,a0,0x8
+  60:	177d                	add	a4,a4,-1
+  62:	97ae                	add	a5,a5,a1
+  64:	49f79793          	bclr	a5,a5,0x1f
+  68:	4107d613          	sra	a2,a5,0x10
+  6c:	8d31                	xor	a0,a0,a2
+  6e:	0ff57513          	zext.b	a0,a0
+  72:	21154533          	sh2add	a0,a0,a7
+  76:	4108                	lw	a0,0(a0)
+  78:	8d35                	xor	a0,a0,a3
+  7a:	ff79                	bnez	a4,58 <crc32pseudo+0x1e>
+  7c:	00f32223          	sw	a5,4(t1)
+  80:	fff54513          	not	a0,a0
+  84:	8082                	ret
 
-00000122 <benchmark>:
- 122:	1101                	add	sp,sp,-32
- 124:	ce06                	sw	ra,28(sp)
- 126:	cc22                	sw	s0,24(sp)
- 128:	1000                	add	s0,sp,32
- 12a:	4505                	li	a0,1
- 12c:	20ad                	jal	196 <benchmark_body>
- 12e:	fea42623          	sw	a0,-20(s0)
- 132:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
- 136:	fec42703          	lw	a4,-20(s0)
- 13a:	0ff77713          	zext.b	a4,a4
+00000086 <benchmark_body.constprop.0>:
+  86:	1141                	add	sp,sp,-16 # 1ff0 <seed+0xfec>
+  88:	c422                	sw	s0,8(sp)
+  8a:	6405                	lui	s0,0x1
+  8c:	c606                	sw	ra,12(sp)
+  8e:	00042223          	sw	zero,4(s0) # 1004 <seed>
+  92:	3765                	jal	3a <crc32pseudo>
+  94:	00042223          	sw	zero,4(s0)
+  98:	374d                	jal	3a <crc32pseudo>
+  9a:	40b2                	lw	ra,12(sp)
+  9c:	4422                	lw	s0,8(sp)
+  9e:	0546                	sll	a0,a0,0x11
+  a0:	8145                	srl	a0,a0,0x11
+  a2:	0141                	add	sp,sp,16
+  a4:	8082                	ret
+
+000000a6 <benchmark>:
+  a6:	1141                	add	sp,sp,-16
+  a8:	c606                	sw	ra,12(sp)
+  aa:	3ff1                	jal	86 <benchmark_body.constprop.0>
+  ac:	6705                	lui	a4,0x1
+  ae:	00072683          	lw	a3,0(a4) # 1000 <charBuf>
+  b2:	0ff57613          	zext.b	a2,a0
+  b6:	01855793          	srl	a5,a0,0x18
+  ba:	00c68023          	sb	a2,0(a3)
+  be:	00072603          	lw	a2,0(a4)
+  c2:	40855693          	sra	a3,a0,0x8
+  c6:	0ff6f693          	zext.b	a3,a3
+  ca:	00d60023          	sb	a3,0(a2)
+  ce:	00072603          	lw	a2,0(a4)
+  d2:	41055693          	sra	a3,a0,0x10
+  d6:	0ff6f693          	zext.b	a3,a3
+  da:	00d60023          	sb	a3,0(a2)
+  de:	00072683          	lw	a3,0(a4)
+  e2:	00f68023          	sb	a5,0(a3)
+  e6:	00072783          	lw	a5,0(a4)
+  ea:	4729                	li	a4,10
+  ec:	00e78023          	sb	a4,0(a5)
+  f0:	40b2                	lw	ra,12(sp)
+  f2:	0141                	add	sp,sp,16
+  f4:	8082                	ret
+
+000000f6 <verify_benchmark>:
+  f6:	77f5                	lui	a5,0xffffd
+  f8:	35778793          	add	a5,a5,855 # ffffd357 <seed+0xffffc353>
+  fc:	953e                	add	a0,a0,a5
+  fe:	00153513          	seqz	a0,a0
+ 102:	8082                	ret
+
+Disassembly of section .text.startup:
+
+00000104 <main>:
+ 104:	1141                	add	sp,sp,-16
+ 106:	c606                	sw	ra,12(sp)
+ 108:	3f79                	jal	a6 <benchmark>
+ 10a:	6785                	lui	a5,0x1
+ 10c:	7775                	lui	a4,0xffffd
+ 10e:	0007a683          	lw	a3,0(a5) # 1000 <charBuf>
+ 112:	35770713          	add	a4,a4,855 # ffffd357 <seed+0xffffc353>
+ 116:	953a                	add	a0,a0,a4
+ 118:	00153513          	seqz	a0,a0
+ 11c:	00a68023          	sb	a0,0(a3)
+ 120:	0007a703          	lw	a4,0(a5)
+ 124:	00070023          	sb	zero,0(a4)
+ 128:	0007a703          	lw	a4,0(a5)
+ 12c:	00070023          	sb	zero,0(a4)
+ 130:	0007a703          	lw	a4,0(a5)
+ 134:	00070023          	sb	zero,0(a4)
+ 138:	0007a783          	lw	a5,0(a5)
+ 13c:	4729                	li	a4,10
  13e:	00e78023          	sb	a4,0(a5)
- 142:	fec42783          	lw	a5,-20(s0)
- 146:	4087d713          	sra	a4,a5,0x8
- 14a:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
- 14e:	0ff77713          	zext.b	a4,a4
- 152:	00e78023          	sb	a4,0(a5)
- 156:	fec42783          	lw	a5,-20(s0)
- 15a:	4107d713          	sra	a4,a5,0x10
- 15e:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
- 162:	0ff77713          	zext.b	a4,a4
- 166:	00e78023          	sb	a4,0(a5)
- 16a:	fec42783          	lw	a5,-20(s0)
- 16e:	4187d713          	sra	a4,a5,0x18
- 172:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
- 176:	0ff77713          	zext.b	a4,a4
- 17a:	00e78023          	sb	a4,0(a5)
- 17e:	60402783          	lw	a5,1540(zero) # 604 <charBuf>
- 182:	4729                	li	a4,10
- 184:	00e78023          	sb	a4,0(a5)
- 188:	fec42783          	lw	a5,-20(s0)
- 18c:	853e                	mv	a0,a5
- 18e:	40f2                	lw	ra,28(sp)
- 190:	4462                	lw	s0,24(sp)
- 192:	6105                	add	sp,sp,32
- 194:	8082                	ret
-
-00000196 <benchmark_body>:
- 196:	7179                	add	sp,sp,-48
- 198:	d606                	sw	ra,44(sp)
- 19a:	d422                	sw	s0,40(sp)
- 19c:	1800                	add	s0,sp,48
- 19e:	fca42e23          	sw	a0,-36(s0)
- 1a2:	fe042623          	sw	zero,-20(s0)
- 1a6:	a819                	j	1bc <benchmark_body+0x26>
- 1a8:	4501                	li	a0,0
- 1aa:	3719                	jal	b0 <srand>
- 1ac:	3f39                	jal	ca <crc32pseudo>
- 1ae:	fea42423          	sw	a0,-24(s0)
- 1b2:	fec42783          	lw	a5,-20(s0)
- 1b6:	0785                	add	a5,a5,1
- 1b8:	fef42623          	sw	a5,-20(s0)
- 1bc:	fec42703          	lw	a4,-20(s0)
- 1c0:	fdc42783          	lw	a5,-36(s0)
- 1c4:	fef742e3          	blt	a4,a5,1a8 <benchmark_body+0x12>
- 1c8:	fe842703          	lw	a4,-24(s0)
- 1cc:	67a1                	lui	a5,0x8
- 1ce:	17fd                	add	a5,a5,-1 # 7fff <__global_pointer$+0x71fb>
- 1d0:	8ff9                	and	a5,a5,a4
- 1d2:	853e                	mv	a0,a5
- 1d4:	50b2                	lw	ra,44(sp)
- 1d6:	5422                	lw	s0,40(sp)
- 1d8:	6145                	add	sp,sp,48
- 1da:	8082                	ret
-
-000001dc <verify_benchmark>:
- 1dc:	1101                	add	sp,sp,-32
- 1de:	ce22                	sw	s0,28(sp)
- 1e0:	1000                	add	s0,sp,32
- 1e2:	fea42623          	sw	a0,-20(s0)
- 1e6:	fec42703          	lw	a4,-20(s0)
- 1ea:	77f5                	lui	a5,0xffffd
- 1ec:	35778793          	add	a5,a5,855 # ffffd357 <__global_pointer$+0xffffc553>
- 1f0:	97ba                	add	a5,a5,a4
- 1f2:	0017b793          	seqz	a5,a5
- 1f6:	0ff7f793          	zext.b	a5,a5
- 1fa:	853e                	mv	a0,a5
- 1fc:	4472                	lw	s0,28(sp)
- 1fe:	6105                	add	sp,sp,32
- 200:	8082                	ret
+ 142:	0000                	unimp
+ 144:	40b2                	lw	ra,12(sp)
+ 146:	4501                	li	a0,0
+ 148:	0141                	add	sp,sp,16
+ 14a:	8082                	ret

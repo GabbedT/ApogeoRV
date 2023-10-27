@@ -15,18 +15,22 @@ The benchmarks are executed in Vivado simulation environment:
 
 Benchmark Name | Program Size | Time to Complete | Instructions Retired |
 --- | --- | --- | --- | 
-CRC32(100 Iterations) | 1548 Bytes | 53.32408ms | 3792654 |
-Color2Gray | 4578 Bytes | 3.14669ms | 91680 | 
-QSORT(1000 Int) | 3448 Bytes | 4.61299ms | 150815 |
+CRC32(2 Iterations) | 1538 Bytes | 1.19287ms | 75951 |
+Color2Gray | 342 Bytes | 2.80895msms | 91680 | 
+QSORT(1000 Int) | 2896 Bytes | 4.09585ms | 150815 |
 
 ## GCC -O1 Optimization 
 
 Benchmark Name | Program Size | Time to Complete | Instructions Retired | 
-Color2Gray | 4408 | 1.01824ms | 25519 | 
-QSORT(1000 Int) | 3000 Bytes | 4.53665ms | 162078 |
+--- | --- | --- | --- | 
+CRC32(2 Iterations) | 1362 Bytes | 0.71966s | 43109 |
+Color2Gray | 174 Bytes | 0.97582ms | 25519 | 
+QSORT(1000 Int) | 2140 Bytes | 1.48613ms | 56654 |
 
 ## GCC -O2 Optimization 
 
 Benchmark Name | Program Size | Time to Complete | Instructions Retired | 
-Color2Gray | 4370 | 1.00559ms | 26667 | 
-QSORT(1000 Int) | 2412 Bytes | 1.23384ms | 59069 |
+--- | --- | --- | --- | 
+CRC32(2 Iterations) | 1356 Bytes | 0.51382ms | 24659 |
+Color2Gray | 136 Bytes | 0.92342ms | 26667 | 
+QSORT(1000 Int) | 1762 Bytes | 1.48270ms | 57476 |
