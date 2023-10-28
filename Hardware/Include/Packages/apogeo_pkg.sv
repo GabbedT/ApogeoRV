@@ -43,6 +43,31 @@ package rv32_instructions_pkg;
     } data_word_t;
 
 
+    /* Instruction status vector */
+    typedef enum logic [4:0] { 
+        INSTRUCTION_MISALIGNED = 0,
+        INSTRUCTION_ACCESS_FAULT = 1,
+        INSTRUCTION_ILLEGAL = 2,
+        BREAKPOINT = 3,
+        LOAD_MISALIGNED = 4,
+        LOAD_ACCESS_FAULT = 5,
+        STORE_MISALIGNED = 6,
+        STORE_ACCESS_FAULT = 7,
+        U_SYSTEM_CALL = 8,
+        M_SYSTEM_CALL = 11,
+        CORE_SLEEP = 16,
+        HANDLER_RETURN = 17,
+        STORE_OPERATION = 18,
+        LOAD_OPERATION = 19,
+        BRANCH_OPERATION = 20,
+        JUMP_OPERATION = 21,
+        CSR_OPERATION = 22,
+
+        /* On CPU reset */
+        RESET_CHANNEL = 31
+    } instruction_status_t;
+
+
 //====================================================================================
 //      INSTRUCTION PACKET
 //====================================================================================

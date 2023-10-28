@@ -67,6 +67,9 @@ module ApogeoRV #(
     input logic [7:0] interrupt_vector_i,
     output logic interrupt_ackn_o,
 
+    /* Trace interface */
+    `ifdef TRACE trace_interface.master trace_channel, `endif 
+
     /* Memory interface */ 
     load_interface.master load_channel, 
     store_interface.master store_channel
@@ -278,6 +281,8 @@ module ApogeoRV #(
     load_interface load_channel_backend(); 
     store_interface store_channel_backend();
 
+    `ifdef TRACE trace_interface trace_channel_backend(); `endif 
+
     back_end #(STORE_BUFFER_SIZE) apogeo_backend (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
@@ -321,6 +326,8 @@ module ApogeoRV #(
 
         .load_channel  ( load_channel_backend  ),
         .store_channel ( store_channel_backend ),
+        
+        `ifdef TRACE .trace_channel ( trace_channel_backend ), `endif 
 
         .interrupt_i             ( interrupt_posedge             ),
         .timer_interrupt_i       ( timer_interrupt_posedge       ),
@@ -352,7 +359,7 @@ module ApogeoRV #(
         end
 
 
-        /* Load channel flip flops */ 
+        /* Load channel output flip flops */ 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 load_channel.request <= 1'b0;
@@ -369,7 +376,7 @@ module ApogeoRV #(
     assign load_channel_backend.valid = load_channel.valid; 
 
 
-        /* Load channel flip flops */ 
+        /* Store channel output flip flops */ 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 store_channel.request <= 1'b0;
@@ -386,6 +393,30 @@ module ApogeoRV #(
         end
 
     assign store_channel_backend.done = store_channel.done;
+
+
+    `ifdef TRACE 
+
+        /* Store channel output flip flops */ 
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
+            if (!rst_n_i) begin
+                trace_channel.valid <= 1'b0;
+                trace_channel.info <= RESET_CHANNEL; 
+            end else begin
+                trace_channel.valid <= trace_channel_backend.valid;
+                trace_channel.info <= trace_channel_backend.valid; 
+            end
+        end
+
+        always_ff @(posedge clk_i) begin 
+            trace_channel.address <= trace_channel_backend.valid; 
+            trace_channel.destination <= trace_channel_backend.valid; 
+            trace_channel.result <= trace_channel_backend.valid; 
+        end
+
+    assign trace_channel_backend.stall = trace_channel.stall;
+
+    `endif 
 
 endmodule : ApogeoRV 
 

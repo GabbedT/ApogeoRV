@@ -13,6 +13,9 @@
 //      CORE CONFIG
 //====================================================================================
 
+    /* Enable instruction tracing */
+    // `define TRACE
+
     /* Enable bit manipulation unit and B extension */
     `define BMU
 

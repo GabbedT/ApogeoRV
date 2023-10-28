@@ -38,6 +38,7 @@ module directed_pipeline_test;
     load_interface load_channel(); 
     store_interface store_channel();
     fetch_interface fetch_channel();
+    trace_interface trace_channel(); 
 
     ApogeoRV #(PREDICTOR_SIZE, BTB_SIZE, STORE_BUFFER_SIZE, INSTRUCTION_BUFFER_SIZE) dut (.*); 
 

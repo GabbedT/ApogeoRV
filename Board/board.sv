@@ -2,6 +2,7 @@
     `define BOARD_INCLUDE_SV
 
 `include "../Hardware/Include/Interfaces/bus_interface.sv"
+`include "../Hardware/Include/Interfaces/trace_interface.sv"
 
 `include "../Hardware/Include/Headers/apogeo_configuration.svh"
 `include "../Hardware/Include/Headers/apogeo_memory_map.svh"
@@ -34,6 +35,7 @@ module board (
     load_interface load_channel(); 
     store_interface store_channel();
     fetch_interface fetch_channel();
+    trace_interface trace_channel();
 
     /* Reset syncronizer */
     logic reset_n, rst_sync;
@@ -60,6 +62,7 @@ module board (
         .fetch_channel ( fetch_channel ),
         .store_channel ( store_channel ),
         .load_channel  ( load_channel  ),
+        .trace_channel ( trace_channel ),
 
         .interrupt_i        ( interrupt        ), 
         .non_maskable_int_i ( 1'b0             ), 

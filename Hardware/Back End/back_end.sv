@@ -49,6 +49,7 @@
 `include "../Include/Headers/apogeo_configuration.svh"
 
 `include "../Include/Interfaces/bus_interface.sv"
+`include "../Include/Interfaces/trace_interface.sv"
 `include "../Include/Interfaces/store_buffer_interface.sv"
 
 `include "bypass_controller.sv"
@@ -112,6 +113,8 @@ module back_end #(
     load_interface.master load_channel,
     store_interface.master store_channel,
 
+    /* Trace interface */
+    `ifdef TRACE trace_interface.master trace_channel, `endif 
 
     /* Interrupt logic */
     input logic interrupt_i,
@@ -437,7 +440,12 @@ module back_end #(
         .entry_i ( reorder_buffer_packet ),
 
         .write_i ( reorder_buffer_write ),
-        .read_i  ( reorder_buffer_read  ),
+
+        `ifdef TRACE 
+            .read_i ( reorder_buffer_read & !trace_channel.stall ), 
+        `else        
+            .read_i ( reorder_buffer_read ), 
+        `endif 
 
         .full_o  ( reorder_buffer_full  ),
         .empty_o ( reorder_buffer_empty ),
@@ -471,6 +479,16 @@ module back_end #(
         .exception_vector_o    ( exception_vector       ),
         .exception_iaddress_o  ( trap_iaddress          )
     );
+
+    /* Trace channel assignment */
+    `ifdef TRACE 
+        assign trace_channel.valid = writeback_o & !stall_pipeline;
+
+        assign trace_channel.destination = reg_destination_o;
+        assign trace_channel.result = writeback_result_o;
+        assign trace_channel.address = trap_iaddress;
+        assign trace_channel.info = exception_vector;
+    `endif 
 
     assign instruction_retired = writeback_o;
     assign handler_return_o = mreturn & writeback_o;
