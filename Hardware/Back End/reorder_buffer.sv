@@ -69,11 +69,6 @@ module reorder_buffer (
     output logic full_o,
     output logic empty_o,
 
-    /* Issue interface */
-    input logic [1:0][4:0] foward_src_i,
-    output logic [1:0][31:0] foward_data_o, 
-    output logic [1:0] foward_valid_o,
-
     /* The current ROB packet pointed is
      * valid and can be written back */
     output logic valid_o,

@@ -48,7 +48,7 @@
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
-`include "../Include/Interfaces/bus_controller_interface.sv"
+`include "../Include/Interfaces/bus_interface.sv"
 `include "../Include/Interfaces/store_buffer_interface.sv"
 
 `include "bypass_controller.sv"
@@ -219,10 +219,8 @@ module back_end #(
 
     
     
-    logic stall, buffer_hazard;
-    
     /* Control flow instruction has been executed */
-    assign executed_o = (bypass_branch | bypass_jump) & !stall;
+    assign executed_o = (bypass_branch | bypass_jump) & !stall_o;
 
     /* Send instruction address and instruction type bit to recover from misprediction */
     assign instr_address_o = bypass_ipacket.instr_addr;
@@ -259,16 +257,15 @@ module back_end #(
 
     exu_valid_t valid_operation; 
 
-    assign valid_operation = stall ? '0 : bypass_valid; 
+    assign valid_operation = stall_o ? '0 : bypass_valid; 
 
     execution_unit #(STORE_BUFFER_SIZE, EXU_PORT) execute_stage (
         .clk_i           ( clk_i              ),
         .rst_n_i         ( rst_n_i            ),
         .flush_i         ( flush_o            ),
-        .stall_i         ( stall              ),
+        .stall_i         ( stall_o            ),
         .validate_i      ( execute_store      ),
         .buffer_empty_o  ( store_buffer_empty ),
-        .buffer_hazard_o ( buffer_hazard      ),
 
         .M_ext_o                ( M_ext_o     ),
         `ifdef BMU .B_ext_o     ( B_ext_o     ), `endif 
@@ -506,8 +503,7 @@ module back_end #(
     assign branch_flush_o = (branch_outcome_o | jump_o) & executed_o;
     `endif 
 
-    assign stall = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
-    assign stall_o = stall | buffer_hazard;
+    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
 
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 

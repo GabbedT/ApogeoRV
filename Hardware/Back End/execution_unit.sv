@@ -43,7 +43,7 @@
 `include "../Include/Packages/apogeo_operations_pkg.sv"
 `include "../Include/Packages/apogeo_pkg.sv"
 
-`include "../Include/Interfaces/bus_controller_interface.sv"
+`include "../Include/Interfaces/bus_interface.sv"
 `include "../Include/Interfaces/store_buffer_interface.sv"
 
 `include "Execution Unit/integer_unit.sv"
@@ -64,7 +64,6 @@ module execution_unit #(
     input logic stall_i,
     input logic validate_i,
     output logic buffer_empty_o,
-    output logic buffer_hazard_o,
 
     /* Decoder valid instruction select */
     output logic M_ext_o,
@@ -196,7 +195,6 @@ module execution_unit #(
         .rst_n_i        ( rst_n_i                 ),
         .flush_i        ( flush_i                 ),
         .stall_i        ( stall_i                 ),
-        .stall_o        ( buffer_hazard_o         ),
         .privilege_i    ( current_privilege       ),
         .buffer_empty_o ( buffer_empty_o          ),
         .instr_packet_i ( ipacket_i               ),

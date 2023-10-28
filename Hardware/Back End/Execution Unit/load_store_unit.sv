@@ -52,7 +52,7 @@
 `include "../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../../Include/Interfaces/bus_controller_interface.sv"
+`include "../../Include/Interfaces/bus_interface.sv"
 `include "../../Include/Interfaces/store_buffer_interface.sv"
 
 `include "../../Include/Headers/apogeo_exception_vectors.svh"
@@ -67,7 +67,6 @@ module load_store_unit #(
     input logic flush_i,
     input logic stall_i,
     output logic buffer_empty_o,
-    output logic stall_o,
 
     /* Privilege level */
     input logic privilege_i,
@@ -157,7 +156,6 @@ module load_store_unit #(
         .foward_packet_o  ( stu_foward_ipacket )
     );
 
-    assign stall_o = ldu_wait_buffer & !ldu_idle_o;
 
     instr_packet_t stu_ipacket, stu_exception_packet;
 
