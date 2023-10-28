@@ -14,6 +14,7 @@ The backend tasks are:
 4. **Resolving WAW data dependencies**: The instructions are reordered to be written back in order.
 5. **Generating signals to control the pipeline**: Stalling, flushing, signals to advert that specific instructions have been executed etc.
 
+.. image:: source/images/Backend.png
 
 Bypass Stage 
 ------------

@@ -2,7 +2,7 @@ External Interface
 ==================
 
 ApogeoRV has three main memory interfaces and an interrupt interface that is connected to an interrupt controller. The signals timing and relations are extremly simple to easily connect the interfaces 
-to a different bus (AXI, Wishbone etc.) through an adapter.
+to a different bus (AXI, Wishbone etc.) through an adapter. All outputs are registred while inputs are not.
 
 Memory Interface
 ~~~~~~~~~~~~~~~~
@@ -164,3 +164,46 @@ The **interrupt interface** is composed by only one channel that will be connect
      - Signals that the CPU is going to execute the interrupt handler
 
 .. note:: The *mtime* and *mtimecmp* registers defined by RISC-V are not included in the core, they must be implemented in the system and treated as MMIO devices.
+
+
+Trace Interface
+~~~~~~~~~~~~~~~
+
+The **trace interface** serves as an optional communication channel that offers insights into instructions being written back. This interface connects to a custom output block, specifically designed to process the *trace packets*.
+
+.. list-table:: Interrupt Channel Signals
+   :widths: 25 15 15 40
+   :header-rows: 1
+
+   * - Name 
+     - Width
+     - Direction
+     - Description
+   * - **valid** 
+     - 1 
+     - OUT
+     - Instruction is currently being written back
+   * - **stall** 
+     - 1 
+     - IN
+     - Stall request from the output block
+   * - **address** 
+     - 32 
+     - OUT
+     - Instruction address
+   * - **destination** 
+     - 5 
+     - OUT
+     - Instruction destination registers
+   * - **result** 
+     - 32 
+     - OUT 
+     - Instruction result
+   * - **info**
+     - 5
+     - OUT 
+     - Instruction informations
+
+This output block is a specialized IP (Intellectual Property) tailored to the needs of the system. Its primary function is to register incoming trace packets. Once registered, it can then convey these packets, typically through a serialized output to a terminal. This serialized output mechanism is commonly realized using a combination of a buffer and a serial I/O interface, such as UART.
+
+It's possible to extract additional informations by monitoring the load and store channels, capturing details about memory addresses as well as data being written or loaded. This snooping capability provides a more detailed view of the CPU trace.
