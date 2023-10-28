@@ -1,4 +1,4 @@
-`include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
+`include "../Hardware/Include/Interfaces/bus_interface.sv"
 `include "../Hardware/Include/Headers/apogeo_memory_map.svh"
 
 `include "instruction_memory.sv"
@@ -183,7 +183,7 @@ module directed_pipeline_test;
 
 
             branch_jump_number += dut.executed;
-            misprediction_number += dut.apogeo_frontend.mispredicted;
+            misprediction_number += dut.apogeo_frontend.mispredicted_o;
 
             `ifdef TRACER 
                 if (dut.apogeo_backend.writeback_o) begin

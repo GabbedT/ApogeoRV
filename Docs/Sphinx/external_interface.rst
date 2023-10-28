@@ -12,7 +12,7 @@ The memory interface has 3 channels, those are active at the same time, it's cru
 Fetch Channel 
 -------------
 
-.. note:: The following nets are relatives to the SytemVerilog interface: `fetch_interface` defined in `bus_controller_interface.sv`
+.. note:: The following nets are relatives to the SytemVerilog interface: `fetch_interface` defined in `bus_interface.sv`
 
 The **fetch channel** is responsable to bring instructions from memory to the CPU. Here it's important to have a really high throughput rather than low latency, so ideally this channel should be independent 
 from the other ones and should operate without any interruptions. 
@@ -56,7 +56,7 @@ Load Channel
 
 The **load channel** is responsable to bring data from memory to the CPU. Here it's important to have a really low latency, because of the pipeline stalls caused by hazards on data wait.
 
-.. note:: The following nets are relatives to the SytemVerilog interface: `load_interface` defined in `bus_controller_interface.sv`
+.. note:: The following nets are relatives to the SytemVerilog interface: `load_interface` defined in `bus_interface.sv`
 
 .. list-table:: Load Channel Signals
    :widths: 25 15 15 40
@@ -93,7 +93,7 @@ Store Channel
 
 The **store channel** is responsable to store data inside the memory. Here it's important to have a really low latency, because of the pipeline stalls caused by the store buffer becoming full.
 
-.. note:: The following nets are relatives to the SytemVerilog interface: `store_interface` defined in `bus_controller_interface.sv`
+.. note:: The following nets are relatives to the SytemVerilog interface: `store_interface` defined in `bus_interface.sv`
 
 .. list-table:: Store Channel Signals
    :widths: 25 15 15 40

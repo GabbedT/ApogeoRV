@@ -3,7 +3,7 @@
 
 //  `define DIRECTED_TEST 
 
-`include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
+`include "../Hardware/Include/Interfaces/bus_interface.sv"
 
 `include "riscv_test_suite.sv"
 

@@ -46,7 +46,7 @@
 `include "../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
 `include "../Include/Interfaces/store_buffer_interface.sv"
-`include "../Include/Interfaces/bus_controller_interface.sv"
+`include "../Include/Interfaces/bus_interface.sv"
 
 module store_buffer #(
     /* Number of entries contained */

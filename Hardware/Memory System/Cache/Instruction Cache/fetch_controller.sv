@@ -4,7 +4,7 @@
 `include "../../../Include/Packages/apogeo_pkg.sv"
 `include "../../../Include/Packages/cache_pkg.sv"
 
-`include "../../../Include/Interfaces/bus_controller_interface.sv"
+`include "../../../Include/Interfaces/bus_interface.sv"
 
 module fetch_controller #(
     /* Cache block words */ 

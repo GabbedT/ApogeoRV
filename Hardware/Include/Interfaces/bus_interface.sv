@@ -1,5 +1,5 @@
-`ifndef BUS_CONTROLLER_INTERFACE_SV
-    `define BUS_CONTROLLER_INTERFACE_SV
+`ifndef BUS_INTERFACE_SV
+    `define BUS_INTERFACE_SV
 
 `include "../Headers/apogeo_configuration.svh"
 

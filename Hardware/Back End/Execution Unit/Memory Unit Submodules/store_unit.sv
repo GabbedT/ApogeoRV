@@ -47,7 +47,7 @@
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../../../Include/Interfaces/bus_controller_interface.sv"
+`include "../../../Include/Interfaces/bus_interface.sv"
 `include "../../../Include/Interfaces/store_buffer_interface.sv"
 
 `include "../../../Include/test_include.svh"

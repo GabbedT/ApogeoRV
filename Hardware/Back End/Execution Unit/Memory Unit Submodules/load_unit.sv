@@ -46,7 +46,7 @@
 `include "../../../Include/Packages/apogeo_operations_pkg.sv"
 `include "../../../Include/Packages/Execution Unit/control_status_registers_pkg.sv"
 
-`include "../../../Include/Interfaces/bus_controller_interface.sv"
+`include "../../../Include/Interfaces/bus_interface.sv"
 `include "../../../Include/Interfaces/store_buffer_interface.sv"
 
 module load_unit (

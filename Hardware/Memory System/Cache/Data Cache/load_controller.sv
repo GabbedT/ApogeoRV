@@ -6,7 +6,7 @@
 
 `include "../../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../../../Include/Interfaces/bus_controller_interface.sv"
+`include "../../../Include/Interfaces/bus_interface.sv"
 
 module load_controller #(
     /* Cache block */

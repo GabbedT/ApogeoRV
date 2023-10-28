@@ -37,7 +37,7 @@
 `include "Back End/back_end.sv"
 `include "Front End/front_end.sv"
 
-`include "Include/Interfaces/bus_controller_interface.sv"
+`include "Include/Interfaces/bus_interface.sv"
 
 `include "../Include/Headers/apogeo_configuration.svh"
 

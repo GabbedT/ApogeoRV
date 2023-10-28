@@ -1,7 +1,7 @@
 `ifndef BOARD_INCLUDE_SV
     `define BOARD_INCLUDE_SV
 
-`include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
+`include "../Hardware/Include/Interfaces/bus_interface.sv"
 
 `include "../Hardware/Include/Headers/apogeo_configuration.svh"
 `include "../Hardware/Include/Headers/apogeo_memory_map.svh"

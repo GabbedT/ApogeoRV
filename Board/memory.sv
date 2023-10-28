@@ -1,7 +1,7 @@
 `ifndef MEMORY_INCLUDE_SV
     `define MEMORY_INCLUDE_SV
 
-`include "../Hardware/Include/Interfaces/bus_controller_interface.sv"
+`include "../Hardware/Include/Interfaces/bus_interface.sv"
 
 `include "../Hardware/Include/Headers/apogeo_configuration.svh"
 
