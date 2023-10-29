@@ -116,8 +116,8 @@ to system designers who can customize their own memory map on top of the existin
 
 .. image:: source/images/Memory_Map.png
 
-Boot Region (Starts at `0x00000000`)
-____________________________________
+Boot Region
+___________
 
 This is the initial point of CPU execution following a reset. The program counter is automatically set to `0x00000000`, marking the location of the **boot program**. Typically, this program is responsible for initializing registers, CSRs, and system hardware.
 
