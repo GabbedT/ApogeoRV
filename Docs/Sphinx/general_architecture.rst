@@ -114,7 +114,7 @@ Memory Map
 The CPU's memory map has a simplified structure with predefined memory regions, each having specific characteristics. This simplicity helps keep the CPU hardware straightforward and provides flexibility 
 to system designers who can customize their own memory map on top of the existing structure. The regions are predefined but their size can be modified by modifying the parameters inside the `apogeo_memory_map.svh` file. 
 
-.. image:: source/images/Memory Map.png
+.. image:: source/images/Memory_Map.png
 
 Boot Region (Starts at `0x00000000`)
 ____________________________________
