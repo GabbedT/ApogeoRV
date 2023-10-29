@@ -111,26 +111,39 @@ While it's completely feasible to design a processor with only these 4 pipeline 
 Memory Map
 ----------
 
-The CPU's memory map is a simplified structure with predefined memory regions, each having specific characteristics. This simplicity helps keep the CPU hardware straightforward and provides flexibility 
-to system designers who can customize their own memory map on top of the existing structure. The regions are predefined but their size can be modified by modifying the parameters 
-inside the `apogeo_memory_map.svh` file. 
+The CPU's memory map has a simplified structure with predefined memory regions, each having specific characteristics. This simplicity helps keep the CPU hardware straightforward and provides flexibility 
+to system designers who can customize their own memory map on top of the existing structure. The regions are predefined but their size can be modified by modifying the parameters inside the `apogeo_memory_map.svh` file. 
 
-Starting from `0x00000000` there is the **Boot Region**, This is where the CPU begins execution after a reset. The program counter is set to `0x00000000`, here is located the **boot program**. The main task of this program is usually 
-to initialize registers, CSRs, system hardware etc. 
+.. image:: source/images/Memory Map.png
 
-.. warning:: This region is only accessable by **M mode code**. A store instruction inside the region boundaries will result in a **store access fault** exception.
+Boot Region (Starts at `0x00000000`)
+____________________________________
 
-After the Boot Region, the **Private Region** is found. This region encloses a portion of **general-purpose memory** and the **IO Region**. 
+This is the initial point of CPU execution following a reset. The program counter is automatically set to `0x00000000`, marking the location of the **boot program**. Typically, this program is responsible for initializing registers, CSRs, and system hardware.
 
-.. warning:: This entire region is only accessable by **M mode code**.
+.. warning:: Any attempt to execute a store instruction in this region will trigger a **store access fault** exception.
 
-The **IO Region** is located at the lowest address of the Private Region, here all the **MMIO (Memory Mapped Input Output) Registers** reside and can be accessed by load and stores instructions. 
+IO Region
+_________
 
-.. warning:: Memory operations inside IO Region must not be cached!
+Positioned at the lowest address of the Private Region, the IO Region houses the **MMIO (Memory Mapped Input Output) Registers**. These can be interfaced through load and store instructions.
 
-After the IO Region, a general purpouse privileged memory region is found. Here code and data can be stored and accessed freely. It is typically used by privileged software components.
+.. warning:: Memory operations within the IO Region should never be cached!
 
-The last is the unprivileged general purpouse memory region or **User Memory Region**. This is intended for user mode (U mode) code and data. It allows for the storage and retrieval of user-level programs and data.
+Privileged General Purpose Memory Region
+________________________________________
+
+Following the IO Region is a versatile privileged memory space. It's a flexible storage area for both code and data and is used by privileged software components.
+
+Private Region Overview
+_______________________
+
+The **Private Region** is exclusively accessible by M-level code. It stretches from the beginning of the Boot Region to a programmer-specified address. It encapsulates the three previously described memory regions, aligning them in **contiguous addresses**.
+
+User Memory Region
+__________________
+
+Lastly, we have the **User Memory Region**. It can be accessed by user mode (U mode) operations, this region is designed for the storage and execution of user-level code and data.
 
 
 Input Output
