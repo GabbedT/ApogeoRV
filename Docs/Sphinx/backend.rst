@@ -15,7 +15,6 @@ The backend tasks are:
 5. **Generating signals to control the pipeline**: Stalling, flushing, signals to advert that specific instructions have been executed etc.
 
 .. image:: source/images/Backend.png
-    :scale: 150%
 
 Bypass Stage 
 ------------
