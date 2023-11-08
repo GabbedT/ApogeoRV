@@ -10,7 +10,7 @@ you will learn the microarchitectural and architectural details, the design choi
 
 .. important:: *This is an academic project, it doesn't aim to replace any of the already existing CPUs*, however it can be perfectly used in any open source project as a main scalar core. 
 
-**ApogeoRV** is a synthesizable RISC-V core. It aim to offer high performance with low power and low footprint and high flexibility 
+**ApogeoRV** is a synthesizable RISC-V core. It aim to offer high performance with low power, low footprint and high flexibility 
 thanks to the various synthesis configuration parameters.  
 
 Features 
