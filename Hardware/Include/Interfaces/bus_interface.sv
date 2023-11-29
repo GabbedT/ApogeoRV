@@ -76,6 +76,9 @@ interface load_interface();
     /* Data supplied from memory valid bit */
     logic valid;
 
+    /* Invalidate all the requests */
+    logic invalidate;
+
 
 //=========================================================
 //      MODPORTS 
@@ -86,12 +89,14 @@ interface load_interface();
         input valid,
 
         output address,
-        output request
+        output request,
+        output invalidate
     ); 
 
     modport slave (
         input address,
         input request,
+        input invalidate,
 
         output data,
         output valid
