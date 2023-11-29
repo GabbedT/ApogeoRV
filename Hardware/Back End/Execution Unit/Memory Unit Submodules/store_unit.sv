@@ -187,7 +187,10 @@ module store_unit #(
 
     store_buffer_interface buffer_channel();
 
-    logic fsm_match;
+    logic fsm_match; logic [4:0] byte_shift; logic [3:0] halfword_shift;
+
+    assign byte_shift = store_address_i[1:0] << 3;
+    assign halfword_shift = store_address_i[0] << 4;
     
         always_comb begin
             /* Default values */
@@ -244,11 +247,18 @@ module store_unit #(
                     end
 
                     /* Stable signals */
-                    store_data_NXT = store_data_i;
                     store_address_NXT = store_address_i;
                     store_width_NXT = store_width_t'(operation_i);
 
-                    buffer_channel.packet = {store_data_i, store_address_i, store_width_t'(operation_i)};
+                    case (store_width_t'(operation_i))
+                        WORD: store_data_NXT = store_data_i;
+
+                        HALF_WORD: store_data_NXT = store_data_i << halfword_shift;
+
+                        BYTE: store_data_NXT = store_data_i << byte_shift;
+                    endcase 
+
+                    buffer_channel.packet = {store_data_NXT, store_address_i, store_width_t'(operation_i)};
                 end
 
 
