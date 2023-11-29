@@ -217,6 +217,7 @@ module load_unit (
             state_NXT = state_CRT;
 
             load_channel.request = 1'b0;
+            load_channel.invalidate = 1'b0;
             load_channel.address = load_address; 
             
             idle_o = 1'b0;
@@ -270,6 +271,10 @@ module load_unit (
                         state_NXT = IDLE;
 
                         data_selected = foward_data_i;
+
+                        /* Invalidate the request made to not receive the 
+                         * valid signal which could interfere with the next loads */
+                        load_channel.invalidate = 1'b1;
 
                         idle_o = 1'b1;
                         data_valid_o = 1'b1;

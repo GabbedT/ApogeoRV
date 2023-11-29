@@ -363,8 +363,10 @@ module ApogeoRV #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 load_channel.request <= 1'b0;
+                load_channel.invalidate <= 1'b0;
             end else begin
                 load_channel.request <= load_channel_backend.request;
+                load_channel.invalidate <= load_channel_backend.invalidate;
             end
         end
 
