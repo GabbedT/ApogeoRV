@@ -60,7 +60,10 @@ module front_end #(
 
     /* Number of clock cycles to get an instruction 
      * from memory once requested */
-    parameter INSTRUCTION_BUFFER_SIZE = 8
+    parameter INSTRUCTION_BUFFER_SIZE = 8,
+
+    /* Reorder Buffer entries */
+    parameter ROB_DEPTH = 32
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -618,7 +621,7 @@ module front_end #(
 //      ISSUE STAGE
 //====================================================================================
 
-    scheduler scheduler_unit (
+    scheduler #(ROB_DEPTH) scheduler_unit (
         .clk_i            ( clk_i            ),  
         .rst_n_i          ( rst_n_i          ), 
         .stall_i          ( stall_i          ),

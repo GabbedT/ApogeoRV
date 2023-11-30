@@ -61,7 +61,10 @@
 
 module back_end #(
     /* Number of entries in the store buffer */
-    parameter STORE_BUFFER_SIZE = 8
+    parameter STORE_BUFFER_SIZE = 8,
+
+    /* Reorder Buffer entries */
+    parameter ROB_DEPTH = 32
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -430,7 +433,7 @@ module back_end #(
     logic reorder_buffer_empty;
     rob_entry_t writeback_packet;
 
-    reorder_buffer rob (
+    reorder_buffer #(ROB_DEPTH) rob (
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_o        ),

@@ -62,7 +62,10 @@
 `include "register_file.sv"
 `include "scheduler.sv"
 
-module scheduler (
+module scheduler #(
+    /* Reorder Buffer entries */
+    parameter ROB_DEPTH = 32
+) (
     input logic clk_i, 
     input logic rst_n_i, 
     input logic stall_i,
@@ -235,7 +238,7 @@ module scheduler (
         end 
 
 
-    logic [5:0] generated_tag;
+    logic [$clog2(ROB_DEPTH) - 1:0] generated_tag;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : tag_counter
             if (!rst_n_i) begin
@@ -269,8 +272,13 @@ module scheduler (
     assign ipacket_o.exception_generated = exception_generated_i; 
     assign ipacket_o.exception_vector = exception_vector_i; 
     assign ipacket_o.instr_addr = instr_address_i;
-    assign ipacket_o.rob_tag = generated_tag;
     assign ipacket_o.reg_dest = dest_reg_i;
+
+    /* Avoid Xs due to the ROB_DEPTH parameter */
+    always_comb begin 
+        ipacket_o.rob_tag = '0;
+        ipacket_o.rob_tag = generated_tag;
+    end 
 
 endmodule : scheduler 
 

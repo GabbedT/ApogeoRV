@@ -48,14 +48,17 @@
 
 `include "../Include/Headers/apogeo_configuration.svh"
 
-module reorder_buffer (
+module reorder_buffer #(
+    /* Reorder Buffer entries */
+    parameter ROB_DEPTH = 32
+) (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
     input logic stall_i,
 
     /* ROB address */
-    input logic [5:0] tag_i,
+    input logic [$clog2(ROB_DEPTH) - 1:0] tag_i,
 
     /* Reorder buffer entry from memory
      * and computation unit */
@@ -81,7 +84,7 @@ module reorder_buffer (
 
     /* To avoid writing multiple times the same result, check if the tag that is being written 
      * is the same of the previous clock cycle */ 
-    logic [5:0] previous_tag;
+    logic [$clog2(ROB_DEPTH) - 1:0] previous_tag;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
@@ -99,15 +102,15 @@ module reorder_buffer (
     /* Write pointers are managed by the decode logic, read pointers
      * are managed indirectly by the write back logic by asserting the
      * read command. */
-    logic [5:0] read_ptr, read_ptr_incremented;
+    logic [$clog2(ROB_DEPTH) - 1:0] read_ptr, read_ptr_incremented;
 
     assign read_ptr_incremented = read_ptr + 1'b1;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                read_ptr <= 6'b0;
+                read_ptr <= '0;
             end else if (flush_i) begin 
-                read_ptr <= 6'b0;
+                read_ptr <= '0;
             end else if (read_i & !stall_i) begin
                 read_ptr <= read_ptr_incremented;
             end
@@ -115,15 +118,15 @@ module reorder_buffer (
 
 
     /* Pointer to keep track of the instructions currently in the ROB */
-    logic [5:0] write_ptr, write_ptr_incremented;
+    logic [$clog2(ROB_DEPTH) - 1:0] write_ptr, write_ptr_incremented;
 
     assign write_ptr_incremented = write_ptr + 1'b1;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                write_ptr <= 6'b0;
+                write_ptr <= '0;
             end else if (flush_i) begin 
-                write_ptr <= 6'b0;
+                write_ptr <= '0;
             end else if (write & !stall_i) begin
                 write_ptr <= write_ptr_incremented;
             end
@@ -160,10 +163,10 @@ module reorder_buffer (
 //      MEMORY LOGIC
 //====================================================================================
 
-    logic [$bits(rob_entry_t) - 1:0] reorder_buffer[63:0]; 
+    logic [$bits(rob_entry_t) - 1:0] reorder_buffer [ROB_DEPTH - 1:0]; 
 
     initial begin
-        for (int i = 0; i < 64; ++i) begin
+        for (int i = 0; i < ROB_DEPTH; ++i) begin
             reorder_buffer[i] = '0;
         end
     end
@@ -177,7 +180,7 @@ module reorder_buffer (
     assign entry_o = reorder_buffer[read_ptr];
 
 
-    logic [63:0] valid;
+    logic [ROB_DEPTH - 1:0] valid;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin

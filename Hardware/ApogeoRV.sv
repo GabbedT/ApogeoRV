@@ -52,7 +52,10 @@ module ApogeoRV #(
     parameter STORE_BUFFER_SIZE = 4, 
 
     /* Maximum number of instruction held by the buffer */
-    parameter INSTRUCTION_BUFFER_SIZE = 8
+    parameter INSTRUCTION_BUFFER_SIZE = 8,
+
+    /* Reorder Buffer entries */
+    parameter ROB_DEPTH = 32
 ) (
     input logic clk_i,
     input logic rst_n_i,
@@ -132,7 +135,7 @@ module ApogeoRV #(
 
     fetch_interface fetch_channel_frontend(); 
 
-    front_end #(PREDICTOR_SIZE, BTB_SIZE, INSTRUCTION_BUFFER_SIZE) apogeo_frontend (
+    front_end #(PREDICTOR_SIZE, BTB_SIZE, INSTRUCTION_BUFFER_SIZE, ROB_DEPTH) apogeo_frontend (
         .clk_i            ( clk_i           ),
         .rst_n_i          ( rst_n_i         ),
         .flush_i          ( flush_pipeline  ),
@@ -283,7 +286,7 @@ module ApogeoRV #(
 
     `ifdef TRACE trace_interface trace_channel_backend(); `endif 
 
-    back_end #(STORE_BUFFER_SIZE) apogeo_backend (
+    back_end #(STORE_BUFFER_SIZE, ROB_DEPTH) apogeo_backend (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
 
