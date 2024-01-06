@@ -280,7 +280,7 @@ Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. 
 ID CSRs
 ~~~~~~~
 
-CSRs like **mvendorid**, **marchid**, **mimpid** and **mhartid** privide a simple mechanism to identify the CPU core. They are all *read-only* registers and will return a 0 except for *marchid* CSR which will return 40 (check the `Official RISC-V List <https://github.com/riscv/riscv-isa-manual/blob/main/marchid.md>`). A read to that will return the value: **0x41504F47** (APOG in ASCII). 
+CSRs like **mvendorid**, **marchid**, **mimpid** and **mhartid** privide a simple mechanism to identify the CPU core. They are all *read-only* registers and will return a 0 except for *marchid* CSR which will return 40 (check the `Official RISC-V List <https://github.com/riscv/riscv-isa-manual/blob/main/marchid.md>`).
 
 
 Status CSR
