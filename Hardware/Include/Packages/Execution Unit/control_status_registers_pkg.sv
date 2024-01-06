@@ -29,10 +29,10 @@ package control_status_registers_pkg;
     localparam HPMCOUNTER6H = 12'hC86;
 
     /* Machine Information Registers */
-    localparam MVENDORID = 12'hF11;
-    localparam MARCHID = 12'hF12;
-    localparam MIMPID = 12'hF13;
-    localparam MHARTID = 12'hF14;
+    localparam MVENDORID = 12'h0;
+    localparam MARCHID = 12'd40;
+    localparam MIMPID = 12'h0;
+    localparam MHARTID = 12'h0;
 
     /* Machine Trap Setup */
     localparam MSTATUS = 12'h300;
