@@ -920,6 +920,18 @@ module control_status_registers (
                                         `ifdef CSR_DEBUG csr_name = "MHPMEVENT6"; `endif
                                     end
                                 endcase
+                            end else if (csr_address_i[7:3] == 5'b0000_1) begin 
+                                if (csr_address_i[2:0] == 3'b010) begin
+                                    csr_data_read_o = '0;
+
+                                    `ifdef CSR_DEBUG csr_name = "MENVCFG"; `endif
+                                end 
+                            end else if (csr_address_i[7:3] == 5'b0001_1) begin 
+                                if (csr_address_i[2:0] == 3'b010) begin
+                                    csr_data_read_o = '0;
+
+                                    `ifdef CSR_DEBUG csr_name = "MENVCFGH"; `endif
+                                end 
                             end else begin
                                 non_existing_csr = 1'b1;
                             end
