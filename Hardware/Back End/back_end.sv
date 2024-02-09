@@ -76,6 +76,10 @@ module back_end #(
     output logic priv_level_o,
     output logic pipeline_empty_o,
 
+    /* Scheduler interface */
+    input logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_i,
+    output logic stop_tag_o,
+
     /* Units enabled */
     output logic M_ext_o,
     `ifdef BMU output logic B_ext_o, `endif 
@@ -438,6 +442,9 @@ module back_end #(
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_o        ),
         .stall_i ( stall_pipeline ),
+
+        .tag_generated_i ( tag_generated_i ),
+        .stop_tag_o      ( stop_tag_o      ),
 
         .tag_i   ( reorder_buffer_tag    ),
         .entry_i ( reorder_buffer_packet ),

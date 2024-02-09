@@ -57,6 +57,10 @@ module reorder_buffer #(
     input logic flush_i,
     input logic stall_i,
 
+    /* Scheduler interface */
+    input logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_i,
+    output logic stop_tag_o,
+
     /* ROB address */
     input logic [$clog2(ROB_DEPTH) - 1:0] tag_i,
 
@@ -84,20 +88,19 @@ module reorder_buffer #(
 
     /* To avoid writing multiple times the same result, check if the tag that is being written 
      * is the same of the previous clock cycle */ 
-    logic [$clog2(ROB_DEPTH) - 1:0] previous_tag;
+    logic [$clog2(ROB_DEPTH) - 1:0] previous_tag; logic write; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 previous_tag <= '1;
             end else if (flush_i) begin 
                 previous_tag <= '1;
-            end else if (write_i) begin 
+            end else if (write_i & !full_o) begin 
                 previous_tag <= tag_i;
             end 
         end 
 
-
-    logic write; assign write = write_i & (previous_tag != tag_i);
+    assign write = write_i & (previous_tag != tag_i) & !full_o;
 
     /* Write pointers are managed by the decode logic, read pointers
      * are managed indirectly by the write back logic by asserting the
@@ -158,6 +161,9 @@ module reorder_buffer #(
                 endcase 
             end
         end : status_register
+
+    assign stop_tag_o = tag_generated_i == read_ptr;
+
 
 //====================================================================================
 //      MEMORY LOGIC

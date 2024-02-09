@@ -74,6 +74,10 @@ module front_end #(
     input logic pipeline_empty_i,
     output logic issue_o,
 
+    /* Scheduler interface */
+    output logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_o,
+    input logic stop_tag_i,
+
     /* Unit enabled */
     input logic M_ext_i, 
     `ifdef BMU input logic B_ext_i, `endif 
@@ -629,6 +633,9 @@ module front_end #(
         .branch_flush_i   ( branch_flush_i   ),
         .stall_o          ( stall            ),
         .pipeline_empty_i ( pipeline_empty_i ),
+
+        .tag_generated_o ( tag_generated_o ),
+        .stop_tag_i      ( stop_tag_i      ),
 
         `ifdef BRANCH_PREDICTOR
         .mispredicted_i   ( mispredicted     ),

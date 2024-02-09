@@ -75,6 +75,10 @@ module scheduler #(
     input logic pipeline_empty_i,
     output logic stall_o,
 
+    /* Scheduler interface */
+    output logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_o,
+    input logic stop_tag_i,
+
     /* Writeback data */
     input logic csr_writeback_i,
     input logic writeback_i,
@@ -254,6 +258,8 @@ module scheduler #(
             end
         end : tag_counter
 
+    assign tag_generated_o = generated_tag + 2;
+
 
 //====================================================================================
 //      OUTPUT LOGIC
@@ -265,7 +271,7 @@ module scheduler #(
     assign src_reg_o = src_reg_i; 
 
     /* If there's a dependency or fence is executed and pipeline is not empty then stall */
-    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i) | issued_csr_instruction;
+    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i) | issued_csr_instruction | stop_tag_i;
 
     /* Packet generation */
     assign ipacket_o.compressed = compressed_i; 
