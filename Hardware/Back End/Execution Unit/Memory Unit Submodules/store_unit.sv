@@ -187,10 +187,10 @@ module store_unit #(
 
     store_buffer_interface buffer_channel();
 
-    logic fsm_match; logic [4:0] byte_shift; logic [3:0] halfword_shift;
+    logic fsm_match; logic [4:0] byte_shift, halfword_shift;
 
     assign byte_shift = store_address_i[1:0] << 3;
-    assign halfword_shift = store_address_i[0] << 4;
+    assign halfword_shift = store_address_i[1] << 4;
     
         always_comb begin
             /* Default values */
