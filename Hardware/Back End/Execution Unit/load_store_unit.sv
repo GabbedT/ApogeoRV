@@ -119,10 +119,10 @@ module load_store_unit #(
 //      STORE UNIT
 //====================================================================================
 
-    logic stu_data_accepted, stu_illegal_access, stu_misaligned, stu_data_valid, ldu_data_valid, stu_foward_ipacket;
+    logic stu_data_accepted, stu_illegal_access, stu_misaligned, stu_data_valid, ldu_data_valid;
 
     /* Store buffer fowarding nets */
-    logic foward_address_match, ldu_wait_buffer;
+    logic foward_address_match, ldu_wait_buffer, ldu_wait;
     data_word_t foward_data; store_width_t ldu_load_size;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
@@ -138,6 +138,8 @@ module load_store_unit #(
         .store_address_i   ( address_i              ),
         .operation_i       ( operation_i.STU.opcode ),
         .wait_i            ( ldu_data_valid         ),
+        .ldu_idle_i        ( ldu_idle_o             ),
+        .ldu_wait_i        ( ldu_wait               ),
 
         .store_channel ( store_channel ),
 
@@ -152,8 +154,7 @@ module load_store_unit #(
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
         .misaligned_o     ( stu_misaligned     ),
-        .data_valid_o     ( stu_data_valid     ),
-        .foward_packet_o  ( stu_foward_ipacket )
+        .data_valid_o     ( stu_data_valid     )
     );
 
 
@@ -202,7 +203,7 @@ module load_store_unit #(
 //      LOAD UNIT
 //====================================================================================
     
-    logic ldu_misaligned_access, ldu_illegal_access, ldu_foward_ipacket;
+    logic ldu_misaligned_access, ldu_illegal_access;
     data_word_t loaded_data;
 
     load_unit ldu (
@@ -223,13 +224,14 @@ module load_store_unit #(
         .load_size_o    ( ldu_load_size            ),
 
         .buffer_wait_i  ( ldu_wait_buffer ),
+        .buffer_empty_i ( buffer_empty_o  ),
 
         .misaligned_o     ( ldu_misaligned_access ),
         .illegal_access_o ( ldu_illegal_access    ),
         .data_loaded_o    ( loaded_data           ),
         .idle_o           ( ldu_idle_o            ),
-        .data_valid_o     ( ldu_data_valid        ),
-        .foward_packet_o  ( ldu_foward_ipacket    ) 
+        .wait_o           ( ldu_wait              ),
+        .data_valid_o     ( ldu_data_valid        )
     ); 
 
     instr_packet_t ldu_ipacket, ldu_exception_packet;
@@ -258,11 +260,29 @@ module load_store_unit #(
 //      OUTPUT LOGIC
 //====================================================================================
 
-    assign data_valid_o = ldu_data_valid | stu_data_valid;
+    logic ldu_valid, stu_valid; logic [31:0] loaded_data_saved;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin 
+                ldu_valid <= 1'b0;
+                stu_valid <= 1'b0;
+
+                data_valid_o <= 1'b0;
+            end else begin 
+                ldu_valid <= ldu_data_valid;
+                stu_valid <= stu_data_valid;
+
+                data_valid_o <= ldu_data_valid | stu_data_valid;
+            end 
+        end 
+
+        always_ff @(posedge clk_i) begin
+            loaded_data_saved <= loaded_data;
+        end 
 
         /* Unit arbiter */
         always_comb begin
-            case ({ldu_data_valid, stu_data_valid})
+            case ({ldu_valid, stu_valid})
 
                 2'b00: begin
                     instr_packet_o = '0;
@@ -270,33 +290,18 @@ module load_store_unit #(
                 end
 
                 2'b10: begin
-                    if (ldu_foward_ipacket) begin
-                        instr_packet_o = ldu_exception_packet;
-                    end else begin 
-                        instr_packet_o = ldu_ipacket;
-                    end 
-
-                    data_o = loaded_data;
+                    instr_packet_o = ldu_ipacket;
+                    data_o = loaded_data_saved;
                 end
 
                 2'b01: begin
-                    if (stu_foward_ipacket) begin
-                        instr_packet_o = stu_exception_packet;
-                    end else begin 
-                        instr_packet_o = stu_ipacket;
-                    end 
-
+                    instr_packet_o = stu_ipacket;
                     data_o = '0;
                 end
 
                 2'b11: begin
-                    if (ldu_foward_ipacket) begin
-                        instr_packet_o = ldu_exception_packet;
-                    end else begin 
-                        instr_packet_o = ldu_ipacket;
-                    end 
-
-                    data_o = loaded_data;
+                    instr_packet_o = ldu_ipacket;
+                    data_o = loaded_data_saved;
                 end
 
             endcase

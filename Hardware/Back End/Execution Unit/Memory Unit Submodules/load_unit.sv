@@ -77,6 +77,7 @@ module load_unit (
 
     /* Status */
     input logic buffer_wait_i,
+    input logic buffer_empty_i,
     
     /* Data loaded from memory */   
     output data_word_t data_loaded_o,
@@ -89,13 +90,10 @@ module load_unit (
 
     /* Functional unit status */
     output logic idle_o,
+    output logic wait_o,
 
     /* Data is valid */
-    output logic data_valid_o,
-
-    /* Foward instruction packet instead of 
-     * waiting to be saved in a FF */
-    output logic foward_packet_o
+    output logic data_valid_o
 );
 
 //====================================================================================
@@ -184,6 +182,7 @@ module load_unit (
 
     assign illegal_access_o = !accessable & valid_operation_i; 
 
+
 //====================================================================================
 //      FSM LOGIC
 //====================================================================================
@@ -203,11 +202,15 @@ module load_unit (
         end : state_register
 
 
-    data_word_t data_saved; 
+    data_word_t data_saved; logic private_region_saved;
 
         always_ff @(posedge clk_i) begin
             if (load_channel.valid & stall_i) begin
                 data_saved <= load_channel.data; 
+            end
+
+            if (valid_operation_i) begin
+                private_region_saved <= private_region;
             end
         end
 
@@ -221,8 +224,8 @@ module load_unit (
             load_channel.address = load_address; 
             
             idle_o = 1'b0;
+            wait_o = 1'b0;
             data_valid_o = 1'b0;
-            foward_packet_o = 1'b0;
             slice_operation = '0;
             data_selected = '0;
             load_size_o = WORD;
@@ -237,15 +240,16 @@ module load_unit (
                  * unit issue a load request                  */ 
                 IDLE: begin
                     idle_o = 1'b1;
-                    foward_packet_o = 1'b1;
                     
                     if (valid_operation_i) begin
                         if (misaligned_o | illegal_access_o) begin
                             /* Exception */ 
                             data_valid_o = 1'b1; 
-                        end if (buffer_wait_i) begin
+                        end if (buffer_wait_i | private_region) begin
                             state_NXT = WAIT_MEMORY_UPDATE;
 
+                            /* Stop the STU to push other data */
+                            wait_o = private_region;
                             idle_o = 1'b0;
                         end else begin  
                             state_NXT = WAIT_MEMORY; 
@@ -290,10 +294,24 @@ module load_unit (
 
 
                 WAIT_MEMORY_UPDATE: begin
-                    if (!buffer_wait_i) begin
-                        load_channel.request = 1'b1;
+                    if (private_region_saved) begin
+                        /* Wait until the store buffer is empty to ensure no
+                         * memory conflicts during a protected memory access */
+                        if (buffer_empty_i) begin
+                            load_channel.request = 1'b1;
 
-                        state_NXT = WAIT_MEMORY; 
+                            state_NXT = WAIT_MEMORY; 
+                        end
+
+                        wait_o = 1'b1;
+                    end else begin
+                        /* Wait until the store buffer has resolved the dependency
+                         * by writing the data into the memory */
+                        if (!buffer_wait_i) begin
+                            load_channel.request = 1'b1;
+
+                            state_NXT = WAIT_MEMORY; 
+                        end
                     end
 
                     load_channel.address = load_address;

@@ -55,6 +55,7 @@ module store_buffer #(
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
+    output logic duplicate_o,
     
     store_buffer_interface.slave push_channel,
     store_interface.master pull_channel,
@@ -295,6 +296,17 @@ module store_buffer #(
                 end
             end 
         end 
+
+    logic [BUFFER_DEPTH - 1:0] duplicate;
+
+        always_comb begin
+            for (int i = 0; i < BUFFER_DEPTH; ++i) begin
+                duplicate[i] = (metadata_buffer[i].address[31:2] == push_channel.packet.address[31:2]) & foward_valid[i];
+            end
+        end
+
+    assign duplicate_o = duplicate != '0;
+
 
 
     logic [BUFFER_DEPTH - 1:0] address_match, width_match, foward_match, wait_match;

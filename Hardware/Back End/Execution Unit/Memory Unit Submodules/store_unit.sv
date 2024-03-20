@@ -78,6 +78,8 @@ module store_unit #(
     /* Data loaded is accepted and the 
      * STU can now transition in IDLE state */
     input logic wait_i,
+    input logic ldu_idle_i,
+    input logic ldu_wait_i,
 
     /* Memory controller store channel */
     store_interface.master store_channel,
@@ -103,11 +105,7 @@ module store_unit #(
     output logic misaligned_o, 
 
     /* Data is valid */
-    output logic data_valid_o,
-
-    /* Foward instruction packet instead of 
-     * waiting to be saved in a FF */
-    output logic foward_packet_o
+    output logic data_valid_o
 );
 
 //====================================================================================
@@ -170,7 +168,7 @@ module store_unit #(
 //      FSM LOGIC
 //====================================================================================
 
-    typedef enum logic [1:0] {IDLE, WAIT_BUFFER, WAIT_ACCEPT} store_unit_fsm_t;
+    typedef enum logic [1:0] {IDLE, WAIT_BUFFER, WAIT_ACCEPT, WAIT_LOAD_UNIT} store_unit_fsm_t;
 
     store_unit_fsm_t state_CRT, state_NXT;
 
@@ -187,7 +185,7 @@ module store_unit #(
 
     store_buffer_interface buffer_channel();
 
-    logic fsm_match; logic [4:0] byte_shift, halfword_shift;
+    logic fsm_match, buffer_duplicate; logic [4:0] byte_shift, halfword_shift;
 
     assign byte_shift = store_address_i[1:0] << 3;
     assign halfword_shift = store_address_i[1] << 4;
@@ -205,7 +203,6 @@ module store_unit #(
             idle_o = 1'b0;
             fsm_match = 1'b0;
             data_valid_o = 1'b0;
-            foward_packet_o = 1'b0; 
             illegal_access_o = !accessable; 
             misaligned_o = misaligned;
 
@@ -213,7 +210,6 @@ module store_unit #(
 
                 IDLE: begin
                     idle_o = 1'b1;
-                    foward_packet_o = 1'b1;
 
                     if (valid_operation_i) begin
                         if (!accessable | misaligned) begin
@@ -226,23 +222,34 @@ module store_unit #(
                                 idle_o = 1'b0;
                             end
                         end else begin 
-                            if (!buffer_channel.full) begin
+                            if (ldu_wait_i) begin
+                                /* Wait until the load unit exit the deadlock */
+                                state_NXT = WAIT_LOAD_UNIT;
+                            end else if (!buffer_channel.full & !private_region) begin
                                 data_valid_o = 1'b1;
                                 idle_o = 1'b1;
 
-                                if (wait_i) begin
+                                if (buffer_duplicate) begin 
+                                    /* Ensure that no duplicate addresses
+                                     * are found inside the store buffer */
+                                    state_NXT = WAIT_BUFFER;
+
+                                    idle_o = 1'b0;
+                                    data_valid_o = 1'b0;
+                                end else if (wait_i) begin
                                     state_NXT = WAIT_ACCEPT;
 
                                     idle_o = 1'b0;
                                 end 
+
+                                /* Don't push data if a duplicate is found */
+                                buffer_channel.request = !buffer_duplicate;
                             end else begin
-                                state_NXT = WAIT_BUFFER;
+                                /* No competing memory accesses if private region is accessed */
+                                state_NXT = private_region ? WAIT_LOAD_UNIT : WAIT_BUFFER;
 
                                 idle_o = 1'b0;
                             end
-                                        
-                            /* Don't push data if the buffer is full */
-                            buffer_channel.request = !buffer_channel.full;
                         end
                     end
 
@@ -262,13 +269,15 @@ module store_unit #(
                 end
 
 
+                /* Wait until the buffer is not full anymore or no duplicate are
+                 * found inside */
                 WAIT_BUFFER: begin
-                    buffer_channel.request = !buffer_channel.full; 
+                    buffer_channel.request = !buffer_channel.full & !buffer_duplicate; 
                     buffer_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
                     fsm_match = (foward_address_i == store_address_CRT) & (foward_width_i == store_width_CRT);
 
-                    if (!buffer_channel.full) begin 
+                    if (!buffer_channel.full & !buffer_duplicate) begin 
                         if (!wait_i) begin
                             state_NXT = IDLE;
 
@@ -281,6 +290,7 @@ module store_unit #(
                 end
 
 
+                /* Wait until the data is accepted from the commit unit */
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
 
@@ -293,6 +303,18 @@ module store_unit #(
                         idle_o = 1'b1;
                     end
                 end
+
+
+                /* Wait until the store buffer empties and the LDU exit the deadlock */
+                WAIT_LOAD_UNIT: begin
+                    if (ldu_idle_i) begin
+                        buffer_channel.request = 1'b1;
+
+                        state_NXT = WAIT_ACCEPT;
+                    end
+
+                    buffer_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
+                end
             endcase
         end 
 
@@ -301,12 +323,14 @@ module store_unit #(
 //      STORE BUFFER
 //====================================================================================
 
-    data_word_t buffer_foward_data; logic buffer_match, buffer_wait; 
+    data_word_t buffer_foward_data; logic buffer_match; 
 
     store_buffer #(STORE_BUFFER_SIZE) str_buffer (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
         .flush_i ( flush_i ),
+
+        .duplicate_o ( buffer_duplicate ),
     
         .push_channel ( buffer_channel ),
         .pull_channel ( store_channel  ),
