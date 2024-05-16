@@ -504,7 +504,6 @@ test_ ## testnum: \
   .result; \
   .popsection
 
-// TODO: assign a separate mem location for the comparison address?
 #define TEST_FP_OP_D32_INTERNAL( testnum, flags, result, val1, val2, val3, code... ) \
 test_ ## testnum: \
   li  TESTNUM, testnum; \
@@ -739,8 +738,6 @@ test_ ## testnum: \
   .double result; \
   .popsection
 
-// We need some special handling here to allow 64-bit comparison in 32-bit arch
-// TODO: find a better name and clean up when intended for general usage?
 #define TEST_CASE_D32( testnum, testreg1, testreg2, correctval, code... ) \
 test_ ## testnum: \
     code; \
