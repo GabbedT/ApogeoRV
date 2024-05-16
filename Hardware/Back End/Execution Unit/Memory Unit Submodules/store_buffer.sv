@@ -41,12 +41,12 @@
 `ifndef STORE_BUFFER_SV
     `define STORE_BUFFER_SV
 
-`include "../Include/Headers/apogeo_configuration.svh"
+`include "../../../Include/Headers/apogeo_configuration.svh"
 
-`include "../Include/Packages/Execution Unit/store_unit_pkg.sv"
+`include "../../../Include/Packages/Execution Unit/store_unit_pkg.sv"
 
-`include "../Include/Interfaces/store_buffer_interface.sv"
-`include "../Include/Interfaces/bus_interface.sv"
+`include "../../../Include/Interfaces/bus_interface.sv"
+`include "../../../Include/Interfaces/store_buffer_interface.sv"
 
 module store_buffer #(
     /* Number of entries contained */

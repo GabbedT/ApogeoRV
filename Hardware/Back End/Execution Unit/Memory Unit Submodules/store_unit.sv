@@ -52,6 +52,8 @@
 
 `include "../../../Include/test_include.svh"
 
+`include "store_buffer.sv"
+
 module store_unit #(
     /* Number of entries in the store buffer */
     parameter STORE_BUFFER_SIZE = 8
