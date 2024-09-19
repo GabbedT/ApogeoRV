@@ -79,7 +79,7 @@ module predictor_unit #(
     /* Control */
     logic push, pull;
 
-    assign push = predict_i & !stall_i;
+    assign push = predict_i;
 
     /* Write and read pointers */
     logic [$clog2(BUFFER_DEPTH) - 1:0] push_ptr, push_ptr_inc, pull_ptr, pull_ptr_inc;
