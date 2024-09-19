@@ -29,6 +29,9 @@ interface fetch_interface();
     /* Instruction is valid */
     logic valid; 
 
+    /* Instruction is valid */
+    logic stall; 
+
 
 //=========================================================
 //      MODPORTS 
@@ -36,6 +39,7 @@ interface fetch_interface();
 
     modport master (
         input valid,
+        input stall,
         input instruction,
 
         output fetch,
@@ -49,6 +53,7 @@ interface fetch_interface();
         input address,
 
         output valid,
+        output stall,
         output instruction
     );
 
