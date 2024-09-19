@@ -98,10 +98,8 @@ module instruction_buffer #(
                 speculative_write_ptr <= '0;
 
                 if (write_address_i) begin
-                    // speculative_write_ptr <= 'b1;
                     address_write_ptr <= 'b1;
                 end else begin
-                    // speculative_write_ptr <= '0;
                     address_write_ptr <= '0;
                 end
             end else begin 
