@@ -48,6 +48,8 @@ module branch_target_buffer #(
 ) (
     input logic clk_i, 
 
+    input logic valid_i,
+
     /* Current program counter */
     input data_word_t program_counter_i,
 
@@ -108,17 +110,18 @@ module branch_target_buffer #(
 //      OUTPUT LOGIC
 //====================================================================================
     
-    data_word_t saved_pc;
+    data_word_t saved_pc, saved_valid;
 
         always_ff @(posedge clk_i) begin
             saved_pc <= program_counter_i;
+            saved_valid <= valid_i;
         end 
 
 
     /* Predict indirect branches, direct branches do not need prediction */
     assign predict_o = hit_o;
 
-    assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid; 
+    assign hit_o = (buffer_read.tag == saved_pc[31:LOWER_BITS + 1]) & buffer_read.valid & saved_valid; 
 
     assign branch_target_addr_o = buffer_read.branch_target_address;
 
