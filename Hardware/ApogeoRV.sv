@@ -205,16 +205,19 @@ module ApogeoRV #(
                 fetch_channel.fetch <= 1'b0;
                 fetch_channel.invalidate <= 1'b0; 
             end else begin
-                fetch_channel.fetch <= fetch_channel_frontend.fetch;
+                fetch_channel.fetch <= fetch_channel_frontend.fetch & !fetch_channel.stall;
                 fetch_channel.invalidate <= fetch_channel_frontend.invalidate;
             end
         end
 
         always_ff @(posedge clk_i) begin 
-            fetch_channel.address <= fetch_channel_frontend.address; 
+            if (!fetch_channel.stall) begin
+                fetch_channel.address <= fetch_channel_frontend.address; 
+            end
         end
 
     assign fetch_channel_frontend.valid = fetch_channel.valid;  
+    assign fetch_channel_frontend.stall = fetch_channel.stall;  
     assign fetch_channel_frontend.instruction = fetch_channel.instruction;  
 
 
