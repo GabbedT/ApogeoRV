@@ -54,6 +54,8 @@ module branch_predictor #(
     input logic rst_n_i,
     input logic flush_i,
 
+    input logic valid_i,
+
     /* Current program counter */
     input data_word_t program_counter_i,
     input logic stall_i,
@@ -102,7 +104,8 @@ module branch_predictor #(
 //====================================================================================
 
     branch_target_buffer #(BTB_SIZE) btb_unit (
-        .clk_i                ( clk_i                ), 
+        .clk_i                ( clk_i                ),
+        .valid_i              ( valid_i ), 
         .program_counter_i    ( program_counter_i    ),
         .instr_address_i      ( instr_address_i      ),
         .branch_target_addr_i ( branch_target_addr_i ), 
