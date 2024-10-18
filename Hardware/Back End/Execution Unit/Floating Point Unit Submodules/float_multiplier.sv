@@ -215,6 +215,7 @@ module float_multiplier #(
     
     generate 
         if (CORE_STAGES != 0) begin 
+            /* Vivado IP */
             significand_multiplier significand_core_multiplier (
                 .CLK ( clk_i                         ),
                 .A   ( multiplicand_significand_stg0 ), 
@@ -234,6 +235,7 @@ module float_multiplier #(
             end 
 
         end else begin
+            /* Vivado IP */
             significand_multiplier significand_core_multiplier (
                 .A( multiplicand_significand_stg0 ), 
                 .B( multiplier_significand_stg0   ),  
