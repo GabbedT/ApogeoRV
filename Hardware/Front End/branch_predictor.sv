@@ -79,7 +79,7 @@ module branch_predictor #(
 //      PREDICTOR
 //====================================================================================
 
-    logic make_prediction, prediction, jump; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
+    logic make_prediction, prediction; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
 
     predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
         .clk_i          ( clk_i                ),   
