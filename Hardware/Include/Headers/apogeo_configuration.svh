@@ -22,9 +22,6 @@
     /* Enable floating point unit and Zfinx extension */
     `define FPU 
 
-    /* Enable or disable branch prediction */
-    `define BRANCH_PREDICTOR 
-
     /* Total number of entries NOT bytes */
 
     `define BRANCH_PREDICTOR_DEPTH 1024
