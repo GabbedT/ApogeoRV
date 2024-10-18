@@ -116,12 +116,10 @@ module decoder (
     logic [1:0] is_immediate_idec;
 
     /* Flags */
-    logic is_memory_idec, exc_gen_idec; 
+    logic exc_gen_idec; 
 
     /* Registers */
     logic [1:0][4:0] reg_src_idec; logic [4:0] reg_dest_idec;
-    
-    logic fence;
     
     /* Exception vector */
     logic [4:0] exc_vect_idec;

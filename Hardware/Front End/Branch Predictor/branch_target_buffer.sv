@@ -110,7 +110,7 @@ module branch_target_buffer #(
 //      OUTPUT LOGIC
 //====================================================================================
     
-    data_word_t saved_pc, saved_valid;
+    data_word_t saved_pc; logic saved_valid;
 
         always_ff @(posedge clk_i) begin
             saved_pc <= program_counter_i;
