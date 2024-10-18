@@ -283,7 +283,9 @@ module front_end #(
             if (!rst_n_i) begin 
                 jump_saved <= 1'b0;
             end else if (fetch_channel.stall) begin 
-                if (jumped) begin
+                if (jump_saved & mispredicted) begin 
+                    jump_saved <= 1'b0;
+                end else if (jumped) begin
                     jump_saved <= 1'b1;
                 end 
             end else begin
@@ -322,7 +324,7 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
                 program_counter <= -4;
-            end else if (jump_saved) begin
+            end else if (jump_saved & !mispredicted) begin
                 program_counter <= bta_saved - 4;
             end else if (fetch_channel.fetch | (jump_prv & fetch_prv & fetch_channel.stall)) begin
                 program_counter <= fetch_channel.address;
