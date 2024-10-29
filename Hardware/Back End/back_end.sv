@@ -524,12 +524,8 @@ module back_end #(
      * instruction is executed */
     assign flush_o = flush_pipeline | mreturn;
 
-    `ifdef BRANCH_PREDICTOR
     /* Flush if not speculative and branch is actually taken or is jump */
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
-    `else 
-    assign branch_flush_o = (branch_outcome_o | jump_o) & executed_o;
-    `endif 
 
     assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
 
