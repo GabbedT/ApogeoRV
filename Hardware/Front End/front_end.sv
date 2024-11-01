@@ -136,7 +136,7 @@ module front_end #(
 //      PC GENERATION STAGE
 //====================================================================================
 
-    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full;
+    logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full, mispredicted;
 
     logic jump_saved; logic [31:0] bta_saved;
 
@@ -163,7 +163,7 @@ module front_end #(
                 /* Load exception handler program counter
                  * it has maximum priority */
                 fetch_channel.address = handler_pc_i; 
-            end else if (jump_saved | mispredicted_saved) begin
+            end else if ((jump_saved & !mispredicted) | mispredicted_saved) begin
                 /* Select over a jump saved PC or the recovered PC from misprediction */
                 fetch_channel.address = jump_saved ? bta_saved : mispredicted_bta;
             end else if (handler_return_i) begin 
@@ -241,7 +241,7 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 jump_saved <= 1'b0;
-            end else if (fetch_channel.stall) begin 
+            end else if (fetch_channel.stall | ibuffer_full) begin 
                 if (jump_saved & mispredicted) begin 
                     jump_saved <= 1'b0;
                 end else if (jumped) begin
@@ -272,7 +272,7 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 mispredicted_saved <= 1'b0;
-            end else if (fetch_channel.stall) begin
+            end else if (fetch_channel.stall | ibuffer_full) begin
                 if (mispredicted) begin
                     mispredicted_saved <= 1'b1;
                 end
@@ -284,7 +284,7 @@ module front_end #(
     logic [31:0] mispredicted_bta;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (mispredicted & fetch_channel.stall) begin
+            if (mispredicted & (fetch_channel.stall | ibuffer_full)) begin
                 if (speculative_i & executed_i) begin
                     if (taken_i | jump_i) begin
                         mispredicted_bta <= branch_target_addr_i;
@@ -316,7 +316,7 @@ module front_end #(
                 program_counter <= mispredicted_bta - 4;
             end else if (jump_saved & !mispredicted) begin
                 program_counter <= bta_saved - 4;
-            end else if (fetch_channel.fetch | (jump_prv & fetch_prv & fetch_channel.stall)) begin
+            end else if (fetch_channel.fetch | (jump_prv & fetch_prv & (fetch_channel.stall | ibuffer_full))) begin
                 program_counter <= fetch_channel.address;
             end
         end : program_counter_register
