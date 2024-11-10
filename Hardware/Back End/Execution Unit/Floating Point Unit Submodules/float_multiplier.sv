@@ -134,7 +134,7 @@ module float_multiplier #(
                 /* An invalid exception is raised if one of the invalid combinations of operands is detected */
                 invalid_operation_stg0 <= invalid_operation;
                 result_zero_stg0 <= is_zero_A_i | is_zero_B_i; 
-                result_infinity_stg0 <= is_infinity_A_i | is_infinity_B_i; 
+                result_infinity_stg0 <= is_infinity_A_i | is_infinity_B_i | (result_exponent[7:0] == '1); 
 
                 result_exponent_stg0 <= result_exponent;
                 result_sign_stg0 <= result_sign; 
@@ -297,7 +297,7 @@ module float_multiplier #(
                 final_result.exponent = exponent_incremented[7:0];
 
                 /* If the MSB of the exponent is set it's an overflow */
-                if (exponent_incremented[8] & (input_exp_sign == '1)) begin 
+                if ((exponent_incremented[8] & (input_exp_sign == '1)) | (exponent_incremented[7:0] == '1)) begin 
                     overflow = 1'b1;
 
                     round_bits = '0;
