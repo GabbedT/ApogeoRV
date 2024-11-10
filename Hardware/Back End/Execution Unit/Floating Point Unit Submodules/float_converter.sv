@@ -224,7 +224,7 @@ module float_converter (
     round_bits_t round_bits; assign round_bits = {converted_significand[7:6], converted_significand[5:0] != '0};
 
 
-    float_t converted_float; logic [7:0] converted_exponent; logic [22:0] rounded_significand; logic carry;
+    float_t converted_float; logic [7:0] converted_exponent;
 
     /* If the integer is 0 then exponent is 0, otherwise add bias to the leading zeros count */
     assign converted_exponent = all_zero_stg0 ? '0 : (BIAS + shift_amount_stg0);
