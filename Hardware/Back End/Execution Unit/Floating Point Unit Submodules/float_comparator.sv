@@ -166,9 +166,9 @@ module float_comparator (
                 case ({is_nan_A_i, is_nan_B_i})
                     2'b00: special_result = '0;
 
-                    2'b01: special_result = operand_B_i;
+                    2'b01: special_result = operand_A_i;
 
-                    2'b10: special_result = operand_A_i;
+                    2'b10: special_result = operand_B_i;
 
                     2'b11: special_result = CANONICAL_NAN;
                 endcase
@@ -185,12 +185,29 @@ module float_comparator (
 
     /* The sign bit has priority over the exponent which has 
      * priority over the significand in the comparison */
-    logic A_equals_B, A_less_than_B, A_greater_than_B;
+    logic A_equals_B, A_less_than_B;
 
     assign A_equals_B = sign.equals & exponent.equals & significand.equals;
 
-    assign A_less_than_B = sign.less | (sign.equals & exponent.less) | (sign.equals & exponent.equals & significand.less);
+        always_comb begin
+            case ({operand_A_i.sign, operand_B_i.sign})
+                2'b00: begin
+                    A_less_than_B = exponent.less | (exponent.equals & significand.less);
+                end
 
+                2'b01: begin
+                    A_less_than_B = 1'b0;
+                end
+
+                2'b10: begin
+                    A_less_than_B = 1'b1;
+                end
+
+                2'b11: begin
+                    A_less_than_B = !exponent.less | (exponent.equals & !significand.less);
+                end
+            endcase 
+        end
 
     float_t result;
 
