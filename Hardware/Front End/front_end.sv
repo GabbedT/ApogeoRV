@@ -248,7 +248,7 @@ module front_end #(
                     jump_saved <= 1'b1;
                 end 
             end else begin
-                jump_saved <= 1'b0;
+                jump_saved <= jump_saved & (exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) & !speculative_i));
             end
         end 
 
@@ -318,7 +318,7 @@ module front_end #(
                 program_counter <= mispredicted_bta - 4;
             end else if (jump_saved & !mispredicted) begin
                 program_counter <= bta_saved - 4;
-            end else if (fetch_channel.fetch | (jump_prv & fetch_prv & (fetch_channel.stall | ibuffer_full))) begin
+            end else if (fetch_channel.fetch | (jump_prv & fetch_prv & !(fetch_channel.stall | ibuffer_full))) begin
                 program_counter <= fetch_channel.address;
             end
         end : program_counter_register
