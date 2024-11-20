@@ -170,13 +170,13 @@ module float_decoder (
                 exception_generated = instr_i.R.reg_src_2[4:1] != '0;
 
                 if (instr_i.R.reg_src_2[0]) begin
-                    build_fcvt_packet(FLOAT2INT, 1'b1);
-
-                    `ifdef FDECODER_DEBUG if (!exception_generated_o) print("FCVT.W.S"); `endif 
-                end else begin
                     build_fcvt_packet(FLOAT2INT, 1'b0);
 
                     `ifdef FDECODER_DEBUG if (!exception_generated_o) print("FCVT.WU.S"); `endif 
+                end else begin
+                    build_fcvt_packet(FLOAT2INT, 1'b1);
+
+                    `ifdef FDECODER_DEBUG if (!exception_generated_o) print("FCVT.W.S"); `endif 
                 end
             end
 
@@ -216,13 +216,13 @@ module float_decoder (
                 exception_generated = instr_i.R.reg_src_2[4:1] != '0;
 
                 if (instr_i.R.reg_src_2[0]) begin
-                    build_fcvt_packet(INT2FLOAT, 1'b1);
-
-                    `ifdef FDECODER_DEBUG if (!exception_generated_o) print("FCVT.S.W"); `endif  
-                end else begin
                     build_fcvt_packet(INT2FLOAT, 1'b0);
 
                     `ifdef FDECODER_DEBUG if (!exception_generated_o) print("FCVT.S.WU"); `endif  
+                end else begin
+                    build_fcvt_packet(INT2FLOAT, 1'b1);
+
+                    `ifdef FDECODER_DEBUG if (!exception_generated_o) print("FCVT.S.W"); `endif  
                 end
             end
         endcase 
