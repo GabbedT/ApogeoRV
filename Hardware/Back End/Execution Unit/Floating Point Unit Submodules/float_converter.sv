@@ -78,6 +78,10 @@ module float_converter (
 //      FLOAT TO INT LOGIC  
 //====================================================================================
 
+    localparam MAX_INT32 = (2 ** 31) - 1;
+    localparam MAX_UINT32 = (2 ** 32) - 1;
+    localparam MIN_INT32 = -(2 ** 31);
+
     logic hidden_bit;
 
     assign hidden_bit = operand_i.exponent != '0;
@@ -85,7 +89,7 @@ module float_converter (
     /* 7 bits instead of 8 because we are subtracting the bias (127), 
      * the unbiased exponent rapresent the significand right shift 
      * number */
-    logic [6:0] unbiased_exponent;
+    logic signed [7:0] unbiased_exponent;
 
     assign unbiased_exponent = operand_i.exponent - BIAS;
 
@@ -97,7 +101,7 @@ module float_converter (
 
 
     /* Stage nets coming from 0-th stage */
-    logic [31:0] significand_shifted_stg0; logic [6:0] unbiased_exponent_stg0; logic operand_sign_stg0, is_nan_stg0;
+    logic [31:0] significand_shifted_stg0; logic signed [7:0] unbiased_exponent_stg0; logic operand_sign_stg0, is_nan_stg0, is_signed_stg0;
 
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin
@@ -105,6 +109,7 @@ module float_converter (
                 unbiased_exponent_stg0 <= unbiased_exponent;
                 operand_sign_stg0 <= operand_i.sign;
                 is_nan_stg0 <= is_nan_i;
+                is_signed_stg0 <= is_signed_i;
             end
         end
 
@@ -118,23 +123,34 @@ module float_converter (
             underflow = 1'b0;
             overflow = 1'b0;
 
-            if (is_signed_i) begin 
+            if (is_signed_stg0) begin 
                 /* If the shift exceed the number of bits available
                  * in a signed 32 bit number */
-                if (unbiased_exponent_stg0 > 7'd31) begin
+                if (unbiased_exponent_stg0 >= 8'sd31) begin
                     if (operand_sign_stg0) begin 
                         /* If the sign of the float is negative, 
                          * the result is the maximum 32 bits signed 
                          * negative number */
-                        converted_integer = -(2 ** 31); 
+                        converted_integer = MIN_INT32; 
+
                         underflow = 1'b1;
                     end else begin
                         /* If the sign of the float is positive, 
                          * the result is the maximum 32 bits signed 
                          * positive number */
-                        converted_integer = (2 ** 31) - 1; 
+                        converted_integer = MAX_INT32; 
+
                         overflow = 1'b1;
-                    end       
+                    end
+                end else if (unbiased_exponent_stg0 < 8'sd0) begin
+                    /* When the exponent is negative, the absolute value of
+                     * the number is between 1.0 and 0.0. The corresponding 
+                     * integer is 0 */
+                    if (unbiased_exponent_stg0 == -8'sd128) begin
+                        converted_integer = operand_sign_stg0 ? MIN_INT32 : MAX_INT32;
+                    end else begin
+                        converted_integer = '0;   
+                    end 
                 end else begin
                     /* If the shift does not exceed, assign to the 
                      * result the shifted value complemented or not
@@ -148,21 +164,29 @@ module float_converter (
             end else begin
                 /* If the shift exceed the number of bits available
                  * in a unsigned 32 bit number */
-                if (unbiased_exponent_stg0 > 7'd32) begin
+                if (unbiased_exponent_stg0 >= 7'sd32) begin
                     if (operand_sign_stg0) begin 
-                        /* The result is zero */
+                        /* The result is zero, the max if it's a NaN */
                         converted_integer = '0;
+
                         underflow = 1'b1;
                     end else begin 
                         /* The result is the maximum 32 bits 
                         * unsigned number */
-                        converted_integer = (2 ** 32) - 1;  
+                        converted_integer = MAX_UINT32;  
+
                         overflow = 1'b1;  
                     end
+                end else if (unbiased_exponent_stg0 < 8'sd0) begin
+                    /* When the exponent is negative, the absolute value of
+                     * the number is between 1.0 and 0.0. The corresponding 
+                     * integer is 0. If it's -128 it means that the original
+                     * exponent was 255 (a NaN or Infinity)  */
+                    converted_integer = ((unbiased_exponent_stg0 == -8'sd128) & !operand_sign_stg0) ? MAX_UINT32 : '0;    
                 end else begin
                     /* If the shift does not exceed, assign to the 
                      * result the shifted value */
-                    converted_integer = significand_shifted_stg0;
+                    converted_integer = operand_sign_stg0 ? '0 : significand_shifted_stg0;
                 end
             end
         end : float_to_integer_conversion_logic
@@ -268,13 +292,13 @@ module float_converter (
                 end
 
                 FLOAT2INT: begin
-                    result_o = converted_integer;
+                    result_o = is_nan_stg0 ? '1 : converted_integer;
 
                     underflow_o = underflow;
                     overflow_o = overflow;
                     invalid_o = is_nan_stg0;
 
-                    round_bits_o = 1'b0; 
+                    round_bits_o = '0; 
                 end
             endcase
         end : output_logic
