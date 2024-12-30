@@ -58,6 +58,7 @@
 `include "reorder_buffer.sv"
 `include "writeback_stage.sv"
 `include "trap_manager.sv"
+`include "branch_resolver.sv"
 
 module back_end #(
     /* Number of entries in the store buffer */
@@ -170,7 +171,9 @@ module back_end #(
     data_word_t [1:0] execute_data, commit_data;
     logic [1:0] execute_valid, commit_valid;
 
-
+    /* Bypass logic ensure consistency by ensuring that the register
+     * carried along the pipeline has the updated value taken in the
+     * later stages */
     bypass_controller bypass (
         .issue_operand_i   ( operand_i            ),
         .issue_immediate_i ( immediate_valid_i    ),
@@ -181,9 +184,33 @@ module back_end #(
         .operand_o         ( fowarded_operands    )   
     );
 
+
+    logic branch_outcome;
+
+    /* Resolve the branch early to shorten the critical path */
+    branch_resolver branch_resolution_unit (
+        .operand_A_i ( fowarded_operands[0] ),
+        .operand_B_i ( fowarded_operands[1] ),
+
+        .operation_i ( operation_i.ITU.subunit.ALU.opcode ),
+
+        .outcome_o ( branch_outcome )
+    );
+
+
+        always_ff @(posedge clk_i) begin
+            if (!stall_o) begin 
+                branch_outcome_o <= branch_outcome;
+
+                /* Based on the jump type (relative or absolute) add to the offset the instruction address or the register
+                 * to form the branch target address */
+                branch_address_o <= (base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr) + address_offset_i;
+            end 
+        end
+
     
     exu_valid_t bypass_valid; instr_packet_t bypass_ipacket;
-    logic bypass_branch, bypass_jump, flush_pipeline;
+    logic bypass_branch, bypass_jump, bypass_executed; logic flush_pipeline;
     logic bypass_save_next_pc, bypass_base_address_reg, bypass_speculative;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bypass_stage_register
@@ -194,6 +221,7 @@ module back_end #(
                 bypass_save_next_pc <= 1'b0;
                 bypass_speculative <= 1'b0;
                 bypass_ipacket <= '0;
+                bypass_executed <= 0;
             end else if (flush_o | mispredicted_i | branch_flush_o) begin 
                 bypass_valid <= '0;
                 bypass_branch <= 1'b0;
@@ -201,6 +229,7 @@ module back_end #(
                 bypass_save_next_pc <= 1'b0;
                 bypass_speculative <= 1'b0;
                 bypass_ipacket <= '0;
+                bypass_executed <= 0;
             end else if (!stall_o) begin
                 bypass_valid <= data_valid_i;
                 bypass_branch <= branch_i;
@@ -208,39 +237,32 @@ module back_end #(
                 bypass_save_next_pc <= save_next_pc_i;
                 bypass_speculative <= speculative_i;
                 bypass_ipacket <= ipacket_i;
+                bypass_executed <= branch_i | jump_i;
             end 
         end : bypass_stage_register
 
 
     exu_uop_t bypass_operation;
     data_word_t [1:0] bypass_operands;
-    data_word_t bypass_address_offset, bypass_base_address;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
             if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
-
-                /* Branch / Memory address nets */
-                bypass_base_address <= base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr;
-                bypass_address_offset <= address_offset_i;
             end 
         end : bypass_operands_stage_register
 
     
     
     /* Control flow instruction has been executed */
-    assign executed_o = (bypass_branch | bypass_jump) & !stall_o;
+    assign executed_o = bypass_executed & !stall_o;
 
     /* Send instruction address and instruction type bit to recover from misprediction */
     assign instr_address_o = bypass_ipacket.instr_addr;
     assign compressed_o = bypass_ipacket.compressed;
 
-    /* Send BTA to update the PC */
-    assign branch_address_o = bypass_base_address + bypass_address_offset; 
 
-
-
+    /* Execution unit parameter */
     `ifdef FPU localparam EXU_PORT = 3; `else localparam EXU_PORT = 2; `endif 
 
     /* Instruction address of ROB entry */
@@ -263,7 +285,7 @@ module back_end #(
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
-    logic execute_store, branch_taken;
+    logic execute_store, ldu_idle, stu_idle;
 
     exu_valid_t valid_operation; 
 
@@ -314,18 +336,44 @@ module back_end #(
         .instruction_retired_i  ( instruction_retired    ),
         .compressed_i           ( instruction_compressed ),
 
-        .ldu_idle_o ( ldu_idle_o ),
-        .stu_idle_o ( stu_idle_o ),
+        .ldu_idle_o ( ldu_idle ),
+        .stu_idle_o ( stu_idle ),
 
-        .taken_o      ( branch_taken ),
         .result_o     ( result       ),
         .ipacket_o    ( ipacket      ),
         .data_valid_o ( valid        )
     );
 
+    /* Unit result data */
+    data_word_t [EXU_PORT - 1:0] result_sampled;
+    instr_packet_t [EXU_PORT - 1:0] ipacket_sampled;
+    logic [EXU_PORT - 1:0] valid_sampled;
+    logic ldu_idle_sampled, stu_idle_sampled;
 
-    /* If bit is set it's a branch taken */
-    assign branch_outcome_o = branch_taken;
+        always_ff @(posedge clk_i) begin
+            if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin
+                result_sampled <= result;
+                ipacket_sampled <= ipacket;
+            end 
+
+            ldu_idle_sampled <= ldu_idle;
+            stu_idle_sampled <= stu_idle;
+        end 
+
+        assign ldu_idle_o = ldu_idle & ldu_idle_sampled;
+        assign stu_idle_o = stu_idle & stu_idle_sampled;
+
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin 
+                valid_sampled <= '0;
+            end if (flush_o) begin
+                valid_sampled <= '0;
+            end else if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin
+                valid_sampled <= valid;
+            end 
+        end
+
 
     assign branch_o = bypass_branch;
     assign jump_o = bypass_jump;
@@ -339,22 +387,22 @@ module back_end #(
 
     generate
         for (i = 0; i < EXU_PORT; ++i) begin
-            assign dest_match[0][i] = ipacket[i].reg_dest == reg_src_i[0];
-            assign dest_match[1][i] = ipacket[i].reg_dest == reg_src_i[1];
+            assign dest_match[0][i] = ipacket_sampled[i].reg_dest == reg_src_i[0];
+            assign dest_match[1][i] = ipacket_sampled[i].reg_dest == reg_src_i[1];
         end
 
         `ifdef FPU 
 
         for (i = 0; i < 2; ++i) begin
-            assign execute_valid[i] = (dest_match[i][0] & valid[0]) | (dest_match[i][1] & valid[1]) | (dest_match[i][2] & valid[2]); 
+            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | (dest_match[i][1] & valid_sampled[1]) | (dest_match[i][2] & valid_sampled[2]); 
 
             always_comb begin 
                 case (dest_match[i])
-                    3'b001: execute_data[i] = result[0];
+                    3'b001: execute_data[i] = result_sampled[0];
 
-                    3'b010: execute_data[i] = result[1];
+                    3'b010: execute_data[i] = result_sampled[1];
 
-                    3'b100: execute_data[i] = result[2];
+                    3'b100: execute_data[i] = result_sampled[2];
 
                     default: execute_data[i] = '0;
                 endcase 
@@ -364,13 +412,13 @@ module back_end #(
         `else 
 
         for (i = 0; i < 2; ++i) begin
-            assign execute_valid[i] = (dest_match[i][0] & valid[0]) | (dest_match[i][1] & valid[1]); 
+            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | (dest_match[i][1] & valid_sampled[1]); 
 
             always_comb begin 
                 case (dest_match[i])
-                    3'b01: execute_data[i] = result[0];
+                    3'b01: execute_data[i] = result_sampled[0];
 
-                    3'b10: execute_data[i] = result[1];
+                    3'b10: execute_data[i] = result_sampled[1];
 
                     default: execute_data[i] = '0;
                 endcase 
@@ -396,9 +444,9 @@ module back_end #(
         .stall_i ( stall_pipeline ),
         .stall_o ( buffer_full    ),
 
-        .result_i     ( result ),
-        .ipacket_i    ( ipacket ),
-        .data_valid_i ( valid  ),
+        .result_i     ( result_sampled ),
+        .ipacket_i    ( ipacket_sampled ),
+        .data_valid_i ( valid_sampled  ),
 
         .rob_write_o ( rob_write  ),
         .rob_tag_o   ( rob_tag    ),
@@ -507,6 +555,12 @@ module back_end #(
 
     assign csr_writeback_o = execute_csr;
 
+    logic sleep_ff;
+
+        always_ff @(posedge clk_i) begin
+            sleep_ff <= core_sleep;
+        end
+
 
     trap_manager trap_controller (
         .clk_i     ( clk_i          ),
@@ -517,7 +571,7 @@ module back_end #(
 
         .interrupt_i  ( interrupt_i | timer_interrupt_i ),
         .exception_i  ( exception_generated             ),
-        .core_sleep_i ( core_sleep                      )
+        .core_sleep_i ( sleep_ff                      )
     ); 
 
     /* Flush frontend when an interrupt or an exception is detected, or if an handler return
