@@ -235,7 +235,7 @@ module scheduler #(
                 
                 if (csr_writeback_i) begin
                     issued_csr_instruction <= 1'b0; 
-                end else if (exu_valid_i.CSR) begin 
+                end else if (exu_valid_i.CSR & issue_instruction) begin 
                     issued_csr_instruction <= 1'b1; 
                 end 
             end
