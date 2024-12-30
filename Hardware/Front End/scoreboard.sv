@@ -84,23 +84,23 @@ module scoreboard (
      * the latencies must be increased by 1 */
 
     /* Valid for ALU and CSR */
-    localparam COMBINATIONAL = 1;
+    localparam ALU_LATENCY = 2;
 
-    localparam MUL_LATENCY = 5;
+    localparam MUL_LATENCY = 6;
 
-    localparam BMU_LATENCY = 2;
+    localparam BMU_LATENCY = 3;
 
-    localparam DIV_LATENCY = 36;
+    localparam DIV_LATENCY = 37;
 
-    localparam FADD_LATENCY = 6;
+    localparam FADD_LATENCY = 7;
 
-    localparam FMUL_LATENCY = 4;
+    localparam FMUL_LATENCY = 5;
 
-    localparam FCVT_LATENCY = 3;
+    localparam FCVT_LATENCY = 4;
 
-    localparam FCMP_LATENCY = 2;
+    localparam FCMP_LATENCY = 3;
 
-    localparam FMIS_LATENCY = 2;
+    localparam FMIS_LATENCY = 3;
 
     /* Check if the dispatched instruction is being issued in the next cycle */
     function bit issue_next_cycle(input bit unit_to_issue);
@@ -118,12 +118,12 @@ module scoreboard (
 
         always_comb begin : latency_assignment
             /* Integer unit */
-            if (itu_unit_i.MUL) begin
+            if (itu_unit_i.ALU | csr_unit_i) begin 
+                latency = ALU_LATENCY + 1; 
+            end else if (itu_unit_i.MUL) begin
                 latency = MUL_LATENCY + 1; 
             end else if (itu_unit_i.DIV) begin
                 latency = DIV_LATENCY + 1; 
-            end else if (itu_unit_i.ALU | csr_unit_i) begin
-                latency = COMBINATIONAL + 1;
             end `ifdef BMU else if (itu_unit_i.BMU) begin
                 latency = BMU_LATENCY + 1; 
             end `endif else begin
@@ -150,6 +150,84 @@ module scoreboard (
             `endif 
         end : latency_assignment
 
+
+//====================================================================================
+//      ALU SCHEDULING LOGIC
+//====================================================================================  
+
+    /* Select the bit manipulation stage */
+    logic [ALU_LATENCY - 1:0] alu_stage; 
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : alu_stage_selector
+            if (!rst_n_i) begin
+                alu_stage <= 1'b1;
+            end else if (flush_i) begin
+                alu_stage <= 1'b1;
+            end else if (!stall_i & issue_next_cycle(itu_unit_i.ALU)) begin
+                if (alu_stage[ALU_LATENCY - 1]) begin
+                    /* Wrap around the shifted bit */
+                    alu_stage <= 1'b1;
+                end else begin 
+                    /* Shift the bit every time an
+                     * operation arrives */
+                    alu_stage <= alu_stage << 1;
+                end 
+            end 
+        end : alu_stage_selector
+
+
+    /* Since ALU is a pipelined unit, the scoreboard needs to keep 
+     * track of every stage */
+    logic [ALU_LATENCY - 1:0] alu_executing, alu_raw_hazard, alu_latency_hazard;
+    logic [ALU_LATENCY - 1:0][31:0] alu_register_dest;
+    logic [ALU_LATENCY - 1:0][$clog2(ALU_LATENCY):0] alu_latency_cnt;
+
+    genvar i;
+
+    generate;
+
+        for (i = 0; i < ALU_LATENCY; ++i) begin 
+            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : alu_status_register
+                if (!rst_n_i) begin
+                    alu_latency_cnt[i] <= '0;
+                end else if (flush_i) begin
+                    alu_latency_cnt[i] <= '0;
+                end else if (!stall_i) begin 
+                    if (issue_next_cycle(itu_unit_i.ALU) & alu_stage[i]) begin
+                        /* If the current stage counter is selected 
+                         * load status */
+                        alu_latency_cnt[i] <= ALU_LATENCY;
+                    end else if (alu_latency_cnt[i] != '0) begin
+                        /* Keep decrementing the latency counter until the
+                         * unit produces a valid result */
+                        alu_latency_cnt[i] <= alu_latency_cnt[i] - 1'b1;
+                    end else begin
+                        /* The unit has finished */
+                        alu_latency_cnt[i] <= '0;
+                    end
+                end
+            end : alu_status_register
+
+            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : alu_destination_register
+                if (!rst_n_i) begin
+                    alu_register_dest[i] <= '0;
+                end else if (!stall_i) begin 
+                    if (issue_next_cycle(itu_unit_i.ALU) & alu_stage[i]) begin 
+                        alu_register_dest[i] <= dest_reg_i;
+                    end 
+                end
+            end : alu_destination_register
+
+            assign alu_executing[i] = (alu_latency_cnt[i] > 'd1);
+            
+            assign alu_raw_hazard[i] = ((src_reg_i[0] == alu_register_dest[i]) | (src_reg_i[1] == alu_register_dest[i]) | (dest_reg_i == alu_register_dest[i])) & 
+                                        alu_executing[i] & (alu_register_dest[i] != '0);
+
+            assign alu_latency_hazard[i] = (latency == alu_latency_cnt[i]) & alu_executing[i];
+
+        end
+
+    endgenerate
 
 //====================================================================================
 //      MUL SCHEDULING LOGIC
@@ -182,7 +260,7 @@ module scoreboard (
     logic [MUL_LATENCY - 1:0][31:0] mul_register_dest;
     logic [MUL_LATENCY - 1:0][$clog2(MUL_LATENCY) - 1:0] mul_latency_cnt;
 
-    generate genvar i;
+    generate
 
         for (i = 0; i < MUL_LATENCY; ++i) begin 
             always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mul_status_register
@@ -852,8 +930,8 @@ module scoreboard (
 
     logic raw_hazard, latency_hazard, structural_hazard;
 
-    assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
-    assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
+    assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
+    assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
     assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
 
 
@@ -864,7 +942,7 @@ module scoreboard (
     assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard | block_store_operation);
 
     /* If no unit is executing, then the pipeline is empty */
-    assign pipeline_empty_o = !((|mul_executing) | div_executing | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i) `ifdef FPU & fpu_empty `endif;
+    assign pipeline_empty_o = !((|mul_executing) | div_executing |(|alu_executing) | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i) `ifdef FPU & fpu_empty `endif;
 
 endmodule : scoreboard
 
