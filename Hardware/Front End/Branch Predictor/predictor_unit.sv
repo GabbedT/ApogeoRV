@@ -62,8 +62,8 @@ module predictor_unit #(
     input logic jump_i,
 
     /* Branch target address */
-    input data_word_t btb_address_i,
-    input data_word_t exu_address_i,
+    input logic [31:0] btb_address_i,
+    input logic [31:0] exu_address_i,
 
     /* Prediction outcome */
     output logic prediction_o,
@@ -131,7 +131,7 @@ module predictor_unit #(
     typedef struct packed {
         logic prediction; 
         logic [$clog2(TABLE_SIZE) - 1:0] index;
-        data_word_t target_address; 
+        logic [31:0] target_address; 
     } predictor_t;
 
     predictor_t fifo_read_data, fifo_write_data;
