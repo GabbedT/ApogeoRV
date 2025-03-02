@@ -227,7 +227,7 @@ module scheduler #(
             if (!rst_n_i) begin
                 issued_instructions <= 1'b0;
                 issued_csr_instruction <= 1'b0;
-            end else if (flush_i) begin
+            end else if (flush_i | branch_flush_i | mispredicted_i) begin
                 issued_instructions <= 1'b0;
                 issued_csr_instruction <= 1'b0;
             end else begin
