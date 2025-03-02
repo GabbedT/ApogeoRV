@@ -256,7 +256,7 @@ module front_end #(
             if (jumped & !jump_saved) begin
                 if (exception_i | interrupt_i) begin
                     bta_saved <= handler_pc_i;
-                end else if (hander_return_pc_i) begin
+                end else if (handler_return_i) begin
                     bta_saved <= hander_return_pc_i;
                 end else if (executed_i & (taken_i | jump_i) & !speculative_i) begin
                     bta_saved <= branch_target_addr_i;
