@@ -14,7 +14,7 @@
      *  NON WRITABLE (A store results in a NOP)
      */
     `define BOOT_START 32'h0000_0000
-    `define BOOT_END   `BOOT_START + `KILO(8)
+    `define BOOT_END   `BOOT_START + `KILO(16)
 
 
     /* 
