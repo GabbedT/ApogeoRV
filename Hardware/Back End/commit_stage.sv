@@ -99,9 +99,6 @@ module commit_stage #(
     data_word_t [EXU_PORT - 1:0][1:0] foward_data;
     logic [EXU_PORT - 1:0][1:0] foward_valid;
 
-    /* Register invalidation address */
-    logic [EXU_PORT - 1:0][4:0] invalid_address;
-    logic [EXU_PORT - 1:0] invalidate;
 
 //====================================================================================
 //      ITU COMMIT BUFFERS
@@ -116,30 +113,33 @@ module commit_stage #(
     assign result_write[ITU] = result_i[ITU];
     assign data_valid[ITU] = data_valid_i[ITU];
 
-    /* Invalidate the data if the other buffer is pushing a result
-     * as it is becoming the most recent data */
-    `ifdef FPU 
-        assign invalid_address[ITU] = (data_valid_i[FPU] ? ipacket_write[FPU].reg_dest : '0) | (data_valid_i[LSU] ? ipacket_write[LSU].reg_dest : '0);
-        assign invalidate[ITU] = data_valid[LSU] | data_valid[FPU]; 
-    `else 
-        assign invalid_address[ITU] = ipacket_write[LSU].reg_dest;
-        assign invalidate[ITU] = data_valid[LSU]; 
-    `endif 
-
     commit_buffer #(4) itu_buffer (
         .clk_i           ( clk_i                ),
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
         .write_i         ( data_valid_i[ITU]    ),
-        .push_i          ( data_valid_i[ITU]     ),
+        .push_i          ( data_valid_i[ITU]    ),
         .pop_i           ( pull_buffer[ITU]     ),
         .result_i        ( result_write[ITU]    ),
         .ipacket_i       ( ipacket_write[ITU]   ),
         .result_o        ( result_read[ITU]     ),
         .ipacket_o       ( ipacket_read[ITU]    ),
-        .invalidate_i    ( invalidate[ITU]      ),
-        .invalid_reg_i   ( invalid_address[ITU] ),
+
+        /* Invalidate the data if the other buffer is pushing a result
+         * as it is becoming the most recent data */
+        `ifdef FPU 
+
+        .invalidate_i    ( {data_valid[LSU], data_valid[FPU]}                         ),
+        .invalid_reg_i   ( {ipacket_write[LSU].reg_dest, ipacket_write[FPU].reg_dest} ),
+
+        `else 
+
+        .invalidate_i    ( data_valid[LSU]             ),
+        .invalid_reg_i   ( ipacket_write[LSU].reg_dest ),
+
+        `endif 
+
         .foward_src_i    ( foward_src_i         ),
         .foward_result_o ( foward_data[ITU]     ),
         .foward_valid_o  ( foward_valid[ITU]    ),
@@ -167,30 +167,33 @@ module commit_stage #(
     assign result_write[LSU] = result_i[LSU];
     assign data_valid[LSU] = data_valid_i[LSU]; 
 
-    /* Invalidate the data if the other buffer is pushing a result
-     * as it is becoming the most recent data */
-    `ifdef FPU 
-        assign invalid_address[LSU] = (data_valid_i[FPU] ? ipacket_write[FPU].reg_dest : '0) | (data_valid_i[ITU] ? ipacket_write[ITU].reg_dest : '0);
-        assign invalidate[LSU] = data_valid[ITU] | data_valid[FPU];
-    `else 
-        assign invalid_address[LSU] = ipacket_write[ITU].reg_dest;
-        assign invalidate[LSU] = data_valid[ITU];
-    `endif 
-
     commit_buffer #(4) lsu_buffer (
         .clk_i           ( clk_i                ),
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
         .write_i         ( data_valid_i[LSU]    ),
-        .push_i          ( data_valid_i[LSU]     ),
+        .push_i          ( data_valid_i[LSU]    ),
         .pop_i           ( pull_buffer[LSU]     ),
         .result_i        ( result_write[LSU]    ),
         .ipacket_i       ( ipacket_write[LSU]   ),
         .result_o        ( result_read[LSU]     ),
         .ipacket_o       ( ipacket_read[LSU]    ),
-        .invalidate_i    ( invalidate[LSU]      ),
-        .invalid_reg_i   ( invalid_address[LSU] ),
+        
+        /* Invalidate the data if the other buffer is pushing a result
+         * as it is becoming the most recent data */
+        `ifdef FPU 
+
+        .invalidate_i    ( {data_valid[ITU], data_valid[FPU]}                         ),
+        .invalid_reg_i   ( {ipacket_write[ITU].reg_dest, ipacket_write[FPU].reg_dest} ),
+
+        `else 
+
+        .invalidate_i    ( data_valid[ITU]             ),
+        .invalid_reg_i   ( ipacket_write[ITU].reg_dest ),
+
+        `endif 
+
         .foward_src_i    ( foward_src_i         ),
         .foward_result_o ( foward_data[LSU]     ),
         .foward_valid_o  ( foward_valid[LSU]    ),
@@ -215,25 +218,24 @@ module commit_stage #(
     assign result_write[FPU] = result_i[FPU];
     assign data_valid[FPU] = data_valid_i[FPU]; 
 
-    /* Invalidate the data if the other buffer is pushing a result
-     * as it is becoming the most recent data */
-    assign invalid_address[FPU] = (data_valid_i[ITU] ? ipacket_write[ITU].reg_dest : '0) | (data_valid_i[LSU] ? ipacket_write[LSU].reg_dest : '0);
-    assign invalidate[FPU] = push_buffer[ITU] | push_buffer[LSU]; 
-
     commit_buffer #(4) fpu_buffer (
         .clk_i           ( clk_i                ),
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
         .write_i         ( data_valid_i[FPU]    ),
-        .push_i          ( data_valid_i[FPU]     ),
+        .push_i          ( data_valid_i[FPU]    ),
         .pop_i           ( pull_buffer[FPU]     ),
         .result_i        ( result_write[FPU]    ),
         .ipacket_i       ( ipacket_write[FPU]   ),
         .result_o        ( result_read[FPU]     ),
         .ipacket_o       ( ipacket_read[FPU]    ),
-        .invalidate_i    ( invalidate[FPU]      ),
-        .invalid_reg_i   ( invalid_address[FPU] ),
+
+        /* Invalidate the data if the other buffer is pushing a result
+         * as it is becoming the most recent data */
+        .invalidate_i    ( {data_valid[ITU], data_valid[LSU]}                         ),
+        .invalid_reg_i   ( {ipacket_write[ITU].reg_dest, ipacket_write[LSU].reg_dest} ),
+
         .foward_src_i    ( foward_src_i         ),
         .foward_result_o ( foward_data[FPU]     ),
         .foward_valid_o  ( foward_valid[FPU]    ),
@@ -378,7 +380,7 @@ module commit_stage #(
 
             for (int i = 0; i < 2; ++i) begin 
                 /* Take data from buffers */
-                case ({foward_valid[LSU][i], foward_valid[ITU][i]})
+                unique case ({foward_valid[LSU][i], foward_valid[ITU][i]})
                     2'b01: foward_data_o[i] = foward_data[ITU][i];
 
                     2'b10: foward_data_o[i] = foward_data[LSU][i];
