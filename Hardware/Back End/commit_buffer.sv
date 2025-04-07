@@ -38,6 +38,8 @@
 
 `include "../Include/Packages/apogeo_pkg.sv"
 
+`include "../Include/Headers/apogeo_configuration.svh"
+
 module commit_buffer #(
     parameter BUFFER_DEPTH = 8
 ) (
@@ -59,9 +61,19 @@ module commit_buffer #(
     output data_word_t result_o,
     output instr_packet_t ipacket_o,
 
+    `ifdef FPU 
+
+    /* Invalidate data */
+    input logic [1:0] invalidate_i,
+    input logic [1:0][4:0] invalid_reg_i,
+
+    `else 
+
     /* Invalidate data */
     input logic invalidate_i,
     input logic [4:0] invalid_reg_i,
+
+    `endif 
 
     /* Foward data */
     input logic [1:0][4:0] foward_src_i,
@@ -201,12 +213,32 @@ module commit_buffer #(
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
                 end 
 
+                `ifdef FPU 
+
+                if (invalidate_i[0]) begin
+                    /* If another buffer is pushing a register, it has
+                     * the most recent value, this must be invalidated
+                     * since is old */
+                    valid_register[invalid_reg_i[0]] <= 1'b0;
+                end 
+
+                if (invalidate_i[1]) begin
+                    /* If another buffer is pushing a register, it has
+                     * the most recent value, this must be invalidated
+                     * since is old */
+                    valid_register[invalid_reg_i[1]] <= 1'b0;
+                end 
+
+                `else 
+
                 if (invalidate_i) begin
                     /* If another buffer is pushing a register, it has
                      * the most recent value, this must be invalidated
                      * since is old */
                     valid_register[invalid_reg_i] <= 1'b0;
                 end 
+
+                `endif
             end
         end : register_valid_write_port
 
