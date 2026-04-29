@@ -39,7 +39,8 @@
 
 `include "Include/Interfaces/bus_interface.sv"
 
-`include "../Include/Headers/apogeo_configuration.svh"
+`include "Include/Headers/apogeo_exception_vectors.svh"
+`include "Include/Headers/apogeo_configuration.svh"
 
 module ApogeoRV #(
     /* Predictor table size */ 
@@ -59,6 +60,7 @@ module ApogeoRV #(
 ) (
     input logic clk_i,
     input logic rst_n_i,
+    input logic halt_i,
 
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
@@ -140,11 +142,12 @@ module ApogeoRV #(
     fetch_interface fetch_channel_frontend(); 
 
     front_end #(PREDICTOR_SIZE, BTB_SIZE, INSTRUCTION_BUFFER_SIZE, ROB_DEPTH) apogeo_frontend (
-        .clk_i            ( clk_i           ),
-        .rst_n_i          ( rst_n_i         ),
+        .clk_i   ( clk_i                   ),
+        .rst_n_i ( rst_n_i                 ),
+        .stall_i ( stall_pipeline | halt_i ),
+        
         .flush_i          ( flush_pipeline  ),
         .branch_flush_i   ( branch_flush    ),
-        .stall_i          ( stall_pipeline  ),
         .priv_level_i     ( privilege_level ),
         .issue_o          ( issue           ),
         .pipeline_empty_i ( pipeline_empty  ),
@@ -266,7 +269,7 @@ module ApogeoRV #(
 
                 backend_valid_operation <= '0; 
                 backend_operation <= '0;
-            end else if (!stall_pipeline) begin
+            end else if (!stall_pipeline & !halt_i) begin
                 backend_branch <= issue ? frontend_branch : 1'b0;
                 backend_jump <= issue ? frontend_jump : 1'b0;
                 backend_speculative <= frontend_speculative;
@@ -299,6 +302,7 @@ module ApogeoRV #(
     back_end #(STORE_BUFFER_SIZE, ROB_DEPTH) apogeo_backend (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
+        .stall_i ( halt_i  ),
 
         .flush_o          ( flush_pipeline ),
         .branch_flush_o   ( branch_flush   ),
@@ -419,20 +423,16 @@ module ApogeoRV #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 trace_channel.valid <= 1'b0;
-                trace_channel.info <= RESET_CHANNEL; 
+                trace_channel.info <= `NO_EVENT; 
             end else begin
                 trace_channel.valid <= trace_channel_backend.valid;
-                trace_channel.info <= trace_channel_backend.valid; 
+                trace_channel.info <= trace_channel_backend.info; 
             end
         end
 
         always_ff @(posedge clk_i) begin 
             trace_channel.address <= trace_channel_backend.valid; 
-            trace_channel.destination <= trace_channel_backend.valid; 
-            trace_channel.result <= trace_channel_backend.valid; 
         end
-
-    assign trace_channel_backend.stall = trace_channel.stall;
 
     `endif 
 

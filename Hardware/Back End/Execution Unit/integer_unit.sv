@@ -52,6 +52,7 @@ module integer_unit (
     /* Pipeline control */
     input logic clk_i,
     input logic rst_n_i,
+    input logic stall_i,
     input logic flush_i,
 
     /* Enable / Disable extension */
@@ -150,7 +151,7 @@ module integer_unit (
         always_ff @(posedge clk_i) begin : bmu_stage_register
             if (flush_i) begin
                 bmu_ipacket <= NO_OPERATION;
-            end else begin
+            end else if (!stall_i) begin
                 bmu_ipacket <= ipacket_i;
             end
         end : bmu_stage_register
@@ -199,7 +200,7 @@ module integer_unit (
                     for (int i = 0; i < IMUL_STAGES; ++i) begin
                         mul_ipacket[i] <= NO_OPERATION;
                     end 
-                end else begin
+                end else if (!stall_i) begin
                     mul_ipacket <= {mul_ipacket[IMUL_STAGES - 2:0], ipacket_i};
                 end
             end
@@ -244,7 +245,7 @@ module integer_unit (
         always_ff @(posedge clk_i) begin : div_stage_register 
             if (flush_i) begin
                 div_ipacket <= NO_OPERATION;
-            end else if (data_valid_i.DIV) begin
+            end else if (data_valid_i.DIV & !stall_i ) begin
                 div_ipacket <= ipacket_i;
             end 
         end : div_stage_register

@@ -162,6 +162,7 @@ module execution_unit #(
     integer_unit ITU (
         .clk_i          ( clk_i          ),
         .rst_n_i        ( rst_n_i        ),
+        .stall_i        ( stall_i        ),
         .flush_i        ( flush_i        ),
         .enable_mul     ( mul_enable     ),
         .enable_div     ( div_enable     ),
