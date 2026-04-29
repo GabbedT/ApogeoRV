@@ -225,7 +225,7 @@ module integer_decoder (
         save_next_pc = 1'b0;
         base_address_reg_o = 1'b0;
 
-        exception_vector_o = `INSTR_ILLEGAL; 
+        exception_vector_o = `NO_EVENT; 
         exception_generated = 1'b0;
 
         case (instr_i[6:2])

@@ -72,4 +72,6 @@
 /* CSR operation executed */
 `define CSR_OPERATION 22
 
+`define NO_EVENT 31
+
 `endif 
