@@ -44,7 +44,7 @@
 `define STORE_MISALIGNED 6
 
 /* Access to an illegal memory region */
-`define STORE_ACCESS_FAULT 7;
+`define STORE_ACCESS_FAULT 7
 
 /* System calls for each privilege mode */
 `define U_SYSTEM_CALL 8
