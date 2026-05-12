@@ -14,7 +14,7 @@
 //====================================================================================
 
     /* Enable instruction tracing */
-    `define TRACE
+    // `define TRACE
 
     /* Enable bit manipulation unit and B extension */
     `define BMU

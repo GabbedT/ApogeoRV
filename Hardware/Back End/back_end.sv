@@ -500,11 +500,7 @@ module back_end #(
 
         .write_i ( reorder_buffer_write ),
 
-        `ifdef TRACE 
-            .read_i ( reorder_buffer_read & !trace_channel.stall ), 
-        `else        
-            .read_i ( reorder_buffer_read ), 
-        `endif 
+        .read_i ( reorder_buffer_read ), 
 
         .full_o  ( reorder_buffer_full  ),
         .empty_o ( reorder_buffer_empty ),
