@@ -431,7 +431,7 @@ module ApogeoRV #(
         end
 
         always_ff @(posedge clk_i) begin 
-            trace_channel.address <= trace_channel_backend.valid; 
+            trace_channel.address <= trace_channel_backend.address; 
         end
 
     `endif 
