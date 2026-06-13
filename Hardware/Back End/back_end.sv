@@ -69,7 +69,6 @@ module back_end #(
 ) (
     input logic clk_i,
     input logic rst_n_i,
-    input logic stall_i,
 
     /* Pipeline control */
     output logic flush_o,
@@ -84,8 +83,14 @@ module back_end #(
 
     /* Units enabled */
     output logic M_ext_o,
-    `ifdef BMU output logic B_ext_o, `endif 
-    `ifdef FPU output logic Zfinx_ext_o, `endif 
+
+    `ifdef BMU 
+    output logic B_ext_o, 
+    `endif
+
+    `ifdef FPU 
+    output logic Zfinx_ext_o, 
+    `endif 
 
     /* Operands */
     input logic [1:0][4:0] reg_src_i,
@@ -123,7 +128,9 @@ module back_end #(
     store_interface.master store_channel,
 
     /* Trace interface */
-    `ifdef TRACE trace_interface.master trace_channel, `endif 
+    `ifdef TRACE 
+    trace_interface.master trace_channel, 
+    `endif 
 
     /* Interrupt logic */
     input logic interrupt_i,
@@ -264,7 +271,11 @@ module back_end #(
 
 
     /* Execution unit parameter */
-    `ifdef FPU localparam EXU_PORT = 3; `else localparam EXU_PORT = 2; `endif 
+    `ifdef FPU 
+    localparam EXU_PORT = 3; 
+    `else 
+    localparam EXU_PORT = 2; 
+    `endif 
 
     /* Instruction address of ROB entry */
     data_word_t trap_iaddress;
@@ -300,9 +311,15 @@ module back_end #(
         .validate_i      ( execute_store      ),
         .buffer_empty_o  ( store_buffer_empty ),
 
-        .M_ext_o                ( M_ext_o     ),
-        `ifdef BMU .B_ext_o     ( B_ext_o     ), `endif 
-        `ifdef FPU .Zfinx_ext_o ( Zfinx_ext_o ), `endif 
+        .M_ext_o     ( M_ext_o     ),
+
+        `ifdef BMU 
+        .B_ext_o     ( B_ext_o     ), 
+        `endif 
+
+        `ifdef FPU 
+        .Zfinx_ext_o ( Zfinx_ext_o ), 
+        `endif 
 
         .validate_csr_write_i ( execute_csr     ),
         .priv_level_o         ( priv_level_o    ),
@@ -352,7 +369,7 @@ module back_end #(
     logic ldu_idle_sampled, stu_idle_sampled;
 
         always_ff @(posedge clk_i) begin
-            if (!stall_pipeline & !reorder_buffer_full & !buffer_full & !stall_i) begin
+            if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin
                 result_sampled <= result;
                 ipacket_sampled <= ipacket;
             end 
@@ -370,7 +387,7 @@ module back_end #(
                 valid_sampled <= '0;
             end if (flush_o) begin
                 valid_sampled <= '0;
-            end else if (!stall_pipeline & !reorder_buffer_full & !buffer_full & !stall_i) begin
+            end else if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin
                 valid_sampled <= valid;
             end 
         end
@@ -439,11 +456,11 @@ module back_end #(
     rob_entry_t reorder_buffer_packet, rob_packet;
 
     commit_stage #(EXU_PORT) commit (
-        .clk_i   ( clk_i                    ),
-        .rst_n_i ( rst_n_i                  ),
-        .flush_i ( flush_pipeline           ),
-        .stall_i ( stall_pipeline | stall_i ),
-        .stall_o ( buffer_full              ),
+        .clk_i   ( clk_i           ),
+        .rst_n_i ( rst_n_i         ),
+        .flush_i ( flush_pipeline  ),
+        .stall_i ( stall_pipeline  ),
+        .stall_o ( buffer_full     ),
 
         .result_i     ( result_sampled ),
         .ipacket_i    ( ipacket_sampled ),
@@ -490,7 +507,7 @@ module back_end #(
         .clk_i   ( clk_i          ),
         .rst_n_i ( rst_n_i        ),
         .flush_i ( flush_o        ),
-        .stall_i ( stall_pipeline | stall_i ),
+        .stall_i ( stall_pipeline ),
 
         .tag_generated_i ( tag_generated_i ),
         .stop_tag_o      ( stop_tag_o      ),
@@ -575,7 +592,7 @@ module back_end #(
     /* Flush if not speculative and branch is actually taken or is jump */
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
 
-    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full | stall_i;
+    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
 
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 

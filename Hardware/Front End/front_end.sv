@@ -67,11 +67,19 @@ module front_end #(
 ) (
     input logic clk_i,
     input logic rst_n_i,
+    input logic stall_i,
+
+    /* Flushing */
     input logic flush_i,
     input logic branch_flush_i,
-    input logic stall_i,
+
+    /* Core privilege */
     input logic priv_level_i,
+
+    /* Backend empty */
     input logic pipeline_empty_i,
+
+    /* Issue instruction */
     output logic issue_o,
 
     /* Scheduler interface */
@@ -79,9 +87,15 @@ module front_end #(
     input logic stop_tag_i,
 
     /* Unit enabled */
-    input logic M_ext_i, 
-    `ifdef BMU input logic B_ext_i, `endif 
-    `ifdef FPU input logic Zfinx_ext_i, `endif 
+    input logic M_ext_i,
+
+    `ifdef BMU 
+    input logic B_ext_i, 
+    `endif 
+
+    `ifdef FPU 
+    input logic Zfinx_ext_i, 
+    `endif 
 
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
@@ -140,6 +154,8 @@ module front_end #(
 
     logic jump_saved; logic [31:0] bta_saved;
 
+    assign next_program_counter = stall_i ? '0 : program_counter + 'd4;
+
         /* The code is implementing the logic for determining the next program counter address   
          * to fetch instructions from in a processor. It takes into account various factors such as    
          * exceptions, interrupts, branch predictions, and branch buffer hits to determine the correct 
@@ -153,8 +169,8 @@ module front_end #(
          */
 
         always_comb begin : next_program_counter_logic
+            /* Default Values */
             fetch_channel.address = program_counter;
-            next_program_counter = program_counter + 'd4;
             fetch = 1'b0;
 
             if (exception_i | interrupt_i) begin
@@ -229,13 +245,14 @@ module front_end #(
             end 
         end : next_program_counter_logic
 
-    assign fetch_channel.fetch = (fetch | branch_flush_i | mispredicted | flush_i) & !fetch_channel.stall;
+    assign fetch_channel.fetch = (fetch | branch_flush_i | mispredicted | flush_i) & !fetch_channel.stall & !stall_i;
 
 
 
     logic jumped;
 
-    assign jumped = exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) & !(speculative_i & !mispredicted)) | (branch_buffer_hit & predict);
+    assign jumped = exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) 
+                & !(speculative_i & !mispredicted)) | (branch_buffer_hit & predict);
 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin

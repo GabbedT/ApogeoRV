@@ -73,7 +73,9 @@ module ApogeoRV #(
     output logic interrupt_ackn_o,
 
     /* Trace interface */
-    `ifdef TRACE trace_interface.master trace_channel, `endif 
+    `ifdef TRACE 
+        trace_interface.master trace_channel, 
+    `endif 
 
     /* Memory interface */ 
     load_interface.master load_channel, 
@@ -155,9 +157,15 @@ module ApogeoRV #(
         .tag_generated_o ( tag_generated ),
         .stop_tag_i      ( stop_tag      ),
 
-        .M_ext_i                ( M_extension     ),
-        `ifdef BMU .B_ext_i     ( B_extension     ), `endif 
-        `ifdef FPU .Zfinx_ext_i ( Zfinx_extension ), `endif 
+        .M_ext_i     ( M_extension     ),
+
+        `ifdef BMU 
+        .B_ext_i     ( B_extension     ), 
+        `endif 
+
+        `ifdef FPU 
+        .Zfinx_ext_i ( Zfinx_extension ), 
+        `endif 
 
         .fetch_channel ( fetch_channel_frontend ),
 
@@ -269,7 +277,7 @@ module ApogeoRV #(
 
                 backend_valid_operation <= '0; 
                 backend_operation <= '0;
-            end else if (!stall_pipeline & !halt_i) begin
+            end else if (!stall_pipeline) begin
                 backend_branch <= issue ? frontend_branch : 1'b0;
                 backend_jump <= issue ? frontend_jump : 1'b0;
                 backend_speculative <= frontend_speculative;
@@ -297,12 +305,13 @@ module ApogeoRV #(
     load_interface load_channel_backend(); 
     store_interface store_channel_backend();
 
-    `ifdef TRACE trace_interface trace_channel_backend(); `endif 
+    `ifdef TRACE 
+    trace_interface trace_channel_backend(); 
+    `endif 
 
     back_end #(STORE_BUFFER_SIZE, ROB_DEPTH) apogeo_backend (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
-        .stall_i ( halt_i  ),
 
         .flush_o          ( flush_pipeline ),
         .branch_flush_o   ( branch_flush   ),
@@ -314,9 +323,15 @@ module ApogeoRV #(
 
         .priv_level_o ( privilege_level ),
     
-        .M_ext_o                ( M_extension     ),
-        `ifdef BMU .B_ext_o     ( B_extension     ), `endif 
-        `ifdef FPU .Zfinx_ext_o ( Zfinx_extension ), `endif 
+        .M_ext_o     ( M_extension     ),
+
+        `ifdef BMU 
+        .B_ext_o     ( B_extension     ), 
+        `endif 
+
+        `ifdef FPU 
+        .Zfinx_ext_o ( Zfinx_extension ), 
+        `endif 
 
         .reg_src_i         ( backend_register_source ),
         .operand_i         ( backend_operand         ),
