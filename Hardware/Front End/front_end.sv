@@ -77,7 +77,8 @@ module front_end #(
     input logic priv_level_i,
 
     /* Backend empty */
-    input logic pipeline_empty_i,
+    input logic pipeline_empty_i, /* ROB, Commit Buffers */
+    output logic pipeline_empty_o, /* Execution units and frontend */
 
     /* Issue instruction */
     output logic issue_o,
@@ -563,9 +564,15 @@ module front_end #(
         .instr_address_i ( if_stage_program_counter ),
         .priv_level_i    ( priv_level_i             ),
 
-        .M_ext_i                ( M_ext_i     ),
-        `ifdef BMU .B_ext_i     ( B_ext_i     ), `endif 
-        `ifdef FPU .Zfinx_ext_i ( Zfinx_ext_i ), `endif 
+        .M_ext_i ( M_ext_i     ),
+
+        `ifdef BMU 
+        .B_ext_i ( B_ext_i     ), 
+        `endif 
+
+        `ifdef FPU 
+        .Zfinx_ext_i ( Zfinx_ext_i ), 
+        `endif 
 
         .immediate_o       ( immediate       ),
         .immediate_valid_o ( immediate_valid ),
@@ -675,14 +682,17 @@ module front_end #(
 //      ISSUE STAGE
 //====================================================================================
 
+    logic pipeline_empty;
+
     scheduler #(ROB_DEPTH) scheduler_unit (
         .clk_i            ( clk_i            ),  
         .rst_n_i          ( rst_n_i          ), 
         .stall_i          ( stall_i          ),
         .flush_i          ( flush_i          ),
         .branch_flush_i   ( branch_flush_i   ),
-        .stall_o          ( stall            ),
         .pipeline_empty_i ( pipeline_empty_i ),
+        .pipeline_empty_o ( pipeline_empty   ),
+        .stall_o          ( stall            ),
 
         .tag_generated_o ( tag_generated_o ),
         .stop_tag_i      ( stop_tag_i      ),
@@ -724,6 +734,8 @@ module front_end #(
         .operand_o         ( operand_o         ) 
     ); 
 
+    assign pipeline_empty_o = ibuffer_empty & pipeline_empty & !if_stage_valid & (dc_stage_exu_valid == '0);
+    
     assign mispredicted_o = mispredicted;
 
     assign branch_o = dc_stage_branch;

@@ -73,6 +73,7 @@ module scheduler #(
     input logic branch_flush_i,
     input logic mispredicted_i,
     input logic pipeline_empty_i,
+    output logic pipeline_empty_o,
     output logic stall_o,
 
     /* Scheduler interface */
@@ -175,6 +176,8 @@ module scheduler #(
         .pipeline_empty_o    ( pipeline_empty    ),
         .issue_instruction_o ( issue_instruction )
     );
+
+    assign pipeline_empty_o = pipeline_empty;
 
 
 //====================================================================================

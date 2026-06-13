@@ -61,6 +61,7 @@ module ApogeoRV #(
     input logic clk_i,
     input logic rst_n_i,
     input logic halt_i,
+    output logic halted_o,
 
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
@@ -110,6 +111,29 @@ module ApogeoRV #(
 
     assign general_interrupt = interrupt_posedge | timer_interrupt_posedge | non_maskable_interrupt_posedge; 
 
+
+//====================================================================================
+//      HALT UNIT
+//====================================================================================
+
+    logic drain_pipe, handler_return, pipe_flushed;
+
+        halt_unit halt_unit_fsm (
+            .clk_i   ( clk_i   ),
+            .rst_n_i ( rst_n_i ),
+            
+            .halt_i ( halt_i ),
+
+            .interrupt_i  ( general_interrupt ),
+            .isr_return_i ( handler_return    ),
+
+            .pipeline_empty_i ( pipe_flushed ),
+
+            .drain_o ( drain_pipe ),
+
+            .halted_o ( halted_o )
+        );
+
 //====================================================================================
 //      FRONT END 
 //====================================================================================
@@ -117,7 +141,7 @@ module ApogeoRV #(
     /* Pipeline control */ 
     logic M_extension, B_extension, Zfinx_extension;
     logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, branch_flush, pipeline_empty;
-    data_word_t handler_program_counter, hander_return_program_counter; logic handler_return;
+    data_word_t handler_program_counter, hander_return_program_counter;
 
     /* Write back result */
     logic writeback, csr_writeback; logic [4:0] writeback_register; data_word_t writeback_result;
@@ -144,15 +168,16 @@ module ApogeoRV #(
     fetch_interface fetch_channel_frontend(); 
 
     front_end #(PREDICTOR_SIZE, BTB_SIZE, INSTRUCTION_BUFFER_SIZE, ROB_DEPTH) apogeo_frontend (
-        .clk_i   ( clk_i                   ),
-        .rst_n_i ( rst_n_i                 ),
-        .stall_i ( stall_pipeline | halt_i ),
+        .clk_i   ( clk_i                       ),
+        .rst_n_i ( rst_n_i                     ),
+        .stall_i ( stall_pipeline | drain_pipe ),
         
         .flush_i          ( flush_pipeline  ),
         .branch_flush_i   ( branch_flush    ),
         .priv_level_i     ( privilege_level ),
         .issue_o          ( issue           ),
         .pipeline_empty_i ( pipeline_empty  ),
+        .pipeline_empty_o ( pipe_flushed    ),
 
         .tag_generated_o ( tag_generated ),
         .stop_tag_i      ( stop_tag      ),
@@ -362,7 +387,9 @@ module ApogeoRV #(
         .load_channel  ( load_channel_backend  ),
         .store_channel ( store_channel_backend ),
         
-        `ifdef TRACE .trace_channel ( trace_channel_backend ), `endif 
+        `ifdef TRACE 
+        .trace_channel ( trace_channel_backend ), 
+        `endif 
 
         .interrupt_i             ( interrupt_posedge             ),
         .timer_interrupt_i       ( timer_interrupt_posedge       ),
