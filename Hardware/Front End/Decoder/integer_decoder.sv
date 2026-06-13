@@ -276,6 +276,8 @@ module integer_decoder (
                 save_next_pc = 1'b1;
                 jump = 1'b1;
 
+                exception_vector_o = exception_generated_o ? `INSTR_ILLEGAL : `JUMP_OPERATION;
+
                 `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "JAL"; `endif 
             end
 
@@ -294,6 +296,8 @@ module integer_decoder (
                 /* Save PC of the next instruction */
                 save_next_pc = 1'b1;
                 jump = 1'b1;
+
+                exception_vector_o = exception_generated_o ? `INSTR_ILLEGAL : `JUMP_OPERATION;
 
                 `ifdef IDECODER_DEBUG if (!exception_generated_o) operation_string = "JALR"; `endif 
             end
@@ -339,6 +343,8 @@ module integer_decoder (
                     default: exception_generated = 1'b1;
                 endcase
 
+                exception_vector_o = exception_generated_o ? `INSTR_ILLEGAL : `BRANCH_OPERATION;
+
                 /* Registers */
                 reg_dest_o = riscv32::X0;
                 reg_src_o[1] = instr_i.B.reg_src_1;
@@ -352,8 +358,6 @@ module integer_decoder (
             end 
 
             riscv32::LOAD: begin
-                exception_vector_o = `LOAD_OPERATION; 
-
                 case (instr_i.I.funct3)
                     riscv32::LB: begin
                         build_ldu_packet(LDB, 1'b1); 
@@ -392,6 +396,7 @@ module integer_decoder (
                 base_address_reg_o = 1'b1;
 
                 exception_generated = (instr_i.I.reg_dest == riscv32::X0);
+                exception_vector_o = exception_generated_o ? `INSTR_ILLEGAL : `LOAD_OPERATION; 
             end
 
             riscv32::STORE: begin
@@ -418,9 +423,10 @@ module integer_decoder (
 
                     default: begin
                         exception_generated = 1'b1;
-                        exception_vector_o = `INSTR_ILLEGAL;
                     end 
                 endcase 
+                
+                exception_vector_o = exception_generated_o ? `INSTR_ILLEGAL : `STORE_OPERATION; 
 
                 /* Registers */
                 reg_src_o[1] = instr_i.S.reg_src_1; /* Base address */
