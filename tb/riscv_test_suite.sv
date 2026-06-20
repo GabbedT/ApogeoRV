@@ -1,10 +1,6 @@
 `ifndef RISCV_TEST_SUITE_SV
     `define RISCV_TEST_SUITE_SV
 
-`include "Classes/Riscv32.sv"
-
-`include "../Hardware/Include/Headers/apogeo_memory_map.svh"
-
 typedef bit [31:0] instructions_t; 
 
     function automatic void store_buffer_foward_test(ref instructions_t instr[$]);

@@ -1,12 +1,6 @@
 `ifndef MEMORY_INCLUDE_SV
     `define MEMORY_INCLUDE_SV
 
-`include "../Hardware/Include/Interfaces/bus_interface.sv"
-
-`include "../Hardware/Include/Headers/apogeo_configuration.svh"
-
-`include "memory_bank.sv"
-
 module memory #(
     parameter MEMORY_SIZE = 1024
 ) (

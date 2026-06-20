@@ -1,10 +1,6 @@
 `ifndef TIMER_INCLUDE_SV
     `define TIMER_INCLUDE_SV
 
-`include "../Hardware/Include/Packages/apogeo_pkg.sv"
-
-`include "../Hardware/Include/Headers/apogeo_configuration.svh"
-
 module timer (
     input logic clk_i,
     input logic rst_n_i,

@@ -1,8 +1,6 @@
 `ifndef DIGITAL_OUTPUT_PORT_INCLUDE_SV
     `define DIGITAL_OUTPUT_PORT_INCLUDE_SV
 
-`include "../Hardware/Include/Headers/apogeo_configuration.svh"
-
 module digital_output_port (
     input logic clk_i,
     input logic rst_n_i,

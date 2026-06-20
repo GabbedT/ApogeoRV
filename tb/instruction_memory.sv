@@ -1,8 +1,6 @@
 `ifndef INSTRUCTION_MEMORY_SV 
     `define INSTRUCTION_MEMORY_SV
 
-`include "riscv_test_suite.sv"
-
 module instruction_memory #(
     parameter MEMORY_SIZE = 256
 ) (

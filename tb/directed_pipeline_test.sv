@@ -1,9 +1,3 @@
-`include "../Hardware/Include/Interfaces/bus_interface.sv"
-`include "../Hardware/Include/Headers/apogeo_memory_map.svh"
-
-`include "instruction_memory.sv"
-`include "system_memory.sv"
-
 /* Enable or disable tracing */
 `define TRACER
 

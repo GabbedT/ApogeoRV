@@ -3,10 +3,6 @@
 
 //  `define DIRECTED_TEST 
 
-`include "../Hardware/Include/Interfaces/bus_interface.sv"
-
-`include "riscv_test_suite.sv"
-
 module system_memory #(
     parameter MEMORY_SIZE = 256
 ) (

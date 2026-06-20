@@ -1,17 +1,6 @@
 `ifndef BOARD_INCLUDE_SV
     `define BOARD_INCLUDE_SV
 
-`include "../Hardware/Include/Interfaces/bus_interface.sv"
-`include "../Hardware/Include/Interfaces/trace_interface.sv"
-
-`include "../Hardware/Include/Headers/apogeo_configuration.svh"
-`include "../Hardware/Include/Headers/apogeo_memory_map.svh"
-
-`include "memory.sv"
-`include "timer.sv"
-`include "digital_input_port.sv"
-`include "digital_output_port.sv"
-
 module board (
     input logic clk_i,
     input logic rst_n_i, 
