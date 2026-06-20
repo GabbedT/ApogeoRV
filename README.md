@@ -1,7 +1,7 @@
 # ApogeoRV RISC-V 32-bit CPU
 
 <p align="center">
-  <img src="Docs/Images/ApogeoRV.png" alt="ApogeoRV Logo"/>
+  <img src="doc/images/ApogeoRV.png" alt="ApogeoRV Logo"/>
 </p>
 
 ## Overview

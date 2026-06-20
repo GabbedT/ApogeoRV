@@ -160,7 +160,7 @@ module directed_pipeline_test;
         registers = '{default: 0}; 
 
         `ifdef TRACER 
-            file = $fopen("/home/gabbed/Projects/RV32-Apogeo/Testbench/testbench_output.txt", "w"); $display("%d", file);
+            file = $fopen("testbench_output.txt", "w"); $display("%d", file);
 
             $fdisplay(file, "============== PROGRAM TRACE ==============");
         `endif 
