@@ -86,7 +86,7 @@ module scoreboard (
     /* Valid for ALU and CSR */
     localparam ALU_LATENCY = 2;
 
-    localparam MUL_LATENCY = 6;
+    localparam MUL_LATENCY = 3;
 
     localparam BMU_LATENCY = 3;
 
@@ -94,7 +94,7 @@ module scoreboard (
 
     localparam FADD_LATENCY = 7;
 
-    localparam FMUL_LATENCY = 5;
+    localparam FMUL_LATENCY = 4;
 
     localparam FCVT_LATENCY = 4;
 
