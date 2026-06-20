@@ -41,14 +41,6 @@
 `ifndef COMMIT_STAGE_SV
     `define COMMIT_STAGE_SV
 
-`include "../Include/test_include.svh"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "commit_buffer.sv"
-
 module commit_stage #(
     parameter EXU_PORT = 2
 ) (

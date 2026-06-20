@@ -40,11 +40,6 @@
 `ifndef ARITHMETIC_LOGIC_UNIT_SV 
     `define ARITHMETIC_LOGIC_UNIT_SV
 
-`include "../../../Include/Headers/apogeo_configuration.svh"
-
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../../Include/Packages/apogeo_pkg.sv"
-
 module arithmetic_logic_unit (
     /* Operands */
     input data_word_t operand_A_i,

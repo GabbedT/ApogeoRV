@@ -21,55 +21,39 @@
 // SOFTWARE.
 // ------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------
-// FILE NAME : float_rounding_unit.sv
+// FILE NAME : nibble_local_count.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
 // ------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : This module perform a rounding on the floating point result of a 
-//               previous computation based on three bits: Round Guard Sticky.
+// DESCRIPTION : Encode the number of zeroes in a nibble. 'zero_number_o' is the number
+//               of zeroes and count from 0 to 3. When 'dword_is_zero_o' is asserted,
+//               the entire nibble is '0', 'all_zero_o' is not valid. 
 // ------------------------------------------------------------------------------------
 
-`ifndef FLOAT_ROUNDING_UNIT_SV
-    `define FLOAT_ROUNDING_UNIT_SV
+`ifndef NIBBLE_LOCAL_COUNT_SV
+    `define NIBBLE_LOCAL_COUNT_SV
 
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
+module nibble_local_count (
+    input  logic [3:0] nibble_i,
 
-module float_rounding_unit (
-    input float_t operand_i, 
-    input round_bits_t round_bits_i, 
+    output logic       all_zero_o,
+    output logic [1:0] zero_number_o
+);
 
-    /* Rounded float */ 
-    output float_t operand_o, 
+    /* The entire nibble is 0 */
+    assign all_zero_o = ~|nibble_i;
 
-    /* Exception flags */
-    output logic overflow_o,
-    output logic inexact_o
-); 
+    /* The bit 0 of the count is asserted when there are 3 or 1 zeroes, so when the bit 3 is 
+     * '0' and bit 2 is '1' or when bit 3 to 1 is '0' */
+    assign zero_number_o[0] = (!nibble_i[3] & nibble_i[2]) | (!nibble_i[3] & !nibble_i[1]);
 
-    logic carry, exp_carry; 
+    /* If both the third and the second bit of the nibble are '0' there are at least 2 zeroes,
+     * so the bit 1 of the count is asserted */
+    assign zero_number_o[1] = !(nibble_i[3] | nibble_i[2]);
 
-        always_comb begin
-            case (round_bits_i)
-                /* If halfway (0.5) round to even */
-                3'b100: {carry, operand_o.significand} = operand_i.significand + operand_i.significand[0]; 
-
-                3'b101, 3'b110, 3'b111: {carry, operand_o.significand} = operand_i.significand + 1;
-
-                default: {carry, operand_o.significand} = {1'b0, operand_i.significand};
-            endcase 
-
-            {exp_carry, operand_o.exponent} = operand_i.exponent + carry;
-        end 
-
-    assign overflow_o = exp_carry; 
-
-    assign inexact_o = round_bits_i != '0; 
-
-    assign operand_o.sign = operand_i.sign;
-
-endmodule : float_rounding_unit
+endmodule : nibble_local_count
 
 `endif 

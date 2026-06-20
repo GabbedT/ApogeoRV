@@ -37,19 +37,6 @@
 `ifndef FLOATING_POINT_UNIT_SV 
     `define FLOATING_POINT_UNIT_SV
 
-`include "Floating Point Unit Submodules/float_adder.sv"
-`include "Floating Point Unit Submodules/float_comparator.sv"
-`include "Floating Point Unit Submodules/float_converter.sv"
-`include "Floating Point Unit Submodules/float_miscellaneous.sv"
-`include "Floating Point Unit Submodules/float_multiplier.sv"
-`include "Floating Point Unit Submodules/float_rounding_unit.sv"
-`include "Floating Point Unit Submodules/float_type_unit.sv"
-
-`include "../../Include/Headers/apogeo_configuration.svh"
-
-`include "../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../Include/Packages/apogeo_pkg.sv"
-
 module floating_point_unit (
     /* Register control */
     input logic clk_i,

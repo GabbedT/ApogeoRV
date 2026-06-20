@@ -34,10 +34,6 @@
 `ifndef TRAP_MANAGER_SV
     `define TRAP_MANAGER_SV
 
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
 module trap_manager (
     input logic clk_i,
     input logic rst_n_i,

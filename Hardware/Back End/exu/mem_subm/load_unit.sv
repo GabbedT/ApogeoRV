@@ -39,16 +39,6 @@
 `ifndef LOAD_UNIT_SV
     `define LOAD_UNIT_SV
 
-`include "../../../Include/Headers/apogeo_configuration.svh"
-`include "../../../Include/Headers/apogeo_memory_map.svh"
-
-`include "../../../Include/Packages/apogeo_pkg.sv"
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../../Include/Packages/Execution Unit/control_status_registers_pkg.sv"
-
-`include "../../../Include/Interfaces/bus_interface.sv"
-`include "../../../Include/Interfaces/store_buffer_interface.sv"
-
 module load_unit (
     /* Register control */
     input logic clk_i,

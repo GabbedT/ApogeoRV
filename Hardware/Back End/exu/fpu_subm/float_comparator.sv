@@ -38,8 +38,6 @@
 `ifndef FLOAT_COMPARATOR_SV
     `define FLOAT_COMPARATOR_SV
 
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-
 module float_comparator (
     /* Operands */
     input float_t operand_A_i,

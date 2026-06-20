@@ -37,13 +37,6 @@
 `ifndef FLOAT_ADDER_SV
     `define FLOAT_ADDER_SV
 
-`include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
-
-`include "../../../Include/Headers/apogeo_configuration.svh"
-
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-
-
 module float_adder (
     /* Register control */
     input logic clk_i,

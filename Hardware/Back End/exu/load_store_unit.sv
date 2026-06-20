@@ -44,20 +44,6 @@
 `ifndef LOAD_STORE_UNIT_SV
     `define LOAD_STORE_UNIT_SV
 
-`include "Memory Unit Submodules/load_unit.sv"
-`include "Memory Unit Submodules/store_unit.sv"
-`include "Memory Unit Submodules/memory_mapped_timer.sv"
-
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../Include/Packages/Execution Unit/store_unit_pkg.sv"
-
-`include "../../Include/Interfaces/bus_interface.sv"
-`include "../../Include/Interfaces/store_buffer_interface.sv"
-
-`include "../../Include/Headers/apogeo_exception_vectors.svh"
-`include "../../Include/Headers/apogeo_memory_map.svh"
-
 module load_store_unit #(
     /* Number of entries in the store buffer */
     parameter STORE_BUFFER_SIZE = 8

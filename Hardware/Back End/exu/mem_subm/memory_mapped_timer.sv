@@ -1,4 +1,4 @@
-// MIT License
+cd "$(git rev-parse --show-toplevel)"// MIT License
 //
 // Copyright (c) 2021 Gabriele Tripi
 // 

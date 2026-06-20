@@ -36,10 +36,6 @@
 `ifndef COMMIT_BUFFER_SV
     `define COMMIT_BUFFER_SV
 
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
 module commit_buffer #(
     parameter BUFFER_DEPTH = 8
 ) (

@@ -37,17 +37,6 @@
 `ifndef INTEGER_UNIT_SV
     `define INTEGER_UNIT_SV
 
-`include "Integer Unit Submodules/arithmetic_logic_unit.sv"
-`include "Integer Unit Submodules/bit_manipulation_unit.sv"
-`include "Integer Unit Submodules/division_unit.sv"
-`include "Integer Unit Submodules/multiplication_unit.sv"
-
-`include "../../Include/Headers/apogeo_configuration.svh"
-`include "../../Include/Headers/apogeo_exception_vectors.svh"
-
-`include "../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../Include/Packages/apogeo_pkg.sv"
-
 module integer_unit (
     /* Pipeline control */
     input logic clk_i,

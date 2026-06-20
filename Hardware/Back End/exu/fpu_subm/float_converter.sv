@@ -37,10 +37,6 @@
 `ifndef FLOAT_CONVERTER_SV
     `define FLOAT_CONVERTER_SV
 
-`include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
-
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-
 module float_converter (
     /* Register control */
     input logic clk_i,

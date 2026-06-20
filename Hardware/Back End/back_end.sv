@@ -44,22 +44,6 @@
 `ifndef BACK_END_SV 
     `define BACK_END_SV 
 
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
-`include "../Include/Interfaces/bus_interface.sv"
-`include "../Include/Interfaces/trace_interface.sv"
-`include "../Include/Interfaces/store_buffer_interface.sv"
-
-`include "bypass_controller.sv"
-`include "execution_unit.sv"
-`include "commit_stage.sv"
-`include "reorder_buffer.sv"
-`include "writeback_stage.sv"
-`include "trap_manager.sv"
-`include "branch_resolver.sv"
-
 module back_end #(
     /* Number of entries in the store buffer */
     parameter STORE_BUFFER_SIZE = 8,

@@ -43,13 +43,6 @@
 `ifndef DIVISION_UNIT_SV
     `define DIVISION_UNIT_SV
 
-`include "../../../Include/Headers/apogeo_configuration.svh"
-
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../../Include/Packages/apogeo_pkg.sv"
-
-`include "../Arithmetic Circuits/Integer/Dividers/non_restoring_divider.sv"
-
 module division_unit (
     /* Register control */
     input logic clk_i,

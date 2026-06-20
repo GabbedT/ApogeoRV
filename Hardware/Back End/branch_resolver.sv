@@ -1,8 +1,6 @@
 `ifndef BRANCH_RESOLVER_SV
     `define BRANCH_RESOLVER_SV
 
-`include "../Include/Packages/apogeo_operations_pkg.sv"
-
 module branch_resolver (
     /* Comparison operands */
     input logic [31:0] operand_A_i,

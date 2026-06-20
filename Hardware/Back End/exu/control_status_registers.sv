@@ -39,15 +39,6 @@
 `ifndef CONTROL_STATUS_REGISTER_SV
     `define CONTROL_STATUS_REGISTER_SV
 
-`include "../../Include/Headers/apogeo_configuration.svh"
-`include "../../Include/Headers/apogeo_exception_vectors.svh"
-
-`include "../../Include/Packages/Execution Unit/control_status_registers_pkg.sv"
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/apogeo_operations_pkg.sv"
-
-`include "../../Include/test_include.svh"
-
 module control_status_registers (
     input logic clk_i,
     input logic rst_n_i,

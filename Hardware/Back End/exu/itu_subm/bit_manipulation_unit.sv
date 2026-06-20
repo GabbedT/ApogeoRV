@@ -42,13 +42,6 @@
 `ifndef BIT_MANIPULATION_UNIT_SV 
     `define BIT_MANIPULATION_UNIT_SV
 
-`include "../../../Include/Headers/apogeo_configuration.svh"
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-`include "../../../Include/Packages/apogeo_pkg.sv"
-
-`include "../Arithmetic Circuits/Integer/Miscellaneous/CLZ/count_leading_zeros.sv"
-`include "../Arithmetic Circuits/Integer/Miscellaneous/CPOP/Combinational/population_count_combinational.sv"
-
 module bit_manipulation_unit (
     /* Register control */
     input logic clk_i,

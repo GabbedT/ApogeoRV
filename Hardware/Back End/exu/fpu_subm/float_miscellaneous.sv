@@ -37,8 +37,6 @@
 `ifndef FLOAT_MISCELLANEOUS_SV
     `define FLOAT_MISCELLANEOUS_SV
 
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
-
 module float_miscellaneous (
     /* Input operands */
     input float_t operand_i,

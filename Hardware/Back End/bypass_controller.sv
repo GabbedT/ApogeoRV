@@ -39,10 +39,6 @@
 `ifndef BYPASS_CONTROLLER_SV
     `define BYPASS_CONTROLLER_SV
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
 module bypass_controller (
     /* Operands from issue stage */
     input data_word_t [1:0] issue_operand_i,

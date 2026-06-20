@@ -36,21 +36,6 @@
 `ifndef EXECUTION_UNIT_SV
     `define EXECUTION_UNIT_SV
 
-`include "../Include/Headers/apogeo_configuration.svh"
-`include "../Include/Headers/apogeo_exception_vectors.svh"
-
-`include "../Include/Packages/Execution Unit/store_unit_pkg.sv"
-`include "../Include/Packages/apogeo_operations_pkg.sv"
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Interfaces/bus_interface.sv"
-`include "../Include/Interfaces/store_buffer_interface.sv"
-
-`include "Execution Unit/integer_unit.sv"
-`include "Execution Unit/load_store_unit.sv"
-`include "Execution Unit/floating_point_unit.sv"
-`include "Execution Unit/control_status_registers.sv"
-
 module execution_unit #(
     /* Number of entries in the store buffer */
     parameter STORE_BUFFER_SIZE = 8,

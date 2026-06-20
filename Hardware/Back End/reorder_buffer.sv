@@ -44,10 +44,6 @@
 `ifndef REORDER_BUFFER_SV
     `define REORDER_BUFFER_SV
 
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
 module reorder_buffer #(
     /* Reorder Buffer entries */
     parameter ROB_DEPTH = 32

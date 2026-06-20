@@ -21,38 +21,43 @@
 // SOFTWARE.
 // ------------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------------
-// FILE NAME : float_type_unit.sv
+// FILE NAME : boundary_nibble_encoder.sv
 // DEPARTMENT : 
 // AUTHOR : Gabriele Tripi
 // AUTHOR'S EMAIL : tripi.gabriele2002@gmail.com
 // ------------------------------------------------------------------------------------
 // RELEASE HISTORY
 // VERSION : 1.0 
-// DESCRIPTION : This module perform a preliminar classification of the input operand.
+// DESCRIPTION : Encode the number of nibbles that are all zero. The number is encoded 
+//               in 'zero_count_o' which rapresent the top bit to the bit 2 (is aligned
+//               to 4 because a nibble is 4 bit). When 'dword_is_zero_o' is asserted
+//               then every bit of the word is 0, 'zero_count_o' is invalid.
 // ------------------------------------------------------------------------------------
 
-`ifndef FLOAT_TYPE_UNIT_SV
-    `define FLOAT_TYPE_UNIT_SV
+`ifndef BOUNDARY_NIBBLE_ENCODER_SV
+    `define BOUNDARY_NIBBLE_ENCODER_SV
 
-`include "../../../Include/Packages/apogeo_operations_pkg.sv"
+module boundary_nibble_encoder (
+    input  logic [7:0] nlc_i,
 
-module float_type_unit (
-    input float_t operand_i, 
+    output logic       dword_is_zero_o,
+    output logic [2:0] zero_count_o
+);  
+    /* The i-th bit of 'nlc_i' rapresent the i-th nibble starting from the MSB,
+     * when it's logic '1' then that nibble is 4'b0 */
 
-    output logic is_infinity_o,
-    output logic is_zero_o,
-    output logic is_subnormal_o,
-    output logic is_nan_o
-);
+    /* If 'dword_is_zero_o' is asserted then then every nibble of the word is 4'b0,
+     * so it has 32 bit at logic '0' */
+    assign dword_is_zero_o = &nlc_i;
 
-    assign is_infinity_o = (operand_i.exponent == '1) & (operand_i.significand == '0);
+    /* Zero count encoding */
+    assign zero_count_o[0] = nlc_i[0] & (!nlc_i[1] | (nlc_i[2] & !nlc_i[3])) | 
+                            (nlc_i[0] & nlc_i[2] & nlc_i[4] & (!nlc_i[5] | nlc_i[6]));
 
-    assign is_subnormal_o = (operand_i.exponent == '0) & (operand_i.significand != '0);
+    assign zero_count_o[1] = nlc_i[0] & nlc_i[1] & (!nlc_i[2] | !nlc_i[3] | (nlc_i[4] & nlc_i[5]));
 
-    assign is_zero_o = (operand_i.exponent == '0) & (operand_i.significand == '0);
+    assign zero_count_o[2] = &nlc_i[3:0];
 
-    assign is_nan_o = (operand_i.exponent == '1) & (operand_i.significand != '0);
-
-endmodule : float_type_unit 
+endmodule : boundary_nibble_encoder
 
 `endif 

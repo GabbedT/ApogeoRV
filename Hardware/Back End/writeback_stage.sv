@@ -37,11 +37,6 @@
 `ifndef WRITEBACK_STAGE_SV
     `define WRITEBACK_STAGE_SV
 
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-`include "../Include/Headers/apogeo_exception_vectors.svh"
-
 module writeback_stage (
     /* Reorder Buffer interface */
     input  rob_entry_t rob_entry_i,
