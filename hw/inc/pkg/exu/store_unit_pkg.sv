@@ -1,8 +1,6 @@
 `ifndef STORE_UNIT_PKG_SV
     `define STORE_UNIT_PKG_SV
 
-`include "../../Headers/apogeo_configuration.svh"
-
 package store_unit_pkg;
 
 //====================================================================================

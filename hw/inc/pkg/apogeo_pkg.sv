@@ -1,8 +1,6 @@
 `ifndef RV32_INSTRUCTION_INCLUDE_SV
     `define RV32_INSTRUCTION_INCLUDE_SV
 
-`include "../Headers/apogeo_configuration.svh"
-
 package rv32_instructions_pkg;
 
 

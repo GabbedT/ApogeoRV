@@ -1,8 +1,6 @@
 `ifndef CONTROL_STATUS_REGISTERS_SV
     `define CONTROL_STATUS_REGISTERS_SV
 
-`include "../Headers/apogeo_configuration.svh"
-
 package control_status_registers_pkg;
 
     /* Unprivileged Floating-Point CSRs */

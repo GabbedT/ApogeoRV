@@ -1,8 +1,6 @@
 `ifndef APOGEO_OPERATIONS_PKG_SV
     `define APOGEO_OPERATIONS_PKG_SV
 
-`include "../Headers/apogeo_configuration.svh"
-
 package apogeo_operations_pkg;
 
 

@@ -34,14 +34,6 @@
 `ifndef APOGEO_RV_SV
     `define APOGEO_RV_SV
 
-`include "Back End/back_end.sv"
-`include "Front End/front_end.sv"
-
-`include "Include/Interfaces/bus_interface.sv"
-
-`include "Include/Headers/apogeo_exception_vectors.svh"
-`include "Include/Headers/apogeo_configuration.svh"
-
 module ApogeoRV #(
     /* Predictor table size */ 
     parameter PREDICTOR_SIZE = 1024, 
