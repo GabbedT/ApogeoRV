@@ -1,11 +1,6 @@
 `ifndef BUS_INTERFACE_SV
     `define BUS_INTERFACE_SV
 
-`include "../Headers/apogeo_configuration.svh"
-
-`include "../Packages/apogeo_pkg.sv"
-`include "../Packages/Execution Unit/store_unit_pkg.sv"
-
 /* 
  * Subinterface that holds all the signals for
  * the fetch controller channel 

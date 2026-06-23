@@ -47,9 +47,6 @@
 `ifndef SCOREBOARD_SV
     `define SCOREBOARD_SV
 
-`include "../Include/Headers/apogeo_configuration.svh"
-`include "../Include/Packages/apogeo_operations_pkg.sv"
-
 module scoreboard (
     input logic clk_i,
     input logic rst_n_i,

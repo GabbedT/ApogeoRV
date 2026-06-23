@@ -38,11 +38,6 @@
 `ifndef BRANCH_PREDICTOR_SV
     `define BRANCH_PREDICTOR_SV
 
-`include "../Include/Packages/apogeo_pkg.sv"
-
-`include "Branch Predictor/predictor_unit.sv"
-`include "Branch Predictor/branch_target_buffer.sv"
-
 module branch_predictor #(
     /* Predictor table size */ 
     parameter PREDICTOR_SIZE = 32, 

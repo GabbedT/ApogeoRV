@@ -1,11 +1,6 @@
 `ifndef STORE_BUFFER_INTERFACE_SV
     `define STORE_BUFFER_INTERFACE_SV
 
-`include "../Headers/apogeo_configuration.svh"
-
-`include "../Packages/apogeo_pkg.sv"
-`include "../Packages/Execution Unit/store_unit_pkg.sv"
-
 interface store_buffer_interface;
 
 //=========================================================

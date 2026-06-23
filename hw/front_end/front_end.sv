@@ -41,16 +41,6 @@
 `ifndef FRONT_END_SV
     `define FRONT_END_SV
 
-`include "../Include/Headers/apogeo_configuration.svh"
-
-`include "../Include/Packages/apogeo_pkg.sv"
-`include "../Include/Packages/apogeo_operations_pkg.sv"
-
-`include "decoder.sv"
-`include "scheduler.sv"
-`include "Decoder/decompressor.sv"
-`include "instruction_buffer.sv"
-
 module front_end #(
     /* Predictor table size */ 
     parameter PREDICTOR_SIZE = 32, 

@@ -40,10 +40,6 @@
 `ifndef REGISTER_FILE_SV
     `define REGISTER_FILE_SV
 
-`include "../Include/Headers/apogeo_configuration.svh"
-
-`include "../Include/Packages/apogeo_pkg.sv"
-
 module register_file (
     input logic clk_i,
 

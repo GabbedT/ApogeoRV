@@ -42,10 +42,6 @@
 `ifndef INSTRUCTION_BUFFER_SV
     `define INSTRUCTION_BUFFER_SV
 
-`include "../Include/Headers/apogeo_configuration.svh"
-
-`include "../Include/Packages/apogeo_pkg.sv"
-
 module instruction_buffer #(
     /* Instruction buffer size */
     parameter BUFFER_SIZE = 8

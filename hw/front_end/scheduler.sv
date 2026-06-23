@@ -53,15 +53,6 @@
 `ifndef SCHEDULER_SV
     `define SCHEDULER_SV
 
-`include "../Include/Packages/apogeo_pkg.sv"
-`include "../Include/Packages/apogeo_operations_pkg.sv"
-`include "../Include/Packages/riscv_instructions_pkg.sv"
-
-`include "../Include/Headers/apogeo_configuration.svh"
-
-`include "register_file.sv"
-`include "scheduler.sv"
-
 module scheduler #(
     /* Reorder Buffer entries */
     parameter ROB_DEPTH = 32

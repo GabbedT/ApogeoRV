@@ -41,8 +41,6 @@
 `ifndef BRANCH_TARGET_BUFFER_SV
     `define BRANCH_TARGET_BUFFER_SV
 
-`include "../../Include/Packages/apogeo_pkg.sv"
-
 module branch_target_buffer #(
     parameter BUFFER_SIZE = 1024
 ) (

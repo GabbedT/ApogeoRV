@@ -1,8 +1,6 @@
 `ifndef TRACE_INTERFACE_SV 
     `define TRACE_INTERFACE_SV 
 
-`include "../Packages/apogeo_pkg.sv"
-
 interface trace_interface;
     
 //=========================================================

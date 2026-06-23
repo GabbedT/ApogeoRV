@@ -35,10 +35,6 @@
 `ifndef DECOMPRESSOR_SV
     `define DECOMPRESSOR_SV
 
-`include "../../Include/test_include.svh"
-
-`include "../../Include/Packages/riscv_instructions_pkg.sv"
-
 module decompressor (
     input riscv32::cinstruction_t compressed_i,
     output riscv32::instruction_t decompressed_o, 

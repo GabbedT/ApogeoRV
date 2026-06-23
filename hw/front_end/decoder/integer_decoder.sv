@@ -34,16 +34,6 @@
 `ifndef INTEGER_DECODER_SV
     `define INTEGER_DECODER_SV
 
-`include "../../Include/Headers/apogeo_exception_vectors.svh"
-`include "../../Include/Headers/apogeo_configuration.svh"
-
-`include "../../Include/test_include.svh"
-
-`include "../../Include/Packages/riscv_instructions_pkg.sv"
-`include "../../Include/Packages/apogeo_pkg.sv"
-`include "../../Include/Packages/apogeo_operations_pkg.sv"
-
-
 module integer_decoder (
     /* Instruction supplied by the fetch 
      * buffer */
