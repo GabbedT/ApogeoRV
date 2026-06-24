@@ -159,12 +159,10 @@ module integer_unit (
 //      MULTIPLICATION UNIT
 //====================================================================================
 
-    localparam IMUL_STAGES = 2 + `MUL_PIPE_STAGES;
-
     data_word_t mul_result;
     logic       mul_valid;
 
-    multiplication_unit #(`MUL_PIPE_STAGES) mul_unit (
+    multiplication_unit mul_unit (
         .clk_i          ( clk_i                  ),
         .clk_en_i       ( enable_mul             ),
         .rst_n_i        ( rst_n_i                ),
@@ -181,16 +179,14 @@ module integer_unit (
     /* Multiplication unit is fully pipelined  instruction packet 
      * must be passed through a shift register that delays the delivery 
      * to the final multiplexer */
-    instr_packet_t [IMUL_STAGES - 1:0] mul_ipacket;
+    instr_packet_t mul_ipacket;
 
         always_ff @(posedge clk_i) begin : mul_stage_register
             if (enable_mul) begin
                 if (flush_i) begin
-                    for (int i = 0; i < IMUL_STAGES; ++i) begin
-                        mul_ipacket[i] <= NO_OPERATION;
-                    end 
+                    mul_ipacket <= NO_OPERATION;
                 end else if (!stall_i) begin
-                    mul_ipacket <= {mul_ipacket[IMUL_STAGES - 2:0], ipacket_i};
+                    mul_ipacket <= ipacket_i;
                 end
             end
         end : mul_stage_register
@@ -200,7 +196,7 @@ module integer_unit (
     data_word_t    mul_result_out;
 
     assign mul_result_out = mul_valid ? mul_result : '0;
-    assign mul_final_ipacket = mul_valid ? mul_ipacket[IMUL_STAGES - 1] : '0;
+    assign mul_final_ipacket = mul_valid ? mul_ipacket : '0;
 
 
 //====================================================================================
