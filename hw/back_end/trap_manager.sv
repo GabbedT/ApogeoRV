@@ -43,6 +43,9 @@ module trap_manager (
     output logic stall_o,
     output logic int_ack_o,
 
+    /* Wakeup */
+    input logic wake_up_i,
+
     /* Events */
     input logic interrupt_i,
     input logic exception_i,
@@ -116,11 +119,11 @@ module trap_manager (
                 WAIT_WAKE_UP: begin
                     stall_o = 1'b1;
 
-                    if (interrupt_i) begin
+                    if (wake_up_i) begin
                         state_NXT = ACK_CYCLE;
 
                         stall_o = 1'b0;
-                        flush_o = interrupt_i;
+                        flush_o = 1'b1;
                     end
                 end
             endcase 

@@ -326,9 +326,17 @@ module ApogeoRV #(
     trace_interface trace_channel_backend(); 
     `endif 
 
+    logic wake_up; 
+
+    assign wake_up = (interrupt_i & external_interrupt_enable) | 
+                     (timer_interrupt_i & timer_interrupt_enable) |
+                     (non_maskable_int_i);
+
     back_end #(STORE_BUFFER_SIZE, ROB_DEPTH) apogeo_backend (
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
+        
+        .wake_up_i ( wake_up ),
 
         .flush_o          ( flush_pipeline ),
         .branch_flush_o   ( branch_flush   ),

@@ -54,6 +54,9 @@ module back_end #(
     input logic clk_i,
     input logic rst_n_i,
 
+    /* Wake from sleep */
+    input logic wake_up_i,
+
     /* Pipeline control */
     output logic flush_o,
     output logic branch_flush_o,
@@ -562,7 +565,10 @@ module back_end #(
         .rst_n_i   ( rst_n_i        ),
         .flush_o   ( flush_pipeline ),
         .stall_o   ( stall_pipeline ),
-        .int_ack_o ( int_ack_o      ),
+
+        .int_ack_o ( int_ack_o ),
+
+        .wake_up_i ( wake_up_i ),
 
         .interrupt_i  ( interrupt_i | timer_interrupt_i ),
         .exception_i  ( exception_generated             ),
