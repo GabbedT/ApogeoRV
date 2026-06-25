@@ -382,10 +382,10 @@ module front_end #(
         .taken_i             ( predict           ), 
         .fetch_speculative_i ( branch_buffer_hit ),
 
-        .write_instruction_i ( fetch_channel.valid ),
-        .write_speculative_i ( buffered_fetch      ),
-        .write_address_i     ( fetch_channel.fetch & !fetch_channel.stall ),
-        .read_i              ( ibuffer_read        ),
+        .write_instruction_i ( fetch_channel.valid & !fetch_channel.invalidate ),
+        .write_speculative_i ( buffered_fetch                                  ),
+        .write_address_i     ( fetch_channel.fetch & !fetch_channel.stall      ),
+        .read_i              ( ibuffer_read                                    ),
 
         .fetch_instruction_o ( ibuffer_instruction     ),
         .fetch_address_o     ( ibuffer_program_counter ),
