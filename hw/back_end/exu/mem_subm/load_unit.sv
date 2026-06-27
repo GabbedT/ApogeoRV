@@ -33,7 +33,7 @@
 //               offset, it slices the data into the requested format (byte, half word
 //               full word). The unit could not issue the request if the data is found
 //               in the store buffer or in the store unit (already doing a store). In
-//               this case the data is directly fowarded to this unit.
+//               this case the data is directly forwarded to this unit.
 // ------------------------------------------------------------------------------------
 
 `ifndef LOAD_UNIT_SV
@@ -60,9 +60,9 @@ module load_unit (
     /* Memory controller load channel */
     load_interface.master load_channel,
 
-    /* Fowarding nets */
-    input logic foward_match_i,
-    input data_word_t foward_data_i,
+    /* Forwarding nets */
+    input logic forward_match_i,
+    input data_word_t forward_data_i,
     output store_width_t load_size_o,
 
     /* Status */
@@ -168,7 +168,7 @@ module load_unit (
     logic private_region; assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
 
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    assign accessable = (private_region & privilege_i) | !private_region;
+    logic accessable; assign accessable = (private_region & privilege_i) | !private_region;
 
     assign illegal_access_o = !accessable & valid_operation_i; 
 
@@ -224,9 +224,9 @@ module load_unit (
 
                 /* The FSM stays idle until a valid operation *
                  * is supplied to the unit. The data can be   *
-                 * fowarded from store buffer or from the     *
+                 * forwarded from store buffer or from the    *
                  * store unit if it's waiting the store       *
-                 * controller. If no fowarding is done, the   *
+                 * controller. If no forwarding is done, the  *
                  * unit issue a load request                  */ 
                 IDLE: begin
                     idle_o = 1'b1;
@@ -261,10 +261,10 @@ module load_unit (
                     load_channel.address = load_address;
                     load_size_o = store_width_t'(operation.uop);
 
-                    if (foward_match_i) begin
+                    if (forward_match_i) begin
                         state_NXT = IDLE;
 
-                        data_selected = foward_data_i;
+                        data_selected = forward_data_i;
 
                         /* Invalidate the request made to not receive the 
                          * valid signal which could interfere with the next loads */

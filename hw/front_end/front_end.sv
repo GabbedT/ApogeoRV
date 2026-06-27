@@ -143,7 +143,7 @@ module front_end #(
 
     logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full, mispredicted;
 
-    logic jump_saved; logic [31:0] bta_saved;
+    logic jump_saved, predict, stall; logic [31:0] bta_saved;
 
     assign next_program_counter = stall_i ? '0 : program_counter + 'd4;
 
