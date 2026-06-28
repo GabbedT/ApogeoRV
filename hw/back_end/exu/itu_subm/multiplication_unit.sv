@@ -89,8 +89,8 @@ module multiplication_unit (
                 end
 
                 MULH: begin
-                    rs1_signed = 1'b0;
-                    rs2_signed = 1'b0;
+                    rs1_signed = 1'b1;
+                    rs2_signed = 1'b1;
                 end
 
                 MULHU: begin
@@ -110,7 +110,7 @@ module multiplication_unit (
     logic [32:0] rs1_ext, rs2_ext;
 
     assign rs1_ext = {rs1_signed & rs1_sign, multiplicand_i};
-    assign rs2_ext = {rs2_signed & rs1_sign, multiplier_i};
+    assign rs2_ext = {rs2_signed & rs2_sign, multiplier_i};
 
     /* Signed multiplication */
     logic [65:0] product;
