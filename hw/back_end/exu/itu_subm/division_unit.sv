@@ -228,7 +228,17 @@ module division_unit (
             case (operation)
                 DIV, DIVU: product_o = (div_dividend < div_divisor) ? '0 : converted_quotient;
 
-                REM, REMU: product_o = (div_dividend < div_divisor) ? div_dividend : converted_remainder;
+                REM, REMU: begin 
+                    if (div_dividend < div_divisor) begin
+                        if (is_signend_out & dividend_sign_out) begin
+                            product_o = -div_dividend;
+                        end else begin
+                            product_o = div_dividend;
+                        end
+                    end else begin
+                        product_o = converted_remainder;
+                    end
+                end
             endcase
         end : result_logic
 
