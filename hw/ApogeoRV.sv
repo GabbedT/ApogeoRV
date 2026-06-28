@@ -144,6 +144,7 @@ module ApogeoRV #(
 
     /* Data to backend */ 
     logic frontend_branch, frontend_jump, issue; logic [1:0] frontend_immediate_valid;
+    logic frontend_mispredicted;
     data_word_t frontend_address_offset; 
     logic frontend_save_next_pc, frontend_base_address_reg, frontend_speculative; 
     data_word_t [1:0] frontend_operand; instr_packet_t frontend_ipacket;

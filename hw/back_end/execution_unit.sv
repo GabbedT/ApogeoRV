@@ -172,7 +172,7 @@ module execution_unit #(
 //      LOAD STORE UNIT
 //====================================================================================
 
-    logic timer_interrupt, current_privilege;
+    logic current_privilege;
 
     load_store_unit #(STORE_BUFFER_SIZE) LSU (
         .clk_i          ( clk_i                   ),
@@ -196,7 +196,6 @@ module execution_unit #(
         .data_valid_o   ( data_valid_o[1]         )
     );
 
-    assign timer_interrupt_o = timer_interrupt; 
 
 //====================================================================================
 //      CONTROL AND STATUS REGISTERS 

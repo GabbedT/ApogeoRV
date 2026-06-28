@@ -354,6 +354,7 @@ module back_end #(
     instr_packet_t [EXU_PORT - 1:0] ipacket_sampled;
     logic [EXU_PORT - 1:0] valid_sampled;
     logic ldu_idle_sampled, stu_idle_sampled;
+    logic reorder_buffer_full;
 
         always_ff @(posedge clk_i) begin
             if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin

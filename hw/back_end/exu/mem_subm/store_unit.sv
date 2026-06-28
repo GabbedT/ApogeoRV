@@ -75,11 +75,11 @@ module store_unit #(
     /* Validate store buffer entry */
     input logic validate_i,
 
-    /* Buffer foward data nets */
-    input data_word_t foward_address_i,
-    input store_width_t foward_width_i,
-    output data_word_t foward_data_o,
-    output logic foward_match_o,
+    /* Buffer forward data nets */
+    input data_word_t forward_address_i,
+    input store_width_t forward_width_i,
+    output data_word_t forward_data_o,
+    output logic forward_match_o,
     output logic buffer_empty_o,
     output logic wait_o,
 
@@ -263,7 +263,7 @@ module store_unit #(
                     buffer_channel.request = !buffer_channel.full & !buffer_duplicate; 
                     buffer_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
-                    fsm_match = (foward_address_i == store_address_CRT) & (foward_width_i == store_width_CRT);
+                    fsm_match = (forward_address_i == store_address_CRT) & (forward_width_i == store_width_CRT);
 
                     if (!buffer_channel.full & !buffer_duplicate) begin 
                         if (!wait_i) begin
@@ -311,7 +311,7 @@ module store_unit #(
 //      STORE BUFFER
 //====================================================================================
 
-    data_word_t buffer_foward_data; logic buffer_match; 
+    data_word_t buffer_forward_data; logic buffer_match; 
 
     store_buffer #(STORE_BUFFER_SIZE) str_buffer (
         .clk_i   ( clk_i   ),
@@ -325,28 +325,28 @@ module store_unit #(
 
         .valid_i ( validate_i ),
 
-        .foward_address_i ( foward_address_i   ),
-        .foward_width_i   ( foward_width_i     ),
-        .foward_data_o    ( buffer_foward_data ),
-        .address_match_o  ( buffer_match       ),
-        .wait_o           ( wait_o             )
+        .forward_address_i ( forward_address_i   ),
+        .forward_width_i   ( forward_width_i     ),
+        .forward_data_o    ( buffer_forward_data ),
+        .address_match_o   ( buffer_match        ),
+        .wait_o            ( wait_o              )
     );
 
     assign buffer_empty_o = buffer_channel.empty;
 
 //====================================================================================
-//      FOWARD LOGIC
+//      FORWARD LOGIC
 //====================================================================================
 
     always_comb begin
         if (fsm_match) begin
-            foward_data_o = store_data_CRT;
+            forward_data_o = store_data_CRT;
         end else begin
-            foward_data_o = buffer_foward_data;
+            forward_data_o = buffer_forward_data;
         end
     end
 
-    assign foward_match_o = buffer_match | fsm_match;
+    assign forward_match_o = buffer_match | fsm_match;
 
 endmodule : store_unit 
 

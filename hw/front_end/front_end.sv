@@ -143,7 +143,7 @@ module front_end #(
 
     logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full, mispredicted;
 
-    logic jump_saved; logic [31:0] bta_saved;
+    logic jump_saved, predict, stall; logic [31:0] bta_saved;
 
     assign next_program_counter = stall_i ? '0 : program_counter + 'd4;
 
@@ -382,10 +382,10 @@ module front_end #(
         .taken_i             ( predict           ), 
         .fetch_speculative_i ( branch_buffer_hit ),
 
-        .write_instruction_i ( fetch_channel.valid ),
-        .write_speculative_i ( buffered_fetch      ),
-        .write_address_i     ( fetch_channel.fetch & !fetch_channel.stall ),
-        .read_i              ( ibuffer_read        ),
+        .write_instruction_i ( fetch_channel.valid & !fetch_channel.invalidate ),
+        .write_speculative_i ( buffered_fetch                                  ),
+        .write_address_i     ( fetch_channel.fetch & !fetch_channel.stall      ),
+        .read_i              ( ibuffer_read                                    ),
 
         .fetch_instruction_o ( ibuffer_instruction     ),
         .fetch_address_o     ( ibuffer_program_counter ),

@@ -107,9 +107,9 @@ module load_store_unit #(
 
     logic stu_data_accepted, stu_illegal_access, stu_misaligned, stu_data_valid, ldu_data_valid;
 
-    /* Store buffer fowarding nets */
-    logic foward_address_match, ldu_wait_buffer, ldu_wait;
-    data_word_t foward_data; store_width_t ldu_load_size;
+    /* Store buffer forwarding nets */
+    logic forward_address_match, ldu_wait_buffer, ldu_wait;
+    data_word_t forward_data; store_width_t ldu_load_size;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
         .clk_i   ( clk_i   ),
@@ -129,13 +129,13 @@ module load_store_unit #(
 
         .store_channel ( store_channel ),
 
-        .validate_i       ( validate_i           ),
-        .foward_address_i ( load_channel.address ),
-        .foward_width_i   ( ldu_load_size        ),
-        .foward_data_o    ( foward_data          ),
-        .foward_match_o   ( foward_address_match ),
-        .buffer_empty_o   ( buffer_empty_o       ),
-        .wait_o           ( ldu_wait_buffer      ),
+        .validate_i        ( validate_i            ),
+        .forward_address_i ( load_channel.address  ),
+        .forward_width_i   ( ldu_load_size         ),
+        .forward_data_o    ( forward_data          ),
+        .forward_match_o   ( forward_address_match ),
+        .buffer_empty_o    ( buffer_empty_o        ),
+        .wait_o            ( ldu_wait_buffer       ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
@@ -168,20 +168,20 @@ module load_store_unit #(
         end 
 
 
-    logic foward_address_match_out; data_word_t foward_data_out; 
+    logic forward_address_match_out; data_word_t forward_data_out; 
 
         always_ff @(posedge clk_i) begin
             if (flush_i) begin
-                foward_address_match_out <= 1'b0;
+                forward_address_match_out <= 1'b0;
             end else if (data_valid_i.LDU & !stall_i) begin
-                foward_address_match_out <= foward_address_match;
+                forward_address_match_out <= forward_address_match;
             end else begin
-                foward_address_match_out <= 1'b0;
+                forward_address_match_out <= 1'b0;
             end
         end 
 
         always_ff @(posedge clk_i) begin
-            foward_data_out <= foward_data;
+            forward_data_out <= forward_data;
         end 
 
 
@@ -205,9 +205,9 @@ module load_store_unit #(
 
         .load_channel ( load_channel ),
 
-        .foward_match_i ( foward_address_match_out ),
-        .foward_data_i  ( foward_data_out          ),
-        .load_size_o    ( ldu_load_size            ),
+        .forward_match_i ( forward_address_match_out ),
+        .forward_data_i  ( forward_data_out          ),
+        .load_size_o     ( ldu_load_size             ),
 
         .buffer_wait_i  ( ldu_wait_buffer ),
         .buffer_empty_i ( buffer_empty_o  ),

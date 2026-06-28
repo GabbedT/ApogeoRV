@@ -32,7 +32,7 @@
 //               load / store units doesn't stall when storing data. The unit will 
 //               simply write the buffer and do other work, then when the memory controller
 //               is ready the buffer will be read and the data sent to the memory.
-//               The store buffer support fowarding for the load unit if the load address
+//               The store buffer support forwarding for the load unit if the load address
 //               match one of the entries (accessing the memory would result in wrong 
 //               data value) and it support merging, if the store unit store data and the
 //               address match one of the entries, the data in the buffer will be updated 
@@ -56,10 +56,10 @@ module store_buffer #(
     /* Validate */
     input logic valid_i,
 
-    /* Foward data nets */
-    input data_word_t foward_address_i,
-    input store_width_t foward_width_i,
-    output data_word_t foward_data_o,
+    /* Forward data nets */
+    input data_word_t forward_address_i,
+    input store_width_t forward_width_i,
+    output data_word_t forward_data_o,
     output logic address_match_o,
     output logic wait_o
 );
@@ -137,7 +137,7 @@ module store_buffer #(
             end
         end : status_register
 
-    logic [$clog2(BUFFER_DEPTH) - 1:0] foward_ptr;
+    logic [$clog2(BUFFER_DEPTH) - 1:0] forward_ptr;
 
 
     logic request_status;
@@ -158,7 +158,7 @@ module store_buffer #(
 //====================================================================================
 
     /* Implemented with a memory with 1W and 2R ports 
-     * to avoid conflicts between fowarding and pulling */
+     * to avoid conflicts between forwarding and pulling */
     logic [$bits(data_word_t) - 1:0] data_buffer [1:0][BUFFER_DEPTH - 1:0];
 
         always_ff @(posedge clk_i) begin : write_data_port
@@ -169,8 +169,8 @@ module store_buffer #(
             end
         end : write_data_port
 
-    /* Foward read port */
-    assign foward_data_o = data_buffer[1][foward_ptr];
+    /* Forward read port */
+    assign forward_data_o = data_buffer[1][forward_ptr];
 
     /* Pull read port */
     assign pull_channel.data = data_buffer[0][pull_ptr];
@@ -261,31 +261,31 @@ module store_buffer #(
 
 
 //====================================================================================
-//      FOWARD LOGIC
+//      FORWARD LOGIC
 //====================================================================================
 
     /* A valid entry, used to partially validate pushed values before the store operation
      * passes the reorder buffer */ 
-    logic [BUFFER_DEPTH - 1:0] foward_valid;
+    logic [BUFFER_DEPTH - 1:0] forward_valid;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin 
                 for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
-                    foward_valid[i] <= '0;
+                    forward_valid[i] <= '0;
                 end
             end else if (flush_i) begin 
                 for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
-                    foward_valid[i] <= '0;
+                    forward_valid[i] <= '0;
                 end
             end else begin 
                 if (pull_channel.done) begin
                     /* Invalidate on pull */
-                    foward_valid[pull_ptr] <= 1'b0;
+                    forward_valid[pull_ptr] <= 1'b0;
                 end
                 
                 if (push_channel.request) begin
                     /* Validate on ROB writeback */
-                    foward_valid[push_ptr] <= 1'b1;
+                    forward_valid[push_ptr] <= 1'b1;
                 end
             end 
         end 
@@ -294,7 +294,7 @@ module store_buffer #(
 
         always_comb begin
             for (int i = 0; i < BUFFER_DEPTH; ++i) begin
-                duplicate[i] = (metadata_buffer[i].address[31:2] == push_channel.packet.address[31:2]) & foward_valid[i];
+                duplicate[i] = (metadata_buffer[i].address[31:2] == push_channel.packet.address[31:2]) & forward_valid[i];
             end
         end
 
@@ -302,36 +302,36 @@ module store_buffer #(
 
 
 
-    logic [BUFFER_DEPTH - 1:0] address_match, width_match, foward_match, wait_match;
+    logic [BUFFER_DEPTH - 1:0] address_match, width_match, forward_match, wait_match;
 
         always_comb begin : address_match_logic
             /* Default values */
-            foward_ptr = '0;
+            forward_ptr = '0;
             width_match = '0;
-            foward_match = '0;
+            forward_match = '0;
             address_match = '0;
 
             for (int i = BUFFER_DEPTH - 1; i >= 0; --i) begin
                 /* Check if any read address match an entry, start from the head of the buffer, so the most recent data is matched */
-                address_match[i] = (foward_address_i == metadata_buffer[i].address) & foward_valid[i];
-                width_match[i] = foward_width_i == store_width_buffer[i];
+                address_match[i] = (forward_address_i == metadata_buffer[i].address) & forward_valid[i];
+                width_match[i] = forward_width_i == store_width_buffer[i];
 
                 /* Final validity check */
-                foward_match[i] = address_match[i] & width_match[i];
+                forward_match[i] = address_match[i] & width_match[i];
 
                 /* Wait if address match but not the width */
-                wait_match[i] = (foward_address_i[31:2] == metadata_buffer[i].address[31:2]) & foward_valid[i] & !width_match[i];
+                wait_match[i] = (forward_address_i[31:2] == metadata_buffer[i].address[31:2]) & forward_valid[i] & !width_match[i];
                 
                 /* Priority encoder */
-                if (foward_match[i]) begin
-                    foward_ptr = i;
+                if (forward_match[i]) begin
+                    forward_ptr = i;
                 end
             end
         end : address_match_logic
 
     assign wait_o = wait_match != '0;
 
-    assign address_match_o = (foward_match != '0);
+    assign address_match_o = (forward_match != '0);
 
 endmodule : store_buffer
 
