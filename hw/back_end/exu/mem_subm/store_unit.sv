@@ -311,7 +311,7 @@ module store_unit #(
 //      STORE BUFFER
 //====================================================================================
 
-    data_word_t buffer_forward_data; logic buffer_match; 
+    data_word_t buffer_forward_data; logic buffer_match, buffer_wait; 
 
     store_buffer #(STORE_BUFFER_SIZE) str_buffer (
         .clk_i   ( clk_i   ),
@@ -319,7 +319,7 @@ module store_unit #(
         .flush_i ( flush_i ),
 
         .duplicate_o ( buffer_duplicate ),
-    
+
         .push_channel ( buffer_channel ),
         .pull_channel ( store_channel  ),
 
@@ -329,10 +329,23 @@ module store_unit #(
         .forward_width_i   ( forward_width_i     ),
         .forward_data_o    ( buffer_forward_data ),
         .address_match_o   ( buffer_match        ),
-        .wait_o            ( wait_o              )
+        .wait_o            ( buffer_wait         )
     );
 
+
+    /* Assert a wait when the held duplicate overlaps the load's word and the
+     * data cannot be exactly forwarded (different width / sub-word offset). On
+     * an exact match fsm_match already forwards store_data_CRT, so no wait. */
+    logic fsm_wait;
+
+    assign fsm_wait = (state_CRT == WAIT_BUFFER)
+                    & (forward_address_i[31:2] == store_address_CRT[31:2])
+                    & !((forward_address_i == store_address_CRT) & (forward_width_i == store_width_CRT));
+
+    assign wait_o = (buffer_wait & !fsm_match) | fsm_wait;
+
     assign buffer_empty_o = buffer_channel.empty;
+
 
 //====================================================================================
 //      FORWARD LOGIC
