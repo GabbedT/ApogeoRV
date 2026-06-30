@@ -502,7 +502,7 @@ module scoreboard (
 
     assign stu_raw_hazard = block_stu_issue | ((src_reg_i[0] == stu_register_dest) | (dest_reg_i == stu_register_dest)) & !stu_idle_i & (stu_register_dest != '0); 
 
-    assign block_store_operation = lsu_unit_i.STU & (!ldu_idle_i & !ldu_word_operation);
+    assign block_store_operation = lsu_unit_i.STU & !ldu_idle_i;
 
 
 //====================================================================================
