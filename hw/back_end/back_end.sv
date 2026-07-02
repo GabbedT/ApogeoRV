@@ -70,6 +70,7 @@ module back_end #(
 
     /* Units enabled */
     output logic M_ext_o,
+    output logic C_ext_o,
 
     `ifdef BMU 
     output logic B_ext_o, 
@@ -299,6 +300,7 @@ module back_end #(
         .buffer_empty_o  ( store_buffer_empty ),
 
         .M_ext_o     ( M_ext_o     ),
+        .C_ext_o     ( C_ext_o     ),
 
         `ifdef BMU 
         .B_ext_o     ( B_ext_o     ), 

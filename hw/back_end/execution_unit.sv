@@ -51,6 +51,7 @@ module execution_unit #(
     output logic buffer_empty_o,
 
     /* Decoder valid instruction select */
+    output logic C_ext_o,
     output logic M_ext_o,
     `ifdef BMU output logic B_ext_o, `endif 
     `ifdef FPU output logic Zfinx_ext_o, `endif 
@@ -244,6 +245,7 @@ module execution_unit #(
         .branch_mispredicted_i  ( branch_mispredicted_i   ),
         .enable_mul_o           ( csr_mul_enable          ),
         .enable_div_o           ( csr_div_enable          ), 
+        .enable_c_o             ( C_ext_o                 ),
 
         `ifdef BMU
             .enable_bmu_o ( csr_bmu_enable ), 

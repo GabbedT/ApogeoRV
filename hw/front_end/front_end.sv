@@ -79,6 +79,7 @@ module front_end #(
 
     /* Unit enabled */
     input logic M_ext_i,
+    input logic C_ext_i,
 
     `ifdef BMU 
     input logic B_ext_i, 
@@ -336,6 +337,7 @@ module front_end #(
         .clk_i                ( clk_i                              ), 
         .rst_n_i              ( rst_n_i                            ),
         .valid_i              ( fetch_channel.fetch                ),
+        // .compressed_en_i      ( C_ext_i                            ),
         .flush_i              ( branch_flush_i | flush_i           ),
         .program_counter_i    ( fetch_channel.address              ),
         .stall_i              ( ibuffer_full | fetch_channel.stall ),
@@ -524,7 +526,7 @@ module front_end #(
                 if_stage_compressed <= compressed & !decompressor_exception;
                 if_stage_speculative <= !((select_upper_portion | cross_boundary) & !previous_speculative) & ibuffer_speculative;
 
-                if_stage_exception <= (compressed ? decompressor_exception : 1'b0) | misaligned_instruction;
+                if_stage_exception <= (compressed & decompressor_exception) | misaligned_instruction | (compressed & !C_ext_i);
             end
         end 
 

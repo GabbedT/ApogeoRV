@@ -131,7 +131,7 @@ module ApogeoRV #(
 //====================================================================================
 
     /* Pipeline control */ 
-    logic M_extension, B_extension, Zfinx_extension;
+    logic M_extension, B_extension, Zfinx_extension, C_extension;
     logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, branch_flush, pipeline_empty;
     data_word_t handler_program_counter, hander_return_program_counter;
 
@@ -176,6 +176,7 @@ module ApogeoRV #(
         .stop_tag_i      ( stop_tag      ),
 
         .M_ext_i     ( M_extension     ),
+        .C_ext_i     ( C_extension     ),
 
         `ifdef BMU 
         .B_ext_i     ( B_extension     ), 
@@ -350,6 +351,7 @@ module ApogeoRV #(
         .priv_level_o ( privilege_level ),
     
         .M_ext_o     ( M_extension     ),
+        .C_ext_o     ( C_extension     ),
 
         `ifdef BMU 
         .B_ext_o     ( B_extension     ), 
