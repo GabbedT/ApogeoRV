@@ -74,21 +74,25 @@ module branch_predictor #(
 //      PREDICTOR
 //====================================================================================
 
-    logic make_prediction, prediction; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
+    logic make_prediction, prediction, prediction_valid; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
 
     predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
         .clk_i          ( clk_i                ),   
         .rst_n_i        ( rst_n_i              ),
         .stall_i        ( stall_i              ),
         .flush_i        ( flush_i              ),
-        .predict_i      ( make_prediction      ),
-        .executed_i     ( executed_i           ),
-        .taken_i        ( taken_i              ),
-        .jump_i         ( jump_i               ),
+
+        .predict_i      ( make_prediction ),
+        .executed_i     ( executed_i      ),
+        .taken_i        ( taken_i         ),
+        .jump_i         ( jump_i          ),
+
         .btb_address_i  ( branch_target_addr_o ),
         .exu_address_i  ( branch_target_addr_i ),
-        .prediction_o   ( prediction           ),
-        .mispredicted_o ( mispredicted_o       )
+
+        .prediction_valid_o ( prediction_valid ),
+        .prediction_o       ( prediction       ),
+        .mispredicted_o     ( mispredicted_o   )
     ); 
 
     /* Take the branch if it's predicted taken or if it's a jump */
@@ -99,20 +103,45 @@ module branch_predictor #(
 //====================================================================================
 
     branch_target_buffer #(BTB_SIZE) btb_unit (
-        .clk_i                ( clk_i                ),
+        .clk_i                ( clk_i   ),
         .valid_i              ( valid_i ), 
+
         .program_counter_i    ( program_counter_i    ),
         .instr_address_i      ( instr_address_i      ),
-        .branch_target_addr_i ( branch_target_addr_i ), 
-        .taken_i              ( taken_i              ),
-        .branch_i             ( branch_i             ),
-        .jump_i               ( jump_i               ),
+        .branch_target_addr_i ( branch_target_addr_i ),
         .branch_target_addr_o ( branch_target_addr_o ),
-        .predict_o            ( make_prediction      ),
-        .hit_o                ( hit_o                )
+
+        .taken_i              ( taken_i  ),
+        .branch_i             ( branch_i ),
+        .jump_i               ( jump_i   ),
+
+        .predict_o            ( make_prediction ),
+        .hit_o                ( hit_o           )
     );
 
     assign predictor_index = branch_target_addr_o[$clog2(PREDICTOR_SIZE) - 1:0];
+
+
+//====================================================================================
+//      PERFORMANCE (SIMULATION ONLY)
+//====================================================================================
+
+    logic [31:0] predictions, mispredictions;
+
+        always_ff @(posedge clk_i) begin
+            if (!rst_n_i) begin
+                mispredictions <= '0;
+                predictions <= '0;
+            end else begin
+                if (prediction_valid) begin
+                    predictions <= predictions + 1'b1;
+
+                    if (mispredicted_o) begin
+                        mispredictions <= mispredictions + 1'b1;
+                    end
+                end
+            end
+        end
 
 endmodule : branch_predictor
 
