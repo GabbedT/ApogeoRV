@@ -282,7 +282,7 @@ module store_unit #(
                 WAIT_ACCEPT: begin
                     data_valid_o = 1'b1;
 
-                    illegal_access_o = accessable_saved; 
+                    illegal_access_o = !accessable_saved; 
                     misaligned_o = misaligned_saved; 
                     
                     if (!wait_i) begin
