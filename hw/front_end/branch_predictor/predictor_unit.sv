@@ -52,6 +52,7 @@ module predictor_unit #(
     input logic rst_n_i,
     input logic stall_i,
     input logic flush_i,
+    input logic c_ext_i,
 
     /* Match in BTB, make a prediction */
     input logic predict_i,
@@ -61,9 +62,15 @@ module predictor_unit #(
     input logic taken_i,
     input logic jump_i,
 
+    /* BTB Entry hit is jump */
+    input logic btb_jump_i,
+
     /* Branch target address */
     input logic [31:0] btb_address_i,
     input logic [31:0] exu_address_i,
+
+    /* PC of the BTB hit */
+    input logic [31:0] branch_pc_i,
 
     /* Prediction outcome */
     output logic prediction_valid_o,
@@ -164,8 +171,9 @@ module predictor_unit #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 branch_history_table <= '0;
-            end else if (executed_i) begin
-                branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 2:0], taken_i | jump_i};
+            end else if (executed_i & !jump_i) begin 
+                /* Don't pollute history with unconditional jumps */
+                branch_history_table <= {branch_history_table[$clog2(TABLE_SIZE) - 2:0], taken_i};
             end
         end 
 
@@ -176,13 +184,14 @@ module predictor_unit #(
 
     logic [$clog2(TABLE_SIZE) - 1:0] hashed_index;
 
-    assign hashed_index = branch_history_table ^ btb_address_i[$clog2(TABLE_SIZE) - 1:0];
+    /* GSHARE Hash */
+    assign hashed_index = branch_history_table ^ (c_ext_i ? branch_pc_i[$clog2(TABLE_SIZE):1] : branch_pc_i[$clog2(TABLE_SIZE) + 1:2]);
 
 
     logic [1:0] branch_status_read, branch_status_write; logic write;
 
         always_comb begin 
-            if (taken_i | jump_i) begin
+            if (taken_i) begin
                 branch_status_write = (branch_status_read == '1) ? branch_status_read : (branch_status_read + 1'b1);
             end else begin
                 branch_status_write = (branch_status_read == '0) ? branch_status_read : (branch_status_read - 1'b1);
@@ -205,10 +214,10 @@ module predictor_unit #(
     /* Read FIFO and update branch status when it has been executed and 
      * its condition evaluated */
     assign pull = executed_i & !fifo_empty;     
-    assign write = executed_i & !fifo_empty;
+    assign write = executed_i & !fifo_empty & !jump_i;
 
     /* If high bit of the status is set then prediction is taken */
-    assign prediction_o = branch_status_table[hashed_index][1];
+    assign prediction_o = btb_jump_i | branch_status_table[hashed_index][1];
 
     assign prediction_valid_o = executed_i & !fifo_empty & !flush_i;
 

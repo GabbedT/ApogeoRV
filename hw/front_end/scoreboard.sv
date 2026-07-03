@@ -111,7 +111,7 @@ module scoreboard (
 //      LATENCY CHECK LOGIC
 //==================================================================================== 
 
-    logic [5:0] latency; `ifdef FPU logic [2:0] fpu_latency; `endif 
+    logic [5:0] latency; `ifdef FPU logic [3:0] fpu_latency; `endif 
 
         always_comb begin : latency_assignment
             /* Integer unit */
@@ -920,7 +920,7 @@ module scoreboard (
 
     assign fpu_raw_hazard = (fadd_raw_hazard != '0) | (fmul_raw_hazard != '0) | (fcvt_raw_hazard != '0) | (fcmp_raw_hazard != '0) | (fmis_raw_hazard != '0);
     assign fpu_latency_hazard = (fadd_latency_hazard != '0) | (fmul_latency_hazard != '0) | (fcvt_latency_hazard != '0) | (fcmp_latency_hazard != '0) | (fmis_latency_hazard != '0);
-    assign fpu_empty = (fadd_executing == '0) | (fmul_executing == '0) | (fcvt_executing == '0) | (fcmp_executing == '0) | (fmis_executing == '0);
+    assign fpu_empty = (fadd_executing == '0) & (fmul_executing == '0) & (fcvt_executing == '0) & (fcmp_executing == '0) & (fmis_executing == '0);
     
     `endif 
 

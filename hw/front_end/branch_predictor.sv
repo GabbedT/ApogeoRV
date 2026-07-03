@@ -51,6 +51,9 @@ module branch_predictor #(
 
     input logic valid_i,
 
+    /* C extension enabled */
+    input logic compressed_en_i,
+
     /* Current program counter */
     input data_word_t program_counter_i,
     input logic stall_i,
@@ -74,21 +77,24 @@ module branch_predictor #(
 //      PREDICTOR
 //====================================================================================
 
-    logic make_prediction, prediction, prediction_valid; logic [$clog2(PREDICTOR_SIZE) - 1:0] predictor_index;
+    logic make_prediction, prediction, prediction_valid, btb_is_jump; data_word_t btb_branch_pc;
 
     predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
-        .clk_i          ( clk_i                ),   
-        .rst_n_i        ( rst_n_i              ),
-        .stall_i        ( stall_i              ),
-        .flush_i        ( flush_i              ),
+        .clk_i   ( clk_i           ),   
+        .rst_n_i ( rst_n_i         ),
+        .stall_i ( stall_i         ),
+        .flush_i ( flush_i         ),
+        .c_ext_i ( compressed_en_i ),
 
-        .predict_i      ( make_prediction ),
-        .executed_i     ( executed_i      ),
-        .taken_i        ( taken_i         ),
-        .jump_i         ( jump_i          ),
+        .predict_i  ( make_prediction ),
+        .executed_i ( executed_i      ),
+        .taken_i    ( taken_i         ),
+        .jump_i     ( jump_i          ),
+        .btb_jump_i ( btb_is_jump     ),
 
         .btb_address_i  ( branch_target_addr_o ),
         .exu_address_i  ( branch_target_addr_i ),
+        .branch_pc_i    ( btb_branch_pc        ),
 
         .prediction_valid_o ( prediction_valid ),
         .prediction_o       ( prediction       ),
@@ -103,23 +109,23 @@ module branch_predictor #(
 //====================================================================================
 
     branch_target_buffer #(BTB_SIZE) btb_unit (
-        .clk_i                ( clk_i   ),
-        .valid_i              ( valid_i ), 
+        .clk_i   ( clk_i   ),
+        .valid_i ( valid_i ), 
 
         .program_counter_i    ( program_counter_i    ),
         .instr_address_i      ( instr_address_i      ),
         .branch_target_addr_i ( branch_target_addr_i ),
         .branch_target_addr_o ( branch_target_addr_o ),
 
-        .taken_i              ( taken_i  ),
-        .branch_i             ( branch_i ),
-        .jump_i               ( jump_i   ),
+        .taken_i  ( taken_i  ),
+        .branch_i ( branch_i ),
+        .jump_i   ( jump_i   ),
 
-        .predict_o            ( make_prediction ),
-        .hit_o                ( hit_o           )
+        .predict_o   ( make_prediction ),
+        .hit_o       ( hit_o           ),
+        .is_jump_o   ( btb_is_jump     ),
+        .branch_pc_o ( btb_branch_pc   )
     );
-
-    assign predictor_index = branch_target_addr_o[$clog2(PREDICTOR_SIZE) - 1:0];
 
 
 //====================================================================================

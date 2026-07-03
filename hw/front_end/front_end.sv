@@ -337,7 +337,7 @@ module front_end #(
         .clk_i                ( clk_i                              ), 
         .rst_n_i              ( rst_n_i                            ),
         .valid_i              ( fetch_channel.fetch                ),
-        // .compressed_en_i      ( C_ext_i                            ),
+        .compressed_en_i      ( C_ext_i                            ),
         .flush_i              ( branch_flush_i | flush_i           ),
         .program_counter_i    ( fetch_channel.address              ),
         .stall_i              ( ibuffer_full | fetch_channel.stall ),
