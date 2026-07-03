@@ -235,7 +235,7 @@ module load_unit (
                         if (misaligned_o | illegal_access_o) begin
                             /* Exception */ 
                             data_valid_o = 1'b1; 
-                        end if (buffer_wait_i | private_region) begin
+                        end else if (buffer_wait_i | private_region) begin
                             state_NXT = WAIT_MEMORY_UPDATE;
 
                             /* Stop the STU to push other data */
