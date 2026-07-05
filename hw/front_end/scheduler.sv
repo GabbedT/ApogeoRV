@@ -67,6 +67,9 @@ module scheduler #(
     output logic pipeline_empty_o,
     output logic stall_o,
 
+    /* Destination hazard */
+    input logic dst_match_i,
+    
     /* Scheduler interface */
     output logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_o,
     input logic stop_tag_i,
@@ -152,6 +155,8 @@ module scheduler #(
         .flush_i ( flush_i ),
         .stall_i ( stall_i ),
 
+        .dst_match_i ( dst_match_i ),
+
         .src_reg_i  ( src_reg_i  ),
         .dest_reg_i ( dest_reg_i ),
 
@@ -215,17 +220,20 @@ module scheduler #(
 //      ROB TAG GENERATION
 //====================================================================================
 
-    logic issued_instructions, issued_csr_instruction;
+    logic issued_instructions, issued_instructions_dly, issued_csr_instruction;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
                 issued_instructions <= 1'b0;
+                issued_instructions_dly <= 1'b0;
                 issued_csr_instruction <= 1'b0;
             end else if (flush_i | branch_flush_i | mispredicted_i) begin
                 issued_instructions <= 1'b0;
+                issued_instructions_dly <= 1'b0;
                 issued_csr_instruction <= 1'b0;
             end else begin
                 issued_instructions <= issue_instruction & (exu_valid_i != '0);
+                issued_instructions_dly <= issued_instructions;
                 
                 if (csr_writeback_i) begin
                     issued_csr_instruction <= 1'b0; 

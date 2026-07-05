@@ -89,6 +89,9 @@ module front_end #(
     input logic Zfinx_ext_i, 
     `endif 
 
+    /* Scheduler logic */
+    input logic dst_match_i,
+
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
 
@@ -677,14 +680,17 @@ module front_end #(
     logic pipeline_empty;
 
     scheduler #(ROB_DEPTH) scheduler_unit (
-        .clk_i            ( clk_i            ),  
-        .rst_n_i          ( rst_n_i          ), 
-        .stall_i          ( stall_i          ),
-        .flush_i          ( flush_i          ),
+        .clk_i   ( clk_i   ),  
+        .rst_n_i ( rst_n_i ), 
+        .stall_i ( stall_i ),
+        .flush_i ( flush_i ),
+
         .branch_flush_i   ( branch_flush_i   ),
         .pipeline_empty_i ( pipeline_empty_i ),
         .pipeline_empty_o ( pipeline_empty   ),
         .stall_o          ( stall            ),
+
+        .dst_match_i ( dst_match_i ),
 
         .tag_generated_o ( tag_generated_o ),
         .stop_tag_i      ( stop_tag_i      ),

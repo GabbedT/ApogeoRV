@@ -152,7 +152,7 @@ module ApogeoRV #(
     logic [1:0][4:0] frontend_register_source;
 
     /* ROB - Scheduler interface */
-    logic [$clog2(ROB_DEPTH) - 1:0] tag_generated;
+    logic [$clog2(ROB_DEPTH) - 1:0] tag_generated; logic dst_match;
     logic stop_tag;
 
     /* Registred output */ 
@@ -171,6 +171,8 @@ module ApogeoRV #(
         .issue_o          ( issue           ),
         .pipeline_empty_i ( pipeline_empty  ),
         .pipeline_empty_o ( pipe_flushed    ),
+
+        .dst_match_i ( dst_match ),
 
         .tag_generated_o ( tag_generated ),
         .stop_tag_i      ( stop_tag      ),
@@ -361,9 +363,11 @@ module ApogeoRV #(
         .Zfinx_ext_o ( Zfinx_extension ), 
         `endif 
 
-        .reg_src_i         ( backend_register_source ),
-        .operand_i         ( backend_operand         ),
-        .immediate_valid_i ( backend_immediate_valid ),
+        .reg_src_i         ( backend_register_source   ),
+        .reg_dst_i         ( frontend_ipacket.reg_dest ),
+        .operand_i         ( backend_operand           ),
+        .immediate_valid_i ( backend_immediate_valid   ),
+        .dst_match_o       ( dst_match                 ),
 
         .data_valid_i ( backend_valid_operation ),
         .operation_i  ( backend_operation       ),  

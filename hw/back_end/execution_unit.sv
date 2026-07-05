@@ -49,6 +49,14 @@ module execution_unit #(
     input logic stall_i,
     input logic validate_i,
     output logic buffer_empty_o,
+    output logic stall_o,
+
+    /* Bypass / Scheduling logic */
+    input logic [1:0][4:0] reg_src_i,
+    input logic [4:0] reg_dst_i,
+    output data_word_t [1:0] data_fwd_o,
+    output logic [1:0] src_match_o,
+    output logic dst_match_o,
 
     /* Decoder valid instruction select */
     output logic C_ext_o,
@@ -141,7 +149,10 @@ module execution_unit #(
 
     assign div_enable = csr_div_enable | !stall_i;
     assign mul_enable = csr_mul_enable | !stall_i;
-    assign bmu_enable = csr_bmu_enable | !stall_i;
+
+    `ifdef BMU 
+    assign bmu_enable = csr_bmu_enable | !stall_i; 
+    `endif
 
     data_word_t itu_result; instr_packet_t itu_ipacket; logic itu_valid;
 
@@ -150,9 +161,16 @@ module execution_unit #(
         .rst_n_i        ( rst_n_i        ),
         .stall_i        ( stall_i        ),
         .flush_i        ( flush_i        ),
+        .stall_o        ( stall_o        ),
         .enable_mul     ( mul_enable     ),
         .enable_div     ( div_enable     ),
         .save_next_pc_i ( save_next_pc_i ),
+
+        .reg_src_i   ( reg_src_i   ),
+        .reg_dst_i   ( reg_dst_i   ),
+        .data_fwd_o  ( data_fwd_o  ),
+        .src_match_o ( src_match_o ),
+        .dst_match_o ( dst_match_o ),
 
         `ifdef BMU 
         .enable_bmu   ( bmu_enable ),

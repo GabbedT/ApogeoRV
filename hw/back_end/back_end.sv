@@ -82,8 +82,12 @@ module back_end #(
 
     /* Operands */
     input logic [1:0][4:0] reg_src_i,
+    input logic [4:0] reg_dst_i,
     input logic [1:0] immediate_valid_i,
     input data_word_t [1:0] operand_i,
+
+    /* To scheduler */
+    output logic dst_match_o,
 
     /* Valid operations signals */
     input exu_valid_t data_valid_i,
@@ -158,7 +162,7 @@ module back_end #(
 //      EXECUTION STAGE
 //====================================================================================
 
-    logic core_sleep;
+    logic core_sleep; logic downstream_stall;
 
     /* Operands */
     data_word_t [1:0] fowarded_operands; 
@@ -287,17 +291,28 @@ module back_end #(
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
     logic execute_store, ldu_idle, stu_idle;
 
-    exu_valid_t valid_operation; 
+    exu_valid_t valid_operation; logic exu_stall;
 
-    assign valid_operation = stall_o ? '0 : bypass_valid; 
+    assign valid_operation = downstream_stall ? '0 : bypass_valid; 
+
+    data_word_t [1:0] skid_data; logic [1:0] skid_match;
 
     execution_unit #(STORE_BUFFER_SIZE, EXU_PORT) execute_stage (
         .clk_i           ( clk_i              ),
         .rst_n_i         ( rst_n_i            ),
         .flush_i         ( flush_o            ),
-        .stall_i         ( stall_o            ),
         .validate_i      ( execute_store      ),
         .buffer_empty_o  ( store_buffer_empty ),
+
+        .stall_i         ( downstream_stall  ),
+        .stall_o         ( exu_stall         ),
+
+        /* Bypass / Scheduling logic */
+        .reg_src_i   ( reg_src_i   ),
+        .reg_dst_i   ( reg_dst_i   ),
+        .data_fwd_o  ( skid_data   ),
+        .src_match_o ( skid_match  ),
+        .dst_match_o ( dst_match_o ),
 
         .M_ext_o     ( M_ext_o     ),
         .C_ext_o     ( C_ext_o     ),
@@ -359,7 +374,7 @@ module back_end #(
     logic reorder_buffer_full;
 
         always_ff @(posedge clk_i) begin
-            if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin
+            if (!downstream_stall) begin
                 result_sampled <= result;
                 ipacket_sampled <= ipacket;
             end 
@@ -375,9 +390,9 @@ module back_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 valid_sampled <= '0;
-            end if (flush_o) begin
+            end else if (flush_o) begin
                 valid_sampled <= '0;
-            end else if (!stall_pipeline & !reorder_buffer_full & !buffer_full) begin
+            end else if (!downstream_stall) begin
                 valid_sampled <= valid;
             end 
         end
@@ -395,41 +410,66 @@ module back_end #(
 
     generate
         for (i = 0; i < EXU_PORT; ++i) begin
-            assign dest_match[0][i] = ipacket_sampled[i].reg_dest == reg_src_i[0];
-            assign dest_match[1][i] = ipacket_sampled[i].reg_dest == reg_src_i[1];
+            assign dest_match[0][i] = (ipacket_sampled[i].reg_dest == reg_src_i[0]) & valid_sampled[i];
+            assign dest_match[1][i] = (ipacket_sampled[i].reg_dest == reg_src_i[1]) & valid_sampled[i];
         end
 
         `ifdef FPU 
 
         for (i = 0; i < 2; ++i) begin
-            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | (dest_match[i][1] & valid_sampled[1]) | (dest_match[i][2] & valid_sampled[2]); 
+            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | 
+                                      (dest_match[i][1] & valid_sampled[1]) | 
+                                      (dest_match[i][2] & valid_sampled[2]) | 
+                                       skid_match[i]; 
 
             always_comb begin 
-                case (dest_match[i])
-                    3'b001: execute_data[i] = result_sampled[0];
+                casez ({dest_match[i], skid_match[i]})
+                    4'b???1: execute_data[i] = skid_data[i];
 
-                    3'b010: execute_data[i] = result_sampled[1];
+                    4'b0010: execute_data[i] = result_sampled[0];
 
-                    3'b100: execute_data[i] = result_sampled[2];
+                    4'b0100: execute_data[i] = result_sampled[1];
+
+                    4'b1000: execute_data[i] = result_sampled[2];
 
                     default: execute_data[i] = '0;
                 endcase 
+            end
+
+            forward_onehot: assert property (
+                @(posedge clk_i)
+                disable iff (!rst_n_i || flush_o)
+                $onehot0({dest_match[i], skid_match[i]})
+            ) else begin
+                $fatal(1, "[BACKEND][FWD] multiple forwarding matches for src %0d: vec=%b", i, {dest_match[i], skid_match[i]});
             end
         end
 
         `else 
 
         for (i = 0; i < 2; ++i) begin
-            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | (dest_match[i][1] & valid_sampled[1]); 
+            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | 
+                                      (dest_match[i][1] & valid_sampled[1]) | 
+                                       skid_match[i];
 
             always_comb begin 
-                case (dest_match[i])
-                    3'b01: execute_data[i] = result_sampled[0];
+                case ({dest_match[i], skid_match[i]})
+                    3'b001: execute_data[i] = skid_data[i];
 
-                    3'b10: execute_data[i] = result_sampled[1];
+                    3'b010: execute_data[i] = result_sampled[0];
+
+                    3'b100: execute_data[i] = result_sampled[1];
 
                     default: execute_data[i] = '0;
                 endcase 
+            end
+
+            forward_onehot: assert property (
+                @(posedge clk_i)
+                disable iff (!rst_n_i || flush_o)
+                $onehot0({dest_match[i], skid_match[i]})
+            ) else begin
+                $fatal(1, "[BACKEND][FWD] multiple forwarding matches for src %0d: vec=%b", i, {dest_match[i], skid_match[i]});
             end
         end
 
@@ -585,7 +625,8 @@ module back_end #(
     /* Flush if not speculative and branch is actually taken or is jump */
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
 
-    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
+    assign downstream_stall = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
+    assign stall_o = exu_stall | downstream_stall;
 
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 

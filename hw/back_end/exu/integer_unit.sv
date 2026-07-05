@@ -43,6 +43,14 @@ module integer_unit (
     input logic rst_n_i,
     input logic stall_i,
     input logic flush_i,
+    output logic stall_o,
+
+    /* Bypass / Scheduling logic */
+    input logic [1:0][4:0] reg_src_i,
+    input logic [4:0] reg_dst_i,
+    output data_word_t [1:0] data_fwd_o,
+    output logic [1:0] src_match_o,
+    output logic dst_match_o,
 
     /* Enable / Disable extension */
     input logic enable_mul,
@@ -92,19 +100,12 @@ module integer_unit (
 
 
     instr_packet_t alu_final_ipacket;
-    data_word_t    alu_result_out;
-
-    assign alu_result_out = alu_valid ? alu_result : '0;
     
         always_comb begin
             if (flush_i) begin
                 alu_final_ipacket = NO_OPERATION;
             end else begin
-                if (alu_valid) begin
-                    alu_final_ipacket = ipacket_i; 
-                end else begin
-                    alu_final_ipacket = '0; 
-                end
+                alu_final_ipacket = ipacket_i; 
             end
         end
 
@@ -120,7 +121,7 @@ module integer_unit (
 
     bit_manipulation_unit bmu (
         .clk_i        ( clk_i                   ),
-        .clk_en_i     ( enable_bmu              ),
+        .clk_en_i     ( enable_bmu & !stall_o   ),
         .rst_n_i      ( rst_n_i                 ),
         .clear_i      ( flush_i                 ),
         .operand_A_i  ( operand_1_i             ),
@@ -140,17 +141,10 @@ module integer_unit (
         always_ff @(posedge clk_i) begin : bmu_stage_register
             if (flush_i) begin
                 bmu_ipacket <= NO_OPERATION;
-            end else if (!stall_i) begin
+            end else if (!stall_i & !stall_o) begin
                 bmu_ipacket <= ipacket_i;
             end
         end : bmu_stage_register
-
-
-    instr_packet_t bmu_final_ipacket;
-    data_word_t    bmu_result_out;
-
-    assign bmu_result_out = bmu_valid ? bmu_result : '0;
-    assign bmu_final_ipacket = bmu_valid ? bmu_ipacket : '0;
 
     `endif 
 
@@ -164,7 +158,7 @@ module integer_unit (
 
     multiplication_unit mul_unit (
         .clk_i          ( clk_i                  ),
-        .clk_en_i       ( enable_mul             ),
+        .clk_en_i       ( enable_mul & !stall_o  ),
         .rst_n_i        ( rst_n_i                ),
         .clear_i        ( flush_i                ),
         .multiplicand_i ( operand_1_i            ),
@@ -185,18 +179,11 @@ module integer_unit (
             if (enable_mul) begin
                 if (flush_i) begin
                     mul_ipacket <= NO_OPERATION;
-                end else if (!stall_i) begin
+                end else if (!stall_i & !stall_o) begin
                     mul_ipacket <= ipacket_i;
                 end
             end
         end : mul_stage_register
-
-
-    instr_packet_t mul_final_ipacket;
-    data_word_t    mul_result_out;
-
-    assign mul_result_out = mul_valid ? mul_result : '0;
-    assign mul_final_ipacket = mul_valid ? mul_ipacket : '0;
 
 
 //====================================================================================
@@ -210,7 +197,7 @@ module integer_unit (
 
     division_unit div_unit (
         .clk_i            ( clk_i                  ),
-        .clk_en_i         ( enable_div             ),
+        .clk_en_i         ( enable_div & !stall_o  ),
         .rst_n_i          ( rst_n_i                ),
         .clear_i          ( flush_i                ),
         .dividend_i       ( operand_1_i            ),
@@ -230,28 +217,61 @@ module integer_unit (
         always_ff @(posedge clk_i) begin : div_stage_register 
             if (flush_i) begin
                 div_ipacket <= NO_OPERATION;
-            end else if (data_valid_i.DIV & !stall_i ) begin
+            end else if (data_valid_i.DIV & !stall_i & !stall_o) begin
                 div_ipacket <= ipacket_i;
             end 
         end : div_stage_register
-
-
-    instr_packet_t div_final_ipacket;
-    data_word_t    div_result_out;
-
-    assign div_result_out = div_valid ? div_result : '0;
-    assign div_final_ipacket = div_valid ? div_ipacket : '0;
 
 
 //====================================================================================
 //      OUTPUT LOGIC
 //====================================================================================
 
-    assign result_o = div_result_out | mul_result_out | `ifdef BMU bmu_result_out | `endif alu_result_out;
+    itu_skid_buffer itu_skid_buf (
+        .clk_i   ( clk_i   ),
+        .rst_n_i ( rst_n_i ),
+        .stall_i ( stall_i ),
+        .flush_i ( flush_i ),
 
-    assign data_valid_o = alu_valid | `ifdef BMU bmu_valid | `endif mul_valid | div_valid;
+        /* Bypass / Scheduling logic */
+        .reg_src_i   ( reg_src_i   ),
+        .reg_dst_i   ( reg_dst_i   ),
+        .data_fwd_o  ( data_fwd_o  ),
+        .src_match_o ( src_match_o ),
+        .dst_match_o ( dst_match_o ),
 
-    assign ipacket_o = alu_final_ipacket | `ifdef BMU bmu_final_ipacket | `endif mul_final_ipacket | div_final_ipacket;
+        /* ALU */
+        .alu_result_i  ( alu_result        ),
+        .alu_ipacket_i ( alu_final_ipacket ),
+        .alu_valid_i   ( alu_valid         ),
+
+        /* DIV */
+        .div_result_i  ( div_result  ),
+        .div_ipacket_i ( div_ipacket ),
+        .div_valid_i   ( div_valid   ),
+
+        /* MUL */
+        .mul_result_i  ( mul_result  ),
+        .mul_ipacket_i ( mul_ipacket ),
+        .mul_valid_i   ( mul_valid   ),
+
+        `ifdef BMU
+            /* BMU */
+            .bmu_result_i  ( bmu_result  ),
+            .bmu_ipacket_i ( bmu_ipacket ),
+            .bmu_valid_i   ( bmu_valid   ),
+        `else 
+            .bmu_result_i  ( '0 ),
+            .bmu_ipacket_i ( '0 ),
+            .bmu_valid_i   ( '0 ),
+        `endif
+
+        /* Output */
+        .result_o  ( result_o     ),
+        .ipacket_o ( ipacket_o    ),
+        .valid_o   ( data_valid_o ),
+        .stall_o   ( stall_o      )
+    );
 
 endmodule : integer_unit
 
