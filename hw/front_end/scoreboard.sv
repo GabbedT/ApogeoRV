@@ -52,6 +52,7 @@ module scoreboard (
     input logic rst_n_i,
     input logic flush_i,
     input logic stall_i,
+    input logic dst_match_i,
 
     /* Registers addresses */
     input logic [1:0][4:0] src_reg_i,
@@ -928,7 +929,7 @@ module scoreboard (
     logic raw_hazard, latency_hazard, structural_hazard;
 
     assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
-    assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
+    assign latency_hazard = `ifdef FPU fpu_latency_hazard `else '0 `endif;
     assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
 
 
@@ -936,7 +937,7 @@ module scoreboard (
 //      OUTPUT LOGIC
 //==================================================================================== 
 
-    assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard | block_store_operation);
+    assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard | block_store_operation | dst_match_i);
 
     /* If no unit is executing, then the pipeline is empty */
     assign pipeline_empty_o = !((|mul_executing) | div_executing |(|alu_executing) | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i) `ifdef FPU & fpu_empty `endif;
