@@ -64,9 +64,10 @@ module back_end #(
     output logic priv_level_o,
     output logic pipeline_empty_o,
 
-    /* Scheduler interface */
-    input logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_i,
-    output logic stop_tag_o,
+    /* Scheduler - ROB interface */
+    input logic rob_alloc_i,
+    output logic [$clog2(ROB_DEPTH):0] rob_tag_o,
+    output logic rob_full_o, 
 
     /* Units enabled */
     output logic M_ext_o,
@@ -293,7 +294,7 @@ module back_end #(
 
     exu_valid_t valid_operation; logic exu_stall;
 
-    assign valid_operation = downstream_stall ? '0 : bypass_valid; 
+    assign valid_operation = stall_o ? '0 : bypass_valid; 
 
     data_word_t [1:0] skid_data; logic [1:0] skid_match;
 
@@ -304,8 +305,8 @@ module back_end #(
         .validate_i      ( execute_store      ),
         .buffer_empty_o  ( store_buffer_empty ),
 
-        .stall_i         ( downstream_stall  ),
-        .stall_o         ( exu_stall         ),
+        .stall_i         ( stall_o   ),
+        .stall_o         ( exu_stall ),
 
         /* Bypass / Scheduling logic */
         .reg_src_i   ( reg_src_i   ),
@@ -374,7 +375,10 @@ module back_end #(
     logic reorder_buffer_full;
 
         always_ff @(posedge clk_i) begin
-            if (!downstream_stall) begin
+            /* NOT stalled by ROB as each instruction is 
+             * in the pipe because ROB has allocated an 
+             * entry for it */
+            if (!stall_pipeline & !buffer_full) begin
                 result_sampled <= result;
                 ipacket_sampled <= ipacket;
             end 
@@ -392,7 +396,7 @@ module back_end #(
                 valid_sampled <= '0;
             end else if (flush_o) begin
                 valid_sampled <= '0;
-            end else if (!downstream_stall) begin
+            end else if (!stall_pipeline & !buffer_full) begin
                 valid_sampled <= valid;
             end 
         end
@@ -517,7 +521,7 @@ module back_end #(
                 reorder_buffer_tag <= '0;
                 reorder_buffer_write <= '0;
                 reorder_buffer_packet <= '0;
-            end else if (!stall_pipeline & !reorder_buffer_full) begin
+            end else if (!stall_pipeline) begin
                 reorder_buffer_tag <= rob_tag;
                 reorder_buffer_write <= rob_write;
                 reorder_buffer_packet <= rob_packet;
@@ -529,9 +533,11 @@ module back_end #(
 //      REORDER BUFFER
 //====================================================================================
 
-    logic reorder_buffer_clear, reorder_buffer_read, writeback_valid;
+    logic reorder_buffer_clear, reorder_buffer_read, writeback_valid, reorder_buffer_flush;
     logic reorder_buffer_empty;
     rob_entry_t writeback_packet;
+
+    assign reorder_buffer_flush = branch_flush_o | mispredicted_i;
 
     reorder_buffer #(ROB_DEPTH) rob (
         .clk_i   ( clk_i          ),
@@ -539,8 +545,11 @@ module back_end #(
         .flush_i ( flush_o        ),
         .stall_i ( stall_pipeline ),
 
-        .tag_generated_i ( tag_generated_i ),
-        .stop_tag_o      ( stop_tag_o      ),
+        .rob_alloc_i ( rob_alloc_i ),
+        .rob_tag_o   ( rob_tag_o   ),
+
+        .branch_flush_i ( reorder_buffer_flush   ),
+        .branch_tag_i   ( bypass_ipacket.rob_tag ),
 
         .tag_i   ( reorder_buffer_tag    ),
         .entry_i ( reorder_buffer_packet ),
@@ -555,6 +564,8 @@ module back_end #(
         .valid_o ( writeback_valid  ),
         .entry_o ( writeback_packet )
     );
+
+    assign rob_full_o = reorder_buffer_full;
 
 
 //====================================================================================
@@ -626,7 +637,8 @@ module back_end #(
     assign branch_flush_o = (!speculative_o & (branch_outcome_o | jump_o) & executed_o);
 
     assign downstream_stall = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
-    assign stall_o = exu_stall | downstream_stall;
+
+    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full;
 
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 
