@@ -294,7 +294,7 @@ module back_end #(
 
     exu_valid_t valid_operation; logic exu_stall;
 
-    assign valid_operation = stall_o ? '0 : bypass_valid; 
+    assign valid_operation = (stall_pipeline | buffer_full | csr_buffer_full) ? '0 : bypass_valid; 
 
     data_word_t [1:0] skid_data; logic [1:0] skid_match;
 
@@ -305,8 +305,8 @@ module back_end #(
         .validate_i      ( execute_store      ),
         .buffer_empty_o  ( store_buffer_empty ),
 
-        .stall_i         ( stall_o   ),
-        .stall_o         ( exu_stall ),
+        .stall_i ( stall_pipeline | buffer_full | csr_buffer_full ),
+        .stall_o ( exu_stall                                      ),
 
         /* Bypass / Scheduling logic */
         .reg_src_i   ( reg_src_i   ),
@@ -638,7 +638,7 @@ module back_end #(
 
     assign downstream_stall = stall_pipeline | buffer_full | csr_buffer_full | reorder_buffer_full;
 
-    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full;
+    assign stall_o = stall_pipeline | buffer_full | csr_buffer_full | exu_stall;
 
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 
