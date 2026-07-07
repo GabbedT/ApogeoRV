@@ -67,9 +67,10 @@ module scheduler #(
     output logic pipeline_empty_o,
     output logic stall_o,
 
-    /* Scheduler interface */
-    output logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_o,
-    input logic stop_tag_i,
+    /* ROB Interface */
+    input logic [$clog2(ROB_DEPTH):0] rob_tag_i,
+    input logic rob_full_i,
+    output logic rob_alloc_o,
 
     /* Writeback data */
     input logic csr_writeback_i,
@@ -212,47 +213,24 @@ module scheduler #(
 
 
 //====================================================================================
-//      ROB TAG GENERATION
+//      CSR SERIALIZATION
 //====================================================================================
 
-    logic issued_instructions, issued_csr_instruction;
+    /* Serialize CSR instructions, once one is issued no other can be issued
+     * until it is written back */
+    logic issued_csr_instruction;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                issued_instructions <= 1'b0;
                 issued_csr_instruction <= 1'b0;
             end else if (flush_i | branch_flush_i | mispredicted_i) begin
-                issued_instructions <= 1'b0;
                 issued_csr_instruction <= 1'b0;
-            end else begin
-                issued_instructions <= issue_instruction & (exu_valid_i != '0);
-                
-                if (csr_writeback_i) begin
-                    issued_csr_instruction <= 1'b0; 
-                end else if (exu_valid_i.CSR & issue_instruction) begin 
-                    issued_csr_instruction <= 1'b1; 
-                end 
-            end
+            end else if (csr_writeback_i) begin
+                issued_csr_instruction <= 1'b0; 
+            end else if (exu_valid_i.CSR & issue_instruction) begin 
+                issued_csr_instruction <= 1'b1; 
+            end 
         end 
-
-
-    logic [$clog2(ROB_DEPTH) - 1:0] generated_tag;
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : tag_counter
-            if (!rst_n_i) begin
-                generated_tag <= 6'b0;
-            end else if (flush_i) begin
-                generated_tag <= 6'b0;
-            end else if (branch_flush_i | mispredicted_i) begin
-                if (issued_instructions) begin
-                    generated_tag <= generated_tag - 1'b1;
-                end
-            end else if ((!stall_i & !stall_o) & (exu_valid_i != '0)) begin
-                generated_tag <= generated_tag + 1'b1;
-            end
-        end : tag_counter
-
-    assign tag_generated_o = generated_tag + 2;
 
 
 //====================================================================================
@@ -265,7 +243,7 @@ module scheduler #(
     assign src_reg_o = src_reg_i; 
 
     /* If there's a dependency or fence is executed and pipeline is not empty then stall */
-    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i) | issued_csr_instruction | stop_tag_i;
+    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i) | issued_csr_instruction | rob_full_i;
 
     /* Packet generation */
     assign ipacket_o.compressed = compressed_i; 
@@ -277,8 +255,10 @@ module scheduler #(
     /* Avoid Xs due to the ROB_DEPTH parameter */
     always_comb begin 
         ipacket_o.rob_tag = '0;
-        ipacket_o.rob_tag = generated_tag;
+        ipacket_o.rob_tag = rob_tag_i;
     end 
+
+    assign rob_alloc_o = !stall_i & !stall_o & (exu_valid_i != '0);
 
 endmodule : scheduler 
 
