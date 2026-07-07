@@ -38,7 +38,8 @@
 //               logic if the current entry is valid or is not. This will generate the
 //               valid bit (the read pointer points to the next entry after the read).
 //               The writeback stage assert the command only to advance the pointer 
-//               because the memory has asyncronous read logic.  
+//               because the memory has asyncronous read logic. This module is also
+//               responsable of generating valid tag entries for the scheduler.
 // -------------------------------------------------------------------------------------
 
 `ifndef REORDER_BUFFER_SV
@@ -54,11 +55,15 @@ module reorder_buffer #(
     input logic stall_i,
 
     /* Scheduler interface */
-    input logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_i,
-    output logic stop_tag_o,
+    input logic rob_alloc_i,
+    output logic [$clog2(ROB_DEPTH):0] rob_tag_o,
+
+    /* Flush logic */
+    input logic branch_flush_i,
+    input logic [$clog2(ROB_DEPTH):0] branch_tag_i,
 
     /* ROB address */
-    input logic [$clog2(ROB_DEPTH) - 1:0] tag_i,
+    input logic [$clog2(ROB_DEPTH):0] tag_i,
 
     /* Reorder buffer entry from memory
      * and computation unit */
@@ -78,30 +83,39 @@ module reorder_buffer #(
     output rob_entry_t entry_o
 );
 
+    /* Carry extra info for full/empty */
+    localparam PTR_WIDTH = $clog2(ROB_DEPTH) + 1;
+
+    /* Physical index of the memory */
+    localparam IDX_WIDTH = $clog2(ROB_DEPTH);
+
+
 //====================================================================================
 //      POINTERS LOGIC
 //====================================================================================
 
     /* To avoid writing multiple times the same result, check if the tag that is being written 
      * is the same of the previous clock cycle */ 
-    logic [$clog2(ROB_DEPTH) - 1:0] previous_tag; logic write; 
+    logic [PTR_WIDTH - 1:0] previous_tag; logic write, previous_tag_valid; 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                previous_tag <= '1;
-            end else if (flush_i) begin 
-                previous_tag <= '1;
-            end else if (write_i & !full_o) begin 
+                previous_tag <= '0;
+                previous_tag_valid <= 1'b0;
+            end else if (flush_i | branch_flush_i) begin 
+                previous_tag_valid <= 1'b0;
+            end else if (write_i) begin 
                 previous_tag <= tag_i;
+                previous_tag_valid <= 1'b1;
             end 
         end 
 
-    assign write = write_i & (previous_tag != tag_i) & !full_o; 
+    assign write = write_i & !(previous_tag_valid & (previous_tag == tag_i));
 
-    /* Write pointers are managed by the decode logic, read pointers
-     * are managed indirectly by the write back logic by asserting the
+
+    /* Read pointer is managed indirectly by the write back logic by asserting the
      * read command. */
-    logic [$clog2(ROB_DEPTH) - 1:0] read_ptr, read_ptr_incremented;
+    logic [PTR_WIDTH - 1:0] read_ptr, read_ptr_incremented;
 
     assign read_ptr_incremented = read_ptr + 1'b1;
 
@@ -116,49 +130,40 @@ module reorder_buffer #(
         end
 
 
-    /* Pointer to keep track of the instructions currently in the ROB */
-    logic [$clog2(ROB_DEPTH) - 1:0] write_ptr, write_ptr_incremented;
+//====================================================================================
+//      ALLOCATION LOGIC
+//====================================================================================
 
-    assign write_ptr_incremented = write_ptr + 1'b1;
+    /* Allocation pointer points always to the next free ROB entry, it's the
+     * available tag that is delivered to the scheduler */
+    logic [PTR_WIDTH - 1:0] alloc_ptr;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                write_ptr <= '0;
-            end else if (flush_i) begin 
-                write_ptr <= '0;
-            end else if (write & !stall_i) begin
-                write_ptr <= write_ptr_incremented;
+                alloc_ptr <= '0;
+            end else if (flush_i) begin
+                alloc_ptr <= '0;
+            end else if (branch_flush_i) begin
+                /* Go back in tag number */
+                alloc_ptr <= branch_tag_i + 1'b1;
+            end else if (rob_alloc_i) begin 
+                alloc_ptr <= alloc_ptr + 1'b1;
             end
         end
 
+    assign rob_tag_o = alloc_ptr;
 
-    /* Empty / Full logic */
-    localparam logic [1:0] PULL_DATA = 2'b01;
-    localparam logic [1:0] PUSH_DATA = 2'b10;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : status_register
-            if (!rst_n_i) begin 
-                full_o <= 1'b0;
-                empty_o <= 1'b1;
-            end else if (flush_i) begin 
-                full_o <= 1'b0;
-                empty_o <= 1'b1;
-            end else if (!stall_i) begin 
-                case ({write, read_i})
-                    PULL_DATA: begin
-                        full_o <= 1'b0;
-                        empty_o <= (write_ptr == read_ptr_incremented);
-                    end
+//====================================================================================
+//      ALLOCATION LOGIC
+//====================================================================================
 
-                    PUSH_DATA: begin
-                        empty_o <= 1'b0;
-                        full_o <= (read_ptr == write_ptr_incremented);
-                    end
-                endcase 
-            end
-        end : status_register
+    /* Empty: both pointers are equal
+     * Full:  low parts of pointers are equal but MSB is different */
+    assign empty_o = alloc_ptr == read_ptr;
 
-    assign stop_tag_o = tag_generated_i == read_ptr;
+    assign full_o = (alloc_ptr[IDX_WIDTH - 1:0] == read_ptr[IDX_WIDTH - 1:0]) &
+                    (alloc_ptr[IDX_WIDTH] != read_ptr[IDX_WIDTH]);
 
 
 //====================================================================================
@@ -175,11 +180,11 @@ module reorder_buffer #(
 
         always_ff @(posedge clk_i) begin : rob_write_port
             if (write & !stall_i) begin
-                reorder_buffer[tag_i] <= entry_i;
+                reorder_buffer[tag_i[IDX_WIDTH - 1:0]] <= entry_i;
             end 
         end : rob_write_port
 
-    assign entry_o = reorder_buffer[read_ptr];
+    assign entry_o = reorder_buffer[read_ptr[IDX_WIDTH - 1:0]];
 
 
     logic [ROB_DEPTH - 1:0] valid;
@@ -189,20 +194,28 @@ module reorder_buffer #(
                 valid <= '0;
             end else if (flush_i) begin
                 valid <= '0;
-            end else if (!stall_i) begin 
-                if (write) begin
-                    /* Validate on write */
-                    valid[tag_i] <= 1'b1;
+            end else begin
+                if (rob_alloc_i & !branch_flush_i) begin
+                    /* Invalidate the slot being allocated as it holds
+                     * no valid results */
+                    valid[alloc_ptr[IDX_WIDTH - 1:0]] <= 1'b0;    
                 end
 
-                if (read_i) begin
-                    /* Invalidate on read */
-                    valid[read_ptr] <= 1'b0;
+                if (!stall_i) begin 
+                    if (write) begin
+                        /* Validate on write */
+                        valid[tag_i[IDX_WIDTH - 1:0]] <= 1'b1;
+                    end
+
+                    if (read_i) begin
+                        /* Invalidate on read */
+                        valid[read_ptr[IDX_WIDTH - 1:0]] <= 1'b0;
+                    end
                 end
             end
         end
-
-    assign valid_o = valid[read_ptr];
+        
+    assign valid_o = valid[read_ptr[IDX_WIDTH - 1:0]] & !empty_o;
 
 endmodule : reorder_buffer
 
