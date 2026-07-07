@@ -152,8 +152,8 @@ module ApogeoRV #(
     logic [1:0][4:0] frontend_register_source;
 
     /* ROB - Scheduler interface */
-    logic [$clog2(ROB_DEPTH) - 1:0] tag_generated;
-    logic stop_tag;
+    logic [$clog2(ROB_DEPTH):0] rob_tag;
+    logic rob_full, rob_alloc;
 
     /* Registred output */ 
     logic interrupt_ackn;
@@ -172,8 +172,9 @@ module ApogeoRV #(
         .pipeline_empty_i ( pipeline_empty  ),
         .pipeline_empty_o ( pipe_flushed    ),
 
-        .tag_generated_o ( tag_generated ),
-        .stop_tag_i      ( stop_tag      ),
+        .rob_tag_i   ( rob_tag   ),
+        .rob_full_i  ( rob_full  ),
+        .rob_alloc_o ( rob_alloc ),
 
         .M_ext_i     ( M_extension     ),
         .C_ext_i     ( C_extension     ),
@@ -345,8 +346,9 @@ module ApogeoRV #(
         .stall_o          ( stall_pipeline ),
         .pipeline_empty_o ( pipeline_empty ),
 
-        .tag_generated_i ( tag_generated ),
-        .stop_tag_o      ( stop_tag      ),
+        .rob_alloc_i ( rob_alloc ),
+        .rob_tag_o   ( rob_tag   ),
+        .rob_full_o  ( rob_full  ),
 
         .priv_level_o ( privilege_level ),
     
