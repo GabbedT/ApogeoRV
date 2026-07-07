@@ -307,7 +307,7 @@ module back_end #(
         `endif 
 
         `ifdef FPU 
-        .Zfinx_ext_o ( Zfinx_ext_o ), 
+        .Zfinx_ext_o ( Zfinx_ext_o ),
         `endif 
 
         .validate_csr_write_i ( execute_csr     ),
