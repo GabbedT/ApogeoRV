@@ -96,7 +96,7 @@ module reorder_buffer #(
             end 
         end 
 
-    assign write = write_i & (previous_tag != tag_i) & !full_o;
+    assign write = write_i & (previous_tag != tag_i) & !full_o; 
 
     /* Write pointers are managed by the decode logic, read pointers
      * are managed indirectly by the write back logic by asserting the
