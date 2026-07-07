@@ -73,9 +73,10 @@ module front_end #(
     /* Issue instruction */
     output logic issue_o,
 
-    /* Scheduler interface */
-    output logic [$clog2(ROB_DEPTH) - 1:0] tag_generated_o,
-    input logic stop_tag_i,
+    /* ROB - Scheduler Interface */
+    input logic [$clog2(ROB_DEPTH):0] rob_tag_i,
+    input logic rob_full_i,
+    output logic rob_alloc_o,
 
     /* Unit enabled */
     input logic M_ext_i,
@@ -686,8 +687,9 @@ module front_end #(
         .pipeline_empty_o ( pipeline_empty   ),
         .stall_o          ( stall            ),
 
-        .tag_generated_o ( tag_generated_o ),
-        .stop_tag_i      ( stop_tag_i      ),
+        .rob_tag_i   ( rob_tag_i   ),
+        .rob_full_i  ( rob_full_i  ),
+        .rob_alloc_o ( rob_alloc_o ),
 
         .mispredicted_i   ( mispredicted     ),
 
