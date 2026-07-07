@@ -101,7 +101,7 @@ module reorder_buffer #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 previous_tag <= '1;
-            end else if (flush_i) begin 
+            end else if (flush_i | branch_flush_i) begin 
                 previous_tag <= '1;
             end else if (write_i) begin 
                 previous_tag <= tag_i;
