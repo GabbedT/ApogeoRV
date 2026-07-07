@@ -48,6 +48,9 @@ module branch_target_buffer #(
 
     input logic valid_i,
 
+    /* C extension enabled */
+    input logic c_ext_i,
+
     /* Current program counter */
     input data_word_t program_counter_i,
 
@@ -85,8 +88,8 @@ module branch_target_buffer #(
 
     logic [LOWER_BITS - 1:0] read_index, write_index;
 
-    assign read_index = program_counter_i[LOWER_BITS:1]; 
-    assign write_index = instr_address_i[LOWER_BITS:1];
+    assign read_index = c_ext_i ? program_counter_i[LOWER_BITS:1] : program_counter_i[LOWER_BITS + 1:2]; 
+    assign write_index = c_ext_i ? instr_address_i[LOWER_BITS:1] : instr_address_i[LOWER_BITS + 1:2];
 
 
     logic [$bits(branch_target_buffer_t) - 1:0] branch_target_buffer_memory [0:BUFFER_SIZE - 1]; 

@@ -111,6 +111,8 @@ module branch_predictor #(
     branch_target_buffer #(BTB_SIZE) btb_unit (
         .clk_i   ( clk_i   ),
         .valid_i ( valid_i ), 
+        
+        .c_ext_i ( compressed_en_i ),
 
         .program_counter_i    ( program_counter_i    ),
         .instr_address_i      ( instr_address_i      ),
