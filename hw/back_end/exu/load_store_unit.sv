@@ -196,6 +196,7 @@ module load_store_unit #(
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
         .stall_i ( stall_i ),
+        .flush_i ( flush_i ),
 
         .privilege_i ( privilege_i ),
 

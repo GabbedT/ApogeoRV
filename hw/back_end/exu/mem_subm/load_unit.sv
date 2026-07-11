@@ -44,6 +44,7 @@ module load_unit (
     input logic clk_i,
     input logic rst_n_i,
     input logic stall_i,
+    input logic flush_i,
 
     /* Privilege level */
     input logic privilege_i, 
@@ -184,6 +185,8 @@ module load_unit (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin 
                 state_CRT <= IDLE;
+            end else if (flush_i) begin
+                state_CRT <= IDLE;
             end else if (!stall_i) begin 
                 state_CRT <= state_NXT;
             end else if (load_channel.valid & stall_i) begin
@@ -210,7 +213,7 @@ module load_unit (
             state_NXT = state_CRT;
 
             load_channel.request = 1'b0;
-            load_channel.invalidate = 1'b0;
+            load_channel.invalidate = flush_i;
             load_channel.address = load_address; 
             
             idle_o = 1'b0;
