@@ -172,9 +172,6 @@ module front_end #(
                 /* Load exception handler program counter
                  * it has maximum priority */
                 fetch_channel.address = handler_pc_i; 
-            end else if ((jump_saved & !mispredicted) | mispredicted_saved) begin
-                /* Select over a jump saved PC or the recovered PC from misprediction */
-                fetch_channel.address = jump_saved ? bta_saved : mispredicted_bta;
             end else if (handler_return_i) begin 
                 fetch = 1'b1;
 
@@ -225,6 +222,11 @@ module front_end #(
                         end
                     end
                 end
+            end else if ((jump_saved & !mispredicted) | mispredicted_saved) begin
+                /* Saved redirects are lower priority than redirects resolved by
+                 * the backend. A saved prediction may belong to a younger,
+                 * wrong-path instruction and must not override a branch flush. */
+                fetch_channel.address = jump_saved ? bta_saved : mispredicted_bta;
             end else if (!ibuffer_full) begin 
                 fetch = 1'b1;
 
@@ -251,6 +253,10 @@ module front_end #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 jump_saved <= 1'b0;
+            end else if (branch_flush_i) begin
+                /* The resolved redirect supersedes any younger saved BTB
+                 * prediction. Keep it pending only if the request stalled. */
+                jump_saved <= !fetch_channel.fetch;
             end else if (fetch_channel.stall | ibuffer_full) begin 
                 if (jump_saved & mispredicted) begin 
                     jump_saved <= 1'b0;
@@ -326,7 +332,7 @@ module front_end #(
                 program_counter <= -4;
             end else if (mispredicted_saved) begin 
                 program_counter <= mispredicted_bta - 4;
-            end else if (jump_saved & !mispredicted) begin
+            end else if (jump_saved & !mispredicted & !fetch_channel.fetch) begin
                 program_counter <= bta_saved - 4;
             end else if (fetch_channel.fetch | (jump_prv & fetch_prv & !(fetch_channel.stall | ibuffer_full))) begin
                 program_counter <= fetch_channel.address;
@@ -744,4 +750,4 @@ module front_end #(
 
 endmodule : front_end 
 
-`endif 
+`endif
