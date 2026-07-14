@@ -145,7 +145,14 @@ module front_end #(
 
     logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full, mispredicted;
 
-    logic jump_saved, predict, stall; logic [31:0] bta_saved;
+    logic jump_saved, predict, prediction_hit, stall; logic [31:0] bta_saved;
+
+    /* An aligned 32-bit fetch made for PC[1] == 1 contains only the first
+     * halfword of a possible 32-bit instruction at that PC.  Redirecting its
+     * successor on a BTB hit would replace the continuation word with target
+     * bytes, making the instruction impossible to assemble.  Such lookups are
+     * therefore executed non-speculatively. */
+    assign prediction_hit = branch_buffer_hit & predict & !(C_ext_i & program_counter[1]);
 
     assign next_program_counter = stall_i ? '0 : program_counter + 'd4;
 
@@ -197,7 +204,7 @@ module front_end #(
                         fetch = !ibuffer_full; 
 
                         /* BTB hit have more priority */
-                        if (branch_buffer_hit & predict) begin
+                        if (prediction_hit) begin
                             /* Load predicted BTA */
                             fetch_channel.address = branch_target_address;
                         end else begin
@@ -213,7 +220,7 @@ module front_end #(
                         fetch = !ibuffer_full; 
 
                         /* BTB hit have more priority */
-                        if (branch_buffer_hit & predict) begin
+                        if (prediction_hit) begin
                             /* Load predicted BTA */
                             fetch_channel.address = branch_target_address;
                         end else begin
@@ -230,7 +237,7 @@ module front_end #(
             end else if (!ibuffer_full) begin 
                 fetch = 1'b1;
 
-                if (branch_buffer_hit & predict) begin
+                if (prediction_hit) begin
                     /* Load predicted BTA */
                     fetch_channel.address = branch_target_address;
                 end else begin
@@ -247,7 +254,7 @@ module front_end #(
     logic jumped;
 
     assign jumped = exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) 
-                & !(speculative_i & !mispredicted)) | (branch_buffer_hit & predict);
+                & !(speculative_i & !mispredicted)) | prediction_hit;
 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
@@ -276,7 +283,7 @@ module front_end #(
                     bta_saved <= hander_return_pc_i;
                 end else if (executed_i & (taken_i | jump_i) & !speculative_i) begin
                     bta_saved <= branch_target_addr_i;
-                end else if (branch_buffer_hit & predict) begin
+                end else if (prediction_hit) begin
                     bta_saved <= branch_target_address;
                 end
             end else if (exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) & !speculative_i)) begin 
@@ -389,7 +396,7 @@ module front_end #(
         .fetch_address_i     ( fetch_channel.address     ),
 
         .taken_i             ( predict           ), 
-        .fetch_speculative_i ( branch_buffer_hit ),
+        .fetch_speculative_i ( prediction_hit    ),
 
         .write_instruction_i ( fetch_channel.valid & !fetch_channel.invalidate ),
         .write_speculative_i ( buffered_fetch                                  ),
@@ -409,10 +416,12 @@ module front_end #(
 //      COMPRESSED FETCH LOGIC
 //====================================================================================
 
-    /* The instruction-buffer word and its address describe a 32-bit window
-     * beginning at fetch_address_o.  Consuming an instruction and popping that
-     * window are therefore different operations:
+    /* The memory system returns the naturally aligned word containing the
+     * requested fetch address.  Consequently, after a redirect to PC[1] == 1,
+     * the first useful halfword is word[31:16].  Consuming an instruction and
+     * popping the aligned word are therefore different operations:
      *
+     *   STREAM_START: select the first useful half after a redirect
      *   LOWER_HALF : inspect the instruction at word[15:0]
      *   UPPER_HALF : inspect the instruction at word[31:16]
      *   CROSSWORD  : complete a 32-bit instruction saved from UPPER_HALF
@@ -420,15 +429,15 @@ module front_end #(
      * In particular, C/C emits twice while popping once, whereas C/HF emits the
      * compressed instruction while saving the half instruction and emits the
      * completed instruction when the next word is available. */
-    typedef enum logic [1:0] {LOWER_HALF, UPPER_HALF, CROSSWORD} cfetch_state_t;
+    typedef enum logic [1:0] {STREAM_START, LOWER_HALF, UPPER_HALF, CROSSWORD} cfetch_state_t;
 
     cfetch_state_t state_CRT, state_NXT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                state_CRT <= LOWER_HALF;
+                state_CRT <= STREAM_START;
             end else if (fetch_channel.invalidate) begin
-                state_CRT <= LOWER_HALF;
+                state_CRT <= STREAM_START;
             end else if (!stall_i & !stall & !ibuffer_empty) begin
                 state_CRT <= state_NXT;
             end
@@ -437,20 +446,24 @@ module front_end #(
     logic [15:0] saved_half_NXT, saved_half_CRT;
     logic [31:0] saved_pc_NXT, saved_pc_CRT;
     logic saved_speculative_NXT, saved_speculative_CRT;
+    logic saved_taken_NXT, saved_taken_CRT;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 saved_half_CRT <= '0;
                 saved_pc_CRT <= '0;
                 saved_speculative_CRT <= 1'b0;
+                saved_taken_CRT <= 1'b0;
             end else if (fetch_channel.invalidate) begin
                 saved_half_CRT <= '0;
                 saved_pc_CRT <= '0;
                 saved_speculative_CRT <= 1'b0;
+                saved_taken_CRT <= 1'b0;
             end else if (!stall_i & !stall & !ibuffer_empty) begin
                 saved_half_CRT <= saved_half_NXT;
                 saved_pc_CRT <= saved_pc_NXT;
                 saved_speculative_CRT <= saved_speculative_NXT;
+                saved_taken_CRT <= saved_taken_NXT;
             end
         end
 
@@ -467,6 +480,7 @@ module front_end #(
             saved_half_NXT = saved_half_CRT;
             saved_pc_NXT = saved_pc_CRT;
             saved_speculative_NXT = saved_speculative_CRT;
+            saved_taken_NXT = saved_taken_CRT;
             state_NXT = state_CRT;
 
             compressed = 1'b0;
@@ -474,36 +488,103 @@ module front_end #(
             read_buffer = 1'b0;
             instruction_speculative = 1'b0;
 
-            instr_pc = ibuffer_program_counter;
+            instr_pc = {ibuffer_program_counter[31:2], 2'b00};
             full_instruction = ibuffer_instruction;
             instruction2expand = ibuffer_instruction[15:0];
 
             case (state_CRT)
+                STREAM_START: begin
+                    if (ibuffer_program_counter[1]) begin
+                        /* A halfword-aligned redirect points at the upper half
+                         * of the aligned word returned by the cache/ROM. */
+                        instr_pc = {ibuffer_program_counter[31:1], 1'b0};
+                        instruction2expand = ibuffer_instruction[31:16];
+                        instruction_speculative = ibuffer_speculative;
+                        read_buffer = 1'b1;
+
+                        if (ibuffer_instruction[17:16] == FULL_INSTR) begin
+                            /* Only the first half of this instruction is in the
+                             * current aligned word. */
+                            saved_half_NXT = ibuffer_instruction[31:16];
+                            saved_pc_NXT = instr_pc;
+                            saved_speculative_NXT = ibuffer_speculative;
+                            saved_taken_NXT = ibuffer_taken;
+
+                            state_NXT = CROSSWORD;
+                        end else begin
+                            compressed = 1'b1;
+                            cfetch_valid = 1'b1;
+
+                            state_NXT = (ibuffer_speculative & ibuffer_taken) ? STREAM_START : LOWER_HALF;
+                        end
+                    end else begin
+                        /* A word-aligned stream starts exactly like the normal
+                         * lower-half state. */
+                        cfetch_valid = 1'b1;
+                        instruction_speculative = ibuffer_speculative;
+
+                        if (ibuffer_instruction[1:0] == FULL_INSTR) begin
+                            read_buffer = 1'b1;
+
+                            state_NXT = (ibuffer_speculative & ibuffer_taken) ? STREAM_START : LOWER_HALF;
+                        end else begin
+                            /* Compressed lower half */
+                            compressed = 1'b1;
+
+                            if (ibuffer_speculative & ibuffer_taken) begin
+                                read_buffer = 1'b1;
+
+                                /* Restart if branch taken */
+                                state_NXT = STREAM_START;
+                            end else if (ibuffer_instruction[17:16] == FULL_INSTR) begin
+                                /* Full instruction divided between upper half 
+                                 * and next instruction lower half */
+                                read_buffer = 1'b1;
+
+                                saved_half_NXT = ibuffer_instruction[31:16];
+                                saved_pc_NXT = instr_pc + 'd2;
+                                saved_speculative_NXT = 1'b0;
+                                saved_taken_NXT = 1'b0;
+
+                                state_NXT = CROSSWORD;
+                            end else begin
+                                /* Upper half for compressed instruction */
+                                state_NXT = UPPER_HALF;
+                            end
+                        end
+                    end
+                end
+
                 LOWER_HALF: begin
                     cfetch_valid = 1'b1;
-                    instruction_speculative = ibuffer_speculative;
+
+                    /* Metadata belongs to the requested halfword.  For a
+                     * PC[1] == 1 stream that is the upper, not lower, half. */
+                    instruction_speculative = ibuffer_speculative & !ibuffer_program_counter[1];
 
                     if (ibuffer_instruction[1:0] == FULL_INSTR) begin
                         /* A complete 32-bit instruction consumes the word. */
                         read_buffer = 1'b1;
+
+                        state_NXT = (instruction_speculative & ibuffer_taken) ? STREAM_START : LOWER_HALF;
                     end else begin
                         compressed = 1'b1;
 
-                        if (ibuffer_speculative & ibuffer_taken) begin
+                        if (instruction_speculative & ibuffer_taken) begin
                             /* A taken prediction redirects the next fetch.  The
                              * upper sequential half must not be issued. */
                             read_buffer = 1'b1;
                             
-                            state_NXT = LOWER_HALF;
+                            state_NXT = STREAM_START;
                         end else if (ibuffer_instruction[17:16] == FULL_INSTR) begin
                             /* Emit the lower compressed instruction while
-                             * retaining the upper half of the following full
-                             * instruction. */
+                             * retaining the upper half of the following full instruction. */
                             read_buffer = 1'b1;
 
                             saved_half_NXT = ibuffer_instruction[31:16];
-                            saved_pc_NXT = ibuffer_program_counter + 'd2;
-                            saved_speculative_NXT = 1'b0;
+                            saved_pc_NXT = {ibuffer_program_counter[31:2], 2'b00} + 'd2;
+                            saved_speculative_NXT = ibuffer_speculative & ibuffer_program_counter[1];
+                            saved_taken_NXT = ibuffer_taken & ibuffer_program_counter[1];
 
                             state_NXT = CROSSWORD;
                         end else begin
@@ -515,17 +596,16 @@ module front_end #(
                 end
 
                 UPPER_HALF: begin
-                    instr_pc = ibuffer_program_counter + 'd2;
+                    instr_pc = {ibuffer_program_counter[31:1], 1'b0};
                     instruction2expand = ibuffer_instruction[31:16];
 
-                    /* The BTB lookup was for ibuffer_program_counter, so its
-                     * speculative tag never belongs to this second instruction. */
-                    instruction_speculative = 1'b0;
+                    instruction_speculative = ibuffer_speculative & ibuffer_program_counter[1];
 
                     cfetch_valid = 1'b1;
                     read_buffer = 1'b1;
                     compressed = 1'b1;
-                    state_NXT = LOWER_HALF;
+                    
+                    state_NXT = (instruction_speculative & ibuffer_taken) ? STREAM_START : LOWER_HALF;
                 end
 
                 CROSSWORD: begin
@@ -536,14 +616,22 @@ module front_end #(
                     instr_pc = saved_pc_CRT;
                     instruction_speculative = saved_speculative_CRT;
 
-                    if (ibuffer_instruction[17:16] == FULL_INSTR) begin
+                    if (saved_speculative_CRT & saved_taken_CRT) begin
+                        /* The completed instruction redirected the stream; the
+                         * rest of this entry is not sequentially reachable. */
+                        read_buffer = 1'b1;
+                        saved_speculative_NXT = 1'b0;
+                        saved_taken_NXT = 1'b0;
+                        state_NXT = STREAM_START;
+                    end else if (ibuffer_instruction[17:16] == FULL_INSTR) begin
                         /* HF/HF: complete one instruction while saving the
                          * beginning of the next one. */
                         read_buffer = 1'b1;
 
                         saved_half_NXT = ibuffer_instruction[31:16];
-                        saved_pc_NXT = ibuffer_program_counter + 'd2;
-                        saved_speculative_NXT = 1'b0;
+                        saved_pc_NXT = {ibuffer_program_counter[31:2], 2'b00} + 'd2;
+                        saved_speculative_NXT = ibuffer_speculative & ibuffer_program_counter[1];
+                        saved_taken_NXT = ibuffer_taken & ibuffer_program_counter[1];
 
                         state_NXT = CROSSWORD;
                     end else begin
@@ -553,7 +641,7 @@ module front_end #(
                     end
                 end
 
-                default: state_NXT = LOWER_HALF;
+                default: state_NXT = STREAM_START;
             endcase
         end
 
@@ -816,7 +904,7 @@ module front_end #(
         .operand_o         ( operand_o         ) 
     ); 
 
-    assign pipeline_empty_o = ibuffer_empty & (state_CRT == LOWER_HALF) & pipeline_empty
+    assign pipeline_empty_o = ibuffer_empty & ((state_CRT == STREAM_START) | (state_CRT == LOWER_HALF)) & pipeline_empty
                             & !if_stage_valid & (dc_stage_exu_valid == '0);
     
     assign mispredicted_o = mispredicted;
