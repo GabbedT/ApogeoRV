@@ -159,9 +159,7 @@ module float_comparator (
 
                 /* In this case the invalid operation flag is set if the operation is an equal comparison and one input is a signaling NaN or 
                  * if the operation is diferent and the an input is a NaN */
-                invalid_op_o = (operation_i == FP_EQ) ? 
-                               (signaling_A | signaling_B) : 
-                               (is_nan_A_i | is_nan_B_i);
+                invalid_op_o = ((operation_i == FP_EQ) & (signaling_A | signaling_B)) | (is_nan_A_i | is_nan_B_i);
             end else begin
                 case ({is_nan_A_i, is_nan_B_i})
                     2'b00: special_result = '0;
@@ -187,26 +185,26 @@ module float_comparator (
      * priority over the significand in the comparison */
     logic A_equals_B, A_less_than_B;
 
-    logic both_zero;
-
-    assign both_zero = ({operand_A_i.exponent, operand_A_i.significand} == '0) &
-                       ({operand_B_i.exponent, operand_B_i.significand} == '0);
-
-    /* IEEE-754 compares +0 and -0 as equal. */
-    assign A_equals_B = both_zero | (sign.equals & exponent.equals & significand.equals);
+    assign A_equals_B = sign.equals & exponent.equals & significand.equals;
 
         always_comb begin
-            if (both_zero) begin
-                A_less_than_B = 1'b0;
-            end else begin
-                case ({operand_A_i.sign, operand_B_i.sign})
-                    2'b00: A_less_than_B = exponent.less | (exponent.equals & significand.less);
-                    2'b01: A_less_than_B = 1'b0;
-                    2'b10: A_less_than_B = 1'b1;
-                    2'b11: A_less_than_B = (!exponent.less & !exponent.equals) | 
-                                           (exponent.equals & !significand.less & !significand.equals);
-                endcase
-            end
+            case ({operand_A_i.sign, operand_B_i.sign})
+                2'b00: begin
+                    A_less_than_B = exponent.less | (exponent.equals & significand.less);
+                end
+
+                2'b01: begin
+                    A_less_than_B = 1'b0;
+                end
+
+                2'b10: begin
+                    A_less_than_B = 1'b1;
+                end
+
+                2'b11: begin
+                    A_less_than_B = !exponent.less | (exponent.equals & !significand.less);
+                end
+            endcase 
         end
 
     float_t result;
@@ -227,11 +225,7 @@ module float_comparator (
                         result = A_less_than_B;
                     end else begin
                         /* Select the operand */
-                        if (both_zero) begin
-                            result = operand_A_i.sign ? operand_A_i : operand_B_i;
-                        end else begin
-                            result = A_less_than_B ? operand_A_i : operand_B_i;
-                        end
+                        result = A_less_than_B ? operand_A_i : operand_B_i;
                     end
                 end
 
@@ -246,11 +240,7 @@ module float_comparator (
                         result = !A_equals_B & !A_less_than_B;
                     end else begin
                         /* Select the operand */
-                        if (both_zero) begin
-                            result = operand_A_i.sign ? operand_B_i : operand_A_i;
-                        end else begin
-                            result = (!A_equals_B & !A_less_than_B) ? operand_A_i : operand_B_i;
-                        end
+                        result = (!A_equals_B & !A_less_than_B) ? operand_A_i : operand_B_i;
                     end
                 end
             endcase
@@ -262,4 +252,4 @@ module float_comparator (
 
 endmodule : float_comparator
 
-`endif
+`endif 
