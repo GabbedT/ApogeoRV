@@ -106,29 +106,29 @@ module float_multiplier (
 
 
     /* First stage of exponent computation */
-    logic [8:0] result_exponent;
+    logic [8:0] effective_exponent_A, effective_exponent_B;
+    logic signed [10:0] result_exponent;
 
-    assign result_exponent = (multiplicand_i.exponent + multiplier_i.exponent) - BIAS;
+    assign effective_exponent_A = (multiplicand_i.exponent == '0) ? 9'd1 : {1'b0, multiplicand_i.exponent};
+    assign effective_exponent_B = (multiplier_i.exponent == '0) ? 9'd1 : {1'b0, multiplier_i.exponent};
+    assign result_exponent = $signed({2'b0, effective_exponent_A}) + $signed({2'b0, effective_exponent_B}) - 11'sd127;
 
 
     /* Stage register nets coming from 0-th stage */
-    logic [8:0]  result_exponent_pipe0;
+    logic signed [10:0] result_exponent_pipe0;
     logic [23:0] multiplicand_significand_pipe0, multiplier_significand_pipe0;
-    logic multiplicand_exponent_sign_pipe0, multiplier_exponent_sign_pipe0, invalid_operation_pipe0, result_sign_pipe0;
+    logic invalid_operation_pipe0, result_sign_pipe0;
     logic result_zero_pipe0, result_infinity_pipe0;
 
         always_ff @(posedge clk_i) begin : stage0_register
             if (!stall_i) begin 
                 multiplicand_significand_pipe0 <= {!is_subnormal_A_i, multiplicand_i.significand};
-                multiplicand_exponent_sign_pipe0 <= multiplicand_i.exponent[7];
-
                 multiplier_significand_pipe0 <= {!is_subnormal_B_i, multiplier_i.significand}; 
-                multiplier_exponent_sign_pipe0 <= multiplier_i.exponent[7];
 
                 /* An invalid exception is raised if one of the invalid combinations of operands is detected */
                 invalid_operation_pipe0 <= invalid_operation;
                 result_zero_pipe0 <= is_zero_A_i | is_zero_B_i; 
-                result_infinity_pipe0 <= is_infinity_A_i | is_infinity_B_i | (result_exponent[7:0] == '1); 
+                result_infinity_pipe0 <= is_infinity_A_i | is_infinity_B_i;
 
                 result_exponent_pipe0 <= result_exponent;
                 result_sign_pipe0 <= result_sign; 
@@ -154,7 +154,7 @@ module float_multiplier (
 //====================================================================================
 
     /* Register nets */
-    logic invalid_operation_pipe1, result_sign_pipe1, multiplicand_exp_sign_pipe1, multiplier_exp_sign_pipe1;
+    logic invalid_operation_pipe1, result_sign_pipe1;
     logic result_infinity_pipe1, result_zero_pipe1;
 
         always_ff @(posedge clk_i) begin
@@ -164,14 +164,12 @@ module float_multiplier (
                 result_zero_pipe1 <= result_zero_pipe0;
                 result_sign_pipe1 <= result_sign_pipe0;
 
-                multiplicand_exp_sign_pipe1 <= multiplicand_exponent_sign_pipe0;
-                multiplier_exp_sign_pipe1 <= multiplier_exponent_sign_pipe0;
             end
         end
 
     
     /* Register nets */
-    logic [8:0] result_exp_pipe1;
+    logic signed [10:0] result_exp_pipe1;
 
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin 
@@ -217,50 +215,67 @@ module float_multiplier (
 //      NORMALIZATION STAGE  
 //====================================================================================
 
-    logic [1:0] input_exp_sign; assign input_exp_sign = {multiplicand_exp_sign_pipe1, multiplier_exp_sign_pipe1};
+    round_bits_t round_bits;
+    float_t final_result;
+    logic overflow, tiny_result;
+    logic [47:0] normalized_product, shifted_product;
+    logic signed [11:0] normalized_exponent;
+    integer product_msb, normalization_shift, denormal_shift;
+    logic shifted_out_nonzero;
 
-    round_bits_t round_bits; float_t final_result; 
-
-    logic [8:0] exponent_incremented; assign exponent_incremented = result_exp_pipe1 + 1'b1;
-
-    assign final_result.sign = result_sign_pipe1;
-
-
-    logic overflow;
-
-        always_comb begin : normalization_logic 
-            /* Default values */
-            final_result.exponent = result_exp_pipe1; 
-            final_result.significand = significand_product_pipe1[45:23];
+        always_comb begin : normalization_logic
+            final_result = {result_sign_pipe1, 8'b0, 23'b0};
+            round_bits = '0;
             overflow = 1'b0;
+            tiny_result = 1'b0;
+            normalized_product = '0;
+            shifted_product = '0;
+            normalized_exponent = result_exp_pipe1;
+            product_msb = -1;
+            normalization_shift = 0;
+            denormal_shift = 0;
+            shifted_out_nonzero = 1'b0;
 
+            for (int j = 0; j < 48; ++j) begin
+                if (significand_product_pipe1[j])
+                    product_msb = j;
+            end
 
-            /* If the result has a bit set in the MSB of the result significand, that
-             * means that the result is bigger than "1,...", normalize by shifting
-             * right and incrementing the exponent */
-            if (significand_product_pipe1[47]) begin 
-                round_bits = {significand_product_pipe1[23:22], significand_product_pipe1[21:0] != '0}; 
+            if (product_msb >= 0) begin
+                /* Put the hidden bit at bit 47.  Moving a subnormal operand's
+                 * leading bit left is balanced by reducing the exponent. */
+                normalization_shift = 47 - product_msb;
+                normalized_product = significand_product_pipe1 << normalization_shift;
+                normalized_exponent = result_exp_pipe1 + product_msb - 46;
 
-                final_result.significand = significand_product_pipe1[46:24];
-                final_result.exponent = exponent_incremented[7:0];
-
-                /* If the MSB of the exponent is set it's an overflow */
-                if ((exponent_incremented[8] & (input_exp_sign == '1)) | (exponent_incremented[7:0] == '1)) begin 
+                if (normalized_exponent >= 12'sd255) begin
                     overflow = 1'b1;
+                end else if (normalized_exponent > 12'sd0) begin
+                    final_result.exponent = normalized_exponent[7:0];
+                    final_result.significand = normalized_product[46:24];
+                    round_bits = {normalized_product[23:22],
+                                  normalized_product[21:0] != '0};
+                end else begin
+                    /* Gradual underflow: shift the hidden bit into the
+                     * subnormal fraction instead of flushing the result. */
+                    tiny_result = 1'b1;
+                    denormal_shift = 1 - normalized_exponent;
 
-                    round_bits = '0;
-                end
-            end else begin
-                round_bits = {significand_product_pipe1[22:21], significand_product_pipe1[20:0] != '0}; 
+                    if (denormal_shift < 48) begin
+                        shifted_product = normalized_product >> denormal_shift;
+                        for (int j = 0; j < 48; ++j) begin
+                            if (j < denormal_shift)
+                                shifted_out_nonzero |= normalized_product[j];
+                        end
+                    end else begin
+                        shifted_product = '0;
+                        shifted_out_nonzero = normalized_product != '0;
+                    end
 
-                final_result.significand = significand_product_pipe1[45:23];
-                final_result.exponent = result_exp_pipe1[7:0]; 
-
-                /* If the MSB of the exponent is set it's an overflow */
-                if (result_exp_pipe1[8] & (input_exp_sign == '1)) begin
-                    overflow = 1'b1;
-
-                    round_bits = '0;
+                    final_result.exponent = '0;
+                    final_result.significand = shifted_product[46:24];
+                    round_bits = {shifted_product[23:22],
+                                  (shifted_product[21:0] != '0) | shifted_out_nonzero};
                 end
             end
         end : normalization_logic
@@ -269,12 +284,6 @@ module float_multiplier (
         always_comb begin : final_result_logic
             if (invalid_o) begin
                 result_o = CANONICAL_NAN; 
-
-                round_bits_o = '0;
-            end else if (underflow_o) begin
-                /* Underflow is +/- 0 */
-                result_o.sign = final_result.sign; 
-                {result_o.exponent, result_o.significand} = '0;
 
                 round_bits_o = '0;
             end else if (overflow_o) begin
@@ -301,7 +310,7 @@ module float_multiplier (
     
     assign valid_o = mul_data_valid_pipe1; 
 
-    assign underflow_o = ($signed(result_exp_pipe1) < MIN_EXP) & (input_exp_sign == '0) & !invalid_o;
+    assign underflow_o = tiny_result & !invalid_o;
     assign overflow_o = (overflow | result_infinity_pipe1) & !invalid_o;
 
     assign invalid_o = invalid_operation_pipe1;
@@ -309,4 +318,4 @@ module float_multiplier (
 
 endmodule : float_multiplier
 
-`endif 
+`endif
