@@ -113,7 +113,10 @@ module float_adder (
     /* The exponent subtraction will be used as a shift value to normalize the minor number significand */
     logic signed [8:0] exp_subtraction, exp_subtraction_abs;
 
-    assign exp_subtraction = addend_A_i.exponent - addend_B_i.exponent;
+    /* Subnormals use the minimum normal exponent for alignment; their absent
+     * hidden bit, not an extra exponent step, carries the reduced magnitude. */
+    assign exp_subtraction = (addend_A_i.exponent == '0 ? 9'd1 : {1'b0, addend_A_i.exponent}) -
+                             (addend_B_i.exponent == '0 ? 9'd1 : {1'b0, addend_B_i.exponent});
 
 
     float_t addend_B;
@@ -124,7 +127,10 @@ module float_adder (
 
 
     /* Select the major and the minor number out of the two */
-    float_t major_addend, minor_addend;
+    float_t major_addend, minor_addend; logic major_A;
+
+    assign major_A = {addend_A_i.exponent != '0, addend_A_i.significand} >= 
+                     {addend_B.exponent != '0, addend_B.significand};
 
         /* Swap operands to select the major and minor number.
          * Find the absolute value of the exponent subtraction
@@ -141,7 +147,7 @@ module float_adder (
             end else begin
                 /* If the result is positive (A >= B) */
                 if (exp_subtraction == '0) begin 
-                    if (addend_A_i.significand >= addend_B.significand) begin 
+                    if (major_A) begin
                         major_addend = addend_A_i;
                         minor_addend = addend_B;
                     end else begin
@@ -305,11 +311,14 @@ module float_adder (
 
     /* Count leading zeros for significand */
     logic [4:0] leading_zeros;
+    logic result_significand_zero;
+
+    assign result_significand_zero = !carry_result_stg2 & ({hidden_bit_result_stg2, result_stg2.significand} == '0);
 
     count_leading_zeros #(24) clz_significand (
         .operand_i     ( {hidden_bit_result_stg2, result_stg2.significand} ),
         .lz_count_o    ( leading_zeros                                  ),
-        .is_all_zero_o (    /* NOT CONNECTED */                         )
+        .is_all_zero_o ( /* The 24-bit implementation does not report zero */ )
     );
 
 
@@ -342,7 +351,10 @@ module float_adder (
             final_overflow = 1'b0; 
             final_underflow = 1'b0;
 
-            case ({carry_result_stg2, (leading_zeros != 5'b0)})
+            if (result_significand_zero) begin
+                final_result.exponent = '0;
+                final_result.significand = '0;
+            end else case ({carry_result_stg2, (leading_zeros != 5'b0)})
 
                 /* If there was a carry and the signs are equals, so significands
                  * were added, then normalize the result by shifting the significand
@@ -371,7 +383,14 @@ module float_adder (
                  * so significands were subtracted, then shift the significand  
                  * left by N and subtract N from the exponent */
                 2'b01: begin
-                    if (exponent_sub_normalized[8] | (exponent_sub_normalized == '0)) begin
+                    if (result_stg2.exponent == '0) begin
+                        /* A subnormal result is already expressed without a
+                         * hidden bit.  Trying to normalize it wraps the shift
+                         * count and incorrectly flushes it to signed zero. */
+                        final_result.exponent = '0;
+                        final_result.significand = result_stg2.significand;
+                        final_round_bits = round_bits_stg2;
+                    end else if (exponent_sub_normalized[8] | (exponent_sub_normalized == '0)) begin
                         final_result.exponent = '0;
                         full_result_shifted_significand = {hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2, 21'b0} << (result_stg2.exponent - MIN_EXP);
 
@@ -456,4 +475,4 @@ module float_adder (
 
 endmodule : float_adder
 
-`endif 
+`endif
