@@ -91,7 +91,9 @@ module scoreboard (
 
     localparam FADD_LATENCY = 7;
 
-    localparam FMUL_LATENCY = 4;
+    /* The multiplier result is visible to execute-stage forwarding after the
+     * FPU output register and the shared result-sampling register. */
+    localparam FMUL_LATENCY = 5;
 
     localparam FCVT_LATENCY = 4;
 
@@ -943,4 +945,4 @@ module scoreboard (
 
 endmodule : scoreboard
 
-`endif 
+`endif
