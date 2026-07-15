@@ -112,11 +112,12 @@ module float_adder (
 
     /* The exponent subtraction will be used as a shift value to normalize the minor number significand */
     logic signed [8:0] exp_subtraction, exp_subtraction_abs;
+    logic [7:0] effective_exp_A, effective_exp_B;
 
-    /* Subnormals use the minimum normal exponent for alignment; their absent
-     * hidden bit, not an extra exponent step, carries the reduced magnitude. */
-    assign exp_subtraction = (addend_A_i.exponent == '0 ? 9'd1 : {1'b0, addend_A_i.exponent}) -
-                             (addend_B_i.exponent == '0 ? 9'd1 : {1'b0, addend_B_i.exponent});
+    /* Subnormal numbers share the minimum normal exponent for alignment. */
+    assign effective_exp_A = (addend_A_i.exponent == '0) ? 8'd1 : addend_A_i.exponent;
+    assign effective_exp_B = (addend_B_i.exponent == '0) ? 8'd1 : addend_B_i.exponent;
+    assign exp_subtraction = {1'b0, effective_exp_A} - {1'b0, effective_exp_B};
 
 
     float_t addend_B;
@@ -127,10 +128,7 @@ module float_adder (
 
 
     /* Select the major and the minor number out of the two */
-    float_t major_addend, minor_addend; logic major_A;
-
-    assign major_A = {addend_A_i.exponent != '0, addend_A_i.significand} >= 
-                     {addend_B.exponent != '0, addend_B.significand};
+    float_t major_addend, minor_addend;
 
         /* Swap operands to select the major and minor number.
          * Find the absolute value of the exponent subtraction
@@ -147,7 +145,8 @@ module float_adder (
             end else begin
                 /* If the result is positive (A >= B) */
                 if (exp_subtraction == '0) begin 
-                    if (major_A) begin
+                    if ({addend_A_i.exponent != '0, addend_A_i.significand} >=
+                        {addend_B.exponent != '0, addend_B.significand}) begin
                         major_addend = addend_A_i;
                         minor_addend = addend_B;
                     end else begin
@@ -309,34 +308,26 @@ module float_adder (
      */
 
 
-    /* Count leading zeros for significand */
-    logic [4:0] leading_zeros;
-    logic result_significand_zero;
+    /* Count leading zeros across the complete significand, including G/R/S. */
+    logic [4:0] leading_zeros_full;
+    logic significand_is_zero;
 
-    assign result_significand_zero = !carry_result_stg2 & ({hidden_bit_result_stg2, result_stg2.significand} == '0);
-
-    count_leading_zeros #(24) clz_significand (
-        .operand_i     ( {hidden_bit_result_stg2, result_stg2.significand} ),
-        .lz_count_o    ( leading_zeros                                  ),
-        .is_all_zero_o ( /* The 24-bit implementation does not report zero */ )
+    count_leading_zeros #(32) clz_significand (
+        .operand_i     ( {5'b0, hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2} ),
+        .lz_count_o    ( leading_zeros_full                                                 ),
+        .is_all_zero_o ( significand_is_zero                                                )
     );
 
 
     float_t final_result; logic final_overflow, final_underflow; round_bits_t final_round_bits; 
+    logic [26:0] full_result_significand, normalized_significand;
+    logic [4:0] normalization_shift, applied_shift;
+    logic [7:0] effective_result_exp;
+    logic round_up, subnormal_rounds_normal;
 
-    /* Result of subtraction between the exponent and leading zeros number. 
-     * The result is 8 bits because it accounts for the sign bit since the 
-     * exponent operand is biased */
-    logic [8:0] exponent_sub_normalized; 
-
-    assign exponent_sub_normalized = {1'b0, result_stg2.exponent} - leading_zeros;
-
-
-    /* Don't leave the shifted out bits during the normalization after a subtraction */
-    logic [47:0] full_result_shifted_significand;
-
-    /* Shifted significand after normalization of an addition */
-    logic [23:0] result_shifted_one;
+    assign full_result_significand = {hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2};
+    assign normalization_shift = leading_zeros_full - 5'd5;
+    assign effective_result_exp = (result_stg2.exponent == '0) ? 8'd1 : result_stg2.exponent;
     
         always_comb begin : normalization_logic
             /* Default values */
@@ -346,82 +337,58 @@ module float_adder (
             
             final_round_bits = 3'b0;
 
-            result_shifted_one = '0;
-            full_result_shifted_significand = '0;
+            normalized_significand = full_result_significand;
+            applied_shift = '0;
             final_overflow = 1'b0; 
             final_underflow = 1'b0;
+            round_up = 1'b0;
+            subnormal_rounds_normal = 1'b0;
 
-            if (result_significand_zero) begin
+            if (carry_result_stg2) begin
+                /* Shift a same-sign carry right and retain all discarded bits. */
+                final_result.significand = full_result_significand[26:4];
+                final_round_bits = {
+                    full_result_significand[3],
+                    full_result_significand[2],
+                    |full_result_significand[1:0]
+                };
+
+                if (effective_result_exp == MAX_EXP) begin
+                    final_result.exponent = '1;
+                    final_result.significand = '0;
+                    final_round_bits = '0;
+                    final_overflow = 1'b1;
+                end else begin
+                    final_result.exponent = effective_result_exp + 1'b1;
+                end
+            end else if (significand_is_zero) begin
                 final_result.exponent = '0;
                 final_result.significand = '0;
-            end else case ({carry_result_stg2, (leading_zeros != 5'b0)})
-
-                /* If there was a carry and the signs are equals, so significands
-                 * were added, then normalize the result by shifting the significand
-                 * by one and incrementing the exponent */
-                2'b10, 2'b11: begin
-                    {result_shifted_one, final_round_bits.guard} = {hidden_bit_result_stg2, result_stg2.significand, 1'b0} >> 1;
-                    final_result.significand = result_shifted_one[22:0];
-
-                    if (final_result.exponent == MAX_EXP) begin
-                        final_result.exponent = result_stg2.exponent;
-
-                        final_overflow = 1'b1;
-                    end else begin
-                        final_result.exponent = result_stg2.exponent + 1'b1;
-
-                        final_overflow = 1'b0; 
-                    end
-
-                    final_round_bits.round = round_bits_stg2.guard;
-
-                    /* Don't lose previous sticky bit */
-                    final_round_bits.sticky = round_bits_stg2.round | round_bits_stg2.sticky;
+                final_round_bits = '0;
+            end else begin
+                /* Normalize cancellation results, but stop at the subnormal range. */
+                if (effective_result_exp > normalization_shift) begin
+                    applied_shift = normalization_shift;
+                    final_result.exponent = effective_result_exp - normalization_shift;
+                end else begin
+                    applied_shift = effective_result_exp - 1'b1;
+                    final_result.exponent = '0;
                 end
 
-                /* If there are N leading zeros and the sign are different, 
-                 * so significands were subtracted, then shift the significand  
-                 * left by N and subtract N from the exponent */
-                2'b01: begin
-                    if (result_stg2.exponent == '0) begin
-                        /* A subnormal result is already expressed without a
-                         * hidden bit.  Trying to normalize it wraps the shift
-                         * count and incorrectly flushes it to signed zero. */
-                        final_result.exponent = '0;
-                        final_result.significand = result_stg2.significand;
-                        final_round_bits = round_bits_stg2;
-                    end else if (exponent_sub_normalized[8] | (exponent_sub_normalized == '0)) begin
-                        final_result.exponent = '0;
-                        full_result_shifted_significand = {hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2, 21'b0} << (result_stg2.exponent - MIN_EXP);
+                normalized_significand = full_result_significand << applied_shift;
+                final_result.significand = normalized_significand[25:3];
+                final_round_bits = normalized_significand[2:0];
 
-                        final_result.significand = full_result_shifted_significand[46:24];
-
-                        final_underflow = 1'b1;
-                    end else begin 
-                        final_result.exponent = result_stg2.exponent - leading_zeros;
-                        full_result_shifted_significand = {hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2, 21'b0} << leading_zeros;
-
-                        final_result.significand = full_result_shifted_significand[46:24];
-
-                        final_underflow = 1'b0;
-                    end
-
-                    final_round_bits = full_result_shifted_significand[23:21];
-                end
-
-
-                default: begin
-                    final_result.sign = result_stg2.sign;
-                    final_result.exponent = result_stg2.exponent;
-                    
-                    final_result.significand = result_stg2.significand;
-
-                    final_overflow = 1'b0; 
-                    final_underflow = 1'b0;
-
-                    final_round_bits = round_bits_stg2;
-                end
-            endcase
+                /* IEEE underflow is raised only for an inexact tiny result. */
+                round_up = final_round_bits.guard &
+                           (final_round_bits.round | final_round_bits.sticky |
+                            final_result.significand[0]);
+                subnormal_rounds_normal = (final_result.exponent == '0) &
+                                           (&final_result.significand) & round_up;
+                final_underflow = (final_result.exponent == '0) &
+                                  (final_round_bits != '0) &
+                                  !subnormal_rounds_normal;
+            end
         end : normalization_logic
 
 
@@ -456,8 +423,8 @@ module float_adder (
                 result_o.exponent = '1; 
                 result_o.significand = '0; 
 
-                overflow_o = !result_stg3.sign;
-                underflow_o = result_stg3.sign;
+                overflow_o = 1'b0;
+                underflow_o = 1'b0;
 
                 round_bits_o = '0;
             end else begin 
@@ -466,7 +433,7 @@ module float_adder (
                 overflow_o = overflow_stg3;
                 underflow_o = underflow_stg3;
 
-                round_bits_o = (overflow_stg3 | underflow_stg3) ? '0 : round_bits_stg3;
+                round_bits_o = round_bits_stg3;
             end
         end
 
