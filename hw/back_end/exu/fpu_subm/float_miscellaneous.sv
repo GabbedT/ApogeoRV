@@ -107,7 +107,7 @@ module float_miscellaneous (
         always_comb begin
             quiet_nan_value = operand_i.significand[22] ? Q_NAN : '0; 
 
-            silent_nan_value = operand_i.significand[22] ? S_NAN : '0; 
+            silent_nan_value = !operand_i.significand[22] ? S_NAN : '0;
         end
 
     assign nan_value = is_nan_i ? (quiet_nan_value | silent_nan_value) : '0;
@@ -131,7 +131,7 @@ module float_miscellaneous (
             
             case (operation_i)
                 /* Classify the input operand */
-                FCLASS: result_o = {28'b0, class_value};
+                FCLASS: result_o = 32'b1 << class_value;
 
                 /* The sign bit is just injected in the operand */
                 FSGNJ:  result_o = {sign_inject_i, operand_i.exponent, operand_i.significand};
@@ -146,4 +146,4 @@ module float_miscellaneous (
 
 endmodule : float_miscellaneous
 
-`endif 
+`endif
