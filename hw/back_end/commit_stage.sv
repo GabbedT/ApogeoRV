@@ -110,8 +110,8 @@ module commit_stage #(
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
-        .write_i         ( data_valid_i[ITU]    ),
-        .push_i          ( data_valid_i[ITU]    ),
+        .write_i         ( push_buffer[ITU]     ),
+        .push_i          ( push_buffer[ITU]     ),
         .pop_i           ( pull_buffer[ITU]     ),
         .result_i        ( result_write[ITU]    ),
         .ipacket_i       ( ipacket_write[ITU]   ),
@@ -140,8 +140,8 @@ module commit_stage #(
     );
 
     `ifdef TEST_DESIGN
-        /* Buffer must never overflow */
-        assert property (@(posedge clk_i) buffer_full[ITU] |-> !push_buffer[ITU]);
+        /* A push into a full buffer is legal only with a simultaneous pop. */
+        assert property (@(posedge clk_i) (buffer_full[ITU] & push_buffer[ITU]) |-> pull_buffer[ITU]);
         assert property (@(posedge clk_i) buffer_empty[ITU] |-> !pull_buffer[ITU]);
 
         /* Only one unit must produce a valid result every clock cycle */
@@ -164,8 +164,8 @@ module commit_stage #(
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
-        .write_i         ( data_valid_i[LSU]    ),
-        .push_i          ( data_valid_i[LSU]    ),
+        .write_i         ( push_buffer[LSU]     ),
+        .push_i          ( push_buffer[LSU]     ),
         .pop_i           ( pull_buffer[LSU]     ),
         .result_i        ( result_write[LSU]    ),
         .ipacket_i       ( ipacket_write[LSU]   ),
@@ -194,7 +194,7 @@ module commit_stage #(
     );
 
     `ifdef TEST_DESIGN
-        assert property (@(posedge clk_i) buffer_full[LSU] |-> !push_buffer[LSU]);
+        assert property (@(posedge clk_i) (buffer_full[LSU] & push_buffer[LSU]) |-> pull_buffer[LSU]);
 
         assert property (@(posedge clk_i) buffer_empty[LSU] |-> !pull_buffer[LSU]);
     `endif 
@@ -215,8 +215,8 @@ module commit_stage #(
         .rst_n_i         ( rst_n_i              ),
         .flush_i         ( flush_i              ),
         .stall_i         ( stall_i              ),
-        .write_i         ( data_valid_i[FPU]    ),
-        .push_i          ( data_valid_i[FPU]    ),
+        .write_i         ( push_buffer[FPU]     ),
+        .push_i          ( push_buffer[FPU]     ),
         .pop_i           ( pull_buffer[FPU]     ),
         .result_i        ( result_write[FPU]    ),
         .ipacket_i       ( ipacket_write[FPU]   ),
@@ -236,7 +236,7 @@ module commit_stage #(
     );
 
     `ifdef TEST_DESIGN
-        assert property (@(posedge clk_i) buffer_full[FPU] |-> !push_buffer[FPU]);
+        assert property (@(posedge clk_i) (buffer_full[FPU] & push_buffer[FPU]) |-> pull_buffer[FPU]);
 
         assert property (@(posedge clk_i) buffer_empty[FPU] |-> !pull_buffer[FPU]);
     `endif 
@@ -254,7 +254,7 @@ module commit_stage #(
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
             if (!rst_n_i) begin
                 state_CRT <= BUFFER1;
-            end else if (!stall_i & !stall_o) begin
+            end else if (!stall_i) begin
                 state_CRT <= state_NXT;
             end
         end : state_register
@@ -265,8 +265,6 @@ module commit_stage #(
             state_NXT = state_CRT;
 
             pull_buffer = '0;
-            push_buffer = '0;
-
             rob_entry_o = '0;
             rob_write_o = 1'b0;
             rob_tag_o = 1'b0;
@@ -278,9 +276,6 @@ module commit_stage #(
                  */
                 BUFFER1: begin
                     if (!buffer_empty[ITU]) begin
-                        /* Push data if it's valid during buffer read */
-                        push_buffer[ITU] = data_valid[ITU];
-
                         /* If the buffer is not empty read the value */
                         pull_buffer[ITU] = 1'b1;
                         rob_write_o = !stall_i;
@@ -302,9 +297,6 @@ module commit_stage #(
                  */
                 BUFFER2: begin
                     if (!buffer_empty[LSU]) begin
-                        /* Push data if it's valid during buffer read */
-                        push_buffer[LSU] = data_valid[LSU];
-
                         /* If the buffer is not empty read the value */
                         pull_buffer[LSU] = 1'b1;
                         rob_write_o = !stall_i;
@@ -334,9 +326,6 @@ module commit_stage #(
 
                 BUFFER3: begin
                     if (!buffer_empty[FPU]) begin
-                        /* Push data if it's valid during buffer read */
-                        push_buffer[FPU] = data_valid[FPU];
-
                         /* If the buffer is not empty read the value */
                         pull_buffer[FPU] = 1'b1;
                         rob_write_o = !stall_i;
@@ -357,7 +346,19 @@ module commit_stage #(
             endcase 
         end : next_state_logic
 
-    assign stall_o = buffer_full[ITU] | buffer_full[LSU] `ifdef FPU | buffer_full[FPU] `endif;
+    /* A full buffer can still accept one result when the arbiter pops it in
+     * the same cycle.  Keep the execution-stage sample stable only when at
+     * least one full buffer is not being drained.  The arbiter itself must
+     * continue advancing under this backpressure so it can reach that buffer
+     * and break the stall. */
+    assign stall_o = (buffer_full[ITU] & !pull_buffer[ITU])
+                   | (buffer_full[LSU] & !pull_buffer[LSU])
+                     `ifdef FPU | (buffer_full[FPU] & !pull_buffer[FPU]) `endif;
+
+    /* data_valid_i is held while stall_o is asserted.  Gate the FIFO push and
+     * forwarding-register write with acceptance to avoid inserting that held
+     * result more than once. */
+    assign push_buffer = data_valid_i & {EXU_PORT{!stall_o}};
 
     assign buffers_empty_o = buffer_empty[ITU] & buffer_empty[LSU] `ifdef FPU & buffer_empty[FPU] `endif;
 
@@ -396,4 +397,4 @@ module commit_stage #(
 
 endmodule : commit_stage
 
-`endif 
+`endif
