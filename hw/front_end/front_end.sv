@@ -596,7 +596,10 @@ module front_end #(
                 end
 
                 UPPER_HALF: begin
-                    instr_pc = {ibuffer_program_counter[31:1], 1'b0};
+                    /* UPPER_HALF is reached after consuming the lower half of
+                     * an aligned buffer word, so its architectural PC is the
+                     * word address plus two bytes. */
+                    instr_pc = {ibuffer_program_counter[31:2], 2'b00} + 'd2;
                     instruction2expand = ibuffer_instruction[31:16];
 
                     instruction_speculative = ibuffer_speculative & ibuffer_program_counter[1];
