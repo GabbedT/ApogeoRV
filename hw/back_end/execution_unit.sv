@@ -96,6 +96,7 @@ module execution_unit #(
 
     /* Program counter that caused the trap */
     input  data_word_t trap_instruction_pc_i,
+    input  data_word_t interrupt_instruction_pc_i,
     output data_word_t trap_instruction_pc_o,
 
     /* Vector cause */
@@ -232,7 +233,7 @@ module execution_unit #(
         .buffer_full_o          ( csr_buffer_full_o       ),
         .csr_write_access_i     ( csr_write               ),
         .csr_read_access_i      ( csr_read                ),
-        .csr_write_validate_i   ( validate_csr_write_i    ),
+        .csr_write_validate_i     ( validate_csr_write_i  ),
         .csr_address_i          ( operand_i[1][11:0]      ),
         .csr_data_write_i       ( csr_data_write          ),
         .csr_data_read_o        ( csr_data_read           ),
@@ -264,6 +265,7 @@ module execution_unit #(
         `endif 
 
         .trap_instruction_pc_i  ( trap_instruction_pc_i   ),
+        .interrupt_instruction_pc_i ( interrupt_instruction_pc_i ),
         .trap_instruction_pc_o  ( trap_instruction_pc_o   ),
         .interrupt_vector_i     ( interrupt_vector_i      ),
         .timer_interrupt_i      ( timer_interrupt_i       ),
@@ -348,4 +350,4 @@ module execution_unit #(
 
 endmodule : execution_unit
 
-`endif 
+`endif
