@@ -197,7 +197,7 @@ module commit_buffer #(
 
     /* Indicates it the result was written back to register file or not */
     logic [31:0] valid_register;
-        
+
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : register_valid_write_port
             if (!rst_n_i) begin
                 valid_register <= '0;
@@ -207,32 +207,32 @@ module commit_buffer #(
                 if (write_i) begin
                     /* On writes validate the result */
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
-                end 
+                end
 
-                `ifdef FPU 
+                `ifdef FPU
 
                 if (invalidate_i[0]) begin
                     /* If another buffer is pushing a register, it has
                      * the most recent value, this must be invalidated
                      * since is old */
                     valid_register[invalid_reg_i[0]] <= 1'b0;
-                end 
+                end
 
                 if (invalidate_i[1]) begin
                     /* If another buffer is pushing a register, it has
                      * the most recent value, this must be invalidated
                      * since is old */
                     valid_register[invalid_reg_i[1]] <= 1'b0;
-                end 
+                end
 
-                `else 
+                `else
 
                 if (invalidate_i) begin
                     /* If another buffer is pushing a register, it has
                      * the most recent value, this must be invalidated
                      * since is old */
                     valid_register[invalid_reg_i] <= 1'b0;
-                end 
+                end
 
                 `endif
             end
