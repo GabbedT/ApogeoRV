@@ -64,59 +64,27 @@ module float_miscellaneous (
 //      CLASSIFY LOGIC  
 //====================================================================================
 
-    /* Positive class values */
-    logic [3:0] pclass_value, pinfinity_value, pzero_value, pnormal_value, psubnormal_value;
+    /* FCLASS returns one bit for each IEEE-754 class */
+    logic [9:0] class_value;
 
-        always_comb begin : positive_value_encoding
-            pinfinity_value = is_infinity_i ? P_INFINITY : '0; 
+        always_comb begin : class_value_encoding
+            class_value = '0;
 
-            pzero_value = is_zero_i ? P_ZERO : '0; 
-
-            pnormal_value = is_normal_i ? P_NORMAL : '0; 
-
-            psubnormal_value = is_subnormal_i ? P_SUBNORMAL : '0; 
-
-        end : positive_value_encoding
-
-    /* Only zero or one of the expressions inside the parentesis is true */
-    assign pclass_value = !operand_i.sign ? (pinfinity_value | pzero_value | pnormal_value | psubnormal_value) : '0;
-
-
-
-    /* Negative class values */
-    logic [3:0] nclass_value, ninfinity_value, nzero_value, nnormal_value, nsubnormal_value;
-
-        always_comb begin : negative_value_encoding
-            ninfinity_value = is_infinity_i ? N_INFINITY : '0; 
-
-            nzero_value = is_zero_i ? N_ZERO : '0; 
-
-            nnormal_value = is_normal_i ? N_NORMAL : '0; 
-
-            nsubnormal_value = is_subnormal_i ? N_SUBNORMAL : '0; 
-
-        end : negative_value_encoding
-
-    /* Only zero or one of the expressions inside the parentesis is true */
-    assign nclass_value = operand_i.sign ? (ninfinity_value | nzero_value | nnormal_value | nsubnormal_value) : '0;
-
-
-    /* NaN class values */
-    logic [3:0] nan_value, quiet_nan_value, silent_nan_value; 
-
-        always_comb begin
-            quiet_nan_value = operand_i.significand[22] ? Q_NAN : '0; 
-
-            silent_nan_value = operand_i.significand[22] ? S_NAN : '0; 
-        end
-
-    assign nan_value = is_nan_i ? (quiet_nan_value | silent_nan_value) : '0;
-
-
-    /* Final class value */
-    logic [3:0] class_value;
-
-    assign class_value = pclass_value | nclass_value | nan_value;
+            if (is_nan_i) begin
+                /* The most significant fraction bit distinguishes quiet NaNs */
+                class_value[operand_i.significand[22] ? Q_NAN : S_NAN] = 1'b1;
+            end else if (operand_i.sign) begin
+                class_value[N_INFINITY] = is_infinity_i;
+                class_value[N_NORMAL] = is_normal_i;
+                class_value[N_SUBNORMAL] = is_subnormal_i;
+                class_value[N_ZERO] = is_zero_i;
+            end else begin
+                class_value[P_ZERO] = is_zero_i;
+                class_value[P_SUBNORMAL] = is_subnormal_i;
+                class_value[P_NORMAL] = is_normal_i;
+                class_value[P_INFINITY] = is_infinity_i;
+            end
+        end : class_value_encoding
 
 
 //====================================================================================
@@ -131,7 +99,7 @@ module float_miscellaneous (
             
             case (operation_i)
                 /* Classify the input operand */
-                FCLASS: result_o = {28'b0, class_value};
+                FCLASS: result_o = {22'b0, class_value};
 
                 /* The sign bit is just injected in the operand */
                 FSGNJ:  result_o = {sign_inject_i, operand_i.exponent, operand_i.significand};
@@ -146,4 +114,4 @@ module float_miscellaneous (
 
 endmodule : float_miscellaneous
 
-`endif 
+`endif

@@ -146,6 +146,8 @@ module front_end #(
     logic [31:0] program_counter, next_program_counter, branch_target_address; logic branch_buffer_hit, fetch, ibuffer_full, mispredicted;
 
     logic jump_saved, predict, prediction_hit, stall; logic [31:0] bta_saved;
+    logic arch_branch_saved;
+    data_word_t arch_branch_pc;
 
     /* An aligned 32-bit fetch made for PC[1] == 1 contains only the first
      * halfword of a possible 32-bit instruction at that PC.  Redirecting its
@@ -185,6 +187,9 @@ module front_end #(
                 /* Load the instruction after completing the
                  * interrupt / exception handler code */
                 fetch_channel.address = hander_return_pc_i; 
+            end else if (arch_branch_saved) begin
+                fetch = 1'b1;
+                fetch_channel.address = arch_branch_pc;
             end else if (executed_i) begin
                 fetch = 1'b1;
 
@@ -250,12 +255,9 @@ module front_end #(
     assign fetch_channel.fetch = (fetch | branch_flush_i | mispredicted | flush_i) & !fetch_channel.stall & !stall_i;
 
 
-
     logic jumped;
 
-    assign jumped = exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) 
-                & !(speculative_i & !mispredicted)) | prediction_hit;
-
+    assign jumped = (executed_i & (taken_i | jump_i) & !(speculative_i & !mispredicted)) | prediction_hit;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
@@ -271,22 +273,18 @@ module front_end #(
                     jump_saved <= 1'b1;
                 end 
             end else begin
-                jump_saved <= jump_saved & (exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) & !speculative_i));
+                jump_saved <= jump_saved & (executed_i & (taken_i | jump_i) & !speculative_i);
             end
         end 
 
         always_ff @(posedge clk_i) begin
             if (jumped & !jump_saved) begin
-                if (exception_i | interrupt_i) begin
-                    bta_saved <= handler_pc_i;
-                end else if (handler_return_i) begin
-                    bta_saved <= hander_return_pc_i;
-                end else if (executed_i & (taken_i | jump_i) & !speculative_i) begin
+                if (executed_i & (taken_i | jump_i) & !speculative_i) begin
                     bta_saved <= branch_target_addr_i;
                 end else if (prediction_hit) begin
                     bta_saved <= branch_target_address;
                 end
-            end else if (exception_i | interrupt_i | handler_return_i | (executed_i & (taken_i | jump_i) & !speculative_i)) begin 
+            end else if (executed_i & (taken_i | jump_i) & !speculative_i) begin
                 bta_saved <= branch_target_addr_i;
             end
         end 
@@ -331,8 +329,7 @@ module front_end #(
                     jump_prv <= jump_saved;
                     fetch_prv <= fetch_channel.fetch;
                 end 
-            end 
-
+            end
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : program_counter_register
             if (!rst_n_i) begin
@@ -345,7 +342,6 @@ module front_end #(
                 program_counter <= fetch_channel.address;
             end
         end : program_counter_register
-
 
     branch_predictor #(PREDICTOR_SIZE, BTB_SIZE) predictor_unit (
         .clk_i                ( clk_i                              ), 
@@ -367,6 +363,27 @@ module front_end #(
         .hit_o                ( branch_buffer_hit                  )
     );
 
+
+//====================================================================================
+//      ARCHITECTURAL BRANCH LOGIC
+//====================================================================================
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                arch_branch_saved <= 1'b0;
+                arch_branch_pc <= '0;
+            end else if ((exception_i | interrupt_i | handler_return_i) & !fetch_channel.fetch) begin
+                arch_branch_saved <= 1'b1;
+
+                if (handler_return_i) begin
+                    arch_branch_pc <= hander_return_pc_i;
+                end else begin
+                    arch_branch_pc <= handler_pc_i;
+                end
+            end else if (arch_branch_saved & fetch_channel.fetch) begin
+                arch_branch_saved <= 1'b0;
+            end
+        end
 
 //====================================================================================
 //      INSTRUCTION BUFFER

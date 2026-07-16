@@ -74,9 +74,9 @@ module float_converter (
 //      FLOAT TO INT LOGIC  
 //====================================================================================
 
-    localparam MAX_INT32 = (2 ** 31) - 1;
-    localparam MAX_UINT32 = (2 ** 32) - 1;
-    localparam MIN_INT32 = -(2 ** 31);
+    localparam logic [31:0] MAX_INT32  = 32'h7fff_ffff;
+    localparam logic [31:0] MAX_UINT32 = 32'hffff_ffff;
+    localparam logic [31:0] MIN_INT32  = 32'h8000_0000;
 
     logic hidden_bit;
 
@@ -95,9 +95,41 @@ module float_converter (
 
     assign significand_shifted = {31'b0, hidden_bit, operand_i.significand} << unbiased_exponent[4:0];
 
+    /* Preserve the discarded fraction for RNE integer conversion. */
+    logic [23:0] conversion_mantissa;
+    logic conversion_guard, conversion_sticky, conversion_round_up;
+    integer conversion_shift;
+
+    assign conversion_mantissa = {hidden_bit, operand_i.significand};
+
+        always_comb begin : conversion_rounding_logic
+            conversion_guard = 1'b0;
+            conversion_sticky = 1'b0;
+            conversion_round_up = 1'b0;
+            conversion_shift = 0;
+
+            if ((unbiased_exponent >= 0) && (unbiased_exponent < 23)) begin
+                conversion_shift = 23 - unbiased_exponent;
+                conversion_guard = conversion_mantissa[conversion_shift - 1];
+
+                for (int j = 0; j < 23; ++j) begin
+                    if (j < (conversion_shift - 1))
+                        conversion_sticky |= conversion_mantissa[j];
+                end
+
+                conversion_round_up = conversion_guard &
+                                      (conversion_sticky | significand_shifted[23]);
+            end else if (unbiased_exponent == -1) begin
+                /* 0.5 ties to even zero; larger magnitudes round to one. */
+                conversion_round_up = operand_i.significand != '0;
+            end
+        end : conversion_rounding_logic
+
 
     /* Stage nets coming from 0-th stage */
-    logic [31:0] significand_shifted_stg0; logic signed [7:0] unbiased_exponent_stg0; logic operand_sign_stg0, is_nan_stg0, is_signed_stg0;
+    logic [31:0] significand_shifted_stg0;
+    logic signed [7:0] unbiased_exponent_stg0;
+    logic operand_sign_stg0, is_nan_stg0, is_signed_stg0, conversion_round_up_stg0;
 
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin
@@ -106,12 +138,16 @@ module float_converter (
                 operand_sign_stg0 <= operand_i.sign;
                 is_nan_stg0 <= is_nan_i;
                 is_signed_stg0 <= is_signed_i;
+                conversion_round_up_stg0 <= conversion_round_up;
             end
         end
 
 
     /* Converted float into integer */
-    logic [31:0] converted_integer; logic overflow, underflow;
+    logic [31:0] converted_integer, rounded_magnitude;
+    logic overflow, underflow;
+
+    assign rounded_magnitude = significand_shifted_stg0 + conversion_round_up_stg0;
 
         always_comb begin : float_to_integer_conversion_logic
             /* Default values */
@@ -145,16 +181,18 @@ module float_converter (
                     if (unbiased_exponent_stg0 == -8'sd128) begin
                         converted_integer = operand_sign_stg0 ? MIN_INT32 : MAX_INT32;
                     end else begin
-                        converted_integer = '0;   
+                        converted_integer = conversion_round_up_stg0
+                                          ? (operand_sign_stg0 ? -32'd1 : 32'd1)
+                                          : '0;
                     end 
                 end else begin
                     /* If the shift does not exceed, assign to the 
                      * result the shifted value complemented or not
                      * based on the sign bit */
                     if (operand_sign_stg0) begin
-                        converted_integer = -significand_shifted_stg0;
+                        converted_integer = -rounded_magnitude;
                     end else begin
-                        converted_integer = significand_shifted_stg0;
+                        converted_integer = rounded_magnitude;
                     end
                 end
             end else begin
@@ -178,11 +216,13 @@ module float_converter (
                      * the number is between 1.0 and 0.0. The corresponding 
                      * integer is 0. If it's -128 it means that the original
                      * exponent was 255 (a NaN or Infinity)  */
-                    converted_integer = ((unbiased_exponent_stg0 == -8'sd128) & !operand_sign_stg0) ? MAX_UINT32 : '0;    
+                    converted_integer = ((unbiased_exponent_stg0 == -8'sd128) & !operand_sign_stg0)
+                                      ? MAX_UINT32
+                                      : ((!operand_sign_stg0 & conversion_round_up_stg0) ? 32'd1 : '0);
                 end else begin
                     /* If the shift does not exceed, assign to the 
                      * result the shifted value */
-                    converted_integer = operand_sign_stg0 ? '0 : significand_shifted_stg0;
+                    converted_integer = operand_sign_stg0 ? '0 : rounded_magnitude;
                 end
             end
         end : float_to_integer_conversion_logic
@@ -288,7 +328,9 @@ module float_converter (
                 end
 
                 FLOAT2INT: begin
-                    result_o = is_nan_stg0 ? '1 : converted_integer;
+                    result_o = is_nan_stg0
+                             ? (is_signed_stg0 ? MAX_INT32 : MAX_UINT32)
+                             : converted_integer;
 
                     underflow_o = underflow;
                     overflow_o = overflow;
@@ -301,4 +343,4 @@ module float_converter (
 
 endmodule : float_converter
 
-`endif 
+`endif
