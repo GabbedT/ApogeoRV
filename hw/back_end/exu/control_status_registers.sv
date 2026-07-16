@@ -87,6 +87,7 @@ module control_status_registers (
 
     /* Program counter that caused the trap */
     input  data_word_t trap_instruction_pc_i,
+    input  data_word_t interrupt_instruction_pc_i,
     output data_word_t trap_instruction_pc_o,
 
     /* Vector cause */
@@ -135,8 +136,11 @@ module control_status_registers (
 
     csr_enable_t csr_enable, csr_enable_out;
     data_word_t csr_data_out; 
+    logic csr_write_validate;
 
     logic [$bits(csr_enable_t) + $bits(data_word_t) - 1:0] csr_write_buffer; 
+
+    assign csr_write_validate = csr_write_validate_i & buffer_full_o;
 
         always_ff @(posedge clk_i) begin : write_data_port
             if (csr_write_access_i) begin
@@ -146,12 +150,10 @@ module control_status_registers (
         end : write_data_port
 
     assign {csr_enable_out, csr_data_out} = csr_write_buffer;
-
-
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : unit_status_register
             if (!rst_n_i) begin
                 buffer_full_o <= 1'b0;
-            end else if (csr_write_validate_i | flush_i) begin
+            end else if (csr_write_validate | flush_i) begin
                 buffer_full_o <= 1'b0;
             end else if (csr_write_access_i) begin
                 buffer_full_o <= 1'b1;
@@ -166,7 +168,7 @@ module control_status_registers (
     logic B_extension, Zfinx_extension, M_extension, C_extension;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (!rst_n_i) begin 
+            if (!rst_n_i) begin
                 `ifdef BMU 
                     B_extension <= 1'b1;
                 `endif 
@@ -178,7 +180,7 @@ module control_status_registers (
                 `endif 
 
                 M_extension <= 1'b1;
-            end else if (csr_enable_out.misa & csr_write_validate_i) begin 
+            end else if (csr_enable_out.misa & csr_write_validate) begin
                 `ifdef BMU 
                     B_extension <= csr_data_out[1];
                 `endif 
@@ -231,24 +233,25 @@ module control_status_registers (
 //====================================================================================
 
     mstatus_csr_t mstatus_csr;
-    logic privilege_level;
+    logic privilege_level, previous_privilege;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 privilege_level <= 1'b1;
+                previous_privilege <= 1'b0;
             end else if (interrupt | exception_i) begin
                 /* If an exception occours, it will be handled by 
                  * machine level code */
                 privilege_level <= 1'b1;
+                previous_privilege <= privilege_level;
             end else if (machine_return_instr_i) begin
                 /* After a return instruction, restore previous
                  * privilege level */
-                privilege_level <= mstatus_csr.MPP[11];
+                privilege_level <= previous_privilege;
             end
         end 
 
     assign current_privilege_o = privilege_level;
-
 
         /* MIE is a global interrupt enable bits for machine mode interrupt.
          * If a trap is taken, interrupts at that privilege level and lower
@@ -256,36 +259,38 @@ module control_status_registers (
          * interrupt enable bit get saved, the trap is always executed in 
          * M-mode unless otherwise specified. When MRET is executed MPP is 
          * set to the least privileged mode and MPIE is set to 1 */ 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mstatus_register
-            if (!rst_n_i) begin 
-                mstatus_csr.MIE <= 1'b0;
+    mstatus_csr_t mstatus_next;
 
-                mstatus_csr.MPIE <= 1'b0;
-                mstatus_csr.MPP <= USER;
-            end else if (interrupt | exception_i) begin
-                /* Disable interrupts */
-                mstatus_csr.MIE <= 1'b0;
+        always_comb begin : mstatus_next_logic
+            mstatus_next = mstatus_csr;
 
-                /* Save privilege status */
-                mstatus_csr.MPIE <= mstatus_csr.MIE;
-                mstatus_csr.MPP <= {privilege_level, privilege_level};
+            if (interrupt | exception_i) begin
+                /* Disable interrupts and save the previous state. */
+                mstatus_next.MIE = 1'b0;
+                mstatus_next.MPIE = mstatus_csr.MIE;
+                mstatus_next.MPP = privilege_level ? MACHINE : USER;
             end else if (machine_return_instr_i) begin
-                /* Restore old value */
-                mstatus_csr.MIE <= mstatus_csr.MPIE;
+                /* Restore old value. */
+                mstatus_next.MIE = mstatus_csr.MPIE;
+                mstatus_next.MPIE = 1'b1;
+                mstatus_next.MPP = USER;
+            end else if (csr_enable_out.mstatus & csr_write_validate) begin
+                /* Write CSR. */
+                mstatus_next.MIE = csr_data_out[3];
+                mstatus_next.MPIE = csr_data_out[7];
+                mstatus_next.MPP = csr_data_out[12:11];
+            end
+        end : mstatus_next_logic
 
-                /* Restore privilege status */
-                mstatus_csr.MPIE <= 1'b1;
-                mstatus_csr.MPP <= {privilege_level, privilege_level};
-            end else if (csr_enable_out.mstatus & csr_write_validate_i) begin 
-                /* Write CSR */
-                mstatus_csr.MIE <= csr_data_out[3];
-                mstatus_csr.MPIE <= csr_data_out[7];
-                mstatus_csr.MPP <= csr_data_out[12:11];
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mstatus_register
+            if (!rst_n_i) begin
+                mstatus_csr <= '0;
+            end else begin
+                mstatus_csr <= mstatus_next;
             end
         end : mstatus_register
 
     assign glb_int_enabled_o = mstatus_csr.MIE;
-
 
 //====================================================================================
 //      TRAP VECTOR REGISTER
@@ -309,7 +314,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mtvec_csr <= '0;
-            end else if (csr_enable_out.mtvec & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mtvec & csr_write_validate) begin
                 mtvec_csr <= csr_data_out;
             end
         end
@@ -318,18 +323,18 @@ module control_status_registers (
      * cause the pc to be set to the address in the BASE field, 
      * whereas interrupts cause the pc to be set to the address in 
      * the BASE field plus four times the interrupt cause number */
-    always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-        if (!rst_n_i) begin
-            handler_pc_o <= '0;
-        end else if (mtvec_csr.MODE == DIRECT_MODE) begin
+    always_comb begin
+        handler_pc_o = {mtvec_csr.BASE, 2'b0};
+
+        if (mtvec_csr.MODE == DIRECT_MODE) begin
             /* Aligned pc */
-            handler_pc_o <= {mtvec_csr.BASE, 2'b0};
+            handler_pc_o = {mtvec_csr.BASE, 2'b0};
         end else if (mtvec_csr.MODE == VECTORED_MODE) begin
             /* BASE + (CAUSE * 4) */
             if (interrupt) begin
-                handler_pc_o <= {mtvec_csr.BASE, 2'b0} + (interrupt_vector_i << 2);
+                handler_pc_o = {mtvec_csr.BASE, 2'b0} + (interrupt_vector_i << 2);
             end else begin
-                handler_pc_o <= {mtvec_csr.BASE, 2'b0};
+                handler_pc_o = {mtvec_csr.BASE, 2'b0};
             end
         end
     end
@@ -353,7 +358,7 @@ module control_status_registers (
             if (!rst_n_i) begin 
                 mie_csr.MEIE <= 1'b0; 
                 mie_csr.MTIE <= 1'b0; 
-            end else if (csr_enable_out.mie & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mie & csr_write_validate) begin
                 mie_csr.MEIE <= csr_data_out[11]; 
                 mie_csr.MTIE <= csr_data_out[7]; 
             end
@@ -373,14 +378,14 @@ module control_status_registers (
                 if (interrupt_request_i) begin 
                     /* Pending if enabled */
                     mip_csr.MEIP <= 1'b1;
-                end else if (csr_enable_out.mip & csr_write_validate_i) begin
+                end else if (csr_enable_out.mip & csr_write_validate) begin
                     mip_csr.MEIP <= csr_data_out[11]; 
                 end
 
                 if (timer_interrupt_i) begin 
                     /* Pending if enabled */
                     mip_csr.MTIP <= 1'b1;
-                end else if (csr_enable_out.mip & csr_write_validate_i) begin
+                end else if (csr_enable_out.mip & csr_write_validate) begin
                     mip_csr.MTIP <= csr_data_out[7];
                 end
             end
@@ -414,7 +419,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mcounthinibit_register
             if (!rst_n_i) begin 
                 mcountinhibit_csr <= 5'b0;
-            end else if (csr_enable_out.mcountinhibit & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mcountinhibit & csr_write_validate) begin
                 mcountinhibit_csr <= {csr_data_out[6:2], csr_data_out[0]};
             end
         end : mcounthinibit_register
@@ -429,7 +434,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mcounteren_register
             if (!rst_n_i) begin 
                 mcounteren_csr <= 5'b0;
-            end else if (csr_enable_out.mcountinhibit & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mcountinhibit & csr_write_validate) begin
                 mcounteren_csr <= {csr_data_out[6:2], csr_data_out[0]};
             end
         end : mcounteren_register
@@ -441,10 +446,10 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mcycle_csr <= 64'b0;
-            end else if (csr_enable_out.mcycle[0] & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mcycle[0] & csr_write_validate) begin
                 /* Lower part */
                 mcycle_csr[31:0] <= csr_data_out;
-            end else if (csr_enable_out.mcycle[1] & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mcycle[1] & csr_write_validate) begin
                 /* Higher part */
                 mcycle_csr[63:32] <= csr_data_out;
             end else if (!mcountinhibit_csr[0]) begin 
@@ -460,10 +465,10 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 minstret_csr <= 64'b0;
-            end else if (csr_enable_out.minstret[0] & csr_write_validate_i) begin 
+            end else if (csr_enable_out.minstret[0] & csr_write_validate) begin
                 /* Lower part */
                 minstret_csr[31:0] <= csr_data_out;
-            end else if (csr_enable_out.minstret[1] & csr_write_validate_i) begin 
+            end else if (csr_enable_out.minstret[1] & csr_write_validate) begin
                 /* Higher part */
                 minstret_csr[63:32] <= csr_data_out;
             end else if (instruction_retired_i & !mcountinhibit_csr[2]) begin 
@@ -481,7 +486,7 @@ module control_status_registers (
                 end
             end else begin 
                 for (int i = 0; i < 4; ++i) begin
-                    if (csr_enable_out.mhpmevent[i] & csr_write_validate_i) begin
+                    if (csr_enable_out.mhpmevent[i] & csr_write_validate) begin
                         mhpmevent_csr[i] <= csr_data_out[2:0];
                     end
                 end
@@ -526,10 +531,10 @@ module control_status_registers (
                 end
             end else begin 
                 for (int i = 0; i < 4; ++i) begin
-                    if (csr_write_validate_i & csr_enable_out.mhpmcounter[0][i]) begin
+                    if (csr_write_validate & csr_enable_out.mhpmcounter[0][i]) begin
                         /* Write low bits */
                         mhpmcounter_csr[i][31:0] <= csr_data_out;
-                    end else if (csr_write_validate_i & csr_enable_out.mhpmcounter[1][i]) begin
+                    end else if (csr_write_validate & csr_enable_out.mhpmcounter[1][i]) begin
                         /* Write high bits */
                         mhpmcounter_csr[i][63:32] <= csr_data_out;
                     end else if (event_trigger[i] & !mcountinhibit_csr[i + 2]) begin
@@ -556,7 +561,7 @@ module control_status_registers (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin 
                 mscratch_csr <= '0;
-            end else if (csr_enable_out.mscratch & csr_write_validate_i) begin 
+            end else if (csr_enable_out.mscratch & csr_write_validate) begin
                 mscratch_csr <= csr_data_out;
             end
         end
@@ -576,8 +581,8 @@ module control_status_registers (
             end else if (exception_i) begin 
                 mepc_csr <= trap_instruction_pc_i;
             end else if (interrupt) begin
-                mepc_csr <= compressed_i ? (trap_instruction_pc_i + 2) : (trap_instruction_pc_i + 4);
-            end else if (csr_enable_out.mepc & csr_write_validate_i) begin 
+                mepc_csr <= interrupt_instruction_pc_i;
+            end else if (csr_enable_out.mepc & csr_write_validate) begin
                 mepc_csr <= csr_data_out;
             end
         end
@@ -627,7 +632,7 @@ module control_status_registers (
                 fcsr_csr <= '0;
             end else if (flush_i) begin
                 fcsr_csr <= '0;
-            end else if (csr_enable_out.fcsr & csr_write_validate_i) begin 
+            end else if (csr_enable_out.fcsr & csr_write_validate) begin
                 fcsr_csr <= csr_data_out;
             end else if (float_valid_i) begin
                 fcsr_csr <= {invalid_i, 1'b0, overflow_i, underflow_i, inexact_i};
@@ -1081,4 +1086,4 @@ module control_status_registers (
 
 endmodule : control_status_registers
 
-`endif 
+`endif

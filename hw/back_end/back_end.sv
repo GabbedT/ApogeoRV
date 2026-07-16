@@ -125,6 +125,7 @@ module back_end #(
     input logic interrupt_i,
     input logic timer_interrupt_i,
     input logic [7:0] interrupt_vector_i,
+    input data_word_t interrupt_instruction_pc_i,
     
     /* Set the program counter to the 
      * trap handler address */
@@ -268,6 +269,7 @@ module back_end #(
 
     /* Instruction address of ROB entry */
     data_word_t trap_iaddress;
+    data_word_t allocated_pc_head, interrupt_resume_pc, retired_resume_pc;
 
     /* Exception */
     logic [4:0] exception_vector; logic exception_generated;
@@ -288,9 +290,19 @@ module back_end #(
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
     logic execute_store, ldu_idle, stu_idle;
 
-    exu_valid_t valid_operation; 
+    exu_valid_t valid_operation;
 
-    assign valid_operation = stall_o ? '0 : bypass_valid; 
+
+    assign valid_operation = stall_o ? '0 : bypass_valid;
+    assign interrupt_resume_pc = reorder_buffer_empty ? retired_resume_pc : allocated_pc_head;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                retired_resume_pc <= '0;
+            end else if (instruction_retired) begin
+                retired_resume_pc <= trap_iaddress + (instruction_compressed ? 2 : 4);
+            end
+        end
 
     execution_unit #(STORE_BUFFER_SIZE, EXU_PORT) execute_stage (
         .clk_i           ( clk_i              ),
@@ -327,17 +339,18 @@ module back_end #(
         .load_channel  ( load_channel  ),
         .store_channel ( store_channel ),
 
-        .trap_instruction_pc_i   ( trap_iaddress           ),
-        .trap_instruction_pc_o   ( handler_return_pc_o     ),
-        .exception_vector_i      ( exception_vector        ),
-        .interrupt_vector_i      ( interrupt_vector_i      ),
-        .interrupt_request_i     ( interrupt_i             ),
-        .timer_interrupt_i       ( timer_interrupt_i       ),
-        .exception_i             ( exception_generated     ),
-        .handler_pc_o            ( handler_pc_o            ),
-        .global_interrupt_en_o   ( global_interrupt_en_o   ),
-        .external_interrupt_en_o ( external_interrupt_en_o ),
-        .timer_interrupt_en_o    ( timer_interrupt_en_o    ),
+        .trap_instruction_pc_i      ( trap_iaddress           ),
+        .interrupt_instruction_pc_i ( interrupt_resume_pc     ),
+        .trap_instruction_pc_o      ( handler_return_pc_o     ),
+        .exception_vector_i         ( exception_vector        ),
+        .interrupt_vector_i         ( interrupt_vector_i      ),
+        .interrupt_request_i        ( interrupt_i             ),
+        .timer_interrupt_i          ( timer_interrupt_i       ),
+        .exception_i                ( exception_generated     ),
+        .handler_pc_o               ( handler_pc_o            ),
+        .global_interrupt_en_o      ( global_interrupt_en_o   ),
+        .external_interrupt_en_o    ( external_interrupt_en_o ),
+        .timer_interrupt_en_o       ( timer_interrupt_en_o    ),
 
         .machine_return_instr_i ( handler_return_o       ),
         .branch_mispredicted_i  ( mispredicted_i         ),
@@ -437,7 +450,6 @@ module back_end #(
         `endif 
     endgenerate
 
-
 //====================================================================================
 //      COMMIT STAGE
 //====================================================================================
@@ -453,9 +465,9 @@ module back_end #(
         .stall_i ( stall_pipeline  ),
         .stall_o ( buffer_full     ),
 
-        .result_i     ( result_sampled ),
+        .result_i     ( result_sampled  ),
         .ipacket_i    ( ipacket_sampled ),
-        .data_valid_i ( valid_sampled  ),
+        .data_valid_i ( valid_sampled   ),
 
         .rob_write_o ( rob_write  ),
         .rob_tag_o   ( rob_tag    ),
@@ -490,7 +502,7 @@ module back_end #(
 //      REORDER BUFFER
 //====================================================================================
 
-    logic reorder_buffer_clear, reorder_buffer_read, writeback_valid, reorder_buffer_flush;
+    logic reorder_buffer_read, writeback_valid, reorder_buffer_flush;
     logic reorder_buffer_empty;
     rob_entry_t writeback_packet;
 
@@ -503,6 +515,7 @@ module back_end #(
         .stall_i ( stall_pipeline ),
 
         .rob_alloc_i ( rob_alloc_i ),
+        .alloc_pc_i  ( ipacket_i.instr_addr ),
         .rob_tag_o   ( rob_tag_o   ),
 
         .branch_flush_i ( reorder_buffer_flush   ),
@@ -518,8 +531,9 @@ module back_end #(
         .full_o  ( reorder_buffer_full  ),
         .empty_o ( reorder_buffer_empty ),
 
-        .valid_o ( writeback_valid  ),
-        .entry_o ( writeback_packet )
+        .valid_o   ( writeback_valid   ),
+        .entry_o   ( writeback_packet  ),
+        .head_pc_o ( allocated_pc_head )
     );
 
     assign rob_full_o = reorder_buffer_full;
@@ -597,8 +611,6 @@ module back_end #(
 
     assign pipeline_empty_o = reorder_buffer_empty & commit_buffer_empty & store_buffer_empty;
 
-    assign reorder_buffer_clear = flush_pipeline;
-
 endmodule : back_end
 
-`endif 
+`endif

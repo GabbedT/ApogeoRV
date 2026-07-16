@@ -396,17 +396,18 @@ module ApogeoRV #(
         .trace_channel ( trace_channel_backend ), 
         `endif 
 
-        .interrupt_i             ( interrupt_posedge             ),
-        .timer_interrupt_i       ( timer_interrupt_posedge       ),
-        .interrupt_vector_i      ( interrupt_vector_i            ),
-        .global_interrupt_en_o   ( global_interrupt_enable       ),
-        .external_interrupt_en_o ( external_interrupt_enable     ),
-        .timer_interrupt_en_o    ( timer_interrupt_enable        ),
-        .int_ack_o               ( interrupt_ackn                ),
-        .exception_o             ( exception                     ),
-        .handler_return_o        ( handler_return                ),
-        .handler_pc_o            ( handler_program_counter       ),
-        .handler_return_pc_o     ( hander_return_program_counter ),
+        .interrupt_i                ( interrupt_posedge             ),
+        .timer_interrupt_i          ( timer_interrupt_posedge       ),
+        .interrupt_vector_i         ( interrupt_vector_i            ),
+        .interrupt_instruction_pc_i ( frontend_ipacket.instr_addr   ),
+        .global_interrupt_en_o      ( global_interrupt_enable       ),
+        .external_interrupt_en_o    ( external_interrupt_enable     ),
+        .timer_interrupt_en_o       ( timer_interrupt_enable        ),
+        .int_ack_o                  ( interrupt_ackn                ),
+        .exception_o                ( exception                     ),
+        .handler_return_o           ( handler_return                ),
+        .handler_pc_o               ( handler_program_counter       ),
+        .handler_return_pc_o        ( hander_return_program_counter ),
 
         .ldu_idle_o ( ldu_idle ),
         .stu_idle_o ( stu_idle ),
@@ -485,4 +486,4 @@ module ApogeoRV #(
 
 endmodule : ApogeoRV 
 
-`endif 
+`endif

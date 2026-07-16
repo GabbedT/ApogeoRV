@@ -109,7 +109,7 @@ package control_status_registers_pkg;
 
     /* Machine status register */
     typedef struct packed {
-        logic [12:11] MPP;      /* Machine Preceeding Privilege           */
+        logic [1:0]   MPP;      /* Machine Preceeding Privilege           */
         logic         MPIE;     /* Machine Preceeding Interrupt Enable    */
         logic         MIE;      /* Machine Interrupt Enable */
     } mstatus_csr_t;
@@ -188,4 +188,4 @@ endpackage : control_status_registers_pkg
 
 import control_status_registers_pkg::*;
 
-`endif 
+`endif
