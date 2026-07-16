@@ -399,6 +399,7 @@ module ApogeoRV #(
         .interrupt_i             ( interrupt_posedge             ),
         .timer_interrupt_i       ( timer_interrupt_posedge       ),
         .interrupt_vector_i      ( interrupt_vector_i            ),
+        .interrupt_instruction_pc_i ( frontend_ipacket.instr_addr ),
         .global_interrupt_en_o   ( global_interrupt_enable       ),
         .external_interrupt_en_o ( external_interrupt_enable     ),
         .timer_interrupt_en_o    ( timer_interrupt_enable        ),
@@ -485,4 +486,4 @@ module ApogeoRV #(
 
 endmodule : ApogeoRV 
 
-`endif 
+`endif
