@@ -56,6 +56,7 @@ module reorder_buffer #(
 
     /* Scheduler interface */
     input logic rob_alloc_i,
+    input data_word_t alloc_pc_i,
     output logic [$clog2(ROB_DEPTH):0] rob_tag_o,
 
     /* Flush logic */
@@ -80,7 +81,8 @@ module reorder_buffer #(
     /* The current ROB packet pointed is
      * valid and can be written back */
     output logic valid_o,
-    output rob_entry_t entry_o
+    output rob_entry_t entry_o,
+    output data_word_t head_pc_o
 );
 
     /* Carry extra info for full/empty */
@@ -170,11 +172,13 @@ module reorder_buffer #(
 //      MEMORY LOGIC
 //====================================================================================
 
-    logic [$bits(rob_entry_t) - 1:0] reorder_buffer [ROB_DEPTH - 1:0]; 
+    logic [$bits(rob_entry_t) - 1:0] reorder_buffer [ROB_DEPTH - 1:0];
+    data_word_t allocated_pc [ROB_DEPTH - 1:0];
 
     initial begin
         for (int i = 0; i < ROB_DEPTH; ++i) begin
             reorder_buffer[i] = '0;
+            allocated_pc[i] = '0;
         end
     end
 
@@ -184,7 +188,14 @@ module reorder_buffer #(
             end 
         end : rob_write_port
 
+        always_ff @(posedge clk_i) begin : allocation_pc_write_port
+            if (rob_alloc_i) begin
+                allocated_pc[alloc_ptr[IDX_WIDTH - 1:0]] <= alloc_pc_i;
+            end
+        end : allocation_pc_write_port
+
     assign entry_o = reorder_buffer[read_ptr[IDX_WIDTH - 1:0]];
+    assign head_pc_o = allocated_pc[read_ptr[IDX_WIDTH - 1:0]];
 
 
     logic [ROB_DEPTH - 1:0] valid;
@@ -219,4 +230,4 @@ module reorder_buffer #(
 
 endmodule : reorder_buffer
 
-`endif 
+`endif
