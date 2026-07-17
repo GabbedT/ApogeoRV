@@ -77,7 +77,16 @@ module branch_predictor #(
 //      PREDICTOR
 //====================================================================================
 
-    logic make_prediction, prediction, prediction_valid, btb_is_jump; data_word_t btb_branch_pc;
+    logic make_prediction, prediction_eligible, prediction, prediction_valid, btb_is_jump;
+    logic btb_hit;
+    data_word_t btb_branch_pc;
+
+    /* The BTB response is registered, so use its saved branch PC when
+     * deciding whether speculation is safe.  A halfword-aligned RV32C fetch
+     * needs the following word before it can redirect and is deliberately
+     * handled non-speculatively. */
+    assign prediction_eligible = make_prediction & !(compressed_en_i & btb_branch_pc[1]);
+    assign hit_o = btb_hit & prediction_eligible;
 
     predictor_unit #(PREDICTOR_SIZE) branch_predictor_unit (
         .clk_i   ( clk_i           ),   
@@ -86,7 +95,10 @@ module branch_predictor #(
         .flush_i ( flush_i         ),
         .c_ext_i ( compressed_en_i ),
 
-        .predict_i  ( make_prediction ),
+        /* Queue every eligible BTB prediction, including not-taken ones.
+         * Resolution must consume exactly one record for every propagated
+         * prediction-valid bit. */
+        .predict_i  ( prediction_eligible ),
         .executed_i ( executed_i      ),
         .taken_i    ( taken_i         ),
         .jump_i     ( jump_i          ),
@@ -124,7 +136,7 @@ module branch_predictor #(
         .jump_i   ( jump_i   ),
 
         .predict_o   ( make_prediction ),
-        .hit_o       ( hit_o           ),
+        .hit_o       ( btb_hit         ),
         .is_jump_o   ( btb_is_jump     ),
         .branch_pc_o ( btb_branch_pc   )
     );
