@@ -149,12 +149,10 @@ module front_end #(
     logic arch_branch_saved;
     data_word_t arch_branch_pc;
 
-    /* An aligned 32-bit fetch made for PC[1] == 1 contains only the first
-     * halfword of a possible 32-bit instruction at that PC.  Redirecting its
-     * successor on a BTB hit would replace the continuation word with target
-     * bytes, making the instruction impossible to assemble.  Such lookups are
-     * therefore executed non-speculatively. */
-    assign prediction_hit = branch_buffer_hit & predict & !(C_ext_i & program_counter[1]);
+    /* branch_buffer_hit means a prediction record was queued.  Keep that
+     * validity separate from its taken/not-taken outcome so both outcomes
+     * consume and update the predictor FIFO when the branch resolves. */
+    assign prediction_hit = branch_buffer_hit & predict;
 
     assign next_program_counter = stall_i ? '0 : program_counter + 'd4;
 
@@ -413,7 +411,7 @@ module front_end #(
         .fetch_address_i     ( fetch_channel.address     ),
 
         .taken_i             ( predict           ), 
-        .fetch_speculative_i ( prediction_hit    ),
+        .fetch_speculative_i ( branch_buffer_hit ),
 
         .write_instruction_i ( fetch_channel.valid & !fetch_channel.invalidate ),
         .write_speculative_i ( buffered_fetch                                  ),
