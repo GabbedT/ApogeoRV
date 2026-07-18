@@ -37,10 +37,10 @@ module halt_unit (
 
         always_comb begin
             /* Default Values */
-            state_NXT <= state_CRT;
+            state_NXT = state_CRT;
 
-            halted_o <= 1'b0;
-            drain_o <= 1'b0;
+            halted_o = 1'b0;
+            drain_o = 1'b0;
 
             case (state_CRT)
                 /* Core is currently running, if an halt request
@@ -108,4 +108,4 @@ module halt_unit (
 
 endmodule : halt_unit
 
-`endif 
+`endif
