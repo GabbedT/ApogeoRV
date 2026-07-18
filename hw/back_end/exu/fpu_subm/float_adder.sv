@@ -314,16 +314,15 @@ module float_adder (
 
     count_leading_zeros #(32) clz_significand (
         .operand_i     ( {5'b0, hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2} ),
-        .lz_count_o    ( leading_zeros_full                                                 ),
-        .is_all_zero_o ( significand_is_zero                                                )
+        .lz_count_o    ( leading_zeros_full                                                       ),
+        .is_all_zero_o ( significand_is_zero                                                      )
     );
 
 
-    float_t final_result; logic final_overflow, final_underflow; round_bits_t final_round_bits; 
+    float_t final_result; logic final_overflow; round_bits_t final_round_bits;
     logic [26:0] full_result_significand, normalized_significand;
     logic [4:0] normalization_shift, applied_shift;
     logic [7:0] effective_result_exp;
-    logic round_up, subnormal_rounds_normal;
 
     assign full_result_significand = {hidden_bit_result_stg2, result_stg2.significand, round_bits_stg2};
     assign normalization_shift = leading_zeros_full - 5'd5;
@@ -340,9 +339,6 @@ module float_adder (
             normalized_significand = full_result_significand;
             applied_shift = '0;
             final_overflow = 1'b0; 
-            final_underflow = 1'b0;
-            round_up = 1'b0;
-            subnormal_rounds_normal = 1'b0;
 
             if (carry_result_stg2) begin
                 /* Shift a same-sign carry right and retain all discarded bits. */
@@ -378,22 +374,12 @@ module float_adder (
                 normalized_significand = full_result_significand << applied_shift;
                 final_result.significand = normalized_significand[25:3];
                 final_round_bits = normalized_significand[2:0];
-
-                /* IEEE underflow is raised only for an inexact tiny result. */
-                round_up = final_round_bits.guard &
-                           (final_round_bits.round | final_round_bits.sticky |
-                            final_result.significand[0]);
-                subnormal_rounds_normal = (final_result.exponent == '0) &
-                                           (&final_result.significand) & round_up;
-                final_underflow = (final_result.exponent == '0) &
-                                  (final_round_bits != '0) &
-                                  !subnormal_rounds_normal;
             end
         end : normalization_logic
 
 
     /* Register nets coming from 3-th stage */
-    float_t result_stg3; logic invalid_operation_stg3, result_infinity_stg3, overflow_stg3, underflow_stg3; 
+    float_t result_stg3; logic invalid_operation_stg3, result_infinity_stg3, overflow_stg3;
     round_bits_t round_bits_stg3; 
 
         always_ff @(posedge clk_i) begin : stage3_register
@@ -402,12 +388,24 @@ module float_adder (
 
                 invalid_operation_stg3 <= invalid_operation_stg2;
                 result_infinity_stg3 <= result_infinity_stg2;
-                underflow_stg3 <= final_underflow;
                 overflow_stg3 <= final_overflow;
 
                 round_bits_stg3 <= final_round_bits;
             end
         end : stage3_register
+
+
+    logic round_up_stg3, subnormal_rounds_normal_stg3, underflow_stg3;
+
+    /* Evaluate underflow from the registered normalized result. This keeps the
+     * exception aligned with the result without extending the normalization
+     * critical path. */
+    assign round_up_stg3 = round_bits_stg3.guard & 
+                          (round_bits_stg3.round | round_bits_stg3.sticky | result_stg3.significand[0]);
+
+    assign subnormal_rounds_normal_stg3 = (result_stg3.exponent == '0) & (&result_stg3.significand) & round_up_stg3;
+    
+    assign underflow_stg3 = (result_stg3.exponent == '0) & (round_bits_stg3 != '0) & !subnormal_rounds_normal_stg3;
 
 
         always_comb begin : rounding_logic

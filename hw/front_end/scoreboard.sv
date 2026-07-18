@@ -92,8 +92,8 @@ module scoreboard (
     localparam FADD_LATENCY = 7;
 
     /* The multiplier result is visible to execute-stage forwarding after the
-     * FPU output register and the shared result-sampling register. */
-    localparam FMUL_LATENCY = 5;
+     * pre-normalization/alignment, normalization and FPU output registers. */
+    localparam FMUL_LATENCY = 7;
 
     localparam FCVT_LATENCY = 4;
 
@@ -101,12 +101,12 @@ module scoreboard (
 
     localparam FMIS_LATENCY = 3;
 
-    /* Check if the dispatched instruction is being issued in the next cycle */
-    function bit issue_next_cycle(input bit unit_to_issue);
-
-        return unit_to_issue & issue_instruction_o;
-
-    endfunction : issue_next_cycle
+    /* Keep the issue grants local to each execution unit. This prevents the
+     * structural status of a sequential unit from driving every scoreboard
+     * status register. */
+    logic alu_issue, mul_issue, div_issue, ldu_issue, stu_issue;
+    `ifdef BMU logic bmu_issue; `endif
+    `ifdef FPU logic fadd_issue, fmul_issue, fcvt_issue, fcmp_issue, fmis_issue; `endif
 
 
 //====================================================================================
@@ -162,7 +162,7 @@ module scoreboard (
                 alu_stage <= 1'b1;
             end else if (flush_i) begin
                 alu_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(itu_unit_i.ALU)) begin
+            end else if (!stall_i & alu_issue) begin
                 if (alu_stage[ALU_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     alu_stage <= 1'b1;
@@ -192,7 +192,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     alu_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(itu_unit_i.ALU) & alu_stage[i]) begin
+                    if (alu_issue & alu_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         alu_latency_cnt[i] <= ALU_LATENCY;
@@ -211,7 +211,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     alu_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(itu_unit_i.ALU) & alu_stage[i]) begin 
+                    if (alu_issue & alu_stage[i]) begin
                         alu_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -240,7 +240,7 @@ module scoreboard (
                 mul_stage <= 1'b1;
             end else if (flush_i) begin
                 mul_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(itu_unit_i.MUL)) begin
+            end else if (!stall_i & mul_issue) begin
                 if (mul_stage[MUL_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     mul_stage <= 1'b1;
@@ -268,7 +268,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     mul_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(itu_unit_i.MUL) & mul_stage[i]) begin
+                    if (mul_issue & mul_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         mul_latency_cnt[i] <= MUL_LATENCY;
@@ -287,7 +287,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     mul_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(itu_unit_i.MUL) & mul_stage[i]) begin 
+                    if (mul_issue & mul_stage[i]) begin
                         /* Load register in the next cycle if the instruction 
                          * dispatched is being issued in the next cycle */
                         mul_register_dest[i] <= dest_reg_i;
@@ -321,7 +321,7 @@ module scoreboard (
                 bmu_stage <= 1'b1;
             end else if (flush_i) begin
                 bmu_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(itu_unit_i.BMU)) begin
+            end else if (!stall_i & bmu_issue) begin
                 if (bmu_stage[BMU_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     bmu_stage <= 1'b1;
@@ -349,7 +349,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     bmu_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(itu_unit_i.BMU) & bmu_stage[i]) begin
+                    if (bmu_issue & bmu_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         bmu_latency_cnt[i] <= BMU_LATENCY;
@@ -368,7 +368,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     bmu_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(itu_unit_i.BMU) & bmu_stage[i]) begin 
+                    if (bmu_issue & bmu_stage[i]) begin
                         bmu_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -401,7 +401,7 @@ module scoreboard (
             end else if (flush_i) begin
                 div_latency_cnt <= '0;
             end else if (!stall_i) begin
-                if (issue_next_cycle(itu_unit_i.DIV)) begin
+                if (div_issue) begin
                     div_latency_cnt <= DIV_LATENCY;
                 end else if (div_latency_cnt != '0) begin
                     /* Keep decrementing the latency counter until the
@@ -418,7 +418,7 @@ module scoreboard (
             if (!rst_n_i) begin
                 div_register_dest <= '0;
             end else if (!stall_i) begin 
-                if (issue_next_cycle(itu_unit_i.DIV)) begin 
+                if (div_issue) begin
                     div_register_dest <= dest_reg_i;
                 end 
             end
@@ -442,7 +442,7 @@ module scoreboard (
             if (!rst_n_i) begin
                 block_ldu_issue <= 1'b0;
             end else if (!stall_i) begin
-                if (issue_next_cycle(lsu_unit_i.LDU)) begin 
+                if (ldu_issue) begin
                     block_ldu_issue <= 1'b1;
                 end else begin
                     block_ldu_issue <= 1'b0;
@@ -459,7 +459,7 @@ module scoreboard (
                 ldu_register_dest <= '0;
                 ldu_word_operation <= 1'b1;
             end else if (!stall_i) begin
-                if (issue_next_cycle(lsu_unit_i.LDU)) begin 
+                if (ldu_issue) begin
                     ldu_register_dest <= dest_reg_i;
                     ldu_word_operation <= ldu_operation_i == LDW;
                 end 
@@ -480,7 +480,7 @@ module scoreboard (
             if (!rst_n_i) begin
                 block_stu_issue <= 1'b0;
             end else if (!stall_i) begin
-                if (issue_next_cycle(lsu_unit_i.STU)) begin 
+                if (stu_issue) begin
                     block_stu_issue <= 1'b1;
                 end else begin
                     block_stu_issue <= 1'b0;
@@ -490,19 +490,11 @@ module scoreboard (
 
 
     logic stu_raw_hazard, block_store_operation;
-    logic [31:0] stu_register_dest;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : stu_destination_register
-            if (!rst_n_i) begin
-                stu_register_dest <= '0;
-            end else if (!stall_i) begin
-                if (issue_next_cycle(lsu_unit_i.STU)) begin 
-                    stu_register_dest <= dest_reg_i;
-                end 
-            end
-        end : stu_destination_register
-
-    assign stu_raw_hazard = block_stu_issue | ((src_reg_i[0] == stu_register_dest) | (dest_reg_i == stu_register_dest)) & !stu_idle_i & (stu_register_dest != '0); 
+    /* Store instructions do not have a destination register. Their operands
+     * are sampled before the operation enters the store unit, therefore only
+     * the bypass blocking cycle must be tracked here. */
+    assign stu_raw_hazard = block_stu_issue;
 
     assign block_store_operation = lsu_unit_i.STU & !ldu_idle_i;
 
@@ -521,7 +513,7 @@ module scoreboard (
                 fadd_stage <= 1'b1;
             end else if (flush_i) begin
                 fadd_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(fpu_unit_i.FPADD)) begin
+            end else if (!stall_i & fadd_issue) begin
                 if (fadd_stage[FADD_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     fadd_stage <= 1'b1;
@@ -549,7 +541,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     fadd_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPADD) & fadd_stage[i]) begin
+                    if (fadd_issue & fadd_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         fadd_latency_cnt[i] <= FADD_LATENCY;
@@ -568,7 +560,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     fadd_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPADD) & fadd_stage[i]) begin 
+                    if (fadd_issue & fadd_stage[i]) begin
                         fadd_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -602,7 +594,7 @@ module scoreboard (
                 fmul_stage <= 1'b1;
             end else if (flush_i) begin
                 fmul_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(fpu_unit_i.FPMUL)) begin
+            end else if (!stall_i & fmul_issue) begin
                 if (fmul_stage[FMUL_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     fmul_stage <= 1'b1;
@@ -630,7 +622,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     fmul_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPMUL) & fmul_stage[i]) begin
+                    if (fmul_issue & fmul_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         fmul_latency_cnt[i] <= FMUL_LATENCY;
@@ -649,7 +641,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     fmul_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPMUL) & fmul_stage[i]) begin 
+                    if (fmul_issue & fmul_stage[i]) begin
                         fmul_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -683,7 +675,7 @@ module scoreboard (
                 fcvt_stage <= 1'b1;
             end else if (flush_i) begin
                 fcvt_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(fpu_unit_i.FPCVT)) begin
+            end else if (!stall_i & fcvt_issue) begin
                 if (fcvt_stage[FCVT_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     fcvt_stage <= 1'b1;
@@ -711,7 +703,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     fcvt_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPCVT) & fcvt_stage[i]) begin
+                    if (fcvt_issue & fcvt_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         fcvt_latency_cnt[i] <= FCVT_LATENCY;
@@ -730,7 +722,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     fcvt_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPCVT) & fcvt_stage[i]) begin 
+                    if (fcvt_issue & fcvt_stage[i]) begin
                         fcvt_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -764,7 +756,7 @@ module scoreboard (
                 fcmp_stage <= 1'b1;
             end else if (flush_i) begin
                 fcmp_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(fpu_unit_i.FPCMP)) begin
+            end else if (!stall_i & fcmp_issue) begin
                 if (fcmp_stage[FCMP_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     fcmp_stage <= 1'b1;
@@ -792,7 +784,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     fcmp_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPCMP) & fcmp_stage[i]) begin
+                    if (fcmp_issue & fcmp_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         fcmp_latency_cnt[i] <= FCMP_LATENCY;
@@ -811,7 +803,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     fcmp_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPCMP) & fcmp_stage[i]) begin 
+                    if (fcmp_issue & fcmp_stage[i]) begin
                         fcmp_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -845,7 +837,7 @@ module scoreboard (
                 fmis_stage <= 1'b1;
             end else if (flush_i) begin
                 fmis_stage <= 1'b1;
-            end else if (!stall_i & issue_next_cycle(fpu_unit_i.FPMIS)) begin
+            end else if (!stall_i & fmis_issue) begin
                 if (fmis_stage[FMIS_LATENCY - 1]) begin
                     /* Wrap around the shifted bit */
                     fmis_stage <= 1'b1;
@@ -873,7 +865,7 @@ module scoreboard (
                 end else if (flush_i) begin
                     fmis_latency_cnt[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPMIS) & fmis_stage[i]) begin
+                    if (fmis_issue & fmis_stage[i]) begin
                         /* If the current stage counter is selected 
                          * load status */
                         fmis_latency_cnt[i] <= FMIS_LATENCY;
@@ -892,7 +884,7 @@ module scoreboard (
                 if (!rst_n_i) begin
                     fmis_register_dest[i] <= '0;
                 end else if (!stall_i) begin 
-                    if (issue_next_cycle(fpu_unit_i.FPMIS) & fmis_stage[i]) begin 
+                    if (fmis_issue & fmis_stage[i]) begin
                         fmis_register_dest[i] <= dest_reg_i;
                     end 
                 end
@@ -927,11 +919,30 @@ module scoreboard (
     `endif 
 
 
-    logic raw_hazard, latency_hazard, structural_hazard;
+    logic raw_hazard, latency_hazard, structural_hazard, issue_hazard;
 
     assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
     assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
+    assign issue_hazard = raw_hazard | latency_hazard;
+
+    assign alu_issue = itu_unit_i.ALU & !issue_hazard;
+    assign mul_issue = itu_unit_i.MUL & !issue_hazard;
+    assign div_issue = itu_unit_i.DIV & !issue_hazard & !div_executing;
+    assign ldu_issue = lsu_unit_i.LDU & !issue_hazard & ldu_idle_i;
+    assign stu_issue = lsu_unit_i.STU & !issue_hazard & stu_idle_i & ldu_idle_i;
+
+    `ifdef BMU
+    assign bmu_issue = itu_unit_i.BMU & !issue_hazard;
+    `endif
+
+    `ifdef FPU
+    assign fadd_issue = fpu_unit_i.FPADD & !issue_hazard;
+    assign fmul_issue = fpu_unit_i.FPMUL & !issue_hazard;
+    assign fcvt_issue = fpu_unit_i.FPCVT & !issue_hazard;
+    assign fcmp_issue = fpu_unit_i.FPCMP & !issue_hazard;
+    assign fmis_issue = fpu_unit_i.FPMIS & !issue_hazard;
+    `endif
 
 
 //====================================================================================

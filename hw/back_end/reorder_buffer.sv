@@ -173,7 +173,7 @@ module reorder_buffer #(
 //====================================================================================
 
     logic [$bits(rob_entry_t) - 1:0] reorder_buffer [ROB_DEPTH - 1:0];
-    data_word_t allocated_pc [ROB_DEPTH - 1:0];
+    (* ram_style = "distributed" *) logic [31:0] allocated_pc [ROB_DEPTH - 1:0];
 
     initial begin
         for (int i = 0; i < ROB_DEPTH; ++i) begin

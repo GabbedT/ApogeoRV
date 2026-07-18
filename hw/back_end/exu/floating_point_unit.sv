@@ -190,11 +190,11 @@ module floating_point_unit (
 //      FLOATING POINT MULTIPLIER  
 //====================================================================================
 
-    instr_packet_t [1:0] fpmul_ipacket;
+    instr_packet_t [3:0] fpmul_ipacket;
 
         always_ff @(posedge clk_i) begin
             if (!stall_i) begin
-                fpmul_ipacket <= {fpmul_ipacket[0], ipacket_i};
+                fpmul_ipacket <= {fpmul_ipacket[2:0], ipacket_i};
             end
         end
 
@@ -270,7 +270,7 @@ module floating_point_unit (
                 fpmul_underflow_out <= fpmul_underflow & fpmul_valid; 
 
                 fpmul_result_out <= fpmul_valid ? fpmul_result : '0;
-                fpmul_ipacket_out <= fpmul_valid ? fpmul_ipacket[1] : '0;
+                fpmul_ipacket_out <= fpmul_valid ? fpmul_ipacket[3] : '0;
             end
         end 
 

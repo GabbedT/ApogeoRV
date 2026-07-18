@@ -382,8 +382,8 @@ module back_end #(
             stu_idle_sampled <= stu_idle;
         end 
 
-        assign ldu_idle_o = ldu_idle & ldu_idle_sampled;
-        assign stu_idle_o = stu_idle & stu_idle_sampled;
+        assign ldu_idle_o = ldu_idle_sampled & !valid_operation.LSU.LDU;
+        assign stu_idle_o = stu_idle_sampled & !valid_operation.LSU.STU;
 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
