@@ -131,7 +131,7 @@ module multiplication_unit (
             end
         end
 
-        always_ff @(posedge clk_i or rst_n_i) begin
+        always_ff @(posedge clk_i or negedge rst_n_i) begin
             if (!rst_n_i | clear_i) begin
                 pipe_valid <= 1'b0;
             end else if (clk_en_i) begin
