@@ -147,8 +147,6 @@ PC, and prediction metadata. Decode receives a normalized 32-bit instruction
 plus a compressed flag, so later stages can still calculate the correct
 two-byte PC increment.
 
-.. image:: ../images/MisalignedFSM.png
-   :alt: Compressed fetch state machine
 
 Decompression and decode
 ------------------------
