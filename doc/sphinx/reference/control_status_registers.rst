@@ -41,8 +41,8 @@ CSR List
    * - 0x002
      - frm
      - U
-     - RW
-     - Floating-Point Dynamic Rounding Mode.
+     - RO-like
+     - Reads as zero; the FPU uses round-to-nearest-even.
    * - 0x003
      - fcsr
      - U
@@ -53,11 +53,6 @@ CSR List
      - U
      - RO
      - Cycle counter for **RDCYCLE** instruction.
-   * - 0xC01
-     - time
-     - U
-     - RO
-     - Timer for **RDTIME** instruction.
    * - 0xC02
      - instret
      - U
@@ -65,6 +60,16 @@ CSR List
      - Instructions-retired counter for **RDINSTRET** instruction.
    * - 0xC03
      - hpmcounter3
+     - U
+     - RO
+     - Performance-monitoring counter.
+   * - 0xC04
+     - hpmcounter4
+     - U
+     - RO
+     - Performance-monitoring counter.
+   * - 0xC05
+     - hpmcounter5
      - U
      - RO
      - Performance-monitoring counter.
@@ -78,11 +83,6 @@ CSR List
      - U
      - RO
      - Upper 32 bits of *cycle*.
-   * - 0xC81
-     - timeh
-     - U
-     - RO
-     - Upper 32 bits of *time*.
    * - 0xC82
      - instreth
      - U
@@ -93,6 +93,16 @@ CSR List
      - U
      - RO
      - Upper 32 bits of hpmcounter3.
+   * - 0xC84
+     - hpmcounter4h
+     - U
+     - RO
+     - Upper 32 bits of hpmcounter4.
+   * - 0xC85
+     - hpmcounter5h
+     - U
+     - RO
+     - Upper 32 bits of hpmcounter5.
    * - 0xC86
      - hpmcounter6h
      - U
@@ -186,6 +196,16 @@ CSR List
      - M
      - RW
      - Machine performance-monitoring counter.
+   * - 0xB04
+     - mhpmcounter4
+     - M
+     - RW
+     - Machine performance-monitoring counter.
+   * - 0xB05
+     - mhpmcounter5
+     - M
+     - RW
+     - Machine performance-monitoring counter.
    * - 0xB06
      - mhpmcounter6
      - M
@@ -206,6 +226,16 @@ CSR List
      - M
      - RW
      - Upper 32 bits of *mhpmcounter3*.
+   * - 0xB84
+     - mhpmcounter4h
+     - M
+     - RW
+     - Upper 32 bits of *mhpmcounter4*.
+   * - 0xB85
+     - mhpmcounter5h
+     - M
+     - RW
+     - Upper 32 bits of *mhpmcounter5*.
    * - 0xB86
      - mhpmcounter6h
      - M
@@ -218,6 +248,16 @@ CSR List
      - Machine counter-inhibit register.
    * - 0x323
      - mhpmevent3
+     - M
+     - RW
+     - Machine performance-monitoring event selector.
+   * - 0x324
+     - mhpmevent4
+     - M
+     - RW
+     - Machine performance-monitoring event selector.
+   * - 0x325
+     - mhpmevent5
      - M
      - RW
      - Machine performance-monitoring event selector.
@@ -259,17 +299,17 @@ Machine ISA (**misa**) CSR contains informations about the implemented CPU ISA. 
      - Zfinx Extension 
      - RW 
      - Enable / Disable Zfinx extension
-     - 0 
+     - 1 
    * - [12]
      - M Extension 
      - RW 
      - Enable / Disable M extension
-     - 0     
+     - 1     
    * - [1]
      - B Extension 
      - RW 
      - Enable / Disable B extension
-     - 0
+     - 1
 
 
 .. note:: To disable B extension, the bit 1 (misa[1]) must be cleared. To disable M extension, the bit 12 (misa[12]) must be cleared. To disable Zfinx extension, the bit 25 (misa[25]) must be cleared. Disabling any extension will disable the clock that is supplied to the corresponding unit. This will help with power consumption.
@@ -301,22 +341,22 @@ The machine status register: **mstatus**, keeps track of and controls the hart's
      - MPP
      - RW 
      - Save the preceeding privilege mode after a trap
-     - 1
+     - 0
    * - [7]
      - MPIE 
-     - RO 
+     - RW 
      - Save the preceeding interrupt enable bit after a trap
      - 0
    * - [3]
      - MIE 
      - RW 
      - Global interrupt enable
-     - 1
+     - 0
 
 .. note:: On reset, MPP bit is set to 0, which means that after the execution of `MRET` instruction, the core will switch to *user mode*. If the programmer doesn't want to do that, he must to write 1 to MPP and then execute `MRET`.
 
 
-Trap-Vector CSR 
+Trap vector CSR
 ~~~~~~~~~~~~~~~
 
 The **mtvec** register hold the base address of the memory location that will be loaded into the PC. RISC-V supports 2 different modes of interrupt handling:
@@ -367,13 +407,13 @@ The **mip** register has the following field implemented:
      - Description
      - Default Value
    * - [11]
-     - MEIP
-     - RO 
+     - MEIE
+     - RW 
      - External interrupt pending
      - 0
    * - [7]
-     - MTIP 
-     - RO 
+     - MTIE 
+     - RW 
      - Timer interrupt pending
      - 0
 
@@ -481,7 +521,7 @@ To identify the exception cause **mcause** register save useful info.
      - Store/AMO access fault
    * - 8
      - Environment call from U-mode
-   * - 9
+   * - 11
      - Environment call from M-mode
 
 
@@ -574,47 +614,13 @@ Scratch Register
 The **mscratch** register is used to store temporary information by M-mode code, typically, it is used to hold a pointer to a machine-mode hart-local context space and swapped with a user register upon entry to an M-mode trap handler.
 
 
-Time Register
-~~~~~~~~~~~~~
+Timer boundary
+~~~~~~~~~~~~~~
 
-The **time** register is a simple 64 bits counter. The peculiarity of this CSR is that it's *memory mapped*, this means that the CSR will be accesses only through load and store instructions instead of special CSR instructions. The register can be accessed by both U-mode and M-mode code.
-
-It has two 64 bits register, which translate in four 32 bits registers. The **time** register itself hold the current value of the CSR, the **timecmp** register holds the value that will trigger an interrupt once the counter reach that.
-
-The base address of the register can be configured, the default value is the first address of the IO space.
-
-
-.. list-table:: MCOUNTERINHIBIT CSR
-   :widths: 25 15 15 40 15
-   :header-rows: 1
-
-   * - Address 
-     - Name
-     - Access Mode
-     - Description
-     - Default Value
-   * - BASE + 0
-     - time
-     - RW
-     - Lower 32 bits of the *time* CSR
-     - 0
-   * - BASE + 1
-     - timeh
-     - RW
-     - Higher 32 bits of the *time* CSR
-     - 0
-   * - BASE + 2
-     - timecmp
-     - RW
-     - Lower 32 bits of the *timecmp* CSR
-     - 0
-   * - BASE + 3
-     - timecmph
-     - RW
-     - Higher 32 bits of the *timecmp* CSR
-     - 0
-
-The software should always write first to the lower 32 bits of any register and then proceed to the higher 32 bits to prevent any bug.
+The core does not implement a time/timecmp device. Timer state belongs to the
+surrounding SoC and reaches ApogeoRV through timer_interrupt_i. A platform may
+expose its timer through MMIO, but that address and register layout are not
+part of the core CSR map.
 
 
 User Mode CSRs
@@ -623,16 +629,19 @@ User Mode CSRs
 The user mode CSRs are mostly **shadows of the M-mode CSRs**, that means a read of a particular CSR, will target a machine mode CSR. The **M-mode performance counters** are all accessable by U-level code *only if the relative bit of mcounteren CSR is asserted*. 
 There are some registers that can be accessed freely by U-level code without checking the *mcounteren* CSR.
 
-Floating Point Register 
+Floating-point CSR
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The **fcsr** register contains the **fflags** and **frm** registers, those can be accessed independentely without any additional shift operation to bring the values in the low bit of the result register. 
-The **fflags** register is directly connected with the floating point unit exception flags and it's updated every time a floating point operation is executed, RISC-V doesn't require raising exceptions when a floating point flag gets set. That means that if we issue 2 float operations, the first 
-generate a flag and the second do not, we'll lose the exception flag status. 
+The **fcsr** address exposes the floating-point flags. The implementation stores
+the five fflags bits directly; the dynamic rounding mode is fixed to
+round-to-nearest-even in the current FPU.
+The flags are updated when a valid floating-point result leaves the FPU. They
+are not accumulated across operations: a later operation replaces the previous
+flag values, and a pipeline flush clears them.
 
 .. note:: To catch a possible exception from a float operation, the programmer must execute the instruction first, followed by a `fence` to wait until the pipeline gets cleared and **only then** read the CSR register.
 
-.. warning:: Floating Point flags are set after the operation is executed, not after it gets written back. Reading the floating point register after an exception gets caught or an interrupt is received, could possibly return an invalid value. 
+.. warning:: Floating-point flags are set after the operation is executed, not after it gets written back. Use a fence before reading them if software needs to wait for the operation to leave the pipeline.
 
 
 .. list-table:: FCSR CSR
@@ -675,5 +684,6 @@ generate a flag and the second do not, we'll lose the exception flag status.
      - Rounding mode.
      - 0
 
-Bits from 0 to 4 rapresent the **fflags** CSR, bits from 5 to 7 rapresent the **frm** CSR. Writing to **frm** doesn't affect anything in the core since only *round to even* and *round up* rounding modes are implemented and are 
-entirely dependend on the result round bits (guard, round and sticky). Reading **frm** will return always 0.
+Bits from 0 to 4 represent the **fflags** CSR. The **frm** field is not
+implemented as a dynamic control in this revision: writes do not change the
+FPU behavior and reads return zero, corresponding to round-to-nearest-even.
