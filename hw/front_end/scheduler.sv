@@ -75,6 +75,7 @@ module scheduler #(
     /* Writeback data */
     input logic csr_writeback_i,
     input logic fence_writeback_i,
+    input logic flush_busy_i,
     input logic writeback_i,
     input logic [4:0] writeback_register_i,
     input data_word_t writeback_data_i,
@@ -128,13 +129,16 @@ module scheduler #(
 //      REGISTER FILE
 //====================================================================================
 
+    logic gpr_writeback;
+    assign gpr_writeback = writeback_i & !fence_writeback_i;
+
     data_word_t [1:0] register_data;
 
     register_file reg_file (
         .clk_i ( clk_i ),
 
         .write_address_i ( writeback_register_i ),
-        .write_i         ( writeback_i          ),
+        .write_i         ( gpr_writeback        ),
         .write_data_i    ( writeback_data_i     ),
 
         .read_address_i ( src_reg_i     ),
@@ -195,7 +199,7 @@ module scheduler #(
                  * the jump address is computed by adding rs1 (JALR) to the 
                  * offset. Since rs1 could be fowarded, it's passed to the 
                  * next stage */
-                operand_o[0] = ((src_reg_i[0] == writeback_register_i) & writeback_i) ? writeback_data_i : register_data[0];
+                operand_o[0] = ((src_reg_i[0] == writeback_register_i) & gpr_writeback) ? writeback_data_i : register_data[0];
                 immediate_valid_o[0] = 1'b0;
 
                 operand_o[1] = compressed_i ? 'd2 : 'd4;
@@ -208,7 +212,7 @@ module scheduler #(
                     if (immediate_valid_i[i]) begin
                         operand_o[i] = immediate_i[i];
                     end else begin
-                        if ((src_reg_i[i] == writeback_register_i) & writeback_i) begin
+                        if ((src_reg_i[i] == writeback_register_i) & gpr_writeback) begin
                             operand_o[i] = writeback_data_i;
                         end else begin
                             operand_o[i] = register_data[i];
@@ -239,8 +243,8 @@ module scheduler #(
             end 
         end 
 
-    /* A fence is serialized until it reaches writeback. This prevents younger
-     * memory operations from being issued before the cache flush starts. */
+    /* Keep younger instructions blocked from issue until the external cache
+     * operation, not merely the FENCE writeback, has completed. */
     logic issued_fence_instruction;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
@@ -270,6 +274,7 @@ module scheduler #(
                    | (fence_i & (!pipeline_empty | !pipeline_empty_i))
                    | issued_csr_instruction
                    | issued_fence_instruction
+                   | flush_busy_i
                    | rob_full_i;
 
     /* Packet generation */
@@ -290,4 +295,4 @@ module scheduler #(
 
 endmodule : scheduler 
 
-`endif 
+`endif
