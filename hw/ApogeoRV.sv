@@ -55,6 +55,7 @@ module ApogeoRV #(
     input logic halt_i,
     output logic halted_o,
     output logic flush_o,
+    input logic flush_busy_i,
 
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
@@ -207,6 +208,7 @@ module ApogeoRV #(
 
         .csr_writeback_i      ( csr_writeback      ),
         .fence_writeback_i    ( fence_writeback    ),
+        .flush_busy_i         ( flush_busy_i       ),
         .writeback_i          ( writeback          ),
         .writeback_register_i ( writeback_register ),  
         .writeback_data_i     ( writeback_result   ),
