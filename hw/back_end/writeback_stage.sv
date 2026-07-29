@@ -50,6 +50,7 @@ module writeback_stage (
 
     /* Controller interface */
     output logic compressed_o,
+    output logic fence_o,
     output logic sleep_o,
     output logic mreturn_o,
     output logic execute_store_o,
@@ -72,6 +73,7 @@ module writeback_stage (
     assign exception_iaddress_o = rob_entry_i.instr_addr;
 
     assign compressed_o = rob_entry_i.compressed;
+    assign fence_o = rob_valid_i & rob_entry_i.fence & !rob_entry_i.exception_generated;
 
     assign sleep_o = rob_valid_i & (rob_entry_i.exception_vector == `SLEEP);
     assign mreturn_o = rob_valid_i & (rob_entry_i.exception_vector == `HANDLER_RETURN);
@@ -91,4 +93,4 @@ module writeback_stage (
 
 endmodule : writeback_stage
 
-`endif 
+`endif
