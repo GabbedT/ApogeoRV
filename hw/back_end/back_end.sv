@@ -152,6 +152,7 @@ module back_end #(
     output logic [4:0] reg_destination_o,
     output data_word_t writeback_result_o,
     output logic csr_writeback_o,
+    output logic fence_writeback_o,
     output logic writeback_o
 );
 
@@ -555,6 +556,7 @@ module back_end #(
         .result_o   ( writeback_result_o ),
 
         .compressed_o          ( instruction_compressed ),
+        .fence_o               ( fence_writeback_o      ),
         .sleep_o               ( core_sleep             ),
         .mreturn_o             ( mreturn                ),
         .execute_store_o       ( execute_store          ),

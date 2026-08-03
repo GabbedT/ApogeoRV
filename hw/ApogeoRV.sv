@@ -54,6 +54,8 @@ module ApogeoRV #(
     input logic rst_n_i,
     input logic halt_i,
     output logic halted_o,
+    output logic flush_o,
+    input logic flush_busy_i,
 
     /* Fetch interface */
     fetch_interface.master fetch_channel, 
@@ -136,7 +138,7 @@ module ApogeoRV #(
     data_word_t handler_program_counter, hander_return_program_counter;
 
     /* Write back result */
-    logic writeback, csr_writeback; logic [4:0] writeback_register; data_word_t writeback_result;
+    logic writeback, csr_writeback, fence_writeback; logic [4:0] writeback_register; data_word_t writeback_result;
 
     /* Branch control from backend */
     logic executed, branch, jump, taken, speculative, compressed; 
@@ -205,6 +207,8 @@ module ApogeoRV #(
         .instr_address_i      ( instruction_address   ), 
 
         .csr_writeback_i      ( csr_writeback      ),
+        .fence_writeback_i    ( fence_writeback    ),
+        .flush_busy_i         ( flush_busy_i       ),
         .writeback_i          ( writeback          ),
         .writeback_register_i ( writeback_register ),  
         .writeback_data_i     ( writeback_result   ),
@@ -229,6 +233,8 @@ module ApogeoRV #(
         .exu_valid_o          ( frontend_valid_operation ),
         .exu_uop_o            ( frontend_operation       )
     );
+
+    assign flush_o = fence_writeback;
 
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
@@ -415,6 +421,7 @@ module ApogeoRV #(
         .reg_destination_o  ( writeback_register ),
         .writeback_result_o ( writeback_result   ),
         .csr_writeback_o    ( csr_writeback      ),
+        .fence_writeback_o  ( fence_writeback    ),
         .writeback_o        ( writeback          )
     );
 

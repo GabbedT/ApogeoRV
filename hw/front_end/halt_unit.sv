@@ -69,6 +69,12 @@ module halt_unit (
                         state_NXT = ISR_SERVICE;
 
                         drain_o = 1'b0;
+                    end else if (!halt_i) begin
+                        /* A transient halt (for example a cache flush) may be
+                         * released before the frontend itself is empty. */
+                        state_NXT = RUN;
+
+                        drain_o = 1'b0;
                     end else if (pipeline_empty_i) begin
                         state_NXT = HALT;
                     end

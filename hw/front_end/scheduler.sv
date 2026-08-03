@@ -74,6 +74,8 @@ module scheduler #(
 
     /* Writeback data */
     input logic csr_writeback_i,
+    input logic fence_writeback_i,
+    input logic flush_busy_i,
     input logic writeback_i,
     input logic [4:0] writeback_register_i,
     input data_word_t writeback_data_i,
@@ -127,13 +129,16 @@ module scheduler #(
 //      REGISTER FILE
 //====================================================================================
 
+    logic gpr_writeback;
+    assign gpr_writeback = writeback_i & !fence_writeback_i;
+
     data_word_t [1:0] register_data;
 
     register_file reg_file (
         .clk_i ( clk_i ),
 
         .write_address_i ( writeback_register_i ),
-        .write_i         ( writeback_i          ),
+        .write_i         ( gpr_writeback        ),
         .write_data_i    ( writeback_data_i     ),
 
         .read_address_i ( src_reg_i     ),
@@ -146,6 +151,12 @@ module scheduler #(
 //====================================================================================
 
     logic issue_instruction, pipeline_empty;
+    exu_valid_t scoreboard_valid;
+
+    /* FENCE is represented by an ALU NOP for transport through the pipeline,
+     * but it must not reserve an ALU scoreboard slot while it is waiting for
+     * older operations to drain. It is serialized through the ROB below. */
+    assign scoreboard_valid = fence_i ? '0 : exu_valid_i;
 
     scoreboard scoreboard_unit (
         .clk_i   ( clk_i   ),
@@ -156,10 +167,10 @@ module scheduler #(
         .src_reg_i  ( src_reg_i  ),
         .dest_reg_i ( dest_reg_i ),
 
-        .csr_unit_i ( exu_valid_i.CSR ),
-        .itu_unit_i ( exu_valid_i.ITU ),
-        .lsu_unit_i ( exu_valid_i.LSU ),
-        `ifdef FPU .fpu_unit_i ( exu_valid_i.FPU ), `endif
+        .csr_unit_i ( scoreboard_valid.CSR ),
+        .itu_unit_i ( scoreboard_valid.ITU ),
+        .lsu_unit_i ( scoreboard_valid.LSU ),
+        `ifdef FPU .fpu_unit_i ( scoreboard_valid.FPU ), `endif
 
         .ldu_operation_i ( exu_uop_i.LSU.subunit.LDU.opcode.uop ),
         .ldu_idle_i      ( ldu_idle_i                           ),
@@ -188,7 +199,7 @@ module scheduler #(
                  * the jump address is computed by adding rs1 (JALR) to the 
                  * offset. Since rs1 could be fowarded, it's passed to the 
                  * next stage */
-                operand_o[0] = ((src_reg_i[0] == writeback_register_i) & writeback_i) ? writeback_data_i : register_data[0];
+                operand_o[0] = ((src_reg_i[0] == writeback_register_i) & gpr_writeback) ? writeback_data_i : register_data[0];
                 immediate_valid_o[0] = 1'b0;
 
                 operand_o[1] = compressed_i ? 'd2 : 'd4;
@@ -201,7 +212,7 @@ module scheduler #(
                     if (immediate_valid_i[i]) begin
                         operand_o[i] = immediate_i[i];
                     end else begin
-                        if ((src_reg_i[i] == writeback_register_i) & writeback_i) begin
+                        if ((src_reg_i[i] == writeback_register_i) & gpr_writeback) begin
                             operand_o[i] = writeback_data_i;
                         end else begin
                             operand_o[i] = register_data[i];
@@ -232,6 +243,22 @@ module scheduler #(
             end 
         end 
 
+    /* Keep younger instructions blocked from issue until the external cache
+     * operation, not merely the FENCE writeback, has completed. */
+    logic issued_fence_instruction;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                issued_fence_instruction <= 1'b0;
+            end else if (flush_i | branch_flush_i | mispredicted_i) begin
+                issued_fence_instruction <= 1'b0;
+            end else if (fence_writeback_i) begin
+                issued_fence_instruction <= 1'b0;
+            end else if (fence_i & issue_instruction & !stall_i & !stall_o) begin
+                issued_fence_instruction <= 1'b1;
+            end
+        end
+
 
 //====================================================================================
 //      OUTPUT LOGIC
@@ -243,9 +270,15 @@ module scheduler #(
     assign src_reg_o = src_reg_i; 
 
     /* If there's a dependency or fence is executed and pipeline is not empty then stall */
-    assign stall_o = !issue_instruction | (fence_i & !pipeline_empty & !pipeline_empty_i) | issued_csr_instruction | rob_full_i;
+    assign stall_o = !issue_instruction
+                   | (fence_i & (!pipeline_empty | !pipeline_empty_i))
+                   | issued_csr_instruction
+                   | issued_fence_instruction
+                   | flush_busy_i
+                   | rob_full_i;
 
     /* Packet generation */
+    assign ipacket_o.fence = fence_i;
     assign ipacket_o.compressed = compressed_i; 
     assign ipacket_o.exception_generated = exception_generated_i; 
     assign ipacket_o.exception_vector = exception_vector_i; 
@@ -262,4 +295,4 @@ module scheduler #(
 
 endmodule : scheduler 
 
-`endif 
+`endif

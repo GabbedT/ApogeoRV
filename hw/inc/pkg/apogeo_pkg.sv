@@ -71,6 +71,9 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
+        /* Instruction requests a cache flush when retired */
+        logic fence;
+
         /* Instruction is compressed */
         logic compressed;
 
@@ -98,6 +101,9 @@ package rv32_instructions_pkg;
 //====================================================================================
 
     typedef struct packed {
+        /* Instruction requests a cache flush when retired */
+        logic fence;
+
         /* Instruction is compressed */
         logic compressed; 
 
@@ -120,6 +126,7 @@ package rv32_instructions_pkg;
     function rob_entry_t packet_convert(input instr_packet_t packet, input data_word_t result);
         automatic rob_entry_t rob_packet;
 
+        rob_packet.fence = packet.fence;
         rob_packet.compressed = packet.compressed;
         rob_packet.exception_generated = packet.exception_generated;
         rob_packet.exception_vector = packet.exception_vector;
@@ -134,4 +141,4 @@ endpackage : rv32_instructions_pkg
 
 import rv32_instructions_pkg::*;
 
-`endif 
+`endif
