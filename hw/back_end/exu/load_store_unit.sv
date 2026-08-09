@@ -72,6 +72,7 @@ module load_store_unit #(
 
     /* Functional unit state */
     output logic ldu_idle_o,
+    output logic ldu_serviced_o,
     output logic stu_idle_o,
 
     /* Validate store buffer entry */
@@ -109,7 +110,7 @@ module load_store_unit #(
 
     /* Store buffer forwarding nets */
     logic forward_address_match, ldu_wait_buffer, ldu_wait;
-    data_word_t forward_data; store_width_t ldu_load_size;
+    data_word_t forward_data, ldu_forward_address; store_width_t ldu_load_size;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
         .clk_i   ( clk_i   ),
@@ -130,7 +131,7 @@ module load_store_unit #(
         .store_channel ( store_channel ),
 
         .validate_i        ( validate_i            ),
-        .forward_address_i ( load_channel.address  ),
+        .forward_address_i ( ldu_forward_address  ),
         .forward_width_i   ( ldu_load_size         ),
         .forward_data_o    ( forward_data          ),
         .forward_match_o   ( forward_address_match ),
@@ -168,23 +169,6 @@ module load_store_unit #(
         end 
 
 
-    logic forward_address_match_out; data_word_t forward_data_out; 
-
-        always_ff @(posedge clk_i) begin
-            if (flush_i) begin
-                forward_address_match_out <= 1'b0;
-            end else if (data_valid_i.LDU & !stall_i) begin
-                forward_address_match_out <= forward_address_match;
-            end else begin
-                forward_address_match_out <= 1'b0;
-            end
-        end 
-
-        always_ff @(posedge clk_i) begin
-            forward_data_out <= forward_data;
-        end 
-
-
 //====================================================================================
 //      LOAD UNIT
 //====================================================================================
@@ -206,9 +190,10 @@ module load_store_unit #(
 
         .load_channel ( load_channel ),
 
-        .forward_match_i ( forward_address_match_out ),
-        .forward_data_i  ( forward_data_out          ),
-        .load_size_o     ( ldu_load_size             ),
+        .forward_match_i     ( forward_address_match ),
+        .forward_data_i      ( forward_data          ),
+        .forward_address_o   ( ldu_forward_address   ),
+        .forward_load_size_o ( ldu_load_size         ),
 
         .buffer_wait_i  ( ldu_wait_buffer ),
         .buffer_empty_i ( buffer_empty_o  ),
@@ -216,12 +201,15 @@ module load_store_unit #(
         .misaligned_o     ( ldu_misaligned_access ),
         .illegal_access_o ( ldu_illegal_access    ),
         .data_loaded_o    ( loaded_data           ),
-        .idle_o           ( ldu_idle_o            ),
-        .wait_o           ( ldu_wait              ),
-        .data_valid_o     ( ldu_data_valid        )
+        .idle_o      ( ldu_idle_o     ),
+        .serviced_o  ( ldu_serviced_o ),
+        .wait_o      ( ldu_wait       ),
+        .data_valid_o ( ldu_data_valid )
     ); 
 
     instr_packet_t ldu_ipacket, ldu_exception_packet;
+
+    logic load_packet_empty, load_packet_full;
 
     synchronous_buffer #(
         .BUFFER_DEPTH           ( 2                     ),
@@ -229,13 +217,13 @@ module load_store_unit #(
         .FIRST_WORD_FALL_TROUGH ( 1                     )
     ) load_buffer (
         .clk_i   ( clk_i             ),
-        .rst_n_i ( rst_n_i | flush_i ),
+        .rst_n_i ( rst_n_i & !flush_i ),
 
-        .write_i ( data_valid_i.LDU & !stall_i ),
+        .write_i ( data_valid_i.LDU & !stall_i & (!load_packet_full | ldu_data_valid) ),
         .read_i  ( ldu_data_valid              ),
 
-        .empty_o (  ),
-        .full_o  (  ), // TO BE DEFINED
+        .empty_o ( load_packet_empty ),
+        .full_o  ( load_packet_full  ),
 
         .write_data_i ( instr_packet_i ),
         .read_data_o  ( ldu_ipacket    )
@@ -257,37 +245,40 @@ module load_store_unit #(
 //      OUTPUT LOGIC
 //====================================================================================
 
-    logic ldu_valid, stu_valid; logic [31:0] loaded_data_saved;
+    logic ldu_valid, stu_valid;
+    data_word_t loaded_data_saved;
+    instr_packet_t ldu_packet_saved;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
-            if (!rst_n_i) begin 
+            if (!rst_n_i) begin
                 ldu_valid <= 1'b0;
                 stu_valid <= 1'b0;
-
                 data_valid_o <= 1'b0;
-            end else begin 
+            end else if (flush_i) begin
+                ldu_valid <= 1'b0;
+                stu_valid <= 1'b0;
+                data_valid_o <= 1'b0;
+            end else begin
                 ldu_valid <= ldu_data_valid;
                 stu_valid <= stu_data_valid;
-
                 data_valid_o <= ldu_data_valid | stu_data_valid;
-            end 
-        end 
+            end
+        end
 
+        /* Capture the load result before the fall-through packet FIFO advances.
+         * Store completions use stu_ipacket after its issue-stage register has
+         * updated, matching the original same-cycle store timing. */
         always_ff @(posedge clk_i) begin
-            loaded_data_saved <= loaded_data;
-        end 
+            if (ldu_data_valid) begin
+                loaded_data_saved <= loaded_data;
+                ldu_packet_saved <= ldu_exception_packet;
+            end
+        end
 
-        /* Unit arbiter */
         always_comb begin
             case ({ldu_valid, stu_valid})
-
-                2'b00: begin
-                    instr_packet_o = '0;
-                    data_o = '0;
-                end
-
-                2'b10: begin
-                    instr_packet_o = ldu_exception_packet;
+                2'b10, 2'b11: begin
+                    instr_packet_o = ldu_packet_saved;
                     data_o = loaded_data_saved;
                 end
 
@@ -296,14 +287,24 @@ module load_store_unit #(
                     data_o = '0;
                 end
 
-                2'b11: begin
-                    instr_packet_o = ldu_exception_packet;
-                    data_o = loaded_data_saved;
+                default: begin
+                    instr_packet_o = '0;
+                    data_o = '0;
                 end
-
             endcase
         end
 
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(load_packet_full & data_valid_i.LDU & !ldu_data_valid));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            ldu_data_valid |-> !load_packet_empty);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            ldu_idle_o == load_packet_empty);
+    `endif
+
 endmodule : load_store_unit
 
-`endif 
+`endif
