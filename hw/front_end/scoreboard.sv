@@ -435,39 +435,79 @@ module scoreboard (
 //      LDU SCHEDULING LOGIC
 //==================================================================================== 
 
-    /* Block issue for one cycle since there's the bypass stage */
-    logic block_ldu_issue; 
+    // IS IT POSSIBLE TO HAVE MORE THAN 2 WE NEED ACTUAL POINTER FOR THIS LOGIC NOT SINGLE BITS
+
+    /* Calculate how many loads are in flight */
+    logic [1:0] ldu_load_cnt; logic ldu_full;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                block_ldu_issue <= 1'b0;
+                ldu_load_cnt <= '0;
+            end else if (flush_i) begin
+                ldu_load_cnt <= '0;
             end else if (!stall_i) begin
-                if (ldu_issue) begin
-                    block_ldu_issue <= 1'b1;
-                end else begin
-                    block_ldu_issue <= 1'b0;
-                end
+                case ({ldu_issue, ldu_serviced_i})
+                    2'b01: ldu_load_cnt <= ldu_load_cnt - 1;
+
+                    2'b10: ldu_load_cnt <= ldu_load_cnt + 1;
+                endcase
             end
         end 
 
+    assign ldu_full = ldu_load_cnt == 2'd2;
 
-    logic ldu_raw_hazard, ldu_word_operation;
-    logic [31:0] ldu_register_dest;
+    // ASSERT: ldu_load_cnt <= 2
 
+
+    logic [1:0] ldu_raw_hazard, ldu_valid;
+    logic [1:0][31:0] ldu_register_dest;
+    logic selector;
+
+        /* Store register destination, selector goes back and fourth between 0 and 1 to select the next
+         * available position */
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : ldu_destination_register
             if (!rst_n_i) begin
                 ldu_register_dest <= '0;
-                ldu_word_operation <= 1'b1;
+
+                selector <= 1'b0;
             end else if (!stall_i) begin
                 if (ldu_issue) begin
-                    ldu_register_dest <= dest_reg_i;
-                    ldu_word_operation <= ldu_operation_i == LDW;
+                    selector <= !selector;
+
+                    ldu_register_dest[selector] <= dest_reg_i;
                 end 
             end
         end : ldu_destination_register
 
-    assign ldu_raw_hazard = block_ldu_issue | ((src_reg_i[0] == ldu_register_dest) | (src_reg_i[1] == ldu_register_dest) | (dest_reg_i == ldu_register_dest)) & !ldu_idle_i & (ldu_register_dest != '0);
+        /* Here selector select the next valid position, while !selector select the next position to
+         * clear once ldu request get seviced */
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                ldu_valid <= '0;
+            end else if (!stall_i) begin
+                if (ldu_issue) begin
+                    ldu_valid[selector] <= 1'b1;
+                end 
 
+                if (ldu_serviced_i) begin
+                    ldu_valid[!selector] <= 1'b0;
+                end
+            end
+        end
+
+
+    assign ldu_raw_hazard[0] = ((src_reg_i[0] == ldu_register_dest[0]) | 
+                                (src_reg_i[1] == ldu_register_dest[0]) | 
+                                (dest_reg_i   == ldu_register_dest[0])) & ldu_valid[0] & (ldu_register_dest[0] != '0);
+
+    assign ldu_raw_hazard[1] = ((src_reg_i[0] == ldu_register_dest[1]) | 
+                                (src_reg_i[1] == ldu_register_dest[1]) | 
+                                (dest_reg_i   == ldu_register_dest[1])) & ldu_valid[1] & (ldu_register_dest[1] != '0);
+
+    // TODO (CODEX): CHECK THAT LOGIC IS CORRECT AND DOESN'T INTRODUCE BUGS AND CHECK THE FEASIBILITY 
+    // OF HAVING MORE THAN 2 LOADS IN FLIGHT
+
+    // TODO (CODEX): THIS LOGIC MIGHT BE WEAK
 
 //====================================================================================
 //      STU SCHEDULING LOGIC
@@ -921,16 +961,16 @@ module scoreboard (
 
     logic raw_hazard, latency_hazard, structural_hazard, issue_hazard;
 
-    assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
+    assign raw_hazard = stu_raw_hazard | (|ldu_raw_hazard) | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
-    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
+    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_full) | (lsu_unit_i.STU & !stu_idle_i);
     assign issue_hazard = raw_hazard | latency_hazard;
 
     assign alu_issue = itu_unit_i.ALU & !issue_hazard;
     assign mul_issue = itu_unit_i.MUL & !issue_hazard;
     assign div_issue = itu_unit_i.DIV & !issue_hazard & !div_executing;
-    assign ldu_issue = lsu_unit_i.LDU & !issue_hazard & ldu_idle_i;
-    assign stu_issue = lsu_unit_i.STU & !issue_hazard & stu_idle_i & ldu_idle_i;
+    assign ldu_issue = lsu_unit_i.LDU & !issue_hazard & !ldu_full;
+    assign stu_issue = lsu_unit_i.STU & !issue_hazard & stu_idle_i;
 
     `ifdef BMU
     assign bmu_issue = itu_unit_i.BMU & !issue_hazard;
