@@ -146,6 +146,7 @@ module back_end #(
 
     /* Functional units status for scheduling */
     output logic ldu_idle_o,
+    output logic ldu_serviced_o,
     output logic stu_idle_o,
 
     /* Writeback data */
@@ -289,7 +290,7 @@ module back_end #(
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
-    logic execute_store, ldu_idle, stu_idle;
+    logic execute_store, ldu_idle, ldu_serviced, stu_idle;
 
     exu_valid_t valid_operation;
 
@@ -359,6 +360,7 @@ module back_end #(
         .compressed_i           ( instruction_compressed ),
 
         .ldu_idle_o ( ldu_idle ),
+        .ldu_serviced_o ( ldu_serviced ),
         .stu_idle_o ( stu_idle ),
 
         .result_o     ( result       ),
@@ -384,6 +386,7 @@ module back_end #(
         end 
 
         assign ldu_idle_o = ldu_idle_sampled & !valid_operation.LSU.LDU;
+        assign ldu_serviced_o = ldu_serviced;
         assign stu_idle_o = stu_idle_sampled & !valid_operation.LSU.STU;
 
 

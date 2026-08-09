@@ -112,6 +112,7 @@ module scheduler #(
 
     /* LSU status */
     input logic ldu_idle_i,
+    input logic ldu_serviced_i,
     input logic stu_idle_i,
 
     /* Functional units operations */
@@ -174,6 +175,7 @@ module scheduler #(
 
         .ldu_operation_i ( exu_uop_i.LSU.subunit.LDU.opcode.uop ),
         .ldu_idle_i      ( ldu_idle_i                           ),
+        .ldu_serviced_i  ( ldu_serviced_i                       ),
         .stu_idle_i      ( stu_idle_i                           ),
 
         .pipeline_empty_o    ( pipeline_empty    ),
