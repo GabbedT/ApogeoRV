@@ -81,6 +81,7 @@ module load_unit (
     output logic misaligned_o,
 
     /* Functional unit status */
+    output logic idle_o,
     output logic serviced_o,
     output logic wait_o,
 
@@ -97,10 +98,12 @@ module load_unit (
         logic illegal_access;
         logic private_reg;
         logic wait_mem_upd;
+        logic forwarded;
 
         ldu_uop_t operation;
 
         logic [31:0] address;
+        logic [31:0] forwarded_data;
     } lbuf_entry_t;
 
 
@@ -148,14 +151,14 @@ module load_unit (
     assign illegal_access = !accessable & valid_operation_i; 
 
 
-    logic wait_mem_update, queue_request, load_request; 
+    logic wait_mem_update, queue_request, load_request, accept_load;
 
         always_comb begin
             /* Default values */
             load_request = 1'b0;
             wait_mem_update = 1'b0;
 
-            if (valid_operation_i) begin
+            if (accept_load & !(misaligned | illegal_access | forward_match_i)) begin
                 if (buffer_wait_i | private_region | queue_request) begin
                     /* If store buffer has some data related to the same address or
                      * private region is being accessed or the previous load is 
@@ -178,8 +181,10 @@ module load_unit (
     assign lbuf_write_entry.illegal_access = illegal_access;
     assign lbuf_write_entry.private_reg = private_region;
     assign lbuf_write_entry.wait_mem_upd = wait_mem_update;
+    assign lbuf_write_entry.forwarded = forward_match_i & !(misaligned | illegal_access);
     assign lbuf_write_entry.operation = operation_i;
     assign lbuf_write_entry.address = load_address_i;
+    assign lbuf_write_entry.forwarded_data = forward_data_i;
 
     /* Memory responses must be in order */
     synchronous_buffer #(
@@ -188,9 +193,9 @@ module load_unit (
         .FIRST_WORD_FALL_TROUGH ( 1                   )
     ) load_buffer (
         .clk_i   ( clk_i             ),
-        .rst_n_i ( rst_n_i | flush_i ),
+        .rst_n_i ( rst_n_i & !flush_i ),
 
-        .write_i ( valid_operation_i & !stall_i ),
+        .write_i ( accept_load ),
         .read_i  ( lbuf_read                    ),
 
         .empty_o ( lbuf_empty ),
@@ -207,32 +212,33 @@ module load_unit (
 
 
     assign queue_request = lbuf_read_entry.wait_mem_upd & !lbuf_empty;
+    assign accept_load = valid_operation_i & !stall_i & !flush_i & (!lbuf_full | lbuf_read);
 
 
-    data_word_t data_selected; logic load_wait_request, request_pending, flush_due_match;
+    data_word_t data_selected; logic load_wait_request, request_pending;
 
         always_comb begin
             /* Default Values */
+            data_selected = load_channel.data;
+            load_wait_request = 1'b0;
+            lbuf_read = 1'b0;
+            wait_o = 1'b0;
 
-            if (!lbuf_read_entry.wait_mem_upd) begin
-                if (forward_match_i) begin
-                    /* Take data from store buffer */
-                    data_selected = forward_data_i;
-
-                    flush_due_match = 1'b1;
-                    lbuf_read = 1'b1;
-                end else if (load_channel.valid) begin
-                    /* Take data from memory */
-                    data_selected = load_channel.data;
-                    lbuf_read = 1'b1;
-                end
-            end else if (request_pending) begin
-                if (load_channel.valid) begin
-                    data_selected = load_channel.data;
-                    lbuf_read = 1'b1;
-                end
-            end else begin
-                if (lbuf_write_entry.private_reg) begin
+            if (!lbuf_empty) begin
+                if (lbuf_read_entry.misaligned | lbuf_read_entry.illegal_access) begin
+                    /* Faulting loads retire without accessing memory. */
+                    lbuf_read = !stall_i;
+                end else if (lbuf_read_entry.forwarded) begin
+                    /* The combinational store-buffer result was captured with
+                     * the request, so no cache request needs cancellation. */
+                    data_selected = lbuf_read_entry.forwarded_data;
+                    lbuf_read = !stall_i;
+                end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
+                    if (load_channel.valid) begin
+                        data_selected = load_channel.data;
+                        lbuf_read = 1'b1;
+                    end
+                end else if (lbuf_read_entry.private_reg) begin
                     /* Wait until the store buffer is empty to ensure no
                      * memory conflicts during a protected memory access */
                     if (buffer_empty_i) begin
@@ -254,14 +260,12 @@ module load_unit (
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 request_pending <= 1'b0;
-            end else begin
-                if (load_wait_request) begin
-                    request_pending <= 1'b1;
-                end
-
-                if (load_channel.valid) begin
-                    request_pending <= 1'b0;
-                end
+            end else if (flush_i) begin
+                request_pending <= 1'b0;
+            end else if (lbuf_read) begin
+                request_pending <= 1'b0;
+            end else if (load_wait_request) begin
+                request_pending <= 1'b1;
             end
         end
 
@@ -301,36 +305,41 @@ module load_unit (
 
     assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_sliced; 
 
-    assign misaligned_o = lbuf_read_entry.misaligned;
-    assign illegal_access_o = lbuf_read_entry.illegal_access;
+    assign misaligned_o = !lbuf_empty & lbuf_read_entry.misaligned;
+    assign illegal_access_o = !lbuf_empty & lbuf_read_entry.illegal_access;
 
     assign load_channel.request = load_request | load_wait_request;
     assign load_channel.address = load_wait_request ? lbuf_read_entry.address : load_address_i;
-    assign load_channel.invalidate = flush_due_match | flush_i;
+    assign load_channel.invalidate = flush_i;
 
     assign serviced_o = lbuf_read;
+    assign idle_o = lbuf_empty;
+    assign data_valid_o = lbuf_read;
 
 
 //====================================================================================
 //      ASSERTIONS
 //====================================================================================
 
-    // ASSERTION 1: load_request and load_wait_request must never be both 1.
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(load_request & load_wait_request));
 
-    // ASSERTION 2: if lbuf_full is asserted, valid_operation_i cannot be high.
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            lbuf_full |-> (!valid_operation_i | lbuf_read));
 
-    // ASSERTION 3: if flush_i was asserted buffer must be empty in the next two cycles.
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            flush_i |=> lbuf_empty);
 
-    // ASSERTION 4: if flush_i was asserted there must not be any valid data in the channel if no request were made after flush.
-    
-    // ASSERTION 4: load_wait_request and valid from load_channel must not be high at the same time
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            lbuf_empty |-> !data_valid_o);
 
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(load_wait_request & load_channel.valid));
 
-    // TODO (CODEX): SEE BETTER STALL LOGIC, MIGHT NOT STALL AT ALL 
-
-    // TODO (CODEX): IS IT POSSIBLE TO HAVE MORE THAN 2 LOADS IN FLIGHT AND DOES IT IMPROVE PERFORMANCE?
-
-    // TODO (CODEX): FLUSH AND INVALIDATE LOGIC NEEDS REVISION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(lbuf_read & lbuf_empty));
+    `endif
 
 endmodule : load_unit
 
