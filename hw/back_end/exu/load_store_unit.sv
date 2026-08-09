@@ -223,8 +223,26 @@ module load_store_unit #(
 
     instr_packet_t ldu_ipacket, ldu_exception_packet;
 
+    synchronous_buffer #(
+        .BUFFER_DEPTH           ( 2                     ),
+        .DATA_WIDTH             ( $bits(instr_packet_t) ),
+        .FIRST_WORD_FALL_TROUGH ( 1                     )
+    ) load_buffer (
+        .clk_i   ( clk_i             ),
+        .rst_n_i ( rst_n_i | flush_i ),
+
+        .write_i ( data_valid_i.LDU & !stall_i ),
+        .read_i  ( ldu_data_valid              ),
+
+        .empty_o (  ),
+        .full_o  (  ), // TO BE DEFINED
+
+        .write_data_i ( instr_packet_i ),
+        .read_data_o  ( ldu_ipacket    )
+    );
+
         always_comb begin
-            ldu_exception_packet = instr_packet_i;
+            ldu_exception_packet = ldu_ipacket;
 
             if (ldu_illegal_access) begin
                 ldu_exception_packet.exception_vector = `LOAD_ACCESS_FAULT;
@@ -232,14 +250,6 @@ module load_store_unit #(
             end else if (ldu_misaligned_access) begin
                 ldu_exception_packet.exception_vector = `LOAD_MISALIGNED;
                 ldu_exception_packet.exception_generated = 1'b1;
-            end
-        end
-
-        always_ff @(posedge clk_i) begin
-            if (flush_i) begin
-                ldu_ipacket <= '0;
-            end else if (data_valid_i.LDU & !stall_i) begin
-                ldu_ipacket <= ldu_exception_packet;
             end
         end
 
@@ -277,7 +287,7 @@ module load_store_unit #(
                 end
 
                 2'b10: begin
-                    instr_packet_o = ldu_ipacket;
+                    instr_packet_o = ldu_exception_packet;
                     data_o = loaded_data_saved;
                 end
 
@@ -287,7 +297,7 @@ module load_store_unit #(
                 end
 
                 2'b11: begin
-                    instr_packet_o = ldu_ipacket;
+                    instr_packet_o = ldu_exception_packet;
                     data_o = loaded_data_saved;
                 end
 
