@@ -163,7 +163,9 @@ module scheduler #(
         .clk_i   ( clk_i   ),
         .rst_n_i ( rst_n_i ),
         .flush_i ( flush_i ),
+        .squash_i ( branch_flush_i | mispredicted_i ),
         .stall_i ( stall_i ),
+        .issue_accept_i ( !stall_i & !stall_o & !branch_flush_i & !mispredicted_i ),
 
         .src_reg_i  ( src_reg_i  ),
         .dest_reg_i ( dest_reg_i ),

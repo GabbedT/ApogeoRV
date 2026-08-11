@@ -173,7 +173,20 @@ module store_unit #(
 
     store_buffer_interface buffer_channel();
 
-    logic fsm_match, buffer_duplicate; logic [4:0] byte_shift, halfword_shift;
+    logic fsm_match, fsm_word_match, buffer_duplicate;
+    logic [4:0] byte_shift, halfword_shift;
+
+    function automatic logic [3:0] access_byte_mask(
+        input store_width_t width,
+        input logic [1:0] offset
+    );
+        case (width)
+            BYTE:      access_byte_mask = 4'b0001 << offset;
+            HALF_WORD: access_byte_mask = 4'b0011 << offset;
+            WORD:      access_byte_mask = 4'b1111;
+            default:   access_byte_mask = '0;
+        endcase
+    endfunction
 
     assign byte_shift = store_address_i[1:0] << 3;
     assign halfword_shift = store_address_i[1] << 4;
@@ -189,7 +202,6 @@ module store_unit #(
             buffer_channel.packet = '0;
 
             idle_o = 1'b0;
-            fsm_match = 1'b0;
             data_valid_o = 1'b0;
             illegal_access_o = !accessable; 
             misaligned_o = misaligned;
@@ -263,8 +275,6 @@ module store_unit #(
                     buffer_channel.request = !buffer_channel.full & !buffer_duplicate; 
                     buffer_channel.packet = {store_data_CRT, store_address_CRT, store_width_CRT};
 
-                    fsm_match = (forward_address_i == store_address_CRT) & (forward_width_i == store_width_CRT);
-
                     if (!buffer_channel.full & !buffer_duplicate) begin 
                         if (!wait_i) begin
                             state_NXT = IDLE;
@@ -311,7 +321,10 @@ module store_unit #(
 //      STORE BUFFER
 //====================================================================================
 
-    data_word_t buffer_forward_data; logic buffer_match, buffer_wait; 
+    data_word_t buffer_forward_data, duplicate_check_address;
+    logic buffer_match, buffer_wait;
+
+    assign duplicate_check_address = (state_CRT == IDLE) ? store_address_i : store_address_CRT;
 
     store_buffer #(STORE_BUFFER_SIZE) str_buffer (
         .clk_i   ( clk_i   ),
@@ -319,6 +332,7 @@ module store_unit #(
         .flush_i ( flush_i ),
 
         .duplicate_o ( buffer_duplicate ),
+        .duplicate_address_i ( duplicate_check_address ),
 
         .push_channel ( buffer_channel ),
         .pull_channel ( store_channel  ),
@@ -333,16 +347,19 @@ module store_unit #(
     );
 
 
-    /* Assert a wait when the held duplicate overlaps the load's word and the
-     * data cannot be exactly forwarded (different width / sub-word offset). On
-     * an exact match fsm_match already forwards store_data_CRT, so no wait. */
+    /* A store held outside the buffer is younger than any duplicate buffered
+     * store and therefore owns forwarding priority for its word. */
     logic fsm_wait;
 
-    assign fsm_wait = (state_CRT == WAIT_BUFFER)
-                    & (forward_address_i[31:2] == store_address_CRT[31:2])
-                    & !((forward_address_i == store_address_CRT) & (forward_width_i == store_width_CRT));
+    assign fsm_word_match = (state_CRT == WAIT_BUFFER)
+                          & (forward_address_i[31:2] == store_address_CRT[31:2]);
+    assign fsm_match = fsm_word_match &
+                       ((access_byte_mask(forward_width_i, forward_address_i[1:0]) &
+                         access_byte_mask(store_width_CRT, store_address_CRT[1:0])) ==
+                        access_byte_mask(forward_width_i, forward_address_i[1:0]));
+    assign fsm_wait = fsm_word_match & !fsm_match;
 
-    assign wait_o = (buffer_wait & !fsm_match) | fsm_wait;
+    assign wait_o = fsm_word_match ? fsm_wait : buffer_wait;
 
     assign buffer_empty_o = buffer_channel.empty;
 
@@ -359,7 +376,15 @@ module store_unit #(
         end
     end
 
-    assign forward_match_o = buffer_match | fsm_match;
+    assign forward_match_o = fsm_word_match ? fsm_match : buffer_match;
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            fsm_word_match |-> !(buffer_match & forward_match_o & !fsm_match));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            fsm_match |-> (forward_data_o == store_data_CRT));
+    `endif
 
 endmodule : store_unit 
 

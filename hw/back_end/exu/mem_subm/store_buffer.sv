@@ -49,6 +49,7 @@ module store_buffer #(
     input logic rst_n_i,
     input logic flush_i,
     output logic duplicate_o,
+    input data_word_t duplicate_address_i,
     
     store_buffer_interface.slave push_channel,
     store_interface.master pull_channel,
@@ -294,7 +295,8 @@ module store_buffer #(
 
         always_comb begin
             for (int i = 0; i < BUFFER_DEPTH; ++i) begin
-                duplicate[i] = (metadata_buffer[i].address[31:2] == push_channel.packet.address[31:2]) & forward_valid[i];
+                duplicate[i] = (metadata_buffer[i].address[31:2] == duplicate_address_i[31:2]) &
+                               forward_valid[i];
             end
         end
 
@@ -304,27 +306,50 @@ module store_buffer #(
 
     logic [BUFFER_DEPTH - 1:0] address_match, width_match, forward_match, wait_match;
 
+    function automatic logic [3:0] access_byte_mask(
+        input store_width_t width,
+        input logic [1:0] offset
+    );
+        case (width)
+            BYTE:      access_byte_mask = 4'b0001 << offset;
+            HALF_WORD: access_byte_mask = 4'b0011 << offset;
+            WORD:      access_byte_mask = 4'b1111;
+            default:   access_byte_mask = '0;
+        endcase
+    endfunction
+
         always_comb begin : address_match_logic
             /* Default values */
             forward_ptr = '0;
             width_match = '0;
             forward_match = '0;
             address_match = '0;
+            wait_match = '0;
 
             for (int i = BUFFER_DEPTH - 1; i >= 0; --i) begin
-                /* Check if any read address match an entry, start from the head of the buffer, so the most recent data is matched */
-                address_match[i] = (forward_address_i == metadata_buffer[i].address) & forward_valid[i];
-                width_match[i] = forward_width_i == store_width_buffer[i];
+                logic [3:0] load_mask, store_mask;
+
+                load_mask = access_byte_mask(forward_width_i, forward_address_i[1:0]);
+                store_mask = access_byte_mask(store_width_t'(store_width_buffer[i]),
+                                              metadata_buffer[i].address[1:0]);
+
+                /* Stored data is word-lane aligned.  A wider store can thus
+                 * forward directly to a narrower load whenever it covers all
+                 * requested bytes (for example sw -> lb or sw -> lh). */
+                address_match[i] = (forward_address_i[31:2] ==
+                                    metadata_buffer[i].address[31:2]) & forward_valid[i];
+                width_match[i] = (load_mask & store_mask) == load_mask;
 
                 /* Final validity check */
                 forward_match[i] = address_match[i] & width_match[i];
 
-                /* Wait if address match but not the width */
-                wait_match[i] = (forward_address_i[31:2] == metadata_buffer[i].address[31:2]) & forward_valid[i] & !width_match[i];
+                /* Serialize same-word accesses if the buffered store does not
+                 * contain every byte required by the load. */
+                wait_match[i] = address_match[i] & !width_match[i];
                 
                 /* Priority encoder */
                 if (forward_match[i]) begin
-                    forward_ptr = i;
+                    forward_ptr = i[$clog2(BUFFER_DEPTH) - 1:0];
                 end
             end
         end : address_match_logic
@@ -332,6 +357,20 @@ module store_buffer #(
     assign wait_o = wait_match != '0;
 
     assign address_match_o = (forward_match != '0);
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            $onehot0(address_match));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            address_match_o |-> !wait_o);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            address_match_o |-> ((access_byte_mask(forward_width_i, forward_address_i[1:0]) &
+                                  access_byte_mask(store_width_t'(store_width_buffer[forward_ptr]),
+                                                   metadata_buffer[forward_ptr].address[1:0])) ==
+                                 access_byte_mask(forward_width_i, forward_address_i[1:0])));
+    `endif
 
 endmodule : store_buffer
 

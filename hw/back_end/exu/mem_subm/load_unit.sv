@@ -158,7 +158,7 @@ module load_unit (
             load_request = 1'b0;
             wait_mem_update = 1'b0;
 
-            if (accept_load & !(misaligned | illegal_access | forward_match_i)) begin
+            if (accept_load & !(misaligned | illegal_access | (forward_match_i & !queue_request))) begin
                 if (buffer_wait_i | private_region | queue_request) begin
                     /* If store buffer has some data related to the same address or
                      * private region is being accessed or the previous load is 
@@ -170,40 +170,86 @@ module load_unit (
             end
         end
 
-    assign forward_address_o = load_address_i;
-    assign forward_load_size_o = store_width_t'(operation_i.uop);
+    /* Once the head load is waiting on a store, the dependency lookup must
+     * remain tied to that buffered load.  Issue-stage inputs may already hold
+     * a younger load and must not release the head request accidentally. */
+    assign forward_address_o = queue_request ? data_word_t'(lbuf_read_entry.address) : load_address_i;
+    assign forward_load_size_o = queue_request ? store_width_t'(lbuf_read_entry.operation.uop) :
+                                                 store_width_t'(operation_i.uop);
 
 
     logic lbuf_empty, lbuf_full, lbuf_read;
+    logic [1:0] lbuf_count;
+    lbuf_entry_t lbuf_entries [0:1];
     lbuf_entry_t lbuf_write_entry, lbuf_read_entry;
 
     assign lbuf_write_entry.misaligned = misaligned;
     assign lbuf_write_entry.illegal_access = illegal_access;
     assign lbuf_write_entry.private_reg = private_region;
     assign lbuf_write_entry.wait_mem_upd = wait_mem_update;
-    assign lbuf_write_entry.forwarded = forward_match_i & !(misaligned | illegal_access);
+
+    /* The forwarding port belongs to the buffered head while queue_request is
+     * asserted */
+    assign lbuf_write_entry.forwarded = forward_match_i & !queue_request & !(misaligned | illegal_access);
     assign lbuf_write_entry.operation = operation_i;
     assign lbuf_write_entry.address = load_address_i;
     assign lbuf_write_entry.forwarded_data = forward_data_i;
 
-    /* Memory responses must be in order */
-    synchronous_buffer #(
-        .BUFFER_DEPTH           ( 2                   ),
-        .DATA_WIDTH             ( $bits(lbuf_entry_t) ),
-        .FIRST_WORD_FALL_TROUGH ( 1                   )
-    ) load_buffer (
-        .clk_i   ( clk_i             ),
-        .rst_n_i ( rst_n_i & !flush_i ),
+  
+    assign lbuf_empty = (lbuf_count == 2'd0);
+    assign lbuf_full  = (lbuf_count == 2'd2);
+    assign lbuf_read_entry = lbuf_entries[0];
 
-        .write_i ( accept_load ),
-        .read_i  ( lbuf_read                    ),
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : load_buffer_register_fifo
+            if (!rst_n_i) begin
+                lbuf_count <= 2'd0;
+            end else if (flush_i) begin
+                lbuf_count <= 2'd0;
+            end else begin
+                case ({accept_load, lbuf_read})
+                    2'b10: begin
+                        if (lbuf_count == 2'd0) begin
+                            lbuf_entries[0] <= lbuf_write_entry;
+                        end else begin
+                            lbuf_entries[1] <= lbuf_write_entry;
+                        end
+                        lbuf_count <= lbuf_count + 2'd1;
+                    end
 
-        .empty_o ( lbuf_empty ),
-        .full_o  ( lbuf_full  ),
+                    2'b01: begin
+                        if (lbuf_count == 2'd2) begin
+                            lbuf_entries[0] <= lbuf_entries[1];
+                        end
+                        lbuf_count <= lbuf_count - 2'd1;
+                    end
 
-        .write_data_i ( lbuf_write_entry ),
-        .read_data_o  ( lbuf_read_entry  )
-    );
+                    2'b11: begin
+                        case (lbuf_count)
+                            2'd1: begin
+                                /* The pushed entry becomes the new head. */
+                                lbuf_entries[0] <= lbuf_write_entry;
+                            end
+
+                            2'd2: begin
+                                /* Preserve the queued entry, then append. */
+                                lbuf_entries[0] <= lbuf_entries[1];
+                                lbuf_entries[1] <= lbuf_write_entry;
+                            end
+
+                            default: begin
+                                /* A read from an empty FIFO is prohibited. */
+                                lbuf_entries[0] <= lbuf_write_entry;
+                                lbuf_count <= 2'd1;
+                            end
+                        endcase
+                    end
+
+                    default: begin
+                        /* No queue operation. */
+                    end
+                endcase
+            end
+        end : load_buffer_register_fifo
 
 
 //====================================================================================
@@ -227,14 +273,14 @@ module load_unit (
             if (!lbuf_empty) begin
                 if (lbuf_read_entry.misaligned | lbuf_read_entry.illegal_access) begin
                     /* Faulting loads retire without accessing memory. */
-                    lbuf_read = !stall_i;
+                    lbuf_read = !stall_i & !flush_i;
                 end else if (lbuf_read_entry.forwarded) begin
                     /* The combinational store-buffer result was captured with
                      * the request, so no cache request needs cancellation. */
                     data_selected = lbuf_read_entry.forwarded_data;
-                    lbuf_read = !stall_i;
+                    lbuf_read = !stall_i & !flush_i;
                 end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
-                    if (load_channel.valid) begin
+                    if (load_channel.valid & !stall_i & !flush_i) begin
                         data_selected = load_channel.data;
                         lbuf_read = 1'b1;
                     end
@@ -242,15 +288,20 @@ module load_unit (
                     /* Wait until the store buffer is empty to ensure no
                      * memory conflicts during a protected memory access */
                     if (buffer_empty_i) begin
-                        load_wait_request = 1'b1;
+                        load_wait_request = !flush_i;
                     end
 
                     wait_o = 1'b1;
                 end else begin
                     /* Wait until the store buffer has resolved the dependency
-                     * by writing the data into the memory */
-                    if (!buffer_wait_i) begin
-                        load_wait_request = 1'b1;
+                     * by either becoming forwardable or writing the data into
+                     * memory. A store stalled before its buffer push can
+                     * become forwardable while this load is already queued. */
+                    if (forward_match_i) begin
+                        data_selected = forward_data_i;
+                        lbuf_read = !stall_i & !flush_i;
+                    end else if (!buffer_wait_i) begin
+                        load_wait_request = !flush_i;
                     end
                 end
             end
@@ -339,6 +390,17 @@ module load_unit (
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             !(lbuf_read & lbuf_empty));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            queue_request |-> (forward_address_o == lbuf_read_entry.address));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (accept_load & queue_request) |->
+                (lbuf_write_entry.wait_mem_upd & !lbuf_write_entry.forwarded));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (queue_request & forward_match_i & !stall_i) |->
+                (lbuf_read & !load_wait_request));
     `endif
 
 endmodule : load_unit
