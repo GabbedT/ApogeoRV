@@ -110,7 +110,9 @@ module load_store_unit #(
 
     /* Store buffer forwarding nets */
     logic forward_address_match, ldu_wait_buffer, ldu_wait;
-    data_word_t forward_data, ldu_forward_address; store_width_t ldu_load_size;
+    logic ldu_forward_select_queued;
+    data_word_t forward_data, ldu_forward_direct_address, ldu_forward_queued_address;
+    store_width_t ldu_forward_direct_width, ldu_forward_queued_width;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
         .clk_i   ( clk_i   ),
@@ -130,13 +132,16 @@ module load_store_unit #(
 
         .store_channel ( store_channel ),
 
-        .validate_i        ( validate_i            ),
-        .forward_address_i ( ldu_forward_address  ),
-        .forward_width_i   ( ldu_load_size         ),
-        .forward_data_o    ( forward_data          ),
-        .forward_match_o   ( forward_address_match ),
-        .buffer_empty_o    ( buffer_empty_o        ),
-        .wait_o            ( ldu_wait_buffer       ),
+        .validate_i              ( validate_i                 ),
+        .forward_direct_address_i ( ldu_forward_direct_address ),
+        .forward_direct_width_i   ( ldu_forward_direct_width   ),
+        .forward_queued_address_i ( ldu_forward_queued_address ),
+        .forward_queued_width_i   ( ldu_forward_queued_width   ),
+        .forward_select_queued_i  ( ldu_forward_select_queued  ),
+        .forward_data_o           ( forward_data               ),
+        .forward_match_o          ( forward_address_match      ),
+        .buffer_empty_o           ( buffer_empty_o             ),
+        .wait_o                   ( ldu_wait_buffer            ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
@@ -190,10 +195,13 @@ module load_store_unit #(
 
         .load_channel ( load_channel ),
 
-        .forward_match_i     ( forward_address_match ),
-        .forward_data_i      ( forward_data          ),
-        .forward_address_o   ( ldu_forward_address   ),
-        .forward_load_size_o ( ldu_load_size         ),
+        .forward_match_i          ( forward_address_match      ),
+        .forward_data_i           ( forward_data               ),
+        .forward_direct_address_o ( ldu_forward_direct_address ),
+        .forward_direct_width_o   ( ldu_forward_direct_width   ),
+        .forward_queued_address_o ( ldu_forward_queued_address ),
+        .forward_queued_width_o   ( ldu_forward_queued_width   ),
+        .forward_select_queued_o  ( ldu_forward_select_queued  ),
 
         .buffer_wait_i  ( ldu_wait_buffer ),
         .buffer_empty_i ( buffer_empty_o  ),

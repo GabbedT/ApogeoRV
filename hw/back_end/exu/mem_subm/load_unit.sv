@@ -64,8 +64,11 @@ module load_unit (
     /* Forwarding nets */
     input logic forward_match_i,
     input data_word_t forward_data_i,
-    output data_word_t forward_address_o,
-    output store_width_t forward_load_size_o,
+    output data_word_t forward_direct_address_o,
+    output store_width_t forward_direct_width_o,
+    output data_word_t forward_queued_address_o,
+    output store_width_t forward_queued_width_o,
+    output logic forward_select_queued_o,
 
     /* Status */
     input logic buffer_wait_i,
@@ -170,12 +173,13 @@ module load_unit (
             end
         end
 
-    /* Once the head load is waiting on a store, the dependency lookup must
-     * remain tied to that buffered load.  Issue-stage inputs may already hold
-     * a younger load and must not release the head request accidentally. */
-    assign forward_address_o = queue_request ? data_word_t'(lbuf_read_entry.address) : load_address_i;
-    assign forward_load_size_o = queue_request ? store_width_t'(lbuf_read_entry.operation.uop) :
-                                                 store_width_t'(operation_i.uop);
+    /* Evaluate issue-stage and buffered-head dependencies independently.  The
+     * store unit selects only after both forwarding comparisons complete. */
+    assign forward_direct_address_o = load_address_i;
+    assign forward_direct_width_o = store_width_t'(operation_i.uop);
+    assign forward_queued_address_o = data_word_t'(lbuf_read_entry.address);
+    assign forward_queued_width_o = store_width_t'(lbuf_read_entry.operation.uop);
+    assign forward_select_queued_o = queue_request;
 
 
     logic lbuf_empty, lbuf_full, lbuf_read;
@@ -270,6 +274,14 @@ module load_unit (
             lbuf_read = 1'b0;
             wait_o = 1'b0;
 
+            if (lbuf_read_entry.forwarded & !lbuf_empty) begin
+                data_selected = lbuf_read_entry.forwarded_data;
+            end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
+                data_selected = load_channel.data;
+            end else if (forward_match_i) begin
+                data_selected = forward_data_i;
+            end
+
             if (!lbuf_empty) begin
                 if (lbuf_read_entry.misaligned | lbuf_read_entry.illegal_access) begin
                     /* Faulting loads retire without accessing memory. */
@@ -277,11 +289,9 @@ module load_unit (
                 end else if (lbuf_read_entry.forwarded) begin
                     /* The combinational store-buffer result was captured with
                      * the request, so no cache request needs cancellation. */
-                    data_selected = lbuf_read_entry.forwarded_data;
                     lbuf_read = !stall_i & !flush_i;
                 end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
                     if (load_channel.valid & !stall_i & !flush_i) begin
-                        data_selected = load_channel.data;
                         lbuf_read = 1'b1;
                     end
                 end else if (lbuf_read_entry.private_reg) begin
@@ -298,7 +308,6 @@ module load_unit (
                      * memory. A store stalled before its buffer push can
                      * become forwardable while this load is already queued. */
                     if (forward_match_i) begin
-                        data_selected = forward_data_i;
                         lbuf_read = !stall_i & !flush_i;
                     end else if (!buffer_wait_i) begin
                         load_wait_request = !flush_i;
@@ -392,7 +401,10 @@ module load_unit (
             !(lbuf_read & lbuf_empty));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            queue_request |-> (forward_address_o == lbuf_read_entry.address));
+            forward_select_queued_o == queue_request);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            queue_request |-> (forward_queued_address_o == lbuf_read_entry.address));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             (accept_load & queue_request) |->
