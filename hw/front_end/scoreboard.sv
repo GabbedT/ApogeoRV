@@ -51,7 +51,9 @@ module scoreboard (
     input logic clk_i,
     input logic rst_n_i,
     input logic flush_i,
+    input logic squash_i,
     input logic stall_i,
+    input logic issue_accept_i,
 
     /* Registers addresses */
     input logic [1:0][4:0] src_reg_i,
@@ -65,7 +67,8 @@ module scoreboard (
 
     /* LSU status */
     input ldu_opcode_t ldu_operation_i,
-    input logic ldu_idle_i, 
+    input logic ldu_idle_i,
+    input logic ldu_serviced_i,
     input logic stu_idle_i, 
 
     /* Issue command */
@@ -435,39 +438,124 @@ module scoreboard (
 //      LDU SCHEDULING LOGIC
 //==================================================================================== 
 
-    /* Block issue for one cycle since there's the bypass stage */
-    logic block_ldu_issue; 
+    /* Calculate how many loads are in flight */
+    logic [1:0] ldu_load_cnt; logic ldu_full, ldu_issue_event;
+    logic ldu_issue_pending, ldu_squash_event;
+
+        /* A resolved branch clears the bypass stage one cycle after a younger
+         * instruction was accepted by the scheduler.  Remember that issue so
+         * a squashed load does not leave a response-driven reservation behind. */
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                ldu_issue_pending <= 1'b0;
+            end else if (flush_i) begin
+                ldu_issue_pending <= 1'b0;
+            end else begin
+                ldu_issue_pending <= ldu_issue_event;
+            end
+        end
+
+    assign ldu_squash_event = squash_i & ldu_issue_pending;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
             if (!rst_n_i) begin
-                block_ldu_issue <= 1'b0;
-            end else if (!stall_i) begin
-                if (ldu_issue) begin
-                    block_ldu_issue <= 1'b1;
-                end else begin
-                    block_ldu_issue <= 1'b0;
+                ldu_load_cnt <= '0;
+            end else if (flush_i) begin
+                ldu_load_cnt <= '0;
+            end else if (ldu_squash_event) begin
+                if (ldu_serviced_i & (ldu_load_cnt == 2'd2)) begin
+                    ldu_load_cnt <= '0;
+                end else if (ldu_load_cnt != '0) begin
+                    ldu_load_cnt <= ldu_load_cnt - 1'b1;
                 end
+            end else begin
+                case ({ldu_issue_event, ldu_serviced_i})
+                    2'b01: if (ldu_load_cnt != '0) ldu_load_cnt <= ldu_load_cnt - 1'b1;
+
+                    2'b10: if (!ldu_full) ldu_load_cnt <= ldu_load_cnt + 1'b1;
+
+                    default: ldu_load_cnt <= ldu_load_cnt;
+                endcase
             end
         end 
 
+    assign ldu_full = ldu_load_cnt == 2'd2;
+    assign ldu_issue_event = ldu_issue & !stall_i;
 
-    logic ldu_raw_hazard, ldu_word_operation;
-    logic [31:0] ldu_register_dest;
 
+    logic [1:0] ldu_raw_hazard, ldu_valid;
+    logic [1:0][4:0] ldu_register_dest;
+
+        /* The load unit and cache return data in order, so destination tags
+         * are tracked as a two-entry FIFO. This also handles simultaneous
+         * completion and issue without relying on a toggling selector. */
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : ldu_destination_register
             if (!rst_n_i) begin
                 ldu_register_dest <= '0;
-                ldu_word_operation <= 1'b1;
-            end else if (!stall_i) begin
-                if (ldu_issue) begin
-                    ldu_register_dest <= dest_reg_i;
-                    ldu_word_operation <= ldu_operation_i == LDW;
-                end 
+            end else if (flush_i) begin
+                ldu_register_dest <= '0;
+            end else if (ldu_squash_event) begin
+                if (ldu_serviced_i | (ldu_load_cnt == 2'd1)) begin
+                    ldu_register_dest <= '0;
+                end else begin
+                    /* The oldest load remains live; discard only the younger,
+                     * branch-squashed reservation. */
+                    ldu_register_dest[1] <= '0;
+                end
+            end else begin
+                case ({ldu_issue_event, ldu_serviced_i})
+                    2'b01: begin
+                        ldu_register_dest[0] <= ldu_register_dest[1];
+                        ldu_register_dest[1] <= '0;
+                    end
+
+                    2'b10: begin
+                        if (ldu_load_cnt == '0) begin
+                            ldu_register_dest[0] <= dest_reg_i;
+                        end else if (!ldu_full) begin
+                            ldu_register_dest[1] <= dest_reg_i;
+                        end
+                    end
+
+                    2'b11: begin
+                        if (ldu_load_cnt == 2'd1) begin
+                            ldu_register_dest[0] <= dest_reg_i;
+                        end else begin
+                            ldu_register_dest[0] <= ldu_register_dest[1];
+                            ldu_register_dest[1] <= dest_reg_i;
+                        end
+                    end
+
+                    default: ldu_register_dest <= ldu_register_dest;
+                endcase
             end
         end : ldu_destination_register
 
-    assign ldu_raw_hazard = block_ldu_issue | ((src_reg_i[0] == ldu_register_dest) | (src_reg_i[1] == ldu_register_dest) | (dest_reg_i == ldu_register_dest)) & !ldu_idle_i & (ldu_register_dest != '0);
+    assign ldu_valid[0] = ldu_load_cnt != '0;
+    assign ldu_valid[1] = ldu_load_cnt == 2'd2;
 
+
+    assign ldu_raw_hazard[0] = ((src_reg_i[0] == ldu_register_dest[0]) | 
+                                (src_reg_i[1] == ldu_register_dest[0]) | 
+                                (dest_reg_i   == ldu_register_dest[0])) & ldu_valid[0] & (ldu_register_dest[0] != '0);
+
+    assign ldu_raw_hazard[1] = ((src_reg_i[0] == ldu_register_dest[1]) | 
+                                (src_reg_i[1] == ldu_register_dest[1]) | 
+                                (dest_reg_i   == ldu_register_dest[1])) & ldu_valid[1] & (ldu_register_dest[1] != '0);
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            ldu_load_cnt <= 2);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            ldu_serviced_i |-> (ldu_load_cnt != '0));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            ldu_squash_event |-> (ldu_load_cnt != '0));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            squash_i |-> !ldu_issue_event);
+    `endif
 
 //====================================================================================
 //      STU SCHEDULING LOGIC
@@ -496,7 +584,15 @@ module scoreboard (
      * the bypass blocking cycle must be tracked here. */
     assign stu_raw_hazard = block_stu_issue;
 
-    assign block_store_operation = lsu_unit_i.STU & !ldu_idle_i;
+    /* A younger store must not become visible to store-to-load forwarding
+     * while an older load is unresolved.  ldu_idle_i changes only after the
+     * bypass stage, whereas the scoreboard count is reserved at issue time. */
+    assign block_store_operation = lsu_unit_i.STU & (ldu_load_cnt != '0);
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (ldu_load_cnt != '0) |-> !stu_issue);
+    `endif
 
 
 //====================================================================================
@@ -921,27 +1017,31 @@ module scoreboard (
 
     logic raw_hazard, latency_hazard, structural_hazard, issue_hazard;
 
-    assign raw_hazard = stu_raw_hazard | ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
+    assign raw_hazard = stu_raw_hazard | (|ldu_raw_hazard) | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
-    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & !ldu_idle_i) | (lsu_unit_i.STU & !stu_idle_i);
+    assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_full & !ldu_serviced_i) | (lsu_unit_i.STU & !stu_idle_i);
     assign issue_hazard = raw_hazard | latency_hazard;
 
-    assign alu_issue = itu_unit_i.ALU & !issue_hazard;
-    assign mul_issue = itu_unit_i.MUL & !issue_hazard;
-    assign div_issue = itu_unit_i.DIV & !issue_hazard & !div_executing;
-    assign ldu_issue = lsu_unit_i.LDU & !issue_hazard & ldu_idle_i;
-    assign stu_issue = lsu_unit_i.STU & !issue_hazard & stu_idle_i & ldu_idle_i;
+    /* Reserve execution resources only when the scheduler actually advances
+     * this instruction.  A hazard-free instruction may still be held by CSR
+     * or FENCE serialization, a cache flush, or ROB backpressure.  Counting
+     * such a held instruction creates a phantom dependency on itself. */
+    assign alu_issue = itu_unit_i.ALU & !issue_hazard & issue_accept_i;
+    assign mul_issue = itu_unit_i.MUL & !issue_hazard & issue_accept_i;
+    assign div_issue = itu_unit_i.DIV & !issue_hazard & !div_executing & issue_accept_i;
+    assign ldu_issue = lsu_unit_i.LDU & !issue_hazard & (!ldu_full | ldu_serviced_i) & issue_accept_i;
+    assign stu_issue = lsu_unit_i.STU & !issue_hazard & stu_idle_i & issue_accept_i;
 
     `ifdef BMU
-    assign bmu_issue = itu_unit_i.BMU & !issue_hazard;
+    assign bmu_issue = itu_unit_i.BMU & !issue_hazard & issue_accept_i;
     `endif
 
     `ifdef FPU
-    assign fadd_issue = fpu_unit_i.FPADD & !issue_hazard;
-    assign fmul_issue = fpu_unit_i.FPMUL & !issue_hazard;
-    assign fcvt_issue = fpu_unit_i.FPCVT & !issue_hazard;
-    assign fcmp_issue = fpu_unit_i.FPCMP & !issue_hazard;
-    assign fmis_issue = fpu_unit_i.FPMIS & !issue_hazard;
+    assign fadd_issue = fpu_unit_i.FPADD & !issue_hazard & issue_accept_i;
+    assign fmul_issue = fpu_unit_i.FPMUL & !issue_hazard & issue_accept_i;
+    assign fcvt_issue = fpu_unit_i.FPCVT & !issue_hazard & issue_accept_i;
+    assign fcmp_issue = fpu_unit_i.FPCMP & !issue_hazard & issue_accept_i;
+    assign fmis_issue = fpu_unit_i.FPMIS & !issue_hazard & issue_accept_i;
     `endif
 
 
@@ -953,6 +1053,13 @@ module scoreboard (
 
     /* If no unit is executing, then the pipeline is empty */
     assign pipeline_empty_o = !((|mul_executing) | div_executing |(|alu_executing) | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i) `ifdef FPU & fpu_empty `endif;
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !issue_accept_i |-> !(alu_issue | mul_issue | div_issue | ldu_issue | stu_issue
+                                  `ifdef BMU | bmu_issue `endif
+                                  `ifdef FPU | fadd_issue | fmul_issue | fcvt_issue | fcmp_issue | fmis_issue `endif));
+    `endif
 
 endmodule : scoreboard
 

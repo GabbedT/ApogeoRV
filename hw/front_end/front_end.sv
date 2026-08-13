@@ -120,6 +120,7 @@ module front_end #(
 
     /* LSU status */
     input logic ldu_idle_i,
+    input logic ldu_serviced_i,
     input logic stu_idle_i,
 
     /* To backend */
@@ -915,6 +916,7 @@ module front_end #(
         .src_reg_o  ( register_source_o        ),
 
         .ldu_idle_i ( ldu_idle_i ),
+        .ldu_serviced_i ( ldu_serviced_i ),
         .stu_idle_i ( stu_idle_i ),
 
         .exu_valid_i ( dc_stage_exu_valid     ),

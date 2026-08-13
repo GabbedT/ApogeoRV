@@ -64,7 +64,11 @@ module load_unit (
     /* Forwarding nets */
     input logic forward_match_i,
     input data_word_t forward_data_i,
-    output store_width_t load_size_o,
+    output data_word_t forward_direct_address_o,
+    output store_width_t forward_direct_width_o,
+    output data_word_t forward_queued_address_o,
+    output store_width_t forward_queued_width_o,
+    output logic forward_select_queued_o,
 
     /* Status */
     input logic buffer_wait_i,
@@ -81,6 +85,7 @@ module load_unit (
 
     /* Functional unit status */
     output logic idle_o,
+    output logic serviced_o,
     output logic wait_o,
 
     /* Data is valid */
@@ -88,58 +93,28 @@ module load_unit (
 );
 
 //====================================================================================
-//      DATAPATH
+//      TYPEDEFS
 //====================================================================================
 
-    ldu_uop_t operation; data_word_t load_address;
-        /* Load the register as soon as the inputs 
-         * become available */
-        always_ff @(posedge clk_i) begin
-            if (valid_operation_i) begin
-                operation <= operation_i;
-                load_address <= load_address_i;
-            end
-        end
+    typedef struct packed {
+        logic misaligned;
+        logic illegal_access;
+        logic private_reg;
+        logic wait_mem_upd;
+        logic forwarded;
+
+        ldu_uop_t operation;
+
+        logic [31:0] address;
+        logic [31:0] forwarded_data;
+    } lbuf_entry_t;
 
 
-    /* During WAIT, load_data_CRT is the buffer data */
-    data_word_t data_selected;
+//====================================================================================
+//      EVALUATION STAGE
+//====================================================================================
 
-    /* Select a subword */
-    data_word_t data_sliced; ldu_uop_t slice_operation;
-
-        always_comb begin
-            /* Default value */
-            data_sliced = '0;
-
-            case (slice_operation.uop)
-                /* Load byte */
-                LDB: begin 
-                    if (slice_operation.signed_load) begin
-                        data_sliced = $signed(data_selected.word8[load_address[1:0]]);
-                    end else begin
-                        data_sliced = $unsigned(data_selected.word8[load_address[1:0]]);
-                    end
-                end
-
-                /* Load half word signed */
-                LDH: begin 
-                    if (slice_operation.signed_load) begin 
-                        data_sliced = $signed(data_selected.word16[load_address[1]]);
-                    end else begin
-                        data_sliced = $unsigned(data_selected.word16[load_address[1]]);
-                    end
-                end
-
-                /* Load word */
-                LDW: begin 
-                    data_sliced = data_selected;
-                end
-            endcase
-        end
-    
-
-    logic misaligned; 
+    logic addr_misaligned; 
 
         /* Address must be aligned based on the operation: 
          *
@@ -149,184 +124,297 @@ module load_unit (
          */ 
         always_comb begin : misalignment_check_logic
             /* Default value */
-            misaligned = 1'b0; 
+            addr_misaligned = 1'b0; 
 
             case (operation_i.uop)
                 /* Load byte */
-                LDB: misaligned = 1'b0; 
+                LDB: addr_misaligned = 1'b0; 
 
                 /* Load half word signed */
-                LDH: misaligned = load_address_i[0];
+                LDH: addr_misaligned = load_address_i[0];
 
                 /* Load word */
-                LDW: misaligned = load_address_i[1:0] != '0;
+                LDW: addr_misaligned = load_address_i[1:0] != '0;
             endcase 
         end : misalignment_check_logic
 
-    assign misaligned_o = misaligned & valid_operation_i;
 
+    /* Flags */
+    logic private_region, accessable, misaligned, illegal_access;
 
-    logic private_region; assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
+    /* Check private region (BOOT to just before USER_REGION) */
+    assign private_region = (load_address_i >= (`PRIVATE_REGION_START)) & (load_address_i <= (`PRIVATE_REGION_END));
 
     /* Check if the code is trying to access a protected memory region and the privilege is not MACHINE */
-    logic accessable; assign accessable = (private_region & privilege_i) | !private_region;
-
-    assign illegal_access_o = !accessable & valid_operation_i; 
+    assign accessable = (private_region & privilege_i) | !private_region;
 
 
-//====================================================================================
-//      FSM LOGIC
-//====================================================================================
+    /* Check exception */
+    assign misaligned = addr_misaligned & valid_operation_i;
+    assign illegal_access = !accessable & valid_operation_i; 
 
-    typedef enum logic [1:0] {IDLE, WAIT_MEMORY, WAIT_MEMORY_UPDATE, WAIT_STALL} load_unit_fsm_state_t;
 
-    load_unit_fsm_state_t state_CRT, state_NXT;
+    logic wait_mem_update, queue_request, load_request, accept_load;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : state_register
-            if (!rst_n_i) begin 
-                state_CRT <= IDLE;
+        always_comb begin
+            /* Default values */
+            load_request = 1'b0;
+            wait_mem_update = 1'b0;
+
+            if (accept_load & !(misaligned | illegal_access | (forward_match_i & !queue_request))) begin
+                if (buffer_wait_i | private_region | queue_request) begin
+                    /* If store buffer has some data related to the same address or
+                     * private region is being accessed or the previous load is 
+                     * waiting memory. */
+                    wait_mem_update = 1'b1;
+                end else begin  
+                    load_request = 1'b1;
+                end
+            end
+        end
+
+    /* Evaluate issue-stage and buffered-head dependencies independently.  The
+     * store unit selects only after both forwarding comparisons complete. */
+    assign forward_direct_address_o = load_address_i;
+    assign forward_direct_width_o = store_width_t'(operation_i.uop);
+    assign forward_queued_address_o = data_word_t'(lbuf_read_entry.address);
+    assign forward_queued_width_o = store_width_t'(lbuf_read_entry.operation.uop);
+    assign forward_select_queued_o = queue_request;
+
+
+    logic lbuf_empty, lbuf_full, lbuf_read;
+    logic [1:0] lbuf_count;
+    lbuf_entry_t lbuf_entries [0:1];
+    lbuf_entry_t lbuf_write_entry, lbuf_read_entry;
+
+    assign lbuf_write_entry.misaligned = misaligned;
+    assign lbuf_write_entry.illegal_access = illegal_access;
+    assign lbuf_write_entry.private_reg = private_region;
+    assign lbuf_write_entry.wait_mem_upd = wait_mem_update;
+
+    /* The forwarding port belongs to the buffered head while queue_request is
+     * asserted */
+    assign lbuf_write_entry.forwarded = forward_match_i & !queue_request & !(misaligned | illegal_access);
+    assign lbuf_write_entry.operation = operation_i;
+    assign lbuf_write_entry.address = load_address_i;
+    assign lbuf_write_entry.forwarded_data = forward_data_i;
+
+  
+    assign lbuf_empty = (lbuf_count == 2'd0);
+    assign lbuf_full  = (lbuf_count == 2'd2);
+    assign lbuf_read_entry = lbuf_entries[0];
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : load_buffer_register_fifo
+            if (!rst_n_i) begin
+                lbuf_count <= 2'd0;
             end else if (flush_i) begin
-                state_CRT <= IDLE;
-            end else if (!stall_i) begin 
-                state_CRT <= state_NXT;
-            end else if (load_channel.valid & stall_i) begin
-                state_CRT <= WAIT_STALL;
+                lbuf_count <= 2'd0;
+            end else begin
+                case ({accept_load, lbuf_read})
+                    2'b10: begin
+                        if (lbuf_count == 2'd0) begin
+                            lbuf_entries[0] <= lbuf_write_entry;
+                        end else begin
+                            lbuf_entries[1] <= lbuf_write_entry;
+                        end
+                        lbuf_count <= lbuf_count + 2'd1;
+                    end
+
+                    2'b01: begin
+                        if (lbuf_count == 2'd2) begin
+                            lbuf_entries[0] <= lbuf_entries[1];
+                        end
+                        lbuf_count <= lbuf_count - 2'd1;
+                    end
+
+                    2'b11: begin
+                        case (lbuf_count)
+                            2'd1: begin
+                                /* The pushed entry becomes the new head. */
+                                lbuf_entries[0] <= lbuf_write_entry;
+                            end
+
+                            2'd2: begin
+                                /* Preserve the queued entry, then append. */
+                                lbuf_entries[0] <= lbuf_entries[1];
+                                lbuf_entries[1] <= lbuf_write_entry;
+                            end
+
+                            default: begin
+                                /* A read from an empty FIFO is prohibited. */
+                                lbuf_entries[0] <= lbuf_write_entry;
+                                lbuf_count <= 2'd1;
+                            end
+                        endcase
+                    end
+
+                    default: begin
+                        /* No queue operation. */
+                    end
+                endcase
             end
-        end : state_register
+        end : load_buffer_register_fifo
 
 
-    data_word_t data_saved; logic private_region_saved;
+//====================================================================================
+//      MEMORY WAIT / DATA SLICING STAGE
+//====================================================================================
 
-        always_ff @(posedge clk_i) begin
-            if (load_channel.valid & stall_i) begin
-                data_saved <= load_channel.data; 
+
+    assign queue_request = lbuf_read_entry.wait_mem_upd & !lbuf_empty;
+    assign accept_load = valid_operation_i & !stall_i & !flush_i & (!lbuf_full | lbuf_read);
+
+
+    data_word_t data_selected; logic load_wait_request, request_pending;
+
+        always_comb begin
+            /* Default Values */
+            data_selected = load_channel.data;
+            load_wait_request = 1'b0;
+            lbuf_read = 1'b0;
+            wait_o = 1'b0;
+
+            if (lbuf_read_entry.forwarded & !lbuf_empty) begin
+                data_selected = lbuf_read_entry.forwarded_data;
+            end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
+                data_selected = load_channel.data;
+            end else if (forward_match_i) begin
+                data_selected = forward_data_i;
             end
 
-            if (valid_operation_i) begin
-                private_region_saved <= private_region;
+            if (!lbuf_empty) begin
+                if (lbuf_read_entry.misaligned | lbuf_read_entry.illegal_access) begin
+                    /* Faulting loads retire without accessing memory. */
+                    lbuf_read = !stall_i & !flush_i;
+                end else if (lbuf_read_entry.forwarded) begin
+                    /* The combinational store-buffer result was captured with
+                     * the request, so no cache request needs cancellation. */
+                    lbuf_read = !stall_i & !flush_i;
+                end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
+                    if (load_channel.valid & !stall_i & !flush_i) begin
+                        lbuf_read = 1'b1;
+                    end
+                end else if (lbuf_read_entry.private_reg) begin
+                    /* Wait until the store buffer is empty to ensure no
+                     * memory conflicts during a protected memory access */
+                    if (buffer_empty_i) begin
+                        load_wait_request = !flush_i;
+                    end
+
+                    wait_o = 1'b1;
+                end else begin
+                    /* Wait until the store buffer has resolved the dependency
+                     * by either becoming forwardable or writing the data into
+                     * memory. A store stalled before its buffer push can
+                     * become forwardable while this load is already queued. */
+                    if (forward_match_i) begin
+                        lbuf_read = !stall_i & !flush_i;
+                    end else if (!buffer_wait_i) begin
+                        load_wait_request = !flush_i;
+                    end
+                end
+            end
+        end
+
+        /* Switch state in combinatory logic so request signal stay high for one cycle*/
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                request_pending <= 1'b0;
+            end else if (flush_i) begin
+                request_pending <= 1'b0;
+            end else if (lbuf_read) begin
+                request_pending <= 1'b0;
+            end else if (load_wait_request) begin
+                request_pending <= 1'b1;
             end
         end
 
 
-        always_comb begin : fsm_logic
-            /* Default values */
-            state_NXT = state_CRT;
+    /* Select a subword */
+    data_word_t data_sliced;
 
-            load_channel.request = 1'b0;
-            load_channel.invalidate = flush_i;
-            load_channel.address = load_address; 
-            
-            idle_o = 1'b0;
-            wait_o = 1'b0;
-            data_valid_o = 1'b0;
-            slice_operation = '0;
-            data_selected = '0;
-            load_size_o = WORD;
+        always_comb begin
+            /* Default value */
+            data_sliced = '0;
 
-            case (state_CRT)
-
-                /* The FSM stays idle until a valid operation *
-                 * is supplied to the unit. The data can be   *
-                 * forwarded from store buffer or from the    *
-                 * store unit if it's waiting the store       *
-                 * controller. If no forwarding is done, the  *
-                 * unit issue a load request                  */ 
-                IDLE: begin
-                    idle_o = 1'b1;
-                    
-                    if (valid_operation_i) begin
-                        if (misaligned_o | illegal_access_o) begin
-                            /* Exception */ 
-                            data_valid_o = 1'b1; 
-                        end else if (buffer_wait_i | private_region) begin
-                            state_NXT = WAIT_MEMORY_UPDATE;
-
-                            /* Stop the STU to push other data */
-                            wait_o = private_region;
-                            idle_o = 1'b0;
-                        end else begin  
-                            state_NXT = WAIT_MEMORY; 
-
-                            load_channel.request = 1'b1;
-                            idle_o = 1'b0;
-                        end
-                    end
-
-                    load_channel.address = load_address_i;
-                    load_size_o = store_width_t'(operation_i.uop);
-                end
-
-
-                /* Waits for memory to supply data */
-                WAIT_MEMORY: begin
-                    slice_operation = operation; 
-
-                    load_channel.address = load_address;
-                    load_size_o = store_width_t'(operation.uop);
-
-                    if (forward_match_i) begin
-                        state_NXT = IDLE;
-
-                        data_selected = forward_data_i;
-
-                        /* Invalidate the request made to not receive the 
-                         * valid signal which could interfere with the next loads */
-                        load_channel.invalidate = 1'b1;
-
-                        idle_o = 1'b1;
-                        data_valid_o = 1'b1;
-                    end else if (load_channel.valid) begin
-                        state_NXT = IDLE;
-
-                        data_selected = load_channel.data; 
-                        
-                        idle_o = !stall_i;
-                        data_valid_o = !stall_i;
-                    end 
-                end   
-
-
-                WAIT_MEMORY_UPDATE: begin
-                    if (private_region_saved) begin
-                        /* Wait until the store buffer is empty to ensure no
-                         * memory conflicts during a protected memory access */
-                        if (buffer_empty_i) begin
-                            load_channel.request = 1'b1;
-
-                            state_NXT = WAIT_MEMORY; 
-                        end
-
-                        wait_o = 1'b1;
+            case (lbuf_read_entry.operation.uop)
+                /* Load byte */
+                LDB: begin 
+                    if (lbuf_read_entry.operation.signed_load) begin
+                        data_sliced = $signed(data_selected.word8[lbuf_read_entry.address[1:0]]);
                     end else begin
-                        /* Wait until the store buffer has resolved the dependency
-                         * by writing the data into the memory */
-                        if (!buffer_wait_i) begin
-                            load_channel.request = 1'b1;
-
-                            state_NXT = WAIT_MEMORY; 
-                        end
+                        data_sliced = $unsigned(data_selected.word8[lbuf_read_entry.address[1:0]]);
                     end
-
-                    load_channel.address = load_address;
-                    load_size_o = store_width_t'(operation.uop);
                 end
 
-
-                WAIT_STALL: begin
-                    if (!stall_i) begin
-                        state_NXT = IDLE;
-
-                        idle_o = 1'b1;
-                        data_valid_o = 1'b1;
+                /* Load half word signed */
+                LDH: begin 
+                    if (lbuf_read_entry.operation.signed_load) begin 
+                        data_sliced = $signed(data_selected.word16[lbuf_read_entry.address[1]]);
+                    end else begin
+                        data_sliced = $unsigned(data_selected.word16[lbuf_read_entry.address[1]]);
                     end
+                end
 
-                    data_selected = data_saved;
+                /* Load word */
+                LDW: begin 
+                    data_sliced = data_selected;
                 end
             endcase
-        end : fsm_logic
+        end
 
     assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_sliced; 
 
+    assign misaligned_o = !lbuf_empty & lbuf_read_entry.misaligned;
+    assign illegal_access_o = !lbuf_empty & lbuf_read_entry.illegal_access;
+
+    assign load_channel.request = load_request | load_wait_request;
+    assign load_channel.address = load_wait_request ? lbuf_read_entry.address : load_address_i;
+    assign load_channel.invalidate = flush_i;
+
+    assign serviced_o = lbuf_read;
+    assign idle_o = lbuf_empty;
+    assign data_valid_o = lbuf_read;
+
+
+//====================================================================================
+//      ASSERTIONS
+//====================================================================================
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(load_request & load_wait_request));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            lbuf_full |-> (!valid_operation_i | lbuf_read));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            flush_i |=> lbuf_empty);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            lbuf_empty |-> !data_valid_o);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(load_wait_request & load_channel.valid));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !(lbuf_read & lbuf_empty));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            forward_select_queued_o == queue_request);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            queue_request |-> (forward_queued_address_o == lbuf_read_entry.address));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (accept_load & queue_request) |->
+                (lbuf_write_entry.wait_mem_upd & !lbuf_write_entry.forwarded));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (queue_request & forward_match_i & !stall_i) |->
+                (lbuf_read & !load_wait_request));
+    `endif
+
 endmodule : load_unit
 
-`endif 
+`endif
