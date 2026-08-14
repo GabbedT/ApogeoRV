@@ -82,7 +82,9 @@ module predictor_unit #(
 //      FIFO LOGIC
 //====================================================================================
 
-    localparam BUFFER_DEPTH = 8;
+    /* The fetch stream can now run up to INSTRUCTION_BUFFER_SIZE words ahead,
+     * so many more predicted branches can be in flight than the old depth */
+    localparam BUFFER_DEPTH = 32;
 
     /* Control */
     logic push, pull;
