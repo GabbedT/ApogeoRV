@@ -209,8 +209,10 @@ module front_end #(
                     end else begin
                         fetch = !ibuffer_full; 
 
-                        /* BTB hit have more priority */
-                        if (prediction_hit) begin
+                        if (jump_saved) begin
+                            /* A prediction redirect may have been delayed by a fetch stall */
+                            fetch_channel.address = bta_saved;
+                        end else if (prediction_hit) begin
                             /* Load predicted BTA */
                             fetch_channel.address = branch_target_address;
                         end else begin
@@ -225,8 +227,11 @@ module front_end #(
                     end else begin
                         fetch = !ibuffer_full; 
 
-                        /* BTB hit have more priority */
-                        if (prediction_hit) begin
+                        /* Preserve a younger prediction when this older
+                         * control-flow instruction does not redirect. */
+                        if (jump_saved) begin
+                            fetch_channel.address = bta_saved;
+                        end else if (prediction_hit) begin
                             /* Load predicted BTA */
                             fetch_channel.address = branch_target_address;
                         end else begin
@@ -632,21 +637,30 @@ module front_end #(
                 CROSSWORD: begin
                     /* The saved half is bits [15:0] of the instruction; the
                      * buffer word supplies bits [31:16]. */
-                    cfetch_valid = 1'b1;
                     full_instruction = {ibuffer_instruction[15:0], saved_half_CRT};
                     instr_pc = saved_pc_CRT;
                     instruction_speculative = saved_speculative_CRT;
 
-                    if (saved_speculative_CRT & saved_taken_CRT) begin
+                    if (ibuffer_program_counter[31:2] != (saved_pc_CRT[31:2] + 1'b1)) begin
+                        /* The upper half must come from the word that sequentially
+                         * comes from the saved half */
+                        cfetch_valid = 1'b0;
+                        read_buffer = 1'b1;
+
+                        state_NXT = CROSSWORD;
+                    end else if (saved_speculative_CRT & saved_taken_CRT) begin
                         /* The completed instruction redirected the stream; the
                          * rest of this entry is not sequentially reachable. */
+                        cfetch_valid = 1'b1;
                         read_buffer = 1'b1;
+
                         saved_speculative_NXT = 1'b0;
                         saved_taken_NXT = 1'b0;
                         state_NXT = STREAM_START;
                     end else if (ibuffer_instruction[17:16] == FULL_INSTR) begin
                         /* HF/HF: complete one instruction while saving the
                          * beginning of the next one. */
+                        cfetch_valid = 1'b1;
                         read_buffer = 1'b1;
 
                         saved_half_NXT = ibuffer_instruction[31:16];
@@ -658,6 +672,8 @@ module front_end #(
                     end else begin
                         /* HF/C: retain the word so its compressed upper half
                          * can be emitted on the next cycle. */
+                        cfetch_valid = 1'b1;
+                        
                         state_NXT = UPPER_HALF;
                     end
                 end
