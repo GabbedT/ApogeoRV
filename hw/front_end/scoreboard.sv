@@ -223,7 +223,7 @@ module scoreboard (
             assign alu_executing[i] = (alu_latency_cnt[i] > 'd1);
             
             assign alu_raw_hazard[i] = ((src_reg_i[0] == alu_register_dest[i]) | (src_reg_i[1] == alu_register_dest[i]) | (dest_reg_i == alu_register_dest[i])) & 
-                                        alu_executing[i] & (alu_register_dest[i] != '0);
+                                        (alu_latency_cnt[i] > 'd2) & (alu_register_dest[i] != '0);
 
             assign alu_latency_hazard[i] = (latency == alu_latency_cnt[i]) & alu_executing[i];
 
@@ -531,7 +531,8 @@ module scoreboard (
             end
         end : ldu_destination_register
 
-    assign ldu_valid[0] = ldu_load_cnt != '0;
+    /* The FIFO head is forwardable from the LSU raw output after service. */
+    assign ldu_valid[0] = (ldu_load_cnt != '0) & !ldu_serviced_i;
     assign ldu_valid[1] = ldu_load_cnt == 2'd2;
 
 
@@ -587,11 +588,11 @@ module scoreboard (
     /* A younger store must not become visible to store-to-load forwarding
      * while an older load is unresolved.  ldu_idle_i changes only after the
      * bypass stage, whereas the scoreboard count is reserved at issue time. */
-    assign block_store_operation = lsu_unit_i.STU & (ldu_load_cnt != '0);
+    assign block_store_operation = lsu_unit_i.STU & (ldu_load_cnt != '0) & (!ldu_serviced_i | (ldu_load_cnt > 2'd1));
 
     `ifdef SV_ASSERTION
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            (ldu_load_cnt != '0) |-> !stu_issue);
+            ((ldu_load_cnt != '0) & (!ldu_serviced_i | (ldu_load_cnt > 2'd1))) |-> !stu_issue);
     `endif
 
 

@@ -168,20 +168,22 @@ module back_end #(
     data_word_t [1:0] fowarded_operands; 
 
     /* Data fowarded */
-    data_word_t [1:0] execute_data, commit_data;
-    logic [1:0] execute_valid, commit_valid;
+    data_word_t [1:0] raw_execute_data, execute_data, commit_data;
+    logic [1:0] raw_execute_valid, execute_valid, commit_valid;
 
     /* Bypass logic ensure consistency by ensuring that the register
      * carried along the pipeline has the updated value taken in the
      * later stages */
     bypass_controller bypass (
-        .issue_operand_i   ( operand_i            ),
-        .issue_immediate_i ( immediate_valid_i    ),
-        .execute_data_i    ( execute_data         ),
-        .execute_valid_i   ( execute_valid        ),
-        .commit_data_i     ( commit_data          ),
-        .commit_valid_i    ( commit_valid         ),
-        .operand_o         ( fowarded_operands    )   
+        .issue_operand_i     ( operand_i            ),
+        .issue_immediate_i   ( immediate_valid_i    ),
+        .raw_execute_data_i  ( raw_execute_data     ),
+        .raw_execute_valid_i ( raw_execute_valid    ),
+        .execute_data_i      ( execute_data         ),
+        .execute_valid_i     ( execute_valid        ),
+        .commit_data_i       ( commit_data          ),
+        .commit_valid_i      ( commit_valid         ),
+        .operand_o           ( fowarded_operands    )   
     );
 
 
@@ -409,10 +411,12 @@ module back_end #(
     /* Bypass logic */
     genvar i; 
 
-    logic [1:0][EXU_PORT - 1:0] dest_match;
+    logic [1:0][EXU_PORT - 1:0] raw_dest_match, dest_match;
 
     generate
         for (i = 0; i < EXU_PORT; ++i) begin
+            assign raw_dest_match[0][i] = ipacket[i].reg_dest == reg_src_i[0];
+            assign raw_dest_match[1][i] = ipacket[i].reg_dest == reg_src_i[1];
             assign dest_match[0][i] = ipacket_sampled[i].reg_dest == reg_src_i[0];
             assign dest_match[1][i] = ipacket_sampled[i].reg_dest == reg_src_i[1];
         end
@@ -420,7 +424,27 @@ module back_end #(
         `ifdef FPU 
 
         for (i = 0; i < 2; ++i) begin
-            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | (dest_match[i][1] & valid_sampled[1]) | (dest_match[i][2] & valid_sampled[2]); 
+            assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
+                                          ((raw_dest_match[i][0] & valid[0]) |
+                                           (raw_dest_match[i][1] & valid[1]) |
+                                           (raw_dest_match[i][2] & valid[2]));
+
+            assign execute_valid[i] = (reg_src_i[i] != '0) &
+                                      ((dest_match[i][0] & valid_sampled[0]) |
+                                       (dest_match[i][1] & valid_sampled[1]) |
+                                       (dest_match[i][2] & valid_sampled[2]));
+
+            always_comb begin
+                case (raw_dest_match[i])
+                    3'b001: raw_execute_data[i] = result[0];
+
+                    3'b010: raw_execute_data[i] = result[1];
+
+                    3'b100: raw_execute_data[i] = result[2];
+
+                    default: raw_execute_data[i] = '0;
+                endcase
+            end
 
             always_comb begin 
                 case (dest_match[i])
@@ -438,13 +462,29 @@ module back_end #(
         `else 
 
         for (i = 0; i < 2; ++i) begin
-            assign execute_valid[i] = (dest_match[i][0] & valid_sampled[0]) | (dest_match[i][1] & valid_sampled[1]); 
+            assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
+                                          ((raw_dest_match[i][0] & valid[0]) |
+                                           (raw_dest_match[i][1] & valid[1]));
+
+            assign execute_valid[i] = (reg_src_i[i] != '0) &
+                                      ((dest_match[i][0] & valid_sampled[0]) |
+                                       (dest_match[i][1] & valid_sampled[1]));
+
+            always_comb begin
+                case (raw_dest_match[i])
+                    2'b01: raw_execute_data[i] = result[0];
+
+                    2'b10: raw_execute_data[i] = result[1];
+
+                    default: raw_execute_data[i] = '0;
+                endcase
+            end
 
             always_comb begin 
                 case (dest_match[i])
-                    3'b01: execute_data[i] = result_sampled[0];
+                    2'b01: execute_data[i] = result_sampled[0];
 
-                    3'b10: execute_data[i] = result_sampled[1];
+                    2'b10: execute_data[i] = result_sampled[1];
 
                     default: execute_data[i] = '0;
                 endcase 
