@@ -44,6 +44,10 @@ module bypass_controller (
     input data_word_t [1:0] issue_operand_i,
     input logic [1:0] issue_immediate_i,
 
+    /* Raw result from execute stage */
+    input data_word_t [1:0] raw_execute_data_i,
+    input logic [1:0] raw_execute_valid_i,
+
     /* Result from execute stage */ 
     input data_word_t [1:0] execute_data_i,
     input logic [1:0] execute_valid_i,
@@ -56,12 +60,13 @@ module bypass_controller (
     output data_word_t [1:0] operand_o
 );
 
-    logic [1:0] execute_valid, commit_valid; 
+    logic [1:0] raw_execute_valid, execute_valid, commit_valid;
 
     generate genvar i;  
         
         for (i = 0; i < 2; ++i) begin 
 
+            assign raw_execute_valid[i] = raw_execute_valid_i[i] & !issue_immediate_i[i];
             assign execute_valid[i] = execute_valid_i[i] & !issue_immediate_i[i];
             assign commit_valid[i] = commit_valid_i[i] & !issue_immediate_i[i];
 
@@ -69,12 +74,14 @@ module bypass_controller (
                 /* Prior stages have the priority over later stages since they hold 
                  * the most recent value. If an immediate has been supplied, no 
                  * dependency hazard can be created */
-                casez ({execute_valid[i], commit_valid[i]})
-                    2'b1?: operand_o[i] = execute_data_i[i];
+                casez ({raw_execute_valid[i], execute_valid[i], commit_valid[i]})
+                    3'b1??: operand_o[i] = raw_execute_data_i[i];
 
-                    2'b01: operand_o[i] = commit_data_i[i];
+                    3'b01?: operand_o[i] = execute_data_i[i];
 
-                    2'b00: operand_o[i] = issue_operand_i[i];
+                    3'b001: operand_o[i] = commit_data_i[i];
+
+                    3'b000: operand_o[i] = issue_operand_i[i];
 
                     default: operand_o[i] = '0;
                 endcase 
@@ -85,4 +92,4 @@ module bypass_controller (
 
 endmodule : bypass_controller
 
-`endif 
+`endif
