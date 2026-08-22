@@ -271,19 +271,21 @@ module ApogeoRV #(
     exu_valid_t backend_valid_operation; exu_uop_t backend_operation;
     logic [1:0][4:0] backend_register_source;
 
-    assign backend_branch           = issue ? frontend_branch           : 1'b0;
-    assign backend_jump             = issue ? frontend_jump             : 1'b0;
-    assign backend_valid_operation  = issue ? frontend_valid_operation  : '0;
+    assign backend_branch           = issue ? frontend_branch : 1'b0;
+    assign backend_jump             = issue ? frontend_jump : 1'b0;
+    assign backend_valid_operation  = issue ? frontend_valid_operation : '0;
 
-    assign backend_speculative       = frontend_speculative;
-    assign backend_address_offset    = frontend_address_offset;
-    assign backend_save_next_pc      = frontend_save_next_pc;
-    assign backend_base_address_reg  = frontend_base_address_reg;
-    assign backend_operand           = frontend_operand;
-    assign backend_ipacket           = frontend_ipacket;
-    assign backend_register_source   = frontend_register_source;
-    assign backend_immediate_valid   = frontend_immediate_valid;
-    assign backend_operation         = frontend_operation;
+    assign backend_speculative  = frontend_speculative;
+    assign backend_save_next_pc = frontend_save_next_pc;
+
+    assign backend_address_offset   = frontend_address_offset;
+    assign backend_base_address_reg = frontend_base_address_reg;
+
+    assign backend_operand         = frontend_operand;
+    assign backend_ipacket         = frontend_ipacket;
+    assign backend_register_source = frontend_register_source;
+    assign backend_immediate_valid = frontend_immediate_valid;
+    assign backend_operation       = frontend_operation;
 
 
 //====================================================================================
