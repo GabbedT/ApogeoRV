@@ -82,7 +82,10 @@ module reorder_buffer #(
      * valid and can be written back */
     output logic valid_o,
     output rob_entry_t entry_o,
-    output data_word_t head_pc_o
+    output data_word_t head_pc_o,
+
+    /* The squashed branch retired */
+    output logic branch_retired_o
 );
 
     /* Carry extra info for full/empty */
@@ -227,6 +230,24 @@ module reorder_buffer #(
         end
         
     assign valid_o = valid[read_ptr[IDX_WIDTH - 1:0]] & !empty_o;
+
+    /* Pulse when the entry of the last squashed branch is retired, every
+     * older instruction is committed at that point */
+    logic branch_pending;
+    logic [PTR_WIDTH - 1:0] branch_tag_latched;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : branch_retirement_tracking
+            if (!rst_n_i | flush_i) begin
+                branch_pending <= 1'b0;
+            end else if (branch_flush_i) begin
+                branch_pending <= 1'b1;
+                branch_tag_latched <= branch_tag_i;
+            end else if (branch_retired_o) begin
+                branch_pending <= 1'b0;
+            end
+        end : branch_retirement_tracking
+
+    assign branch_retired_o = branch_pending & read_i & (read_ptr == branch_tag_latched);
 
 endmodule : reorder_buffer
 
