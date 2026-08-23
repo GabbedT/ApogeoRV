@@ -205,7 +205,10 @@ module commit_buffer #(
                 valid_register <= '0;
             end else if (!stall_i) begin
                 if (write_i) begin
-                    /* On writes validate the result */
+                    /* Keep the latest produced value forwardable after the
+                     * FIFO entry moves into the ROB.  A later producer of the
+                     * same register overwrites this shadow and invalidates the
+                     * copies held by the other execution ports. */
                     valid_register[ipacket_i.reg_dest] <= 1'b1;
                 end
 
@@ -244,4 +247,4 @@ module commit_buffer #(
 
 endmodule : commit_buffer
 
-`endif 
+`endif
