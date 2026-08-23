@@ -62,6 +62,7 @@ module front_end #(
     /* Flushing */
     input logic flush_i,
     input logic branch_flush_i,
+    input logic branch_retired_i,
 
     /* Core privilege */
     input logic priv_level_i,
@@ -889,6 +890,9 @@ module front_end #(
 //====================================================================================
 
     logic pipeline_empty;
+    logic iqueue_issue;
+    logic scheduler_base_address_reg;
+    data_word_t scheduler_address_offset;
 
     scheduler #(ROB_DEPTH) scheduler_unit (
         .clk_i            ( clk_i            ),  
@@ -896,6 +900,7 @@ module front_end #(
         .stall_i          ( stall_i          ),
         .flush_i          ( flush_i          ),
         .branch_flush_i   ( branch_flush_i   ),
+        .branch_retired_i ( branch_retired_i ),
         .pipeline_empty_i ( pipeline_empty_i ),
         .pipeline_empty_o ( pipeline_empty   ),
         .stall_o          ( stall            ),
@@ -924,6 +929,14 @@ module front_end #(
 
         .save_next_pc_i ( dc_stage_save_next_pc ),
 
+        .branch_i ( dc_stage_branch ),
+        .jump_i   ( dc_stage_jump   ),
+
+        .base_address_reg_i ( dc_stage_base_address_reg ),
+        .address_offset_i   ( dc_stage_address_offset   ),
+        .base_address_reg_o ( scheduler_base_address_reg ),
+        .address_offset_o   ( scheduler_address_offset   ),
+
         .immediate_i       ( dc_stage_immediate       ),
         .immediate_valid_i ( dc_stage_immediate_valid ),
 
@@ -940,23 +953,27 @@ module front_end #(
         .exu_valid_o ( exu_valid_o            ),
         .exu_uop_o   ( exu_uop_o              ),
 
+        .iqueue_issue_o ( iqueue_issue ),
+
         .immediate_valid_o ( immediate_valid_o ),
-        .operand_o         ( operand_o         ) 
-    ); 
+        .operand_o         ( operand_o         )
+    );
 
     assign pipeline_empty_o = ibuffer_empty & ((state_CRT == STREAM_START) | (state_CRT == LOWER_HALF)) & pipeline_empty
                             & !if_stage_valid & (dc_stage_exu_valid == '0);
     
     assign mispredicted_o = mispredicted;
 
-    assign branch_o = dc_stage_branch;
-    assign jump_o = dc_stage_jump;
-    assign speculative_o = dc_stage_speculative;
+    /* A buffered instruction is never a branch or a jump, its issue bundle
+     * must not carry the control flow fields of the held decode entry */
+    assign branch_o = dc_stage_branch & !iqueue_issue;
+    assign jump_o = dc_stage_jump & !iqueue_issue;
+    assign speculative_o = dc_stage_speculative & !iqueue_issue;
 
-    assign issue_o = !stall;
-    assign save_next_pc_o = dc_stage_save_next_pc;
-    assign address_offset_o = dc_stage_address_offset; 
-    assign base_address_reg_o = dc_stage_base_address_reg;
+    assign issue_o = !stall | iqueue_issue;
+    assign save_next_pc_o = dc_stage_save_next_pc & !iqueue_issue;
+    assign address_offset_o = scheduler_address_offset;
+    assign base_address_reg_o = scheduler_base_address_reg;
 
 endmodule : front_end 
 
