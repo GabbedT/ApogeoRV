@@ -60,6 +60,7 @@ module back_end #(
     /* Pipeline control */
     output logic flush_o,
     output logic branch_flush_o,
+    output logic branch_retired_o,
     output logic stall_o,
     output logic priv_level_o,
     output logic pipeline_empty_o,
@@ -198,6 +199,7 @@ module back_end #(
 
         .outcome_o ( branch_outcome )
     );
+
 
 
         always_ff @(posedge clk_i) begin
@@ -577,7 +579,9 @@ module back_end #(
 
         .valid_o   ( writeback_valid   ),
         .entry_o   ( writeback_packet  ),
-        .head_pc_o ( allocated_pc_head )
+        .head_pc_o ( allocated_pc_head ),
+
+        .branch_retired_o ( branch_retired_o )
     );
 
     assign rob_full_o = reorder_buffer_full;
