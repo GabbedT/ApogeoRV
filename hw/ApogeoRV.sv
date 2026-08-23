@@ -134,7 +134,7 @@ module ApogeoRV #(
 
     /* Pipeline control */ 
     logic M_extension, B_extension, Zfinx_extension, C_extension;
-    logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, ldu_serviced, branch_flush, pipeline_empty;
+    logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, ldu_serviced, branch_flush, branch_retired, pipeline_empty;
     data_word_t handler_program_counter, hander_return_program_counter;
 
     /* Write back result */
@@ -169,6 +169,7 @@ module ApogeoRV #(
         
         .flush_i          ( flush_pipeline  ),
         .branch_flush_i   ( branch_flush    ),
+        .branch_retired_i ( branch_retired  ),
         .priv_level_i     ( privilege_level ),
         .issue_o          ( issue           ),
         .pipeline_empty_i ( pipeline_empty  ),
@@ -314,6 +315,7 @@ module ApogeoRV #(
 
         .flush_o          ( flush_pipeline ),
         .branch_flush_o   ( branch_flush   ),
+        .branch_retired_o ( branch_retired ),
         .stall_o          ( stall_pipeline ),
         .pipeline_empty_o ( pipeline_empty ),
 
