@@ -122,6 +122,9 @@ module execution_unit #(
     /* Functional units status for scheduling */
     output logic ldu_idle_o,
     output logic ldu_serviced_o,
+    output logic ldu_wakeup_valid_o,
+    output logic [4:0] ldu_wakeup_reg_o,
+    output data_word_t ldu_wakeup_data_o,
     output logic stu_idle_o,
 
     /* Result */
@@ -191,6 +194,9 @@ module execution_unit #(
         .operation_i    ( operation_i.LSU.subunit ),
         .ldu_idle_o     ( ldu_idle_o              ),
         .ldu_serviced_o ( ldu_serviced_o          ),
+        .ldu_wakeup_valid_o ( ldu_wakeup_valid_o  ),
+        .ldu_wakeup_reg_o   ( ldu_wakeup_reg_o    ),
+        .ldu_wakeup_data_o  ( ldu_wakeup_data_o   ),
         .stu_idle_o     ( stu_idle_o              ),
         .validate_i     ( validate_i              ),
         .load_channel   ( load_channel            ),

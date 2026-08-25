@@ -135,6 +135,9 @@ module ApogeoRV #(
     /* Pipeline control */ 
     logic M_extension, B_extension, Zfinx_extension, C_extension;
     logic flush_pipeline, stall_pipeline, privilege_level, exception, stu_idle, ldu_idle, ldu_serviced, branch_flush, branch_retired, pipeline_empty;
+    logic ldu_wakeup_valid;
+    logic [4:0] ldu_wakeup_reg;
+    data_word_t ldu_wakeup_data;
     data_word_t handler_program_counter, hander_return_program_counter;
 
     /* Write back result */
@@ -216,6 +219,8 @@ module ApogeoRV #(
 
         .ldu_idle_i ( ldu_idle ),
         .ldu_serviced_i ( ldu_serviced ),
+        .ldu_wakeup_valid_i ( ldu_wakeup_valid ),
+        .ldu_wakeup_reg_i   ( ldu_wakeup_reg   ),
         .stu_idle_i ( stu_idle ),
 
         .branch_o             ( frontend_branch       ),
@@ -384,6 +389,9 @@ module ApogeoRV #(
 
         .ldu_idle_o ( ldu_idle ),
         .ldu_serviced_o ( ldu_serviced ),
+        .ldu_wakeup_valid_o ( ldu_wakeup_valid ),
+        .ldu_wakeup_reg_o   ( ldu_wakeup_reg   ),
+        .ldu_wakeup_data_o  ( ldu_wakeup_data  ),
         .stu_idle_o ( stu_idle ),
 
         .reg_destination_o  ( writeback_register ),

@@ -73,6 +73,9 @@ module load_store_unit #(
     /* Functional unit state */
     output logic ldu_idle_o,
     output logic ldu_serviced_o,
+    output logic ldu_wakeup_valid_o,
+    output logic [4:0] ldu_wakeup_reg_o,
+    output data_word_t ldu_wakeup_data_o,
     output logic stu_idle_o,
 
     /* Validate store buffer entry */
@@ -216,6 +219,12 @@ module load_store_unit #(
     ); 
 
     instr_packet_t ldu_ipacket, ldu_exception_packet;
+
+    /* Early load result for same-cycle scheduler wakeup and execute bypass.
+     * Keep the registered result below for ROB/commit alignment. */
+    assign ldu_wakeup_valid_o = ldu_data_valid & !ldu_misaligned_access & !ldu_illegal_access;
+    assign ldu_wakeup_reg_o = ldu_ipacket.reg_dest;
+    assign ldu_wakeup_data_o = loaded_data;
 
     logic load_packet_empty, load_packet_full;
 

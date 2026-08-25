@@ -73,6 +73,8 @@ module scoreboard #(
     input ldu_opcode_t [IQUEUE_SIZE:0] ldu_operation_i,
     input logic ldu_idle_i,
     input logic ldu_serviced_i,
+    input logic ldu_wakeup_valid_i,
+    input logic [4:0] ldu_wakeup_reg_i,
     input logic stu_idle_i,
 
     /* Hold the buffered candidates after a branch squash until
@@ -519,6 +521,8 @@ module scoreboard #(
     logic [IQUEUE_SIZE:0][1:0] ldu_raw_hazard;
     logic [1:0] ldu_valid;
     logic [1:0][4:0] ldu_register_dest;
+    logic [1:0] ldu_hazard_valid;
+    logic [1:0][4:0] ldu_hazard_dest;
 
         /* The load unit and cache return data in order, so destination tags
          * are tracked as a two-entry FIFO. This also handles simultaneous
@@ -568,15 +572,34 @@ module scoreboard #(
     assign ldu_valid[0] = (ldu_load_cnt != '0);
     assign ldu_valid[1] = ldu_load_cnt == 2'd2;
 
+    /* A completed oldest load may wake a dependent in the response cycle.
+     * Keep younger in-flight loads blocked and preserve FIFO ordering. */
+    always_comb begin
+        ldu_hazard_valid = ldu_valid;
+        ldu_hazard_dest = ldu_register_dest;
+
+        if (ldu_wakeup_valid_i & (ldu_register_dest[0] == ldu_wakeup_reg_i)) begin
+            if (ldu_load_cnt == 2'd1) begin
+                ldu_hazard_valid = '0;
+            end else if (ldu_load_cnt == 2'd2) begin
+                ldu_hazard_valid[0] = 1'b1;
+                ldu_hazard_dest[0] = ldu_register_dest[1];
+                ldu_hazard_valid[1] = 1'b0;
+            end
+        end
+    end
+
     /* Check for each candidate */
     for (j = 0; j <= IQUEUE_SIZE; ++j) begin
-        assign ldu_raw_hazard[j][0] = ((src_reg_i[j][0] == ldu_register_dest[0]) |
-                                    (src_reg_i[j][1] == ldu_register_dest[0]) |
-                                    (dest_reg_i[j]   == ldu_register_dest[0])) & ldu_valid[0] & (ldu_register_dest[0] != '0);
+        assign ldu_raw_hazard[j][0] = (((src_reg_i[j][0] == ldu_hazard_dest[0]) |
+                                    (src_reg_i[j][1] == ldu_hazard_dest[0])) & ldu_hazard_valid[0] |
+                                    (dest_reg_i[j]   == ldu_register_dest[0]) & ldu_valid[0]) &
+                                    ((ldu_hazard_dest[0] != '0) | (ldu_register_dest[0] != '0));
 
-        assign ldu_raw_hazard[j][1] = ((src_reg_i[j][0] == ldu_register_dest[1]) |
-                                    (src_reg_i[j][1] == ldu_register_dest[1]) |
-                                    (dest_reg_i[j]   == ldu_register_dest[1])) & ldu_valid[1] & (ldu_register_dest[1] != '0);
+        assign ldu_raw_hazard[j][1] = (((src_reg_i[j][0] == ldu_hazard_dest[1]) |
+                                    (src_reg_i[j][1] == ldu_hazard_dest[1])) & ldu_hazard_valid[1] |
+                                    (dest_reg_i[j]   == ldu_register_dest[1]) & ldu_valid[1]) &
+                                    ((ldu_hazard_dest[1] != '0) | (ldu_register_dest[1] != '0));
     end
 
     `ifdef SV_ASSERTION

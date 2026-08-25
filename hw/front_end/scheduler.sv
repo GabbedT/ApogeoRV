@@ -133,6 +133,8 @@ module scheduler #(
     /* LSU status */
     input logic ldu_idle_i,
     input logic ldu_serviced_i,
+    input logic ldu_wakeup_valid_i,
+    input logic [4:0] ldu_wakeup_reg_i,
     input logic stu_idle_i,
 
     /* Functional units operations */
@@ -329,6 +331,8 @@ module scheduler #(
         .ldu_operation_i ( {exu_uop_i.LSU.subunit.LDU.opcode.uop, iqueue_ldu_op} ),
         .ldu_idle_i      ( ldu_idle_i                                            ),
         .ldu_serviced_i  ( ldu_serviced_i                                        ),
+        .ldu_wakeup_valid_i ( ldu_wakeup_valid_i                                ),
+        .ldu_wakeup_reg_i   ( ldu_wakeup_reg_i                                  ),
         .stu_idle_i      ( stu_idle_i                                            ),
 
         .squash_hold_i        ( squash_hold          ),

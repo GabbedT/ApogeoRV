@@ -122,6 +122,8 @@ module front_end #(
     /* LSU status */
     input logic ldu_idle_i,
     input logic ldu_serviced_i,
+    input logic ldu_wakeup_valid_i,
+    input logic [4:0] ldu_wakeup_reg_i,
     input logic stu_idle_i,
 
     /* To backend */
@@ -946,6 +948,8 @@ module front_end #(
 
         .ldu_idle_i ( ldu_idle_i ),
         .ldu_serviced_i ( ldu_serviced_i ),
+        .ldu_wakeup_valid_i ( ldu_wakeup_valid_i ),
+        .ldu_wakeup_reg_i   ( ldu_wakeup_reg_i   ),
         .stu_idle_i ( stu_idle_i ),
 
         .exu_valid_i ( dc_stage_exu_valid     ),
