@@ -153,6 +153,9 @@ module ApogeoRV #(
     exu_valid_t frontend_valid_operation; exu_uop_t frontend_operation; 
     logic [1:0][4:0] frontend_register_source;
 
+    /* Load unit status */
+    logic ldu_bypass_valid; logic [4:0] ldu_bypass_reg; data_word_t ldu_bypass_data;
+
     /* ROB - Scheduler interface */
     logic [$clog2(ROB_DEPTH):0] rob_tag;
     logic rob_full, rob_alloc;
@@ -167,12 +170,14 @@ module ApogeoRV #(
         .rst_n_i ( rst_n_i                     ),
         .stall_i ( stall_pipeline | drain_pipe ),
         
-        .flush_i          ( flush_pipeline  ),
-        .branch_flush_i   ( branch_flush    ),
-        .priv_level_i     ( privilege_level ),
-        .issue_o          ( issue           ),
-        .pipeline_empty_i ( pipeline_empty  ),
-        .pipeline_empty_o ( pipe_flushed    ),
+        .flush_i            ( flush_pipeline   ),
+        .branch_flush_i     ( branch_flush     ),
+        .ldu_bypass_valid_i ( ldu_bypass_valid ),
+        .ldu_bypass_reg_i   ( ldu_bypass_reg   ),
+        .priv_level_i       ( privilege_level  ),
+        .issue_o            ( issue            ),
+        .pipeline_empty_i   ( pipeline_empty   ),
+        .pipeline_empty_o   ( pipe_flushed     ),
 
         .rob_tag_i   ( rob_tag   ),
         .rob_full_i  ( rob_full  ),
@@ -378,9 +383,12 @@ module ApogeoRV #(
         .handler_pc_o               ( handler_program_counter       ),
         .handler_return_pc_o        ( hander_return_program_counter ),
 
-        .ldu_idle_o ( ldu_idle ),
-        .ldu_serviced_o ( ldu_serviced ),
-        .stu_idle_o ( stu_idle ),
+        .ldu_idle_o         ( ldu_idle         ),
+        .ldu_serviced_o     ( ldu_serviced     ),
+        .ldu_bypass_valid_o ( ldu_bypass_valid ),
+        .ldu_bypass_reg_o   ( ldu_bypass_reg   ),
+        .ldu_bypass_data_o  ( ldu_bypass_data  ),
+        .stu_idle_o         ( stu_idle         ),
 
         .reg_destination_o  ( writeback_register ),
         .writeback_result_o ( writeback_result   ),
