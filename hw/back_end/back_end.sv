@@ -147,6 +147,9 @@ module back_end #(
     /* Functional units status for scheduling */
     output logic ldu_idle_o,
     output logic ldu_serviced_o,
+    output logic ldu_bypass_valid_o,
+    output logic [4:0] ldu_bypass_reg_o,
+    output data_word_t ldu_bypass_data_o,
     output logic stu_idle_o,
 
     /* Writeback data */
@@ -292,7 +295,9 @@ module back_end #(
 
     /* Pipeline control */
     logic stall_pipeline, buffer_full, csr_buffer_full, execute_csr, store_buffer_empty;
-    logic execute_store, ldu_idle, ldu_serviced, stu_idle;
+    logic execute_store, ldu_idle, ldu_serviced, ldu_bypass_valid, stu_idle;
+    logic [4:0] ldu_bypass_reg;
+    data_word_t ldu_bypass_data;
 
     exu_valid_t valid_operation;
 
@@ -361,9 +366,12 @@ module back_end #(
         .instruction_retired_i  ( instruction_retired    ),
         .compressed_i           ( instruction_compressed ),
 
-        .ldu_idle_o ( ldu_idle ),
-        .ldu_serviced_o ( ldu_serviced ),
-        .stu_idle_o ( stu_idle ),
+        .ldu_idle_o         ( ldu_idle         ),
+        .ldu_serviced_o     ( ldu_serviced     ),
+        .ldu_bypass_valid_o ( ldu_bypass_valid ),
+        .ldu_bypass_reg_o   ( ldu_bypass_reg   ),
+        .ldu_bypass_data_o  ( ldu_bypass_data  ),
+        .stu_idle_o         ( stu_idle         ),
 
         .result_o     ( result       ),
         .ipacket_o    ( ipacket      ),
@@ -389,6 +397,10 @@ module back_end #(
 
         assign ldu_idle_o = ldu_idle_sampled & !valid_operation.LSU.LDU;
         assign ldu_serviced_o = ldu_serviced;
+        assign ldu_bypass_valid_o = ldu_bypass_valid;
+        assign ldu_bypass_reg_o = ldu_bypass_reg;
+        assign ldu_bypass_data_o = ldu_bypass_data;
+
         assign stu_idle_o = stu_idle_sampled & !valid_operation.LSU.STU;
 
 
@@ -412,8 +424,13 @@ module back_end #(
     genvar i; 
 
     logic [1:0][EXU_PORT - 1:0] raw_dest_match, dest_match;
+    logic [1:0] early_ldu_dest_match;
 
     generate
+        for (i = 0; i < 2; ++i) begin
+            assign early_ldu_dest_match[i] = ldu_bypass_reg == reg_src_i[i];
+        end
+
         for (i = 0; i < EXU_PORT; ++i) begin
             assign raw_dest_match[0][i] = ipacket[i].reg_dest == reg_src_i[0];
             assign raw_dest_match[1][i] = ipacket[i].reg_dest == reg_src_i[1];
@@ -427,7 +444,8 @@ module back_end #(
             assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
                                           ((raw_dest_match[i][0] & valid[0]) |
                                            (raw_dest_match[i][1] & valid[1]) |
-                                           (raw_dest_match[i][2] & valid[2]));
+                                           (raw_dest_match[i][2] & valid[2]) |
+                                           (early_ldu_dest_match[i] & ldu_bypass_valid));
 
             assign execute_valid[i] = (reg_src_i[i] != '0) &
                                       ((dest_match[i][0] & valid_sampled[0]) |
@@ -442,7 +460,10 @@ module back_end #(
 
                     3'b100: raw_execute_data[i] = result[2];
 
-                    default: raw_execute_data[i] = '0;
+                    default: begin
+                        raw_execute_data[i] = (early_ldu_dest_match[i] & ldu_bypass_valid) ?
+                                              ldu_bypass_data : '0;
+                    end
                 endcase
             end
 
@@ -464,7 +485,8 @@ module back_end #(
         for (i = 0; i < 2; ++i) begin
             assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
                                           ((raw_dest_match[i][0] & valid[0]) |
-                                           (raw_dest_match[i][1] & valid[1]));
+                                           (raw_dest_match[i][1] & valid[1]) |
+                                           (early_ldu_dest_match[i] & ldu_bypass_valid));
 
             assign execute_valid[i] = (reg_src_i[i] != '0) &
                                       ((dest_match[i][0] & valid_sampled[0]) |
@@ -476,7 +498,10 @@ module back_end #(
 
                     2'b10: raw_execute_data[i] = result[1];
 
-                    default: raw_execute_data[i] = '0;
+                    default: begin
+                        raw_execute_data[i] = (early_ldu_dest_match[i] & ldu_bypass_valid) ?
+                                              ldu_bypass_data : '0;
+                    end
                 endcase
             end
 

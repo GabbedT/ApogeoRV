@@ -121,6 +121,8 @@ module front_end #(
     /* LSU status */
     input logic ldu_idle_i,
     input logic ldu_serviced_i,
+    input logic ldu_bypass_valid_i,
+    input logic [4:0] ldu_bypass_reg_i,
     input logic stu_idle_i,
 
     /* To backend */
@@ -931,9 +933,11 @@ module front_end #(
         .dest_reg_i ( dc_stage_reg_destination ), 
         .src_reg_o  ( register_source_o        ),
 
-        .ldu_idle_i ( ldu_idle_i ),
-        .ldu_serviced_i ( ldu_serviced_i ),
-        .stu_idle_i ( stu_idle_i ),
+        .ldu_idle_i         ( ldu_idle_i         ),
+        .ldu_serviced_i     ( ldu_serviced_i     ),
+        .ldu_bypass_valid_i ( ldu_bypass_valid_i ),
+        .ldu_bypass_reg_i   ( ldu_bypass_reg_i   ),
+        .stu_idle_i         ( stu_idle_i         ),
 
         .exu_valid_i ( dc_stage_exu_valid     ),
         .exu_uop_i   ( dc_stage_exu_operation ),
@@ -941,8 +945,8 @@ module front_end #(
         .exu_uop_o   ( exu_uop_o              ),
 
         .immediate_valid_o ( immediate_valid_o ),
-        .operand_o         ( operand_o         ) 
-    ); 
+        .operand_o         ( operand_o         )
+    );
 
     assign pipeline_empty_o = ibuffer_empty & ((state_CRT == STREAM_START) | (state_CRT == LOWER_HALF)) & pipeline_empty
                             & !if_stage_valid & (dc_stage_exu_valid == '0);

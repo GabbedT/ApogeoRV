@@ -69,6 +69,8 @@ module scoreboard (
     input ldu_opcode_t ldu_operation_i,
     input logic ldu_idle_i,
     input logic ldu_serviced_i,
+    input logic ldu_bypass_valid_i,
+    input logic [4:0] ldu_bypass_reg_i,
     input logic stu_idle_i, 
 
     /* Issue command */
@@ -81,28 +83,30 @@ module scoreboard (
 //====================================================================================  
 
     /* Since before the execution stage there's a bypass stage
-     * the latencies must be increased by 1 */
+     * the latencies must be increased by 1.  The frontend-to-backend
+     * pipeline register has been removed, so each base latency is one
+     * cycle shorter than it used to be. */
 
     /* Valid for ALU and CSR */
-    localparam ALU_LATENCY = 2;
+    localparam ALU_LATENCY = 1;
 
-    localparam MUL_LATENCY = 3;
+    localparam MUL_LATENCY = 2;
 
-    localparam BMU_LATENCY = 3;
+    localparam BMU_LATENCY = 2;
 
-    localparam DIV_LATENCY = 37;
+    localparam DIV_LATENCY = 36;
 
-    localparam FADD_LATENCY = 7;
+    localparam FADD_LATENCY = 6;
 
     /* The multiplier result is visible to execute-stage forwarding after the
      * pre-normalization/alignment, normalization and FPU output registers. */
-    localparam FMUL_LATENCY = 7;
+    localparam FMUL_LATENCY = 6;
 
-    localparam FCVT_LATENCY = 4;
+    localparam FCVT_LATENCY = 3;
 
-    localparam FCMP_LATENCY = 3;
+    localparam FCMP_LATENCY = 2;
 
-    localparam FMIS_LATENCY = 3;
+    localparam FMIS_LATENCY = 2;
 
     /* Keep the issue grants local to each execution unit. This prevents the
      * structural status of a sequential unit from driving every scoreboard
@@ -260,7 +264,7 @@ module scoreboard (
      * track of every stage */
     logic [MUL_LATENCY - 1:0] mul_executing, mul_raw_hazard, mul_latency_hazard;
     logic [MUL_LATENCY - 1:0][31:0] mul_register_dest;
-    logic [MUL_LATENCY - 1:0][$clog2(MUL_LATENCY) - 1:0] mul_latency_cnt;
+    logic [MUL_LATENCY - 1:0][$clog2(MUL_LATENCY):0] mul_latency_cnt;
 
     generate
 
@@ -441,6 +445,8 @@ module scoreboard (
     /* Calculate how many loads are in flight */
     logic [1:0] ldu_load_cnt; logic ldu_full, ldu_issue_event;
     logic ldu_issue_pending, ldu_squash_event;
+    logic [1:0] ldu_hazard_valid;
+    logic [1:0][4:0] ldu_hazard_dest;
 
         /* A resolved branch clears the bypass stage one cycle after a younger
          * instruction was accepted by the scheduler.  Remember that issue so
@@ -531,18 +537,36 @@ module scoreboard (
             end
         end : ldu_destination_register
 
-    /* The FIFO head is forwardable from the LSU raw output after service. */
-    assign ldu_valid[0] = (ldu_load_cnt != '0) & !ldu_serviced_i;
+    assign ldu_valid[0] = (ldu_load_cnt != '0);
     assign ldu_valid[1] = ldu_load_cnt == 2'd2;
 
 
-    assign ldu_raw_hazard[0] = ((src_reg_i[0] == ldu_register_dest[0]) | 
-                                (src_reg_i[1] == ldu_register_dest[0]) | 
-                                (dest_reg_i   == ldu_register_dest[0])) & ldu_valid[0] & (ldu_register_dest[0] != '0);
+    /* A completed oldest load may wake a dependent in the response cycle.
+     * Keep younger in-flight loads blocked and preserve FIFO ordering. */
+    always_comb begin
+        ldu_hazard_valid = ldu_valid;
+        ldu_hazard_dest = ldu_register_dest;
 
-    assign ldu_raw_hazard[1] = ((src_reg_i[0] == ldu_register_dest[1]) | 
-                                (src_reg_i[1] == ldu_register_dest[1]) | 
-                                (dest_reg_i   == ldu_register_dest[1])) & ldu_valid[1] & (ldu_register_dest[1] != '0);
+        if (ldu_bypass_valid_i & (ldu_register_dest[0] == ldu_bypass_reg_i)) begin
+            if (ldu_load_cnt == 2'd1) begin
+                ldu_hazard_valid = '0;
+            end else if (ldu_load_cnt == 2'd2) begin
+                ldu_hazard_valid[0] = 1'b1;
+                ldu_hazard_dest[0] = ldu_register_dest[1];
+                ldu_hazard_valid[1] = 1'b0;
+            end
+        end
+    end
+
+    assign ldu_raw_hazard[0] = (((src_reg_i[0] == ldu_hazard_dest[0]) |
+                                 (src_reg_i[1] == ldu_hazard_dest[0])) & ldu_hazard_valid[0] |
+                                (dest_reg_i   == ldu_register_dest[0]) & ldu_valid[0]) &
+                                ((ldu_hazard_dest[0] != '0) | (ldu_register_dest[0] != '0));
+
+    assign ldu_raw_hazard[1] = (((src_reg_i[0] == ldu_hazard_dest[1]) |
+                                 (src_reg_i[1] == ldu_hazard_dest[1])) & ldu_hazard_valid[1] |
+                                (dest_reg_i   == ldu_register_dest[1]) & ldu_valid[1]) &
+                                ((ldu_hazard_dest[1] != '0) | (ldu_register_dest[1] != '0));
 
     `ifdef SV_ASSERTION
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
@@ -562,28 +586,8 @@ module scoreboard (
 //      STU SCHEDULING LOGIC
 //==================================================================================== 
 
-    /* Block issue for one cycle since there's the bypass stage */
-    logic block_stu_issue; 
+    logic block_store_operation;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
-            if (!rst_n_i) begin
-                block_stu_issue <= 1'b0;
-            end else if (!stall_i) begin
-                if (stu_issue) begin
-                    block_stu_issue <= 1'b1;
-                end else begin
-                    block_stu_issue <= 1'b0;
-                end
-            end
-        end 
-
-
-    logic stu_raw_hazard, block_store_operation;
-
-    /* Store instructions do not have a destination register. Their operands
-     * are sampled before the operation enters the store unit, therefore only
-     * the bypass blocking cycle must be tracked here. */
-    assign stu_raw_hazard = block_stu_issue;
 
     /* A younger store must not become visible to store-to-load forwarding
      * while an older load is unresolved.  ldu_idle_i changes only after the
@@ -1018,7 +1022,7 @@ module scoreboard (
 
     logic raw_hazard, latency_hazard, structural_hazard, issue_hazard;
 
-    assign raw_hazard = stu_raw_hazard | (|ldu_raw_hazard) | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
+    assign raw_hazard = (|ldu_raw_hazard) | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
     assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_full & !ldu_serviced_i) | (lsu_unit_i.STU & !stu_idle_i);
     assign issue_hazard = raw_hazard | latency_hazard;

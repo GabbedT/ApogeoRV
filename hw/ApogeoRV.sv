@@ -153,6 +153,9 @@ module ApogeoRV #(
     exu_valid_t frontend_valid_operation; exu_uop_t frontend_operation; 
     logic [1:0][4:0] frontend_register_source;
 
+    /* Load unit status */
+    logic ldu_bypass_valid; logic [4:0] ldu_bypass_reg; data_word_t ldu_bypass_data;
+
     /* ROB - Scheduler interface */
     logic [$clog2(ROB_DEPTH):0] rob_tag;
     logic rob_full, rob_alloc;
@@ -167,12 +170,14 @@ module ApogeoRV #(
         .rst_n_i ( rst_n_i                     ),
         .stall_i ( stall_pipeline | drain_pipe ),
         
-        .flush_i          ( flush_pipeline  ),
-        .branch_flush_i   ( branch_flush    ),
-        .priv_level_i     ( privilege_level ),
-        .issue_o          ( issue           ),
-        .pipeline_empty_i ( pipeline_empty  ),
-        .pipeline_empty_o ( pipe_flushed    ),
+        .flush_i            ( flush_pipeline   ),
+        .branch_flush_i     ( branch_flush     ),
+        .ldu_bypass_valid_i ( ldu_bypass_valid ),
+        .ldu_bypass_reg_i   ( ldu_bypass_reg   ),
+        .priv_level_i       ( privilege_level  ),
+        .issue_o            ( issue            ),
+        .pipeline_empty_i   ( pipeline_empty   ),
+        .pipeline_empty_o   ( pipe_flushed     ),
 
         .rob_tag_i   ( rob_tag   ),
         .rob_full_i  ( rob_full  ),
@@ -260,68 +265,30 @@ module ApogeoRV #(
 
 
 //====================================================================================
-//      PIPELINE REGISTER
+//      FRONT END -> BACK END
 //====================================================================================
 
-    /* Data to backend */ 
+    /* Data to backend */
     logic backend_branch, backend_jump; logic [1:0] backend_immediate_valid;
-    data_word_t backend_address_offset; 
-    logic backend_save_next_pc, backend_base_address_reg, backend_speculative; 
+    data_word_t backend_address_offset;
+    logic backend_save_next_pc, backend_base_address_reg, backend_speculative;
     data_word_t [1:0] backend_operand; instr_packet_t backend_ipacket;
-    exu_valid_t backend_valid_operation; exu_uop_t backend_operation; 
+    exu_valid_t backend_valid_operation; exu_uop_t backend_operation;
     logic [1:0][4:0] backend_register_source;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : pipeline_register
-            if (!rst_n_i) begin
-                backend_branch <= 1'b0;
-                backend_jump <= 1'b0;
-                backend_speculative <= 1'b0;
+    assign backend_branch           = issue ? frontend_branch           : 1'b0;
+    assign backend_jump             = issue ? frontend_jump             : 1'b0;
+    assign backend_valid_operation  = issue ? frontend_valid_operation  : '0;
 
-                backend_address_offset <= '0;
-                backend_save_next_pc <= 1'b0; 
-                backend_base_address_reg <= 1'b0; 
-
-                backend_operand <= '0;
-                backend_ipacket <= '0;
-                backend_register_source <= '0;
-                backend_immediate_valid <= '0;
-
-                backend_valid_operation <= '0; 
-                backend_operation <= '0;
-            end else if (flush_pipeline | branch_flush | frontend_mispredicted) begin
-                backend_branch <= 1'b0;
-                backend_jump <= 1'b0;
-                backend_speculative <= 1'b0;
-
-                backend_address_offset <= '0;
-                backend_save_next_pc <= 1'b0; 
-                backend_base_address_reg <= 1'b0; 
-
-                backend_operand <= '0;
-                backend_ipacket <= '0;
-                backend_register_source <= '0;
-                backend_immediate_valid <= '0;
-
-                backend_valid_operation <= '0; 
-                backend_operation <= '0;
-            end else if (!stall_pipeline) begin
-                backend_branch <= issue ? frontend_branch : 1'b0;
-                backend_jump <= issue ? frontend_jump : 1'b0;
-                backend_speculative <= frontend_speculative;
-
-                backend_address_offset <= frontend_address_offset;
-                backend_save_next_pc <= frontend_save_next_pc; 
-                backend_base_address_reg <= frontend_base_address_reg; 
-
-                backend_operand <= frontend_operand;
-                backend_ipacket <= frontend_ipacket;
-                backend_register_source <= frontend_register_source; 
-                backend_immediate_valid <= frontend_immediate_valid;
-
-                backend_valid_operation <= issue ? frontend_valid_operation : '0; 
-                backend_operation <= frontend_operation;
-            end
-        end : pipeline_register
+    assign backend_speculative       = frontend_speculative;
+    assign backend_address_offset    = frontend_address_offset;
+    assign backend_save_next_pc      = frontend_save_next_pc;
+    assign backend_base_address_reg  = frontend_base_address_reg;
+    assign backend_operand           = frontend_operand;
+    assign backend_ipacket           = frontend_ipacket;
+    assign backend_register_source   = frontend_register_source;
+    assign backend_immediate_valid   = frontend_immediate_valid;
+    assign backend_operation         = frontend_operation;
 
 
 //====================================================================================
@@ -416,9 +383,12 @@ module ApogeoRV #(
         .handler_pc_o               ( handler_program_counter       ),
         .handler_return_pc_o        ( hander_return_program_counter ),
 
-        .ldu_idle_o ( ldu_idle ),
-        .ldu_serviced_o ( ldu_serviced ),
-        .stu_idle_o ( stu_idle ),
+        .ldu_idle_o         ( ldu_idle         ),
+        .ldu_serviced_o     ( ldu_serviced     ),
+        .ldu_bypass_valid_o ( ldu_bypass_valid ),
+        .ldu_bypass_reg_o   ( ldu_bypass_reg   ),
+        .ldu_bypass_data_o  ( ldu_bypass_data  ),
+        .stu_idle_o         ( stu_idle         ),
 
         .reg_destination_o  ( writeback_register ),
         .writeback_result_o ( writeback_result   ),
@@ -436,23 +406,12 @@ module ApogeoRV #(
         end
 
 
-        /* Load channel output flip flops */ 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin 
-            if (!rst_n_i) begin
-                load_channel.request <= 1'b0;
-                load_channel.invalidate <= 1'b0;
-            end else begin
-                load_channel.request <= load_channel_backend.request;
-                load_channel.invalidate <= load_channel_backend.invalidate;
-            end
-        end
-
-        always_ff @(posedge clk_i) begin 
-            load_channel.address <= load_channel_backend.address;
-        end
+        assign load_channel.request = load_channel_backend.request;
+        assign load_channel.invalidate = load_channel_backend.invalidate;
+        assign load_channel.address = load_channel_backend.address;
 
     assign load_channel_backend.data = load_channel.data;
-    assign load_channel_backend.valid = load_channel.valid; 
+    assign load_channel_backend.valid = load_channel.valid;
 
 
         /* Store channel output flip flops */ 
