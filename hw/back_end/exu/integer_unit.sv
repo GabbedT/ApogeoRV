@@ -96,9 +96,7 @@ module integer_unit (
 
     assign alu_result_out = alu_valid ? alu_result : '0;
 
-    /* A pipeline flush clears every consumer valid at the receiving edge.
-     * Do not also drive the wide combinational payload with flush_i: doing so
-     * couples ROB retirement to the issue bypass and branch-result paths. */
+    /* A pipeline flush clears every consumer valid at the receiving edge */
     assign alu_final_ipacket = alu_valid ? ipacket_i : '0;
 
 

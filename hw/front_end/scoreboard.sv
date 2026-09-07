@@ -549,25 +549,14 @@ module scoreboard (
     assign ldu_response_matches_oldest = ldu_bypass_valid_i &
                                          (ldu_register_dest[0] == ldu_bypass_reg_i);
 
-    assign ldu_source_hazard =
-        ((((src_reg_i[0] == ldu_register_dest[0]) |
-          (src_reg_i[1] == ldu_register_dest[0])) &
-          ldu_valid[0] & !ldu_response_matches_oldest &
-          (ldu_register_dest[0] != '0)) |
-         (((src_reg_i[0] == ldu_register_dest[1]) |
-           (src_reg_i[1] == ldu_register_dest[1])) &
-          ldu_valid[1] &
-          ((ldu_register_dest[1] != '0) |
-           (ldu_response_matches_oldest &
-            (ldu_register_dest[0] != '0)))));
+    assign ldu_source_hazard = ((((src_reg_i[0] == ldu_register_dest[0]) | (src_reg_i[1] == ldu_register_dest[0])) &
+                                   ldu_valid[0] & !ldu_response_matches_oldest & (ldu_register_dest[0] != '0)) |
+                                (((src_reg_i[0] == ldu_register_dest[1]) | (src_reg_i[1] == ldu_register_dest[1])) & 
+                                   ldu_valid[1] & ((ldu_register_dest[1] != '0) | (ldu_response_matches_oldest & (ldu_register_dest[0] != '0)))));
 
-    assign ldu_write_hazard =
-        (((dest_reg_i == ldu_register_dest[0]) & ldu_valid[0] &
-          ((ldu_register_dest[0] != '0) |
-           (ldu_response_matches_oldest & ldu_valid[1] &
-            (ldu_register_dest[1] != '0)))) |
-         ((dest_reg_i == ldu_register_dest[1]) & ldu_valid[1] &
-          (ldu_register_dest[1] != '0)));
+    assign ldu_write_hazard = (((dest_reg_i == ldu_register_dest[0]) & ldu_valid[0] & ((ldu_register_dest[0] != '0) |
+                                (ldu_response_matches_oldest & ldu_valid[1] & (ldu_register_dest[1] != '0)))) |
+                               ((dest_reg_i == ldu_register_dest[1]) & ldu_valid[1] & (ldu_register_dest[1] != '0)));
 
     assign ldu_raw_hazard = ldu_source_hazard | ldu_write_hazard;
 
