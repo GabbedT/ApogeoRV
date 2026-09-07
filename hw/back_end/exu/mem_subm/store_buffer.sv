@@ -370,12 +370,11 @@ module store_buffer #(
                 direct_wait_match[i] = direct_address_match[i] & !direct_width_match[i];
                 queued_wait_match[i] = queued_address_match[i] & !queued_width_match[i];
                 
-                /* Priority encoder */
-                if (direct_forward_match[i]) begin
+                if (direct_address_match[i]) begin
                     direct_forward_ptr = i[$clog2(BUFFER_DEPTH) - 1:0];
                 end
 
-                if (queued_forward_match[i]) begin
+                if (queued_address_match[i]) begin
                     queued_forward_ptr = i[$clog2(BUFFER_DEPTH) - 1:0];
                 end
             end

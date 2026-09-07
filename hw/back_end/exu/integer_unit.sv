@@ -95,18 +95,11 @@ module integer_unit (
     data_word_t    alu_result_out;
 
     assign alu_result_out = alu_valid ? alu_result : '0;
-    
-        always_comb begin
-            if (flush_i) begin
-                alu_final_ipacket = NO_OPERATION;
-            end else begin
-                if (alu_valid) begin
-                    alu_final_ipacket = ipacket_i; 
-                end else begin
-                    alu_final_ipacket = '0; 
-                end
-            end
-        end
+
+    /* A pipeline flush clears every consumer valid at the receiving edge.
+     * Do not also drive the wide combinational payload with flush_i: doing so
+     * couples ROB retirement to the issue bypass and branch-result paths. */
+    assign alu_final_ipacket = alu_valid ? ipacket_i : '0;
 
 
 //====================================================================================
@@ -255,4 +248,4 @@ module integer_unit (
 
 endmodule : integer_unit
 
-`endif 
+`endif

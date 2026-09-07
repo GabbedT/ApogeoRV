@@ -354,34 +354,26 @@ module store_unit #(
 
 
     /* A store held outside the buffer is younger than any duplicate buffered
-     * store and therefore owns forwarding priority for its word. */
-    logic direct_fsm_match, direct_fsm_wait, direct_fsm_word_match;
-    logic queued_fsm_match, queued_fsm_wait, queued_fsm_word_match;
-    logic [3:0] direct_load_mask, queued_load_mask, fsm_store_mask;
+     * store and therefore owns forwarding priority for its word.  The store
+     * unit produces one response, so select its direct/queued query before the
+     * held-store comparison.  The store-buffer CAMs remain independent. */
+    data_word_t fsm_query_address;
+    store_width_t fsm_query_width;
+    logic [3:0] fsm_load_mask, fsm_store_mask;
     logic fsm_wait;
 
-    assign direct_load_mask = access_byte_mask(forward_direct_width_i,
-                                                forward_direct_address_i[1:0]);
-    assign queued_load_mask = access_byte_mask(forward_queued_width_i,
-                                                forward_queued_address_i[1:0]);
+    assign fsm_query_address = forward_select_queued_i ? forward_queued_address_i :
+                                                         forward_direct_address_i;
+    assign fsm_query_width = forward_select_queued_i ? forward_queued_width_i :
+                                                       forward_direct_width_i;
+    assign fsm_load_mask = access_byte_mask(fsm_query_width, fsm_query_address[1:0]);
     assign fsm_store_mask = access_byte_mask(store_width_CRT, store_address_CRT[1:0]);
 
-    assign direct_fsm_word_match = (state_CRT == WAIT_BUFFER)
-                                 & (forward_direct_address_i[31:2] == store_address_CRT[31:2]);
-    assign direct_fsm_match = direct_fsm_word_match &
-                              ((direct_load_mask & fsm_store_mask) == direct_load_mask);
-    assign direct_fsm_wait = direct_fsm_word_match & !direct_fsm_match;
-
-    assign queued_fsm_word_match = (state_CRT == WAIT_BUFFER)
-                                 & (forward_queued_address_i[31:2] == store_address_CRT[31:2]);
-    assign queued_fsm_match = queued_fsm_word_match &
-                              ((queued_load_mask & fsm_store_mask) == queued_load_mask);
-    assign queued_fsm_wait = queued_fsm_word_match & !queued_fsm_match;
-
-    assign fsm_word_match = forward_select_queued_i ? queued_fsm_word_match :
-                                                       direct_fsm_word_match;
-    assign fsm_match = forward_select_queued_i ? queued_fsm_match : direct_fsm_match;
-    assign fsm_wait = forward_select_queued_i ? queued_fsm_wait : direct_fsm_wait;
+    assign fsm_word_match = (state_CRT == WAIT_BUFFER) &
+                            (fsm_query_address[31:2] == store_address_CRT[31:2]);
+    assign fsm_match = fsm_word_match &
+                       ((fsm_load_mask & fsm_store_mask) == fsm_load_mask);
+    assign fsm_wait = fsm_word_match & !fsm_match;
 
     assign wait_o = fsm_word_match ? fsm_wait : buffer_wait;
 

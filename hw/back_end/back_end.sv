@@ -168,7 +168,7 @@ module back_end #(
     logic core_sleep;
 
     /* Operands */
-    data_word_t [1:0] fowarded_operands; 
+    data_word_t [1:0] fowarded_operands, bypass_operands_base;
 
     /* Data fowarded */
     data_word_t [1:0] raw_execute_data, execute_data, commit_data;
@@ -186,7 +186,7 @@ module back_end #(
         .execute_valid_i     ( execute_valid        ),
         .commit_data_i       ( commit_data          ),
         .commit_valid_i      ( commit_valid         ),
-        .operand_o           ( fowarded_operands    )   
+        .operand_o           ( bypass_operands_base )
     );
 
 
@@ -424,11 +424,22 @@ module back_end #(
     genvar i; 
 
     logic [1:0][EXU_PORT - 1:0] raw_dest_match, dest_match;
-    logic [1:0] early_ldu_dest_match;
+    logic [1:0] early_ldu_dest_match, early_ldu_bypass;
 
     generate
         for (i = 0; i < 2; ++i) begin
             assign early_ldu_dest_match[i] = ldu_bypass_reg == reg_src_i[i];
+            /* A completing load is a raw-stage producer, but routing it
+             * through the generic multi-result mux adds two wide mux layers
+             * to the load-use path.  Apply it after the generic bypass while
+             * retaining normal raw-result priority and immediate semantics. */
+            assign early_ldu_bypass[i] = (reg_src_i[i] != '0) &
+                                         !immediate_valid_i[i] &
+                                         early_ldu_dest_match[i] &
+                                         ldu_bypass_valid &
+                                         !raw_execute_valid[i];
+            assign fowarded_operands[i] = early_ldu_bypass[i] ?
+                                          ldu_bypass_data : bypass_operands_base[i];
         end
 
         for (i = 0; i < EXU_PORT; ++i) begin
@@ -444,8 +455,7 @@ module back_end #(
             assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
                                           ((raw_dest_match[i][0] & valid[0]) |
                                            (raw_dest_match[i][1] & valid[1]) |
-                                           (raw_dest_match[i][2] & valid[2]) |
-                                           (early_ldu_dest_match[i] & ldu_bypass_valid));
+                                           (raw_dest_match[i][2] & valid[2]));
 
             assign execute_valid[i] = (reg_src_i[i] != '0) &
                                       ((dest_match[i][0] & valid_sampled[0]) |
@@ -460,10 +470,7 @@ module back_end #(
 
                     3'b100: raw_execute_data[i] = result[2];
 
-                    default: begin
-                        raw_execute_data[i] = (early_ldu_dest_match[i] & ldu_bypass_valid) ?
-                                              ldu_bypass_data : '0;
-                    end
+                    default: raw_execute_data[i] = '0;
                 endcase
             end
 
@@ -485,8 +492,7 @@ module back_end #(
         for (i = 0; i < 2; ++i) begin
             assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
                                           ((raw_dest_match[i][0] & valid[0]) |
-                                           (raw_dest_match[i][1] & valid[1]) |
-                                           (early_ldu_dest_match[i] & ldu_bypass_valid));
+                                           (raw_dest_match[i][1] & valid[1]));
 
             assign execute_valid[i] = (reg_src_i[i] != '0) &
                                       ((dest_match[i][0] & valid_sampled[0]) |
@@ -498,10 +504,7 @@ module back_end #(
 
                     2'b10: raw_execute_data[i] = result[1];
 
-                    default: begin
-                        raw_execute_data[i] = (early_ldu_dest_match[i] & ldu_bypass_valid) ?
-                                              ldu_bypass_data : '0;
-                    end
+                    default: raw_execute_data[i] = '0;
                 endcase
             end
 

@@ -445,8 +445,8 @@ module scoreboard (
     /* Calculate how many loads are in flight */
     logic [1:0] ldu_load_cnt; logic ldu_full, ldu_issue_event;
     logic ldu_issue_pending, ldu_squash_event;
-    logic [1:0] ldu_hazard_valid;
-    logic [1:0][4:0] ldu_hazard_dest;
+    logic ldu_response_matches_oldest;
+    logic ldu_source_hazard, ldu_write_hazard;
 
         /* A resolved branch clears the bypass stage one cycle after a younger
          * instruction was accepted by the scheduler.  Remember that issue so
@@ -489,7 +489,8 @@ module scoreboard (
     assign ldu_issue_event = ldu_issue & !stall_i;
 
 
-    logic [1:0] ldu_raw_hazard, ldu_valid;
+    logic ldu_raw_hazard;
+    logic [1:0] ldu_valid;
     logic [1:0][4:0] ldu_register_dest;
 
         /* The load unit and cache return data in order, so destination tags
@@ -542,31 +543,33 @@ module scoreboard (
 
 
     /* A completed oldest load may wake a dependent in the response cycle.
-     * Keep younger in-flight loads blocked and preserve FIFO ordering. */
-    always_comb begin
-        ldu_hazard_valid = ldu_valid;
-        ldu_hazard_dest = ldu_register_dest;
+     * The younger entry remains hazardous and WAW checks remain active for
+     * both entries.  Express that directly instead of selecting a complete
+     * valid/destination vector with the late cache-response signal. */
+    assign ldu_response_matches_oldest = ldu_bypass_valid_i &
+                                         (ldu_register_dest[0] == ldu_bypass_reg_i);
 
-        if (ldu_bypass_valid_i & (ldu_register_dest[0] == ldu_bypass_reg_i)) begin
-            if (ldu_load_cnt == 2'd1) begin
-                ldu_hazard_valid = '0;
-            end else if (ldu_load_cnt == 2'd2) begin
-                ldu_hazard_valid[0] = 1'b1;
-                ldu_hazard_dest[0] = ldu_register_dest[1];
-                ldu_hazard_valid[1] = 1'b0;
-            end
-        end
-    end
+    assign ldu_source_hazard =
+        ((((src_reg_i[0] == ldu_register_dest[0]) |
+          (src_reg_i[1] == ldu_register_dest[0])) &
+          ldu_valid[0] & !ldu_response_matches_oldest &
+          (ldu_register_dest[0] != '0)) |
+         (((src_reg_i[0] == ldu_register_dest[1]) |
+           (src_reg_i[1] == ldu_register_dest[1])) &
+          ldu_valid[1] &
+          ((ldu_register_dest[1] != '0) |
+           (ldu_response_matches_oldest &
+            (ldu_register_dest[0] != '0)))));
 
-    assign ldu_raw_hazard[0] = (((src_reg_i[0] == ldu_hazard_dest[0]) |
-                                 (src_reg_i[1] == ldu_hazard_dest[0])) & ldu_hazard_valid[0] |
-                                (dest_reg_i   == ldu_register_dest[0]) & ldu_valid[0]) &
-                                ((ldu_hazard_dest[0] != '0) | (ldu_register_dest[0] != '0));
+    assign ldu_write_hazard =
+        (((dest_reg_i == ldu_register_dest[0]) & ldu_valid[0] &
+          ((ldu_register_dest[0] != '0) |
+           (ldu_response_matches_oldest & ldu_valid[1] &
+            (ldu_register_dest[1] != '0)))) |
+         ((dest_reg_i == ldu_register_dest[1]) & ldu_valid[1] &
+          (ldu_register_dest[1] != '0)));
 
-    assign ldu_raw_hazard[1] = (((src_reg_i[0] == ldu_hazard_dest[1]) |
-                                 (src_reg_i[1] == ldu_hazard_dest[1])) & ldu_hazard_valid[1] |
-                                (dest_reg_i   == ldu_register_dest[1]) & ldu_valid[1]) &
-                                ((ldu_hazard_dest[1] != '0) | (ldu_register_dest[1] != '0));
+    assign ldu_raw_hazard = ldu_source_hazard | ldu_write_hazard;
 
     `ifdef SV_ASSERTION
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
@@ -1022,7 +1025,7 @@ module scoreboard (
 
     logic raw_hazard, latency_hazard, structural_hazard, issue_hazard;
 
-    assign raw_hazard = (|ldu_raw_hazard) | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
+    assign raw_hazard = ldu_raw_hazard | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
     assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
     assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_full & !ldu_serviced_i) | (lsu_unit_i.STU & !stu_idle_i);
     assign issue_hazard = raw_hazard | latency_hazard;
