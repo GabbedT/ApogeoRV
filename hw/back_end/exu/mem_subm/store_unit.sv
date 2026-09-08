@@ -310,7 +310,7 @@ module store_unit #(
 
                 /* Wait until the store buffer empties and the LDU exit the deadlock */
                 WAIT_LOAD_UNIT: begin
-                    if (ldu_idle_i) begin
+                    if (ldu_idle_i & !buffer_channel.full & !buffer_duplicate) begin
                         buffer_channel.request = 1'b1;
 
                         state_NXT = WAIT_ACCEPT;
@@ -320,6 +320,11 @@ module store_unit #(
                 end
             endcase
         end 
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            buffer_channel.request |-> !buffer_channel.full);
+    `endif
 
 
 //====================================================================================
