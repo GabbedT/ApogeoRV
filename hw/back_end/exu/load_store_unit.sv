@@ -112,9 +112,10 @@ module load_store_unit #(
     logic stu_data_accepted, stu_illegal_access, stu_misaligned, stu_data_valid, ldu_data_valid;
 
     /* Store buffer forwarding nets */
-    logic forward_address_match, ldu_wait_buffer, ldu_wait;
-    logic ldu_forward_select_queued;
-    data_word_t forward_data, ldu_forward_direct_address, ldu_forward_queued_address;
+    logic direct_forward_match, direct_buffer_wait;
+    logic queued_forward_match, queued_buffer_wait, ldu_wait;
+    data_word_t direct_forward_data, queued_forward_data;
+    data_word_t ldu_forward_direct_address, ldu_forward_queued_address;
     store_width_t ldu_forward_direct_width, ldu_forward_queued_width;
 
     store_unit #(STORE_BUFFER_SIZE) stu (
@@ -140,11 +141,13 @@ module load_store_unit #(
         .forward_direct_width_i   ( ldu_forward_direct_width   ),
         .forward_queued_address_i ( ldu_forward_queued_address ),
         .forward_queued_width_i   ( ldu_forward_queued_width   ),
-        .forward_select_queued_i  ( ldu_forward_select_queued  ),
-        .forward_data_o           ( forward_data               ),
-        .forward_match_o          ( forward_address_match      ),
+        .forward_direct_data_o    ( direct_forward_data        ),
+        .forward_direct_match_o   ( direct_forward_match       ),
+        .forward_direct_wait_o    ( direct_buffer_wait         ),
+        .forward_queued_data_o    ( queued_forward_data        ),
+        .forward_queued_match_o   ( queued_forward_match       ),
+        .forward_queued_wait_o    ( queued_buffer_wait         ),
         .buffer_empty_o           ( buffer_empty_o             ),
-        .wait_o                   ( ldu_wait_buffer            ),
 
         .idle_o           ( stu_idle_o         ),
         .illegal_access_o ( stu_illegal_access ),
@@ -198,15 +201,16 @@ module load_store_unit #(
 
         .load_channel ( load_channel ),
 
-        .forward_match_i          ( forward_address_match      ),
-        .forward_data_i           ( forward_data               ),
+        .forward_direct_match_i   ( direct_forward_match       ),
+        .forward_direct_data_i    ( direct_forward_data        ),
+        .forward_direct_wait_i    ( direct_buffer_wait         ),
+        .forward_queued_match_i   ( queued_forward_match       ),
+        .forward_queued_data_i    ( queued_forward_data        ),
+        .forward_queued_wait_i    ( queued_buffer_wait         ),
         .forward_direct_address_o ( ldu_forward_direct_address ),
         .forward_direct_width_o   ( ldu_forward_direct_width   ),
         .forward_queued_address_o ( ldu_forward_queued_address ),
         .forward_queued_width_o   ( ldu_forward_queued_width   ),
-        .forward_select_queued_o  ( ldu_forward_select_queued  ),
-
-        .buffer_wait_i  ( ldu_wait_buffer ),
         .buffer_empty_i ( buffer_empty_o  ),
 
         .misaligned_o     ( ldu_misaligned_access ),

@@ -62,16 +62,18 @@ module load_unit (
     load_interface.master load_channel,
 
     /* Forwarding nets */
-    input logic forward_match_i,
-    input data_word_t forward_data_i,
+    input logic forward_direct_match_i,
+    input data_word_t forward_direct_data_i,
+    input logic forward_direct_wait_i,
+    input logic forward_queued_match_i,
+    input data_word_t forward_queued_data_i,
+    input logic forward_queued_wait_i,
     output data_word_t forward_direct_address_o,
     output store_width_t forward_direct_width_o,
     output data_word_t forward_queued_address_o,
     output store_width_t forward_queued_width_o,
-    output logic forward_select_queued_o,
 
     /* Status */
-    input logic buffer_wait_i,
     input logic buffer_empty_i,
     
     /* Data loaded from memory */   
@@ -204,8 +206,10 @@ module load_unit (
             load_request = 1'b0;
             wait_mem_update = 1'b0;
 
-            if (accept_load & !(misaligned | illegal_access | (forward_match_i & !queue_request))) begin
-                if (buffer_wait_i | private_region | queue_request) begin
+            if (accept_load &
+                !(misaligned | illegal_access |
+                  (forward_direct_match_i & !queue_request))) begin
+                if (forward_direct_wait_i | private_region | queue_request) begin
                     /* If store buffer has some data related to the same address or
                      * private region is being accessed or the previous load is 
                      * waiting memory. */
@@ -216,13 +220,11 @@ module load_unit (
             end
         end
 
-    /* Evaluate issue-stage and buffered-head dependencies independently.  The
-     * store unit selects only after both forwarding comparisons complete. */
+    /* Evaluate issue-stage and buffered-head dependencies independently. */
     assign forward_direct_address_o = load_address_i;
     assign forward_direct_width_o = store_width_t'(operation_i.uop);
     assign forward_queued_address_o = data_word_t'(lbuf_read_entry.address);
     assign forward_queued_width_o = store_width_t'(lbuf_read_entry.operation.uop);
-    assign forward_select_queued_o = queue_request;
 
 
     logic lbuf_empty, lbuf_full, lbuf_read;
@@ -235,12 +237,11 @@ module load_unit (
     assign lbuf_write_entry.private_reg = private_region;
     assign lbuf_write_entry.wait_mem_upd = wait_mem_update;
 
-    /* The forwarding port belongs to the buffered head while queue_request is
-     * asserted */
-    assign lbuf_write_entry.forwarded = forward_match_i & !queue_request & !(misaligned | illegal_access);
+    assign lbuf_write_entry.forwarded = forward_direct_match_i & !queue_request &
+                                        !(misaligned | illegal_access);
     assign lbuf_write_entry.operation = operation_i;
     assign lbuf_write_entry.address = load_address_i;
-    assign lbuf_write_entry.forwarded_data = forward_data_i;
+    assign lbuf_write_entry.forwarded_data = forward_direct_data_i;
 
   
     assign lbuf_empty = (lbuf_count == 2'd0);
@@ -310,7 +311,7 @@ module load_unit (
 
     /* Store lookup results for a queued dependency stop at this register.  In
      * particular, neither the cache request nor the completion/bypass path may
-     * use forward_match_i or buffer_wait_i for the queued head directly. */
+     * use the queued match or wait response for completion directly. */
     logic dependency_valid, dependency_lookup;
     logic dependency_forward, dependency_wait, dependency_memory;
     dependency_result_t dependency_result;
@@ -339,11 +340,11 @@ module load_unit (
             end else if (dependency_lookup) begin
                 dependency_valid <= 1'b1;
                 dependency_entry <= lbuf_read_entry;
-                dependency_forwarded_data <= forward_data_i;
+                dependency_forwarded_data <= forward_queued_data_i;
 
-                if (forward_match_i) begin
+                if (forward_queued_match_i) begin
                     dependency_result <= DEP_FORWARD;
-                end else if (buffer_wait_i) begin
+                end else if (forward_queued_wait_i) begin
                     dependency_result <= DEP_WAIT;
                 end else begin
                     dependency_result <= DEP_MEMORY;
@@ -497,14 +498,12 @@ module load_unit (
             !(lbuf_read & lbuf_empty));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            forward_select_queued_o == queue_request);
-
-        assert property (@(posedge clk_i) disable iff (!rst_n_i)
             queue_request |-> (forward_queued_address_o == lbuf_read_entry.address));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             (accept_load & queue_request) |->
-                (lbuf_write_entry.wait_mem_upd & !lbuf_write_entry.forwarded));
+                (lbuf_write_entry.wait_mem_upd &
+                 !lbuf_write_entry.forwarded));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             (lbuf_read & queue_request & !request_pending &

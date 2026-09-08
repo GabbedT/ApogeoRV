@@ -80,11 +80,13 @@ module store_unit #(
     input store_width_t forward_direct_width_i,
     input data_word_t forward_queued_address_i,
     input store_width_t forward_queued_width_i,
-    input logic forward_select_queued_i,
-    output data_word_t forward_data_o,
-    output logic forward_match_o,
+    output data_word_t forward_direct_data_o,
+    output logic forward_direct_match_o,
+    output logic forward_direct_wait_o,
+    output data_word_t forward_queued_data_o,
+    output logic forward_queued_match_o,
+    output logic forward_queued_wait_o,
     output logic buffer_empty_o,
-    output logic wait_o,
 
     /* Functional unit status */
     output logic idle_o,
@@ -176,7 +178,7 @@ module store_unit #(
 
     store_buffer_interface buffer_channel();
 
-    logic fsm_match, fsm_word_match, buffer_duplicate;
+    logic buffer_duplicate;
     logic [4:0] byte_shift, halfword_shift;
 
     function automatic logic [3:0] access_byte_mask(
@@ -324,8 +326,9 @@ module store_unit #(
 //      STORE BUFFER
 //====================================================================================
 
-    data_word_t buffer_forward_data, duplicate_check_address;
-    logic buffer_match, buffer_wait;
+    data_word_t buffer_direct_data, buffer_queued_data, duplicate_check_address;
+    logic buffer_direct_match, buffer_direct_wait;
+    logic buffer_queued_match, buffer_queued_wait;
 
     assign duplicate_check_address = (state_CRT == IDLE) ? store_address_i : store_address_CRT;
 
@@ -346,36 +349,47 @@ module store_unit #(
         .forward_direct_width_i   ( forward_direct_width_i   ),
         .forward_queued_address_i ( forward_queued_address_i ),
         .forward_queued_width_i   ( forward_queued_width_i   ),
-        .forward_select_queued_i  ( forward_select_queued_i  ),
-        .forward_data_o           ( buffer_forward_data      ),
-        .address_match_o          ( buffer_match             ),
-        .wait_o                   ( buffer_wait              )
+        .forward_direct_data_o    ( buffer_direct_data       ),
+        .forward_direct_match_o   ( buffer_direct_match      ),
+        .forward_direct_wait_o    ( buffer_direct_wait       ),
+        .forward_queued_data_o    ( buffer_queued_data       ),
+        .forward_queued_match_o   ( buffer_queued_match      ),
+        .forward_queued_wait_o    ( buffer_queued_wait       )
     );
 
 
     /* A store held outside the buffer is younger than any duplicate buffered
-     * store and therefore owns forwarding priority for its word.  The store
-     * unit produces one response, so select its direct/queued query before the
-     * held-store comparison.  The store-buffer CAMs remain independent. */
-    data_word_t fsm_query_address;
-    store_width_t fsm_query_width;
-    logic [3:0] fsm_load_mask, fsm_store_mask;
-    logic fsm_wait;
+     * store and therefore owns forwarding priority for its word. */
+    logic [3:0] fsm_direct_load_mask, fsm_queued_load_mask, fsm_store_mask;
+    logic fsm_direct_word_match, fsm_direct_match, fsm_direct_wait;
+    logic fsm_queued_word_match, fsm_queued_match, fsm_queued_wait;
 
-    assign fsm_query_address = forward_select_queued_i ? forward_queued_address_i :
-                                                         forward_direct_address_i;
-    assign fsm_query_width = forward_select_queued_i ? forward_queued_width_i :
-                                                       forward_direct_width_i;
-    assign fsm_load_mask = access_byte_mask(fsm_query_width, fsm_query_address[1:0]);
+    assign fsm_direct_load_mask = access_byte_mask(forward_direct_width_i,
+                                                    forward_direct_address_i[1:0]);
+    assign fsm_queued_load_mask = access_byte_mask(forward_queued_width_i,
+                                                    forward_queued_address_i[1:0]);
     assign fsm_store_mask = access_byte_mask(store_width_CRT, store_address_CRT[1:0]);
 
-    assign fsm_word_match = (state_CRT == WAIT_BUFFER) &
-                            (fsm_query_address[31:2] == store_address_CRT[31:2]);
-    assign fsm_match = fsm_word_match &
-                       ((fsm_load_mask & fsm_store_mask) == fsm_load_mask);
-    assign fsm_wait = fsm_word_match & !fsm_match;
+    assign fsm_direct_word_match = (state_CRT == WAIT_BUFFER) &
+                                   (forward_direct_address_i[31:2] ==
+                                    store_address_CRT[31:2]);
+    assign fsm_direct_match = fsm_direct_word_match &
+                              ((fsm_direct_load_mask & fsm_store_mask) ==
+                               fsm_direct_load_mask);
+    assign fsm_direct_wait = fsm_direct_word_match & !fsm_direct_match;
 
-    assign wait_o = fsm_word_match ? fsm_wait : buffer_wait;
+    assign fsm_queued_word_match = (state_CRT == WAIT_BUFFER) &
+                                   (forward_queued_address_i[31:2] ==
+                                    store_address_CRT[31:2]);
+    assign fsm_queued_match = fsm_queued_word_match &
+                              ((fsm_queued_load_mask & fsm_store_mask) ==
+                               fsm_queued_load_mask);
+    assign fsm_queued_wait = fsm_queued_word_match & !fsm_queued_match;
+
+    assign forward_direct_wait_o = fsm_direct_word_match ? fsm_direct_wait :
+                                                           buffer_direct_wait;
+    assign forward_queued_wait_o = fsm_queued_word_match ? fsm_queued_wait :
+                                                           buffer_queued_wait;
 
     assign buffer_empty_o = buffer_channel.empty;
 
@@ -384,22 +398,31 @@ module store_unit #(
 //      FORWARD LOGIC
 //====================================================================================
 
-    always_comb begin
-        if (fsm_match) begin
-            forward_data_o = store_data_CRT;
-        end else begin
-            forward_data_o = buffer_forward_data;
-        end
-    end
-
-    assign forward_match_o = fsm_word_match ? fsm_match : buffer_match;
+    assign forward_direct_data_o = fsm_direct_match ? store_data_CRT :
+                                                      buffer_direct_data;
+    assign forward_queued_data_o = fsm_queued_match ? store_data_CRT :
+                                                      buffer_queued_data;
+    assign forward_direct_match_o = fsm_direct_word_match ? fsm_direct_match :
+                                                             buffer_direct_match;
+    assign forward_queued_match_o = fsm_queued_word_match ? fsm_queued_match :
+                                                             buffer_queued_match;
 
     `ifdef SV_ASSERTION
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            fsm_word_match |-> !(buffer_match & forward_match_o & !fsm_match));
+            fsm_direct_word_match |->
+                !(buffer_direct_match & forward_direct_match_o &
+                  !fsm_direct_match));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            fsm_match |-> (forward_data_o == store_data_CRT));
+            fsm_queued_word_match |->
+                !(buffer_queued_match & forward_queued_match_o &
+                  !fsm_queued_match));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            fsm_direct_match |-> (forward_direct_data_o == store_data_CRT));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            fsm_queued_match |-> (forward_queued_data_o == store_data_CRT));
     `endif
 
 endmodule : store_unit 

@@ -62,10 +62,12 @@ module store_buffer #(
     input store_width_t forward_direct_width_i,
     input data_word_t forward_queued_address_i,
     input store_width_t forward_queued_width_i,
-    input logic forward_select_queued_i,
-    output data_word_t forward_data_o,
-    output logic address_match_o,
-    output logic wait_o
+    output data_word_t forward_direct_data_o,
+    output logic forward_direct_match_o,
+    output logic forward_direct_wait_o,
+    output data_word_t forward_queued_data_o,
+    output logic forward_queued_match_o,
+    output logic forward_queued_wait_o
 );
 
 //====================================================================================
@@ -142,7 +144,6 @@ module store_buffer #(
         end : status_register
 
     logic [$clog2(BUFFER_DEPTH) - 1:0] direct_forward_ptr, queued_forward_ptr;
-    logic [$clog2(BUFFER_DEPTH) - 1:0] selected_forward_ptr;
 
 
     logic request_status;
@@ -162,20 +163,22 @@ module store_buffer #(
 //      DATA BUFFER MEMORY
 //====================================================================================
 
-    /* Implemented with a memory with 1W and 2R ports 
+    /* Implemented with a memory with 1W and 3R ports
      * to avoid conflicts between forwarding and pulling */
-    logic [$bits(data_word_t) - 1:0] data_buffer [1:0][BUFFER_DEPTH - 1:0];
+    logic [$bits(data_word_t) - 1:0] data_buffer [2:0][BUFFER_DEPTH - 1:0];
 
         always_ff @(posedge clk_i) begin : write_data_port
             if (push_channel.request) begin
                 /* Push data */
                 data_buffer[0][push_ptr] <= push_channel.packet.data;
                 data_buffer[1][push_ptr] <= push_channel.packet.data;
+                data_buffer[2][push_ptr] <= push_channel.packet.data;
             end
         end : write_data_port
 
-    /* Forward read port */
-    assign forward_data_o = data_buffer[1][selected_forward_ptr];
+    /* Forward read ports */
+    assign forward_direct_data_o = data_buffer[1][direct_forward_ptr];
+    assign forward_queued_data_o = data_buffer[2][queued_forward_ptr];
 
     /* Pull read port */
     assign pull_channel.data = data_buffer[0][pull_ptr];
@@ -380,35 +383,36 @@ module store_buffer #(
             end
         end : address_match_logic
 
-    assign selected_forward_ptr = forward_select_queued_i ? queued_forward_ptr :
-                                                            direct_forward_ptr;
-    assign wait_o = forward_select_queued_i ? (queued_wait_match != '0) :
-                                              (direct_wait_match != '0);
-    assign address_match_o = forward_select_queued_i ? (queued_forward_match != '0) :
-                                                       (direct_forward_match != '0);
+    assign forward_direct_wait_o = direct_wait_match != '0;
+    assign forward_direct_match_o = direct_forward_match != '0;
+    assign forward_queued_wait_o = queued_wait_match != '0;
+    assign forward_queued_match_o = queued_forward_match != '0;
 
     `ifdef SV_ASSERTION
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            !forward_select_queued_i |-> $onehot0(direct_address_match));
+            $onehot0(direct_address_match));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            forward_select_queued_i |-> $onehot0(queued_address_match));
+            $onehot0(queued_address_match));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            address_match_o |-> !wait_o);
+            forward_direct_match_o |-> !forward_direct_wait_o);
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            (address_match_o & !forward_select_queued_i) |->
+            forward_queued_match_o |-> !forward_queued_wait_o);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            forward_direct_match_o |->
                 ((direct_load_mask &
-                  access_byte_mask(store_width_t'(store_width_buffer[selected_forward_ptr]),
-                                   metadata_buffer[selected_forward_ptr].address[1:0])) ==
+                  access_byte_mask(store_width_t'(store_width_buffer[direct_forward_ptr]),
+                                   metadata_buffer[direct_forward_ptr].address[1:0])) ==
                  direct_load_mask));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            (address_match_o & forward_select_queued_i) |->
+            forward_queued_match_o |->
                 ((queued_load_mask &
-                  access_byte_mask(store_width_t'(store_width_buffer[selected_forward_ptr]),
-                                   metadata_buffer[selected_forward_ptr].address[1:0])) ==
+                  access_byte_mask(store_width_t'(store_width_buffer[queued_forward_ptr]),
+                                   metadata_buffer[queued_forward_ptr].address[1:0])) ==
                  queued_load_mask));
     `endif
 
