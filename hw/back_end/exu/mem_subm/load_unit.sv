@@ -227,7 +227,7 @@ module load_unit (
     assign forward_queued_width_o = store_width_t'(lbuf_read_entry.operation.uop);
 
 
-    logic lbuf_empty, lbuf_full, lbuf_read;
+    logic lbuf_empty, lbuf_full, lbuf_read, lbuf_complete;
     logic [1:0] lbuf_count;
     lbuf_entry_t lbuf_entries [0:1];
     lbuf_entry_t lbuf_write_entry, lbuf_read_entry;
@@ -306,7 +306,11 @@ module load_unit (
 
 
     assign queue_request = lbuf_read_entry.wait_mem_upd & !lbuf_empty;
-    assign accept_load = valid_operation_i & !stall_i & !flush_i & (!lbuf_full | lbuf_read);
+    /* Flush wins in the FIFO registers and on architectural completion. Keep
+     * the physical cache lookup independent so it cannot enter the BRAM
+     * enable cone. */
+    assign accept_load = valid_operation_i & !stall_i & (!lbuf_full | lbuf_complete);
+    assign lbuf_read = lbuf_complete & !flush_i;
 
 
     /* Store lookup results for a queued dependency stop at this register.  In
@@ -358,13 +362,14 @@ module load_unit (
 
 
     data_word_t data_selected;
-    logic load_wait_request, request_pending;
+    logic load_wait_request, load_wait_address_select, request_pending;
 
         always_comb begin
             /* Default Values */
             data_selected = load_channel.data;
             load_wait_request = 1'b0;
-            lbuf_read = 1'b0;
+            load_wait_address_select = 1'b0;
+            lbuf_complete = 1'b0;
             wait_o = 1'b0;
 
             if (lbuf_read_entry.forwarded & !lbuf_empty) begin
@@ -378,20 +383,21 @@ module load_unit (
             if (!lbuf_empty) begin
                 if (lbuf_read_entry.misaligned | lbuf_read_entry.illegal_access) begin
                     /* Faulting loads retire without accessing memory. */
-                    lbuf_read = !stall_i & !flush_i;
+                    lbuf_complete = !stall_i;
                 end else if (lbuf_read_entry.forwarded) begin
                     /* The combinational store-buffer result was captured with
                      * the request, so no cache request needs cancellation. */
-                    lbuf_read = !stall_i & !flush_i;
+                    lbuf_complete = !stall_i;
                 end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
-                    if (load_channel.valid & !stall_i & !flush_i) begin
-                        lbuf_read = 1'b1;
+                    if (load_channel.valid & !stall_i) begin
+                        lbuf_complete = 1'b1;
                     end
                 end else if (lbuf_read_entry.private_reg) begin
                     /* Wait until the store buffer is empty to ensure no
                      * memory conflicts during a protected memory access */
                     if (buffer_empty_i) begin
-                        load_wait_request = !flush_i;
+                        load_wait_address_select = 1'b1;
+                        load_wait_request = 1'b1;
                     end
 
                     wait_o = 1'b1;
@@ -401,9 +407,10 @@ module load_unit (
                      * memory. A store stalled before its buffer push can
                      * become forwardable while this load is already queued. */
                     if (dependency_forward) begin
-                        lbuf_read = !stall_i & !flush_i;
+                        lbuf_complete = !stall_i;
                     end else if (dependency_memory) begin
-                        load_wait_request = !flush_i;
+                        load_wait_address_select = 1'b1;
+                        load_wait_request = 1'b1;
                     end
                 end
             end
@@ -462,10 +469,8 @@ module load_unit (
     assign illegal_access_o = !lbuf_empty & lbuf_read_entry.illegal_access;
 
     assign load_channel.request = load_request | load_wait_request;
-    assign load_channel.address = load_wait_request ?
-                                  (dependency_memory ?
-                                   dependency_entry.address :
-                                   lbuf_read_entry.address) :
+    assign load_channel.address = load_wait_address_select ?
+                                  (dependency_memory ? dependency_entry.address : lbuf_read_entry.address) :
                                   load_address_i;
     assign load_channel.invalidate = flush_i;
 
@@ -483,16 +488,19 @@ module load_unit (
             !(load_request & load_wait_request));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            lbuf_full |-> (!valid_operation_i | lbuf_read));
+            lbuf_full & !flush_i |-> (!valid_operation_i | lbuf_read));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             flush_i |=> lbuf_empty);
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            flush_i |-> !data_valid_o);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
             lbuf_empty |-> !data_valid_o);
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            !(load_wait_request & load_channel.valid));
+            !flush_i |-> !(load_wait_request & load_channel.valid));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             !(lbuf_read & lbuf_empty));
