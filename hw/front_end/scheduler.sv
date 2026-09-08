@@ -246,7 +246,9 @@ module scheduler #(
                 issued_csr_instruction <= 1'b0;
             end else if (csr_writeback_i) begin
                 issued_csr_instruction <= 1'b0; 
-            end else if (exu_valid_i.CSR & issue_instruction) begin 
+            end else if (exu_valid_i.CSR & issue_instruction & !stall_i & !stall_o) begin
+                /* A CSR held behind FENCE/flush or ROB backpressure has
+                 * not entered the backend and cannot produce a writeback. */
                 issued_csr_instruction <= 1'b1; 
             end 
         end 
