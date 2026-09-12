@@ -75,6 +75,7 @@ module execution_unit #(
     /* Instruction is branch */
     input logic branch_i,
     input logic save_next_pc_i,
+    input data_word_t next_pc_i,
 
     /* Interrupt enable */
     output logic global_interrupt_en_o,
@@ -158,6 +159,7 @@ module execution_unit #(
         .enable_mul     ( mul_enable     ),
         .enable_div     ( div_enable     ),
         .save_next_pc_i ( save_next_pc_i ),
+        .next_pc_i      ( next_pc_i      ),
 
         `ifdef BMU 
         .enable_bmu   ( bmu_enable ),
@@ -168,7 +170,7 @@ module execution_unit #(
         .data_valid_i ( data_valid_i.ITU        ),
         .operand_1_i  ( operand_i[0]            ),
         .operand_2_i  ( operand_i[1]            ),
-        .result_o     ( itu_result              ), 
+        .result_o     ( itu_result              ),
         .ipacket_o    ( itu_ipacket             ),
         .data_valid_o ( itu_valid               )
     ); 

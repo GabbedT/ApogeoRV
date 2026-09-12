@@ -161,7 +161,24 @@ module predictor_unit #(
             end
         end : fifo_write_port
 
-    assign fifo_read_data = data_buffer[pull_ptr];
+    /* Keep the current FIFO head in a register to shorten the critical path */
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fifo_head_register
+            if (!rst_n_i) begin
+                fifo_read_data <= '0;
+            end else if (mispredicted_o | flush_i) begin
+                fifo_read_data <= '0;
+            end else if (push & fifo_empty) begin
+                fifo_read_data <= fifo_write_data;
+            end else if (pull) begin
+                /* When the only queued entry is pulled while a new one is
+                 * pushed, bypass the same-address memory write to the head. */
+                if (push & (push_ptr == pull_ptr_inc)) begin
+                    fifo_read_data <= fifo_write_data;
+                end else if (push_ptr != pull_ptr_inc) begin
+                    fifo_read_data <= data_buffer[pull_ptr_inc];
+                end
+            end
+        end : fifo_head_register
 
 
 //====================================================================================
@@ -249,6 +266,16 @@ module predictor_unit #(
     /* Port used to read branch status for misprediction logic */
     assign branch_status_read = branch_status_table[fifo_read_data.index];
 
+
+//====================================================================================
+//      ASSERTIONS 
+//====================================================================================
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            !fifo_empty |-> (fifo_read_data == data_buffer[pull_ptr]));
+    `endif
+
 endmodule : predictor_unit
 
-`endif 
+`endif

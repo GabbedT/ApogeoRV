@@ -49,6 +49,7 @@ module integer_unit (
     input logic enable_div,
     `ifdef BMU input logic enable_bmu, `endif
     input logic save_next_pc_i,
+    input data_word_t next_pc_i,
 
     /* Packet that carries instruction informations */
     input instr_packet_t ipacket_i,
@@ -64,7 +65,7 @@ module integer_unit (
     input data_word_t operand_2_i,
 
     /* Result */
-    output data_word_t result_o, 
+    output data_word_t result_o,
 
     /* General instruction packet and valid bit */
     output instr_packet_t ipacket_o,
@@ -79,7 +80,7 @@ module integer_unit (
     data_word_t alu_result, alu_operand_1;
     logic       alu_valid, branch_taken, is_branch;
 
-    assign alu_operand_1 = save_next_pc_i ? ipacket_i.instr_addr : operand_1_i;
+    assign alu_operand_1 = operand_1_i;
 
     arithmetic_logic_unit alu (
         .operand_A_i  ( alu_operand_1          ),
@@ -94,7 +95,8 @@ module integer_unit (
     instr_packet_t alu_final_ipacket;
     data_word_t    alu_result_out;
 
-    assign alu_result_out = alu_valid ? alu_result : '0;
+    /* JAL/JALR write PC+2/4 */
+    assign alu_result_out = alu_valid ? (save_next_pc_i ? next_pc_i : alu_result) : '0;
 
     /* A pipeline flush clears every consumer valid at the receiving edge */
     assign alu_final_ipacket = alu_valid ? ipacket_i : '0;
@@ -243,6 +245,12 @@ module integer_unit (
     assign data_valid_o = alu_valid | `ifdef BMU bmu_valid | `endif mul_valid | div_valid;
 
     assign ipacket_o = alu_final_ipacket | `ifdef BMU bmu_final_ipacket | `endif mul_final_ipacket | div_final_ipacket;
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (data_valid_i.ALU & save_next_pc_i) |->
+                (alu_result_out == next_pc_i));
+    `endif
 
 endmodule : integer_unit
 

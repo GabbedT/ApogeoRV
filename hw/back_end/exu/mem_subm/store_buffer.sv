@@ -77,13 +77,33 @@ module store_buffer #(
     /* Flush logic */
     logic [$clog2(BUFFER_DEPTH) - 1:0] valid_ptr;
 
+    /* Track committed stores independently from the memory request marker. */
+    logic [BUFFER_DEPTH - 1:0] committed_CRT, committed_NXT;
+    logic push_accept;
+
+    assign push_accept = push_channel.request & !flush_i;
+
+        always_comb begin : committed_next_logic
+            committed_NXT = committed_CRT;
+
+            if (pull_channel.done) begin
+                committed_NXT[pull_ptr] = 1'b0;
+            end
+
+            if (valid_i) begin
+                committed_NXT[valid_ptr] = 1'b1;
+            end
+        end : committed_next_logic
+
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : valid_pointer_register
             if (!rst_n_i) begin
                 valid_ptr <= '0; 
+                committed_CRT <= '0;
             end else begin 
                 if (valid_i) begin
                     valid_ptr <= valid_ptr + 1'b1;
                 end
+                committed_CRT <= committed_NXT;
             end 
         end : valid_pointer_register
 
@@ -99,14 +119,16 @@ module store_buffer #(
                 pull_ptr <= '0;
                 push_ptr <= '0; 
             end else if (flush_i) begin 
-                /* Push pointer is setted to the last 
-                 * validated value */ 
-                push_ptr <= valid_ptr;
+                /* Retain entries through the latest validation. */
+                push_ptr <= valid_ptr + $clog2(BUFFER_DEPTH)'(valid_i);
 
-                /* Pull pointer remains the same */
+                /* A completed request frees its slot during a flush. */
+                if (pull_channel.done) begin
+                    pull_ptr <= inc_pull_ptr;
+                end
             end else begin 
                 /* Increment pointer */
-                if (push_channel.request) begin
+                if (push_accept) begin
                     push_ptr <= inc_push_ptr;
                 end
 
@@ -126,10 +148,10 @@ module store_buffer #(
                 push_channel.full <= 1'b0;
                 push_channel.empty <= 1'b1;
             end else if (flush_i) begin 
-                push_channel.full <= ((valid_ptr + 1'b1) == pull_ptr);
-                push_channel.empty <= (valid_ptr == pull_ptr);
+                push_channel.full <= &committed_NXT;
+                push_channel.empty <= !(|committed_NXT);
             end else begin 
-                case ({push_channel.request, pull_channel.done})
+                case ({push_accept, pull_channel.done})
                     PULL_OPERATION: begin
                         push_channel.full <= 1'b0;
                         push_channel.empty <= (push_ptr == inc_pull_ptr);
@@ -168,7 +190,7 @@ module store_buffer #(
     logic [$bits(data_word_t) - 1:0] data_buffer [2:0][BUFFER_DEPTH - 1:0];
 
         always_ff @(posedge clk_i) begin : write_data_port
-            if (push_channel.request) begin
+            if (push_accept) begin
                 /* Push data */
                 data_buffer[0][push_ptr] <= push_channel.packet.data;
                 data_buffer[1][push_ptr] <= push_channel.packet.data;
@@ -199,7 +221,7 @@ module store_buffer #(
     end
 
         always_ff @(posedge clk_i) begin : write_store_width_port
-            if (push_channel.request) begin
+            if (push_accept) begin
                 /* Push data */
                 store_width_buffer[push_ptr] <= push_channel.packet.store_width;
             end
@@ -231,7 +253,7 @@ module store_buffer #(
     end
 
         always_ff @(posedge clk_i) begin : write_address_port
-            if (push_channel.request) begin
+            if (push_accept) begin
                 /* Push data */
                 metadata_buffer[push_ptr].address <= push_channel.packet.address;
             end
@@ -242,10 +264,6 @@ module store_buffer #(
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : write_valid_port
             if (!rst_n_i) begin 
-                for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
-                    metadata_buffer[i].valid <= '0;
-                end
-            end else if (flush_i) begin 
                 for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
                     metadata_buffer[i].valid <= '0;
                 end
@@ -282,16 +300,14 @@ module store_buffer #(
                     forward_valid[i] <= '0;
                 end
             end else if (flush_i) begin 
-                for (int i = 0; i < BUFFER_DEPTH; ++i) begin 
-                    forward_valid[i] <= '0;
-                end
+                forward_valid <= committed_NXT;
             end else begin 
                 if (pull_channel.done) begin
                     /* Invalidate on pull */
                     forward_valid[pull_ptr] <= 1'b0;
                 end
                 
-                if (push_channel.request) begin
+                if (push_accept) begin
                     /* Validate on ROB writeback */
                     forward_valid[push_ptr] <= 1'b1;
                 end
@@ -388,7 +404,20 @@ module store_buffer #(
     assign forward_queued_wait_o = queued_wait_match != '0;
     assign forward_queued_match_o = queued_forward_match != '0;
 
+
+//====================================================================================
+//      ASSERTIONS
+//====================================================================================
+
+
     `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (committed_CRT & ~forward_valid) == '0);
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            pull_channel.done |-> committed_CRT[pull_ptr]);
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            flush_i |=> (forward_valid == $past(committed_NXT)));
+
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             $onehot0(direct_address_match));
 

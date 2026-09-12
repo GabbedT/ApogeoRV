@@ -190,23 +190,8 @@ module back_end #(
     );
 
 
-    logic branch_outcome;
-
-    /* Resolve the branch early to shorten the critical path */
-    branch_resolver branch_resolution_unit (
-        .operand_A_i ( fowarded_operands[0] ),
-        .operand_B_i ( fowarded_operands[1] ),
-
-        .operation_i ( operation_i.ITU.subunit.ALU.opcode ),
-
-        .outcome_o ( branch_outcome )
-    );
-
-
         always_ff @(posedge clk_i) begin
             if (!stall_o) begin 
-                branch_outcome_o <= branch_outcome;
-
                 /* Based on the jump type (relative or absolute) add to the offset the instruction address or the register
                  * to form the branch target address */
                 branch_address_o <= (base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr) + address_offset_i;
@@ -249,13 +234,28 @@ module back_end #(
 
     exu_uop_t bypass_operation;
     data_word_t [1:0] bypass_operands;
+    data_word_t bypass_next_pc;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
             if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
+                bypass_next_pc <= ipacket_i.instr_addr + (ipacket_i.compressed ? 32'd2 : 32'd4);
             end 
         end : bypass_operands_stage_register
+
+
+    /* Resolve the branch from the registered bypass operands.  This preserves
+     * the existing execution-cycle resolution point while keeping commit
+     * backpressure and same-cycle issue forwarding out of the compare path. */
+    branch_resolver branch_resolution_unit (
+        .operand_A_i ( bypass_operands[0] ),
+        .operand_B_i ( bypass_operands[1] ),
+
+        .operation_i ( bypass_operation.ITU.subunit.ALU.opcode ),
+
+        .outcome_o ( branch_outcome_o )
+    );
 
     
     
@@ -344,6 +344,7 @@ module back_end #(
 
         .branch_i       ( bypass_branch       ),
         .save_next_pc_i ( bypass_save_next_pc ),
+        .next_pc_i      ( bypass_next_pc      ),
 
         .load_channel  ( load_channel  ),
         .store_channel ( store_channel ),
@@ -373,9 +374,9 @@ module back_end #(
         .ldu_bypass_data_o  ( ldu_bypass_data  ),
         .stu_idle_o         ( stu_idle         ),
 
-        .result_o     ( result       ),
-        .ipacket_o    ( ipacket      ),
-        .data_valid_o ( valid        )
+        .result_o     ( result  ),
+        .ipacket_o    ( ipacket ),
+        .data_valid_o ( valid   )
     );
 
     /* Unit result data */
