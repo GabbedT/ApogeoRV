@@ -108,9 +108,7 @@ module scoreboard (
 
     localparam FMIS_LATENCY = 2;
 
-    /* Keep the issue grants local to each execution unit. This prevents the
-     * structural status of a sequential unit from driving every scoreboard
-     * status register. */
+    /* Unit grants qualify accepted instructions. */
     logic alu_issue, mul_issue, div_issue, ldu_issue, stu_issue;
     `ifdef BMU logic bmu_issue; `endif
     `ifdef FPU logic fadd_issue, fmul_issue, fcvt_issue, fcmp_issue, fmis_issue; `endif
@@ -158,248 +156,47 @@ module scoreboard (
 
 
 //====================================================================================
-//      ALU SCHEDULING LOGIC
+//      INTEGER COMPLETION CALENDAR
 //====================================================================================  
 
-    /* Select the bit manipulation stage */
-    logic [ALU_LATENCY - 1:0] alu_stage; 
+    /* One slot holds the result with two cycles remaining. */
+    logic short_valid;
+    logic [4:0] short_register_dest;
+    logic short_issue;
+    logic short_raw_hazard, short_latency_hazard;
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : alu_stage_selector
+    assign short_issue = (itu_unit_i.MUL `ifdef BMU | itu_unit_i.BMU `endif) &
+                         issue_accept_i;
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
-                alu_stage <= 1'b1;
+                short_valid <= 1'b0;
+                short_register_dest <= '0;
             end else if (flush_i) begin
-                alu_stage <= 1'b1;
-            end else if (!stall_i & alu_issue) begin
-                if (alu_stage[ALU_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    alu_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    alu_stage <= alu_stage << 1;
-                end 
-            end 
-        end : alu_stage_selector
-
-
-    /* Since ALU is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [ALU_LATENCY - 1:0] alu_executing, alu_raw_hazard, alu_latency_hazard;
-    logic [ALU_LATENCY - 1:0][31:0] alu_register_dest;
-    logic [ALU_LATENCY - 1:0][$clog2(ALU_LATENCY):0] alu_latency_cnt;
-
-    genvar i;
-
-    generate;
-
-        for (i = 0; i < ALU_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : alu_status_register
-                if (!rst_n_i) begin
-                    alu_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    alu_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (alu_issue & alu_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        alu_latency_cnt[i] <= ALU_LATENCY;
-                    end else if (alu_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        alu_latency_cnt[i] <= alu_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        alu_latency_cnt[i] <= '0;
-                    end
-                end
-            end : alu_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : alu_destination_register
-                if (!rst_n_i) begin
-                    alu_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (alu_issue & alu_stage[i]) begin
-                        alu_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : alu_destination_register
-
-            assign alu_executing[i] = (alu_latency_cnt[i] > 'd1);
-            
-            assign alu_raw_hazard[i] = ((src_reg_i[0] == alu_register_dest[i]) | (src_reg_i[1] == alu_register_dest[i]) | (dest_reg_i == alu_register_dest[i])) & 
-                                        (alu_latency_cnt[i] > 'd2) & (alu_register_dest[i] != '0);
-
-            assign alu_latency_hazard[i] = (latency == alu_latency_cnt[i]) & alu_executing[i];
-
+                short_valid <= 1'b0;
+                short_register_dest <= '0;
+            end else if (!stall_i) begin
+                short_valid <= short_issue;
+                /* Validity alone depends on the accepted issue. */
+                short_register_dest <= dest_reg_i;
+            end
         end
 
-    endgenerate
+    assign short_raw_hazard = short_valid & (short_register_dest != '0) &
+                              ((src_reg_i[0] == short_register_dest) |
+                               (src_reg_i[1] == short_register_dest) |
+                               (dest_reg_i == short_register_dest));
 
-//====================================================================================
-//      MUL SCHEDULING LOGIC
-//====================================================================================  
+    /* An ALU/CSR would collide with the occupied result slot. */
+    assign short_latency_hazard = (latency == 2) & short_valid;
 
-    /* Select the multiplication stage */
-    logic [MUL_LATENCY - 1:0] mul_stage; 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mul_stage_selector
-            if (!rst_n_i) begin
-                mul_stage <= 1'b1;
-            end else if (flush_i) begin
-                mul_stage <= 1'b1;
-            end else if (!stall_i & mul_issue) begin
-                if (mul_stage[MUL_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    mul_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    mul_stage <= mul_stage << 1;
-                end 
-            end 
-        end : mul_stage_selector
-
-
-    /* Since MUL is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [MUL_LATENCY - 1:0] mul_executing, mul_raw_hazard, mul_latency_hazard;
-    logic [MUL_LATENCY - 1:0][31:0] mul_register_dest;
-    logic [MUL_LATENCY - 1:0][$clog2(MUL_LATENCY):0] mul_latency_cnt;
-
-    generate
-
-        for (i = 0; i < MUL_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mul_status_register
-                if (!rst_n_i) begin
-                    mul_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    mul_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (mul_issue & mul_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        mul_latency_cnt[i] <= MUL_LATENCY;
-                    end else if (mul_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        mul_latency_cnt[i] <= mul_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        mul_latency_cnt[i] <= '0;
-                    end
-                end
-            end : mul_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : mul_destination_register
-                if (!rst_n_i) begin
-                    mul_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (mul_issue & mul_stage[i]) begin
-                        /* Load register in the next cycle if the instruction 
-                         * dispatched is being issued in the next cycle */
-                        mul_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : mul_destination_register
-
-            assign mul_executing[i] = (mul_latency_cnt[i] > 'd1);
-
-            assign mul_raw_hazard[i] = ((src_reg_i[0] == mul_register_dest[i]) | (src_reg_i[1] == mul_register_dest[i]) | (dest_reg_i == mul_register_dest[i])) & 
-                                        mul_executing[i] & (mul_register_dest[i] != '0);
-
-            assign mul_latency_hazard[i] = (latency == mul_latency_cnt[i]) & mul_executing[i];
-
-        end 
-
-    endgenerate
-
-
-//====================================================================================
-//      BMU SCHEDULING LOGIC
-//====================================================================================  
-    
-    `ifdef BMU 
-
-    /* Select the bit manipulation stage */
-    logic [BMU_LATENCY - 1:0] bmu_stage; 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bmu_stage_selector
-            if (!rst_n_i) begin
-                bmu_stage <= 1'b1;
-            end else if (flush_i) begin
-                bmu_stage <= 1'b1;
-            end else if (!stall_i & bmu_issue) begin
-                if (bmu_stage[BMU_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    bmu_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    bmu_stage <= bmu_stage << 1;
-                end 
-            end 
-        end : bmu_stage_selector
-
-
-    /* Since BMU is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [BMU_LATENCY - 1:0] bmu_executing, bmu_raw_hazard, bmu_latency_hazard;
-    logic [BMU_LATENCY - 1:0][31:0] bmu_register_dest;
-    logic [BMU_LATENCY - 1:0][$clog2(BMU_LATENCY):0] bmu_latency_cnt;
-
-    generate;
-
-        for (i = 0; i < BMU_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bmu_status_register
-                if (!rst_n_i) begin
-                    bmu_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    bmu_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (bmu_issue & bmu_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        bmu_latency_cnt[i] <= BMU_LATENCY;
-                    end else if (bmu_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        bmu_latency_cnt[i] <= bmu_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        bmu_latency_cnt[i] <= '0;
-                    end
-                end
-            end : bmu_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : bmu_destination_register
-                if (!rst_n_i) begin
-                    bmu_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (bmu_issue & bmu_stage[i]) begin
-                        bmu_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : bmu_destination_register
-
-            assign bmu_executing[i] = (bmu_latency_cnt[i] > 'd1);
-            
-            assign bmu_raw_hazard[i] = ((src_reg_i[0] == bmu_register_dest[i]) | (src_reg_i[1] == bmu_register_dest[i]) | (dest_reg_i == bmu_register_dest[i])) & 
-                                        bmu_executing[i] & (bmu_register_dest[i] != '0);
-
-            assign bmu_latency_hazard[i] = (latency == bmu_latency_cnt[i]) & bmu_executing[i];
-
-        end
-
-    endgenerate
-    
-    `endif 
 
 //====================================================================================
 //      DIV SCHEDULING LOGIC
 //==================================================================================== 
 
     logic div_executing, div_raw_hazard, div_latency_hazard;
-    logic [31:0] div_register_dest;
+    logic [4:0] div_register_dest;
     logic [$clog2(DIV_LATENCY) - 1:0] div_latency_cnt;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : div_status_register
@@ -425,7 +222,7 @@ module scoreboard (
             if (!rst_n_i) begin
                 div_register_dest <= '0;
             end else if (!stall_i) begin 
-                if (div_issue) begin
+                if (!div_executing) begin
                     div_register_dest <= dest_reg_i;
                 end 
             end
@@ -445,8 +242,8 @@ module scoreboard (
     /* Calculate how many loads are in flight */
     logic [1:0] ldu_load_cnt; logic ldu_full, ldu_issue_event;
     logic ldu_issue_pending, ldu_squash_event;
-    logic [1:0] ldu_hazard_valid;
-    logic [1:0][4:0] ldu_hazard_dest;
+    logic ldu_response_matches_oldest;
+    logic ldu_source_hazard, ldu_write_hazard;
 
         /* A resolved branch clears the bypass stage one cycle after a younger
          * instruction was accepted by the scheduler.  Remember that issue so
@@ -489,7 +286,8 @@ module scoreboard (
     assign ldu_issue_event = ldu_issue & !stall_i;
 
 
-    logic [1:0] ldu_raw_hazard, ldu_valid;
+    logic ldu_raw_hazard;
+    logic [1:0] ldu_valid, ldu_dest_valid;
     logic [1:0][4:0] ldu_register_dest;
 
         /* The load unit and cache return data in order, so destination tags
@@ -539,34 +337,26 @@ module scoreboard (
 
     assign ldu_valid[0] = (ldu_load_cnt != '0);
     assign ldu_valid[1] = ldu_load_cnt == 2'd2;
+    assign ldu_dest_valid[0] = ldu_valid[0] & (ldu_register_dest[0] != '0);
+    assign ldu_dest_valid[1] = ldu_valid[1] & (ldu_register_dest[1] != '0);
 
 
     /* A completed oldest load may wake a dependent in the response cycle.
-     * Keep younger in-flight loads blocked and preserve FIFO ordering. */
-    always_comb begin
-        ldu_hazard_valid = ldu_valid;
-        ldu_hazard_dest = ldu_register_dest;
+     * The younger entry remains hazardous and WAW checks remain active for
+     * both entries.  Express that directly instead of selecting a complete
+     * valid/destination vector with the late cache-response signal. */
+    assign ldu_response_matches_oldest = ldu_bypass_valid_i &
+                                         (ldu_register_dest[0] == ldu_bypass_reg_i);
 
-        if (ldu_bypass_valid_i & (ldu_register_dest[0] == ldu_bypass_reg_i)) begin
-            if (ldu_load_cnt == 2'd1) begin
-                ldu_hazard_valid = '0;
-            end else if (ldu_load_cnt == 2'd2) begin
-                ldu_hazard_valid[0] = 1'b1;
-                ldu_hazard_dest[0] = ldu_register_dest[1];
-                ldu_hazard_valid[1] = 1'b0;
-            end
-        end
-    end
+    assign ldu_source_hazard = ((((src_reg_i[0] == ldu_register_dest[0]) | (src_reg_i[1] == ldu_register_dest[0])) &
+                                   ldu_dest_valid[0] & !ldu_response_matches_oldest) |
+                                (((src_reg_i[0] == ldu_register_dest[1]) | (src_reg_i[1] == ldu_register_dest[1])) & 
+                                   ldu_dest_valid[1]));
 
-    assign ldu_raw_hazard[0] = (((src_reg_i[0] == ldu_hazard_dest[0]) |
-                                 (src_reg_i[1] == ldu_hazard_dest[0])) & ldu_hazard_valid[0] |
-                                (dest_reg_i   == ldu_register_dest[0]) & ldu_valid[0]) &
-                                ((ldu_hazard_dest[0] != '0) | (ldu_register_dest[0] != '0));
+    assign ldu_write_hazard = ((dest_reg_i == ldu_register_dest[0]) & ldu_dest_valid[0]) |
+                               ((dest_reg_i == ldu_register_dest[1]) & ldu_dest_valid[1]);
 
-    assign ldu_raw_hazard[1] = (((src_reg_i[0] == ldu_hazard_dest[1]) |
-                                 (src_reg_i[1] == ldu_hazard_dest[1])) & ldu_hazard_valid[1] |
-                                (dest_reg_i   == ldu_register_dest[1]) & ldu_valid[1]) &
-                                ((ldu_hazard_dest[1] != '0) | (ldu_register_dest[1] != '0));
+    assign ldu_raw_hazard = ldu_source_hazard | ldu_write_hazard;
 
     `ifdef SV_ASSERTION
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
@@ -601,407 +391,84 @@ module scoreboard (
 
 
 //====================================================================================
-//      FPADD SCHEDULING LOGIC
-//====================================================================================  
-    
-    `ifdef FPU 
-
-    /* Select the bit manipulation stage */
-    logic [FADD_LATENCY - 1:0] fadd_stage; 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fadd_stage_selector
-            if (!rst_n_i) begin
-                fadd_stage <= 1'b1;
-            end else if (flush_i) begin
-                fadd_stage <= 1'b1;
-            end else if (!stall_i & fadd_issue) begin
-                if (fadd_stage[FADD_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    fadd_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    fadd_stage <= fadd_stage << 1;
-                end 
-            end 
-        end : fadd_stage_selector
-
-
-    /* Since FADD is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [FADD_LATENCY - 1:0] fadd_executing, fadd_raw_hazard, fadd_latency_hazard;
-    logic [FADD_LATENCY - 1:0][31:0] fadd_register_dest;
-    logic [FADD_LATENCY - 1:0][$clog2(FADD_LATENCY):0] fadd_latency_cnt;
-
-    generate;
-
-        for (i = 0; i < FADD_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fadd_status_register
-                if (!rst_n_i) begin
-                    fadd_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    fadd_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fadd_issue & fadd_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        fadd_latency_cnt[i] <= FADD_LATENCY;
-                    end else if (fadd_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        fadd_latency_cnt[i] <= fadd_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        fadd_latency_cnt[i] <= '0;
-                    end
-                end
-            end : fadd_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fadd_destination_register
-                if (!rst_n_i) begin
-                    fadd_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fadd_issue & fadd_stage[i]) begin
-                        fadd_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : fadd_destination_register
-
-            assign fadd_executing[i] = (fadd_latency_cnt[i] > 'd1);
-            
-            assign fadd_raw_hazard[i] = ((src_reg_i[0] == fadd_register_dest[i]) | (src_reg_i[1] == fadd_register_dest[i]) | (dest_reg_i == fadd_register_dest[i])) & 
-                                        fadd_executing[i] & (fadd_register_dest[i] != '0);
-
-            assign fadd_latency_hazard[i] = (fpu_latency == fadd_latency_cnt[i]) & fadd_executing[i];
-
-        end
-
-    endgenerate
-    
-    `endif 
-
-
+//      FLOATING POINT COMPLETION CALENDAR
 //====================================================================================
-//      FPMUL SCHEDULING LOGIC
-//====================================================================================  
+
+    `ifdef FPU
     
-    `ifdef FPU 
+    /* Slots zero through four hold results with two through six cycles left. */
+    logic [4:0] fpu_calendar_valid;
+    logic [4:0][4:0] fpu_calendar_dest;
+    logic fpu_raw_hazard, fpu_latency_hazard, fpu_empty;
 
-    /* Select the bit manipulation stage */
-    logic [FMUL_LATENCY - 1:0] fmul_stage; 
 
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fmul_stage_selector
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fpu_calendar_register
             if (!rst_n_i) begin
-                fmul_stage <= 1'b1;
+                fpu_calendar_valid <= '0;
+                fpu_calendar_dest <= '0;
             end else if (flush_i) begin
-                fmul_stage <= 1'b1;
-            end else if (!stall_i & fmul_issue) begin
-                if (fmul_stage[FMUL_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    fmul_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    fmul_stage <= fmul_stage << 1;
-                end 
-            end 
-        end : fmul_stage_selector
-
-
-    /* Since FMUL is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [FMUL_LATENCY - 1:0] fmul_executing, fmul_raw_hazard, fmul_latency_hazard;
-    logic [FMUL_LATENCY - 1:0][31:0] fmul_register_dest;
-    logic [FMUL_LATENCY - 1:0][$clog2(FMUL_LATENCY):0] fmul_latency_cnt;
-
-    generate;
-
-        for (i = 0; i < FMUL_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fmul_status_register
-                if (!rst_n_i) begin
-                    fmul_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    fmul_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fmul_issue & fmul_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        fmul_latency_cnt[i] <= FMUL_LATENCY;
-                    end else if (fmul_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        fmul_latency_cnt[i] <= fmul_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        fmul_latency_cnt[i] <= '0;
-                    end
+                fpu_calendar_valid <= '0;
+                fpu_calendar_dest <= '0;
+            end else if (!stall_i) begin
+                for (int k = 0; k < 4; ++k) begin
+                    fpu_calendar_valid[k] <= fpu_calendar_valid[k + 1];
+                    fpu_calendar_dest[k] <= fpu_calendar_dest[k + 1];
                 end
-            end : fmul_status_register
+                fpu_calendar_valid[4] <= 1'b0;
+                fpu_calendar_dest[4] <= '0;
 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fmul_destination_register
-                if (!rst_n_i) begin
-                    fmul_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fmul_issue & fmul_stage[i]) begin
-                        fmul_register_dest[i] <= dest_reg_i;
-                    end 
+                /* Preserve shifting payloads; preselect data for empty slots. */
+                if ((fpu_unit_i.FPCMP | fpu_unit_i.FPMIS) &
+                    !fpu_calendar_valid[1]) begin
+                    fpu_calendar_dest[0] <= dest_reg_i;
                 end
-            end : fmul_destination_register
+                if (fpu_unit_i.FPCVT & !fpu_calendar_valid[2]) begin
+                    fpu_calendar_dest[1] <= dest_reg_i;
+                end
+                if (fpu_unit_i.FPADD | fpu_unit_i.FPMUL) begin
+                    fpu_calendar_dest[4] <= dest_reg_i;
+                end
 
-            assign fmul_executing[i] = (fmul_latency_cnt[i] > 'd1);
-            
-            assign fmul_raw_hazard[i] = ((src_reg_i[0] == fmul_register_dest[i]) | (src_reg_i[1] == fmul_register_dest[i]) | (dest_reg_i == fmul_register_dest[i])) & 
-                                        fmul_executing[i] & (fmul_register_dest[i] != '0);
+                if (fcmp_issue | fmis_issue) begin
+                    fpu_calendar_valid[0] <= 1'b1;
+                end
+                if (fcvt_issue) begin
+                    fpu_calendar_valid[1] <= 1'b1;
+                end
+                if (fadd_issue | fmul_issue) begin
+                    fpu_calendar_valid[4] <= 1'b1;
+                end
+            end
+        end : fpu_calendar_register
 
-            assign fmul_latency_hazard[i] = (fpu_latency == fmul_latency_cnt[i]) & fmul_executing[i];
-
+    always_comb begin : fpu_calendar_hazards
+        fpu_raw_hazard = 1'b0;
+        for (int n = 0; n < 5; ++n) begin
+            fpu_raw_hazard |= fpu_calendar_valid[n] &
+                              (fpu_calendar_dest[n] != '0) &
+                              ((src_reg_i[0] == fpu_calendar_dest[n]) |
+                               (src_reg_i[1] == fpu_calendar_dest[n]) |
+                               (dest_reg_i == fpu_calendar_dest[n]));
         end
+    end
 
-    endgenerate
-    
+    /* Check the slot that would shift into the candidate completion cycle. */
+    always_comb begin
+        case (fpu_latency)
+            4'd3: fpu_latency_hazard = fpu_calendar_valid[1];
+            4'd4: fpu_latency_hazard = fpu_calendar_valid[2];
+            default: fpu_latency_hazard = 1'b0;
+        endcase
+    end
+
+    assign fpu_empty = (fpu_calendar_valid == '0);
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (fcmp_issue | fmis_issue) |-> !fpu_calendar_valid[1]);
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            fcvt_issue |-> !fpu_calendar_valid[2]);
     `endif
-
-
-//====================================================================================
-//      FPCVT SCHEDULING LOGIC
-//====================================================================================  
-    
-    `ifdef FPU 
-
-    /* Select the bit manipulation stage */
-    logic [FCVT_LATENCY - 1:0] fcvt_stage; 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcvt_stage_selector
-            if (!rst_n_i) begin
-                fcvt_stage <= 1'b1;
-            end else if (flush_i) begin
-                fcvt_stage <= 1'b1;
-            end else if (!stall_i & fcvt_issue) begin
-                if (fcvt_stage[FCVT_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    fcvt_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    fcvt_stage <= fcvt_stage << 1;
-                end 
-            end 
-        end : fcvt_stage_selector
-
-
-    /* Since FMUL is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [FCVT_LATENCY - 1:0] fcvt_executing, fcvt_raw_hazard, fcvt_latency_hazard;
-    logic [FCVT_LATENCY - 1:0][31:0] fcvt_register_dest;
-    logic [FCVT_LATENCY - 1:0][$clog2(FCVT_LATENCY):0] fcvt_latency_cnt;
-
-    generate;
-
-        for (i = 0; i < FCVT_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcvt_status_register
-                if (!rst_n_i) begin
-                    fcvt_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    fcvt_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fcvt_issue & fcvt_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        fcvt_latency_cnt[i] <= FCVT_LATENCY;
-                    end else if (fcvt_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        fcvt_latency_cnt[i] <= fcvt_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        fcvt_latency_cnt[i] <= '0;
-                    end
-                end
-            end : fcvt_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcvt_destination_register
-                if (!rst_n_i) begin
-                    fcvt_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fcvt_issue & fcvt_stage[i]) begin
-                        fcvt_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : fcvt_destination_register
-
-            assign fcvt_executing[i] = (fcvt_latency_cnt[i] > 'd1);
-            
-            assign fcvt_raw_hazard[i] = ((src_reg_i[0] == fcvt_register_dest[i]) | (src_reg_i[1] == fcvt_register_dest[i]) | (dest_reg_i == fcvt_register_dest[i])) & 
-                                        fcvt_executing[i] & (fcvt_register_dest[i] != '0);
-
-            assign fcvt_latency_hazard[i] = (fpu_latency == fcvt_latency_cnt[i]) & fcvt_executing[i];
-
-        end
-
-    endgenerate
-    
-    `endif
-
-
-//====================================================================================
-//      FPCMP SCHEDULING LOGIC
-//====================================================================================  
-    
-    `ifdef FPU 
-
-    /* Select the bit manipulation stage */
-    logic [FCMP_LATENCY - 1:0] fcmp_stage; 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcmp_stage_selector
-            if (!rst_n_i) begin
-                fcmp_stage <= 1'b1;
-            end else if (flush_i) begin
-                fcmp_stage <= 1'b1;
-            end else if (!stall_i & fcmp_issue) begin
-                if (fcmp_stage[FCMP_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    fcmp_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    fcmp_stage <= fcmp_stage << 1;
-                end 
-            end 
-        end : fcmp_stage_selector
-
-
-    /* Since FMUL is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [FCMP_LATENCY - 1:0] fcmp_executing, fcmp_raw_hazard, fcmp_latency_hazard;
-    logic [FCMP_LATENCY - 1:0][31:0] fcmp_register_dest;
-    logic [FCMP_LATENCY - 1:0][$clog2(FCMP_LATENCY):0] fcmp_latency_cnt;
-
-    generate;
-
-        for (i = 0; i < FCMP_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcmp_status_register
-                if (!rst_n_i) begin
-                    fcmp_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    fcmp_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fcmp_issue & fcmp_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        fcmp_latency_cnt[i] <= FCMP_LATENCY;
-                    end else if (fcmp_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        fcmp_latency_cnt[i] <= fcmp_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        fcmp_latency_cnt[i] <= '0;
-                    end
-                end
-            end : fcmp_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fcmp_destination_register
-                if (!rst_n_i) begin
-                    fcmp_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fcmp_issue & fcmp_stage[i]) begin
-                        fcmp_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : fcmp_destination_register
-
-            assign fcmp_executing[i] = (fcmp_latency_cnt[i] > 'd1);
-            
-            assign fcmp_raw_hazard[i] = ((src_reg_i[0] == fcmp_register_dest[i]) | (src_reg_i[1] == fcmp_register_dest[i]) | (dest_reg_i == fcmp_register_dest[i])) & 
-                                        fcmp_executing[i] & (fcmp_register_dest[i] != '0);
-
-            assign fcmp_latency_hazard[i] = (fpu_latency == fcmp_latency_cnt[i]) & fcmp_executing[i];
-
-        end
-
-    endgenerate
-    
-    `endif
-
-
-//====================================================================================
-//      FPMIS SCHEDULING LOGIC
-//====================================================================================  
-    
-    `ifdef FPU 
-
-    /* Select the bit manipulation stage */
-    logic [FMIS_LATENCY - 1:0] fmis_stage; 
-
-        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fmis_stage_selector
-            if (!rst_n_i) begin
-                fmis_stage <= 1'b1;
-            end else if (flush_i) begin
-                fmis_stage <= 1'b1;
-            end else if (!stall_i & fmis_issue) begin
-                if (fmis_stage[FMIS_LATENCY - 1]) begin
-                    /* Wrap around the shifted bit */
-                    fmis_stage <= 1'b1;
-                end else begin 
-                    /* Shift the bit every time an
-                     * operation arrives */
-                    fmis_stage <= fmis_stage << 1;
-                end 
-            end 
-        end : fmis_stage_selector
-
-
-    /* Since FMUL is a pipelined unit, the scoreboard needs to keep 
-     * track of every stage */
-    logic [FMIS_LATENCY - 1:0] fmis_executing, fmis_raw_hazard, fmis_latency_hazard;
-    logic [FMIS_LATENCY - 1:0][31:0] fmis_register_dest;
-    logic [FMIS_LATENCY - 1:0][$clog2(FMIS_LATENCY):0] fmis_latency_cnt;
-
-    generate;
-
-        for (i = 0; i < FMIS_LATENCY; ++i) begin 
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fmis_status_register
-                if (!rst_n_i) begin
-                    fmis_latency_cnt[i] <= '0;
-                end else if (flush_i) begin
-                    fmis_latency_cnt[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fmis_issue & fmis_stage[i]) begin
-                        /* If the current stage counter is selected 
-                         * load status */
-                        fmis_latency_cnt[i] <= FMIS_LATENCY;
-                    end else if (fmis_latency_cnt[i] != '0) begin
-                        /* Keep decrementing the latency counter until the
-                         * unit produces a valid result */
-                        fmis_latency_cnt[i] <= fmis_latency_cnt[i] - 1'b1;
-                    end else begin
-                        /* The unit has finished */
-                        fmis_latency_cnt[i] <= '0;
-                    end
-                end
-            end : fmis_status_register
-
-            always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin : fmis_destination_register
-                if (!rst_n_i) begin
-                    fmis_register_dest[i] <= '0;
-                end else if (!stall_i) begin 
-                    if (fmis_issue & fmis_stage[i]) begin
-                        fmis_register_dest[i] <= dest_reg_i;
-                    end 
-                end
-            end : fmis_destination_register
-
-            assign fmis_executing[i] = (fmis_latency_cnt[i] > 'd1);
-            
-            assign fmis_raw_hazard[i] = ((src_reg_i[0] == fmis_register_dest[i]) | (src_reg_i[1] == fmis_register_dest[i]) | (dest_reg_i == fmis_register_dest[i])) & 
-                                        fmis_executing[i] & (fmis_register_dest[i] != '0);
-
-            assign fmis_latency_hazard[i] = (fpu_latency == fmis_latency_cnt[i]) & fmis_executing[i];
-
-        end
-
-    endgenerate
-    
     `endif
 
 
@@ -1009,44 +476,30 @@ module scoreboard (
 //      ISSUE LOGIC
 //==================================================================================== 
 
-    `ifdef FPU 
-
-    logic fpu_raw_hazard, fpu_latency_hazard, fpu_empty;
-
-    assign fpu_raw_hazard = (fadd_raw_hazard != '0) | (fmul_raw_hazard != '0) | (fcvt_raw_hazard != '0) | (fcmp_raw_hazard != '0) | (fmis_raw_hazard != '0);
-    assign fpu_latency_hazard = (fadd_latency_hazard != '0) | (fmul_latency_hazard != '0) | (fcvt_latency_hazard != '0) | (fcmp_latency_hazard != '0) | (fmis_latency_hazard != '0);
-    assign fpu_empty = (fadd_executing == '0) & (fmul_executing == '0) & (fcvt_executing == '0) & (fcmp_executing == '0) & (fmis_executing == '0);
-    
-    `endif 
-
-
     logic raw_hazard, latency_hazard, structural_hazard, issue_hazard;
 
-    assign raw_hazard = (|ldu_raw_hazard) | div_raw_hazard | (|mul_raw_hazard) | (|alu_raw_hazard) `ifdef BMU | (|bmu_raw_hazard) `endif `ifdef FPU | fpu_raw_hazard `endif;
-    assign latency_hazard = div_latency_hazard | (|mul_latency_hazard) | (|alu_latency_hazard) `ifdef BMU | (|bmu_latency_hazard) `endif `ifdef FPU | fpu_latency_hazard `endif;
+    assign raw_hazard = ldu_raw_hazard | div_raw_hazard | short_raw_hazard `ifdef FPU | fpu_raw_hazard `endif;
+    assign latency_hazard = div_latency_hazard | short_latency_hazard `ifdef FPU | fpu_latency_hazard `endif;
     assign structural_hazard = (itu_unit_i.DIV & div_executing) | (lsu_unit_i.LDU & ldu_full & !ldu_serviced_i) | (lsu_unit_i.STU & !stu_idle_i);
     assign issue_hazard = raw_hazard | latency_hazard;
 
-    /* Reserve execution resources only when the scheduler actually advances
-     * this instruction.  A hazard-free instruction may still be held by CSR
-     * or FENCE serialization, a cache flush, or ROB backpressure.  Counting
-     * such a held instruction creates a phantom dependency on itself. */
-    assign alu_issue = itu_unit_i.ALU & !issue_hazard & issue_accept_i;
-    assign mul_issue = itu_unit_i.MUL & !issue_hazard & issue_accept_i;
-    assign div_issue = itu_unit_i.DIV & !issue_hazard & !div_executing & issue_accept_i;
-    assign ldu_issue = lsu_unit_i.LDU & !issue_hazard & (!ldu_full | ldu_serviced_i) & issue_accept_i;
-    assign stu_issue = lsu_unit_i.STU & !issue_hazard & stu_idle_i & issue_accept_i;
+    /* The scheduler accepts only hazard-free, unstalled instructions. */
+    assign alu_issue = itu_unit_i.ALU & issue_accept_i;
+    assign mul_issue = itu_unit_i.MUL & issue_accept_i;
+    assign div_issue = itu_unit_i.DIV & issue_accept_i;
+    assign ldu_issue = lsu_unit_i.LDU & issue_accept_i;
+    assign stu_issue = lsu_unit_i.STU & issue_accept_i;
 
     `ifdef BMU
-    assign bmu_issue = itu_unit_i.BMU & !issue_hazard & issue_accept_i;
+    assign bmu_issue = itu_unit_i.BMU & issue_accept_i;
     `endif
 
     `ifdef FPU
-    assign fadd_issue = fpu_unit_i.FPADD & !issue_hazard & issue_accept_i;
-    assign fmul_issue = fpu_unit_i.FPMUL & !issue_hazard & issue_accept_i;
-    assign fcvt_issue = fpu_unit_i.FPCVT & !issue_hazard & issue_accept_i;
-    assign fcmp_issue = fpu_unit_i.FPCMP & !issue_hazard & issue_accept_i;
-    assign fmis_issue = fpu_unit_i.FPMIS & !issue_hazard & issue_accept_i;
+    assign fadd_issue = fpu_unit_i.FPADD & issue_accept_i;
+    assign fmul_issue = fpu_unit_i.FPMUL & issue_accept_i;
+    assign fcvt_issue = fpu_unit_i.FPCVT & issue_accept_i;
+    assign fcmp_issue = fpu_unit_i.FPCMP & issue_accept_i;
+    assign fmis_issue = fpu_unit_i.FPMIS & issue_accept_i;
     `endif
 
 
@@ -1054,12 +507,15 @@ module scoreboard (
 //      OUTPUT LOGIC
 //==================================================================================== 
 
-    assign issue_instruction_o = !(raw_hazard | latency_hazard | structural_hazard | block_store_operation);
+    assign issue_instruction_o = !(issue_hazard | structural_hazard | block_store_operation);
 
     /* If no unit is executing, then the pipeline is empty */
-    assign pipeline_empty_o = !((|mul_executing) | div_executing |(|alu_executing) | `ifdef BMU (|bmu_executing) `endif | !stu_idle_i | !ldu_idle_i) `ifdef FPU & fpu_empty `endif;
+    assign pipeline_empty_o = !short_valid & !div_executing & stu_idle_i & ldu_idle_i `ifdef FPU & fpu_empty `endif;
 
     `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            issue_accept_i |-> (issue_instruction_o & !stall_i));
+
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             !issue_accept_i |-> !(alu_issue | mul_issue | div_issue | ldu_issue | stu_issue
                                   `ifdef BMU | bmu_issue `endif

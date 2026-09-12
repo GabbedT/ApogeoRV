@@ -168,7 +168,7 @@ module back_end #(
     logic core_sleep;
 
     /* Operands */
-    data_word_t [1:0] fowarded_operands; 
+    data_word_t [1:0] fowarded_operands, bypass_operands_base;
 
     /* Data fowarded */
     data_word_t [1:0] raw_execute_data, execute_data, commit_data;
@@ -186,27 +186,12 @@ module back_end #(
         .execute_valid_i     ( execute_valid        ),
         .commit_data_i       ( commit_data          ),
         .commit_valid_i      ( commit_valid         ),
-        .operand_o           ( fowarded_operands    )   
-    );
-
-
-    logic branch_outcome;
-
-    /* Resolve the branch early to shorten the critical path */
-    branch_resolver branch_resolution_unit (
-        .operand_A_i ( fowarded_operands[0] ),
-        .operand_B_i ( fowarded_operands[1] ),
-
-        .operation_i ( operation_i.ITU.subunit.ALU.opcode ),
-
-        .outcome_o ( branch_outcome )
+        .operand_o           ( bypass_operands_base )
     );
 
 
         always_ff @(posedge clk_i) begin
             if (!stall_o) begin 
-                branch_outcome_o <= branch_outcome;
-
                 /* Based on the jump type (relative or absolute) add to the offset the instruction address or the register
                  * to form the branch target address */
                 branch_address_o <= (base_address_reg_i ? fowarded_operands[0] : ipacket_i.instr_addr) + address_offset_i;
@@ -249,13 +234,28 @@ module back_end #(
 
     exu_uop_t bypass_operation;
     data_word_t [1:0] bypass_operands;
+    data_word_t bypass_next_pc;
 
         always_ff @(posedge clk_i) begin : bypass_operands_stage_register
             if (!stall_o) begin 
                 bypass_operation <= operation_i;
                 bypass_operands <= fowarded_operands;
+                bypass_next_pc <= ipacket_i.instr_addr + (ipacket_i.compressed ? 32'd2 : 32'd4);
             end 
         end : bypass_operands_stage_register
+
+
+    /* Resolve the branch from the registered bypass operands.  This preserves
+     * the existing execution-cycle resolution point while keeping commit
+     * backpressure and same-cycle issue forwarding out of the compare path. */
+    branch_resolver branch_resolution_unit (
+        .operand_A_i ( bypass_operands[0] ),
+        .operand_B_i ( bypass_operands[1] ),
+
+        .operation_i ( bypass_operation.ITU.subunit.ALU.opcode ),
+
+        .outcome_o ( branch_outcome_o )
+    );
 
     
     
@@ -344,6 +344,7 @@ module back_end #(
 
         .branch_i       ( bypass_branch       ),
         .save_next_pc_i ( bypass_save_next_pc ),
+        .next_pc_i      ( bypass_next_pc      ),
 
         .load_channel  ( load_channel  ),
         .store_channel ( store_channel ),
@@ -373,9 +374,9 @@ module back_end #(
         .ldu_bypass_data_o  ( ldu_bypass_data  ),
         .stu_idle_o         ( stu_idle         ),
 
-        .result_o     ( result       ),
-        .ipacket_o    ( ipacket      ),
-        .data_valid_o ( valid        )
+        .result_o     ( result  ),
+        .ipacket_o    ( ipacket ),
+        .data_valid_o ( valid   )
     );
 
     /* Unit result data */
@@ -424,11 +425,22 @@ module back_end #(
     genvar i; 
 
     logic [1:0][EXU_PORT - 1:0] raw_dest_match, dest_match;
-    logic [1:0] early_ldu_dest_match;
+    logic [1:0] early_ldu_dest_match, early_ldu_bypass;
 
     generate
         for (i = 0; i < 2; ++i) begin
             assign early_ldu_dest_match[i] = ldu_bypass_reg == reg_src_i[i];
+            /* A completing load is a raw-stage producer, but routing it
+             * through the generic multi-result mux adds two wide mux layers
+             * to the load-use path.  Apply it after the generic bypass while
+             * retaining normal raw-result priority and immediate semantics. */
+            assign early_ldu_bypass[i] = (reg_src_i[i] != '0) &
+                                         !immediate_valid_i[i] &
+                                         early_ldu_dest_match[i] &
+                                         ldu_bypass_valid &
+                                         !raw_execute_valid[i];
+            assign fowarded_operands[i] = early_ldu_bypass[i] ?
+                                          ldu_bypass_data : bypass_operands_base[i];
         end
 
         for (i = 0; i < EXU_PORT; ++i) begin
@@ -444,8 +456,7 @@ module back_end #(
             assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
                                           ((raw_dest_match[i][0] & valid[0]) |
                                            (raw_dest_match[i][1] & valid[1]) |
-                                           (raw_dest_match[i][2] & valid[2]) |
-                                           (early_ldu_dest_match[i] & ldu_bypass_valid));
+                                           (raw_dest_match[i][2] & valid[2]));
 
             assign execute_valid[i] = (reg_src_i[i] != '0) &
                                       ((dest_match[i][0] & valid_sampled[0]) |
@@ -460,10 +471,7 @@ module back_end #(
 
                     3'b100: raw_execute_data[i] = result[2];
 
-                    default: begin
-                        raw_execute_data[i] = (early_ldu_dest_match[i] & ldu_bypass_valid) ?
-                                              ldu_bypass_data : '0;
-                    end
+                    default: raw_execute_data[i] = '0;
                 endcase
             end
 
@@ -485,8 +493,7 @@ module back_end #(
         for (i = 0; i < 2; ++i) begin
             assign raw_execute_valid[i] = (reg_src_i[i] != '0) &
                                           ((raw_dest_match[i][0] & valid[0]) |
-                                           (raw_dest_match[i][1] & valid[1]) |
-                                           (early_ldu_dest_match[i] & ldu_bypass_valid));
+                                           (raw_dest_match[i][1] & valid[1]));
 
             assign execute_valid[i] = (reg_src_i[i] != '0) &
                                       ((dest_match[i][0] & valid_sampled[0]) |
@@ -498,10 +505,7 @@ module back_end #(
 
                     2'b10: raw_execute_data[i] = result[1];
 
-                    default: begin
-                        raw_execute_data[i] = (early_ldu_dest_match[i] & ldu_bypass_valid) ?
-                                              ldu_bypass_data : '0;
-                    end
+                    default: raw_execute_data[i] = '0;
                 endcase
             end
 

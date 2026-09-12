@@ -247,7 +247,7 @@ module commit_stage #(
 //      BUFFER ARBITER LOGIC
 //====================================================================================
 
-    `ifdef FPU typedef enum logic [1:0] {BUFFER1, BUFFER2, BUFFER3} fsm_state_t; `else typedef enum logic {BUFFER1, BUFFER2} fsm_state_t; `endif 
+    `ifdef FPU typedef enum logic [1:0] {BUFFER1, BUFFER2, BUFFER3} fsm_state_t; `else typedef enum logic {BUFFER1, BUFFER2} fsm_state_t; `endif
 
     fsm_state_t state_CRT, state_NXT;
 
@@ -259,92 +259,68 @@ module commit_stage #(
             end
         end : state_register
 
-
-        always_comb begin : next_state_logic
-            /* Default values */
-            state_NXT = state_CRT;
-
+        /* Skip empty banks without consuming an arbitration cycle. */
+        always_comb begin : grant_logic
             pull_buffer = '0;
-            rob_entry_o = '0;
-            rob_write_o = 1'b0;
-            rob_tag_o = 1'b0;
 
             case (state_CRT)
-
-                /* 
-                 * ITU Buffer turn
-                 */
                 BUFFER1: begin
-                    if (!buffer_empty[ITU]) begin
-                        /* If the buffer is not empty read the value */
-                        pull_buffer[ITU] = 1'b1;
-                        rob_write_o = !stall_i;
-                        rob_entry_o = packet_convert(ipacket_read[ITU], result_read[ITU]);
-                        rob_tag_o = ipacket_read[ITU].rob_tag;
-                    end
-
-                    /* Go to next buffer, give priority 
-                     * to the next one */
-                    if (!buffer_empty[LSU]) begin
-                        state_NXT = BUFFER2;
-                    end `ifdef FPU else if (!buffer_empty[FPU]) begin
-                        state_NXT = BUFFER3;
-                    end `endif
+                    pull_buffer[ITU] = !buffer_empty[ITU];
+                    pull_buffer[LSU] = buffer_empty[ITU] & !buffer_empty[LSU];
+                    `ifdef FPU
+                    pull_buffer[FPU] = buffer_empty[ITU] & buffer_empty[LSU] & !buffer_empty[FPU];
+                    `endif
                 end
 
-                /* 
-                 * LSU Buffer turn
-                 */
                 BUFFER2: begin
-                    if (!buffer_empty[LSU]) begin
-                        /* If the buffer is not empty read the value */
-                        pull_buffer[LSU] = 1'b1;
-                        rob_write_o = !stall_i;
-                        rob_entry_o = packet_convert(ipacket_read[LSU], result_read[LSU]);
-                        rob_tag_o = ipacket_read[LSU].rob_tag;
-                    end 
-
-                    /* Go to next buffer, give priority 
-                     * to the next one */
-                    `ifdef FPU 
-                        if (!buffer_empty[FPU]) begin
-                            state_NXT = BUFFER3;
-                        end else if (!buffer_empty[ITU]) begin
-                            state_NXT = BUFFER1;
-                        end
-                    `else 
-                        if (!buffer_empty[ITU]) begin
-                            state_NXT = BUFFER1;
-                        end
-                    `endif 
+                    pull_buffer[LSU] = !buffer_empty[LSU];
+                    `ifdef FPU
+                    pull_buffer[FPU] = buffer_empty[LSU] & !buffer_empty[FPU];
+                    pull_buffer[ITU] = buffer_empty[LSU] & buffer_empty[FPU] & !buffer_empty[ITU];
+                    `else
+                    pull_buffer[ITU] = buffer_empty[LSU] & !buffer_empty[ITU];
+                    `endif
                 end
 
-                /* 
-                 * FPU Buffer turn
-                 */
-                `ifdef FPU 
-
+                `ifdef FPU
                 BUFFER3: begin
-                    if (!buffer_empty[FPU]) begin
-                        /* If the buffer is not empty read the value */
-                        pull_buffer[FPU] = 1'b1;
-                        rob_write_o = !stall_i;
-                        rob_entry_o = packet_convert(ipacket_read[FPU], result_read[FPU]);
-                        rob_tag_o = ipacket_read[FPU].rob_tag;
-                    end 
-
-                    /* Go to next buffer, give priority 
-                     * to the next one */
-                    if (!buffer_empty[ITU]) begin
-                        state_NXT = BUFFER1;
-                    end else if (!buffer_empty[LSU]) begin
-                        state_NXT = BUFFER2;
-                    end
+                    pull_buffer[FPU] = !buffer_empty[FPU];
+                    pull_buffer[ITU] = buffer_empty[FPU] & !buffer_empty[ITU];
+                    pull_buffer[LSU] = buffer_empty[FPU] & buffer_empty[ITU] & !buffer_empty[LSU];
                 end
+                `endif
 
-                `endif 
-            endcase 
+                default: begin
+                    pull_buffer = '0;
+                end
+            endcase
+        end : grant_logic
+
+        always_comb begin : next_state_logic
+            state_NXT = state_CRT;
+
+            if (pull_buffer[ITU]) begin
+                state_NXT = BUFFER2;
+            end else if (pull_buffer[LSU]) begin
+                state_NXT = `ifdef FPU BUFFER3 `else BUFFER1 `endif;
+            end `ifdef FPU else if (pull_buffer[FPU]) begin
+                state_NXT = BUFFER1;
+            end `endif
         end : next_state_logic
+
+        always_comb begin : packet_select
+            rob_entry_o = '0;
+            rob_tag_o = '0;
+
+            for (int i = 0; i < EXU_PORT; ++i) begin
+                rob_entry_o |= packet_convert(ipacket_read[i], result_read[i]) &
+                               {$bits(rob_entry_t){pull_buffer[i]}};
+                rob_tag_o |= ipacket_read[i].rob_tag & {6{pull_buffer[i]}};
+            end
+        end : packet_select
+
+    assign rob_write_o = (|pull_buffer) & !stall_i;
+
 
     /* A full buffer can still accept one result when the arbiter pops it in
      * the same cycle.  Keep the execution-stage sample stable only when at
@@ -394,6 +370,22 @@ module commit_stage #(
 
             `endif 
         end
+
+
+//====================================================================================
+//      ASSERTIONS
+//====================================================================================
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            $onehot0(pull_buffer));
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (|pull_buffer) == !(&buffer_empty));
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (pull_buffer & buffer_empty) == '0);
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (push_buffer & buffer_full & ~pull_buffer) == '0);
+    `endif
 
 endmodule : commit_stage
 

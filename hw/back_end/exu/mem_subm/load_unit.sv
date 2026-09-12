@@ -62,16 +62,18 @@ module load_unit (
     load_interface.master load_channel,
 
     /* Forwarding nets */
-    input logic forward_match_i,
-    input data_word_t forward_data_i,
+    input logic forward_direct_match_i,
+    input data_word_t forward_direct_data_i,
+    input logic forward_direct_wait_i,
+    input logic forward_queued_match_i,
+    input data_word_t forward_queued_data_i,
+    input logic forward_queued_wait_i,
     output data_word_t forward_direct_address_o,
     output store_width_t forward_direct_width_o,
     output data_word_t forward_queued_address_o,
     output store_width_t forward_queued_width_o,
-    output logic forward_select_queued_o,
 
     /* Status */
-    input logic buffer_wait_i,
     input logic buffer_empty_i,
     
     /* Data loaded from memory */   
@@ -97,6 +99,16 @@ module load_unit (
 //====================================================================================
 
     typedef struct packed {
+        logic [1:0] low_byte_select;
+        logic [1:0] sign_byte_select;
+        logic high_half_select;
+        logic byte_load;
+        logic word_load;
+        logic valid_width;
+        logic signed_load;
+    } load_format_t;
+
+    typedef struct packed {
         logic misaligned;
         logic illegal_access;
         logic private_reg;
@@ -106,8 +118,71 @@ module load_unit (
         ldu_uop_t operation;
 
         logic [31:0] address;
+        load_format_t format;
         logic [31:0] forwarded_data;
     } lbuf_entry_t;
+
+    typedef enum logic [1:0] {
+        DEP_FORWARD,
+        DEP_WAIT,
+        DEP_MEMORY
+    } dependency_result_t;
+
+    function automatic data_word_t slice_load_data(
+        input lbuf_entry_t entry,
+        input data_word_t raw_data
+    );
+        case (entry.operation.uop)
+            LDB: begin
+                if (entry.operation.signed_load) begin
+                    slice_load_data = {
+                        {24{raw_data.word8[entry.address[1:0]][7]}},
+                        raw_data.word8[entry.address[1:0]]
+                    };
+                end else begin
+                    slice_load_data = {
+                        24'b0, raw_data.word8[entry.address[1:0]]
+                    };
+                end
+            end
+
+            LDH: begin
+                if (entry.operation.signed_load) begin
+                    slice_load_data = {
+                        {16{raw_data.word16[entry.address[1]][15]}},
+                        raw_data.word16[entry.address[1]]
+                    };
+                end else begin
+                    slice_load_data = {
+                        16'b0, raw_data.word16[entry.address[1]]
+                    };
+                end
+            end
+
+            LDW: slice_load_data = raw_data;
+
+            default: slice_load_data = '0;
+        endcase
+    endfunction
+
+    /* Select byte lanes with the saved format controls. */
+    function automatic data_word_t format_predecoded_data(
+        input load_format_t format,
+        input data_word_t raw_data
+    );
+        data_word_t formatted_data;
+        logic [7:0] low_byte, high_byte;
+        logic sign_bit;
+
+        low_byte = raw_data.word8[format.low_byte_select];
+        high_byte = raw_data.word16[format.high_half_select][15:8];
+        sign_bit = raw_data.word8[format.sign_byte_select][7] & format.signed_load;
+
+        formatted_data.word8[0]  = low_byte;
+        formatted_data.word8[1]  = format.byte_load ? {8{sign_bit}} : high_byte;
+        formatted_data.word16[1] = format.word_load ? raw_data.word16[1] : {16{sign_bit}};
+        format_predecoded_data   = format.valid_width ? formatted_data : '0;
+    endfunction
 
 
 //====================================================================================
@@ -161,8 +236,10 @@ module load_unit (
             load_request = 1'b0;
             wait_mem_update = 1'b0;
 
-            if (accept_load & !(misaligned | illegal_access | (forward_match_i & !queue_request))) begin
-                if (buffer_wait_i | private_region | queue_request) begin
+            if (accept_load &
+                !(misaligned | illegal_access |
+                  (forward_direct_match_i & !queue_request))) begin
+                if (forward_direct_wait_i | private_region | queue_request) begin
                     /* If store buffer has some data related to the same address or
                      * private region is being accessed or the previous load is 
                      * waiting memory. */
@@ -173,31 +250,67 @@ module load_unit (
             end
         end
 
-    /* Evaluate issue-stage and buffered-head dependencies independently.  The
-     * store unit selects only after both forwarding comparisons complete. */
+    /* Evaluate issue-stage and buffered-head dependencies independently. */
     assign forward_direct_address_o = load_address_i;
     assign forward_direct_width_o = store_width_t'(operation_i.uop);
     assign forward_queued_address_o = data_word_t'(lbuf_read_entry.address);
     assign forward_queued_width_o = store_width_t'(lbuf_read_entry.operation.uop);
-    assign forward_select_queued_o = queue_request;
 
 
-    logic lbuf_empty, lbuf_full, lbuf_read;
+    logic lbuf_empty, lbuf_full, lbuf_read, lbuf_complete;
     logic [1:0] lbuf_count;
     lbuf_entry_t lbuf_entries [0:1];
     lbuf_entry_t lbuf_write_entry, lbuf_read_entry;
+    load_format_t write_format;
 
     assign lbuf_write_entry.misaligned = misaligned;
     assign lbuf_write_entry.illegal_access = illegal_access;
     assign lbuf_write_entry.private_reg = private_region;
     assign lbuf_write_entry.wait_mem_upd = wait_mem_update;
 
-    /* The forwarding port belongs to the buffered head while queue_request is
-     * asserted */
-    assign lbuf_write_entry.forwarded = forward_match_i & !queue_request & !(misaligned | illegal_access);
+    assign lbuf_write_entry.forwarded = forward_direct_match_i & !queue_request &
+                                        !(misaligned | illegal_access);
     assign lbuf_write_entry.operation = operation_i;
     assign lbuf_write_entry.address = load_address_i;
-    assign lbuf_write_entry.forwarded_data = forward_data_i;
+    assign lbuf_write_entry.format = write_format;
+
+        always_comb begin
+            write_format.low_byte_select = '0;
+            write_format.sign_byte_select = '0;
+            write_format.high_half_select = 1'b0;
+            write_format.byte_load = 1'b0;
+            write_format.word_load = 1'b0;
+            write_format.valid_width = 1'b0;
+            write_format.signed_load = operation_i.signed_load;
+
+            case (operation_i.uop)
+                LDB: begin
+                    write_format.low_byte_select = load_address_i[1:0];
+                    write_format.sign_byte_select = load_address_i[1:0];
+                    write_format.byte_load = 1'b1;
+                    write_format.valid_width = 1'b1;
+                end
+
+                LDH: begin
+                    write_format.low_byte_select = {load_address_i[1], 1'b0};
+                    write_format.sign_byte_select = {load_address_i[1], 1'b1};
+                    write_format.high_half_select = load_address_i[1];
+                    write_format.valid_width = 1'b1;
+                end
+
+                LDW: begin
+                    write_format.word_load = 1'b1;
+                    write_format.valid_width = 1'b1;
+                end
+
+                default: begin
+                    write_format.valid_width = 1'b0;
+                end
+            endcase
+        end
+
+    /* Format store data before the existing capture. */
+    assign lbuf_write_entry.forwarded_data = format_predecoded_data(write_format, forward_direct_data_i);
 
   
     assign lbuf_empty = (lbuf_count == 2'd0);
@@ -262,55 +375,106 @@ module load_unit (
 
 
     assign queue_request = lbuf_read_entry.wait_mem_upd & !lbuf_empty;
-    assign accept_load = valid_operation_i & !stall_i & !flush_i & (!lbuf_full | lbuf_read);
+
+    /* Flush wins in the FIFO registers and on architectural completion */
+    assign accept_load = valid_operation_i & !stall_i & (!lbuf_full | lbuf_complete);
+    assign lbuf_read = lbuf_complete & !flush_i;
 
 
-    data_word_t data_selected; logic load_wait_request, request_pending;
+    /* Store lookup results for a queued dependency stop at this register  */
+    logic dependency_valid, dependency_lookup;
+    logic dependency_forward, dependency_wait, dependency_memory;
+
+    dependency_result_t dependency_result;
+    lbuf_entry_t dependency_entry;
+    data_word_t dependency_forwarded_data;
+
+    assign dependency_lookup = queue_request & !lbuf_read_entry.private_reg &
+                               !request_pending & (!dependency_valid | (dependency_result == DEP_WAIT)) & !flush_i;
+
+    assign dependency_forward = dependency_valid & (dependency_result == DEP_FORWARD);
+
+    assign dependency_wait = dependency_valid & (dependency_result == DEP_WAIT);
+
+    assign dependency_memory = dependency_valid & (dependency_result == DEP_MEMORY);
+
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                dependency_valid <= 1'b0;
+                dependency_result <= DEP_WAIT;
+                dependency_entry <= '0;
+                dependency_forwarded_data <= '0;
+            end else if (flush_i) begin
+                dependency_valid <= 1'b0;
+            end else if (dependency_lookup) begin
+                dependency_valid <= 1'b1;
+                dependency_entry <= lbuf_read_entry;
+                dependency_forwarded_data <= format_predecoded_data(lbuf_read_entry.format, forward_queued_data_i);
+
+                if (forward_queued_match_i) begin
+                    dependency_result <= DEP_FORWARD;
+                end else if (forward_queued_wait_i) begin
+                    dependency_result <= DEP_WAIT;
+                end else begin
+                    dependency_result <= DEP_MEMORY;
+                end
+            end else if (dependency_valid &  (((dependency_result == DEP_FORWARD) & !stall_i) |
+                        (dependency_result == DEP_MEMORY))) begin
+                dependency_valid <= 1'b0;
+            end
+        end
+
+
+    data_word_t data_selected, memory_data_formatted;
+    logic load_wait_request, load_wait_address_select, request_pending;
 
         always_comb begin
-            /* Default Values */
-            data_selected = load_channel.data;
+            /* The final mux selects formatted values. */
+            memory_data_formatted = format_predecoded_data(lbuf_read_entry.format, load_channel.data);
+            data_selected = memory_data_formatted;
             load_wait_request = 1'b0;
-            lbuf_read = 1'b0;
+            load_wait_address_select = 1'b0;
+            lbuf_complete = 1'b0;
             wait_o = 1'b0;
 
             if (lbuf_read_entry.forwarded & !lbuf_empty) begin
                 data_selected = lbuf_read_entry.forwarded_data;
             end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
-                data_selected = load_channel.data;
-            end else if (forward_match_i) begin
-                data_selected = forward_data_i;
+                data_selected = memory_data_formatted;
+            end else if (dependency_forward) begin
+                data_selected = dependency_forwarded_data;
             end
 
             if (!lbuf_empty) begin
                 if (lbuf_read_entry.misaligned | lbuf_read_entry.illegal_access) begin
                     /* Faulting loads retire without accessing memory. */
-                    lbuf_read = !stall_i & !flush_i;
+                    lbuf_complete = !stall_i;
                 end else if (lbuf_read_entry.forwarded) begin
                     /* The combinational store-buffer result was captured with
-                     * the request, so no cache request needs cancellation. */
-                    lbuf_read = !stall_i & !flush_i;
+                     * the request, so no memory request needs cancellation. */
+                    lbuf_complete = !stall_i;
                 end else if (!lbuf_read_entry.wait_mem_upd | request_pending) begin
-                    if (load_channel.valid & !stall_i & !flush_i) begin
-                        lbuf_read = 1'b1;
+                    if (load_channel.valid & !stall_i) begin
+                        lbuf_complete = 1'b1;
                     end
                 end else if (lbuf_read_entry.private_reg) begin
                     /* Wait until the store buffer is empty to ensure no
                      * memory conflicts during a protected memory access */
                     if (buffer_empty_i) begin
-                        load_wait_request = !flush_i;
+                        load_wait_address_select = 1'b1;
+                        load_wait_request = 1'b1;
                     end
 
                     wait_o = 1'b1;
                 end else begin
                     /* Wait until the store buffer has resolved the dependency
                      * by either becoming forwardable or writing the data into
-                     * memory. A store stalled before its buffer push can
-                     * become forwardable while this load is already queued. */
-                    if (forward_match_i) begin
-                        lbuf_read = !stall_i & !flush_i;
-                    end else if (!buffer_wait_i) begin
-                        load_wait_request = !flush_i;
+                     * memory */
+                    if (dependency_forward) begin
+                        lbuf_complete = !stall_i;
+                    end else if (dependency_memory) begin
+                        load_wait_address_select = 1'b1;
+                        load_wait_request = 1'b1;
                     end
                 end
             end
@@ -330,46 +494,17 @@ module load_unit (
         end
 
 
-    /* Select a subword */
     data_word_t data_sliced;
-
-        always_comb begin
-            /* Default value */
-            data_sliced = '0;
-
-            case (lbuf_read_entry.operation.uop)
-                /* Load byte */
-                LDB: begin 
-                    if (lbuf_read_entry.operation.signed_load) begin
-                        data_sliced = $signed(data_selected.word8[lbuf_read_entry.address[1:0]]);
-                    end else begin
-                        data_sliced = $unsigned(data_selected.word8[lbuf_read_entry.address[1:0]]);
-                    end
-                end
-
-                /* Load half word signed */
-                LDH: begin 
-                    if (lbuf_read_entry.operation.signed_load) begin 
-                        data_sliced = $signed(data_selected.word16[lbuf_read_entry.address[1]]);
-                    end else begin
-                        data_sliced = $unsigned(data_selected.word16[lbuf_read_entry.address[1]]);
-                    end
-                end
-
-                /* Load word */
-                LDW: begin 
-                    data_sliced = data_selected;
-                end
-            endcase
-        end
-
-    assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_sliced; 
+    assign data_sliced = data_selected;
+    assign data_loaded_o = (misaligned_o | illegal_access_o) ? '0 : data_sliced;
 
     assign misaligned_o = !lbuf_empty & lbuf_read_entry.misaligned;
     assign illegal_access_o = !lbuf_empty & lbuf_read_entry.illegal_access;
 
     assign load_channel.request = load_request | load_wait_request;
-    assign load_channel.address = load_wait_request ? lbuf_read_entry.address : load_address_i;
+    assign load_channel.address = load_wait_address_select ?
+                                  (dependency_memory ? dependency_entry.address : lbuf_read_entry.address) :
+                                  load_address_i;
     assign load_channel.invalidate = flush_i;
 
     assign serviced_o = lbuf_read;
@@ -386,33 +521,95 @@ module load_unit (
             !(load_request & load_wait_request));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            lbuf_full |-> (!valid_operation_i | lbuf_read));
+            lbuf_full & !flush_i |-> (!valid_operation_i | lbuf_read));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             flush_i |=> lbuf_empty);
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            flush_i |-> !data_valid_o);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
             lbuf_empty |-> !data_valid_o);
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            !(load_wait_request & load_channel.valid));
+            !flush_i |-> !(load_wait_request & load_channel.valid));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             !(lbuf_read & lbuf_empty));
-
-        assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            forward_select_queued_o == queue_request);
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             queue_request |-> (forward_queued_address_o == lbuf_read_entry.address));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
             (accept_load & queue_request) |->
-                (lbuf_write_entry.wait_mem_upd & !lbuf_write_entry.forwarded));
+                (lbuf_write_entry.wait_mem_upd &
+                 !lbuf_write_entry.forwarded));
 
         assert property (@(posedge clk_i) disable iff (!rst_n_i)
-            (queue_request & forward_match_i & !stall_i) |->
-                (lbuf_read & !load_wait_request));
+            (lbuf_read & queue_request & !request_pending &
+             !lbuf_read_entry.private_reg) |->
+                dependency_forward);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            dependency_wait |->
+                (!load_channel.request & !lbuf_read));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            dependency_valid |->
+                $onehot({dependency_forward,
+                         dependency_wait,
+                         dependency_memory}));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            dependency_wait |->
+                (!lbuf_read & queue_request));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            dependency_wait |=>
+                (flush_i |
+                 (!lbuf_empty &
+                  (lbuf_read_entry.operation ==
+                   $past(lbuf_read_entry.operation)) &
+                  (lbuf_read_entry.address ==
+                   $past(lbuf_read_entry.address)))));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (load_wait_request & !lbuf_read_entry.private_reg) |->
+                dependency_memory);
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            flush_i |=> (!dependency_valid & !request_pending));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            dependency_valid |->
+                ((dependency_entry.operation == lbuf_read_entry.operation) &
+                 (dependency_entry.address == lbuf_read_entry.address)));
+
+        /* Direct data is formatted before its existing load-entry capture. */
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (accept_load & lbuf_write_entry.forwarded) |->
+                (lbuf_write_entry.forwarded_data ==
+                 slice_load_data(lbuf_write_entry, forward_direct_data_i)));
+
+        /* Queued data is formatted at the existing dependency capture edge. */
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            dependency_lookup |=>
+                (dependency_forwarded_data ==
+                 slice_load_data($past(lbuf_read_entry),
+                                 $past(forward_queued_data_i))));
+
+        /* Check memory returns against the operation/address reference. */
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (lbuf_read & !lbuf_read_entry.forwarded &
+             (!lbuf_read_entry.wait_mem_upd | request_pending)) |->
+                (data_sliced ==
+                 slice_load_data(lbuf_read_entry, load_channel.data)));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            (lbuf_read & dependency_forward) |->
+                ((lbuf_read_entry.operation == dependency_entry.operation) &
+                 (data_sliced == dependency_forwarded_data)));
     `endif
 
 endmodule : load_unit

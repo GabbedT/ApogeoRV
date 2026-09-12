@@ -117,17 +117,18 @@ module reorder_buffer #(
 
     /* Read pointer is managed indirectly by the write back logic by asserting the
      * read command. */
-    logic [PTR_WIDTH - 1:0] read_ptr, read_ptr_incremented;
+    logic [PTR_WIDTH - 1:0] read_ptr, read_ptr_incremented, read_ptr_next;
 
     assign read_ptr_incremented = read_ptr + 1'b1;
+    assign read_ptr_next = (read_i & !stall_i) ? read_ptr_incremented : read_ptr;
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 read_ptr <= '0;
             end else if (flush_i) begin 
                 read_ptr <= '0;
-            end else if (read_i & !stall_i) begin
-                read_ptr <= read_ptr_incremented;
+            end else begin
+                read_ptr <= read_ptr_next;
             end
         end
 
@@ -138,18 +139,18 @@ module reorder_buffer #(
 
     /* Allocation pointer points always to the next free ROB entry, it's the
      * available tag that is delivered to the scheduler */
-    logic [PTR_WIDTH - 1:0] alloc_ptr;
+    logic [PTR_WIDTH - 1:0] alloc_ptr, alloc_ptr_next;
+
+    assign alloc_ptr_next = branch_flush_i ? branch_tag_i + 1'b1 :
+                           (rob_alloc_i ? alloc_ptr + 1'b1 : alloc_ptr);
 
         always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
             if (!rst_n_i) begin
                 alloc_ptr <= '0;
             end else if (flush_i) begin
                 alloc_ptr <= '0;
-            end else if (branch_flush_i) begin
-                /* Go back in tag number */
-                alloc_ptr <= branch_tag_i + 1'b1;
-            end else if (rob_alloc_i) begin 
-                alloc_ptr <= alloc_ptr + 1'b1;
+            end else begin
+                alloc_ptr <= alloc_ptr_next;
             end
         end
 
@@ -160,12 +161,20 @@ module reorder_buffer #(
 //      ALLOCATION LOGIC
 //====================================================================================
 
-    /* Empty: both pointers are equal
-     * Full:  low parts of pointers are equal but MSB is different */
-    assign empty_o = alloc_ptr == read_ptr;
-
-    assign full_o = (alloc_ptr[IDX_WIDTH - 1:0] == read_ptr[IDX_WIDTH - 1:0]) &
-                    (alloc_ptr[IDX_WIDTH] != read_ptr[IDX_WIDTH]);
+    /* Decode occupancy before the edge, away from writeback and bypass. */
+        always_ff @(posedge clk_i `ifdef ASYNC or negedge rst_n_i `endif) begin
+            if (!rst_n_i) begin
+                empty_o <= 1'b1;
+                full_o <= 1'b0;
+            end else if (flush_i) begin
+                empty_o <= 1'b1;
+                full_o <= 1'b0;
+            end else begin
+                empty_o <= alloc_ptr_next == read_ptr_next;
+                full_o <= (alloc_ptr_next[IDX_WIDTH - 1:0] == read_ptr_next[IDX_WIDTH - 1:0]) &
+                          (alloc_ptr_next[IDX_WIDTH] != read_ptr_next[IDX_WIDTH]);
+            end
+        end
 
 
 //====================================================================================
@@ -227,6 +236,15 @@ module reorder_buffer #(
         end
         
     assign valid_o = valid[read_ptr[IDX_WIDTH - 1:0]] & !empty_o;
+
+    `ifdef SV_ASSERTION
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            empty_o == (alloc_ptr == read_ptr));
+
+        assert property (@(posedge clk_i) disable iff (!rst_n_i)
+            full_o == ((alloc_ptr[IDX_WIDTH - 1:0] == read_ptr[IDX_WIDTH - 1:0]) &
+                       (alloc_ptr[IDX_WIDTH] != read_ptr[IDX_WIDTH])));
+    `endif
 
 endmodule : reorder_buffer
 

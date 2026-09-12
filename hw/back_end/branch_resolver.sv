@@ -13,22 +13,13 @@ module branch_resolver (
     output logic outcome_o 
 );
 
-    /* Signed */
-    logic is_greater_or_equal_s, is_less_than_s;
+    logic is_less_than_s, is_less_than_u, is_equal;
 
-    assign is_greater_or_equal_s = $signed(operand_A_i) >= $signed(operand_B_i);
-    assign is_less_than_s = $signed(operand_A_i) < $signed(operand_B_i);
-
-
-    /* Unsigned */
-    logic is_greater_or_equal_u, is_less_than_u;
-
-    assign is_greater_or_equal_u = $unsigned(operand_A_i) >= $unsigned(operand_B_i);
+    /* Signed and unsigned ordering only differ when the operand signs differ.
+     * Share one magnitude comparator and derive greater-or-equal by inversion. */
     assign is_less_than_u = $unsigned(operand_A_i) < $unsigned(operand_B_i);
-
-
-    logic is_equal;
-
+    assign is_less_than_s = (operand_A_i[31] ^ operand_B_i[31]) ?
+                            operand_A_i[31] : is_less_than_u;
     assign is_equal = (operand_A_i == operand_B_i);
 
             always_comb begin : outcome_selection
@@ -41,9 +32,9 @@ module branch_resolver (
 
                 BLTU: outcome_o = is_less_than_u;
 
-                BGE: outcome_o = is_greater_or_equal_s;
+                BGE: outcome_o = !is_less_than_s;
 
-                BGEU: outcome_o = is_greater_or_equal_u;
+                BGEU: outcome_o = !is_less_than_u;
 
                 default: outcome_o = 1'b0; 
             endcase 
