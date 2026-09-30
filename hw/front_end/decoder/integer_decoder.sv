@@ -215,7 +215,7 @@ module integer_decoder (
         save_next_pc = 1'b0;
         base_address_reg_o = 1'b0;
 
-        exception_vector_o = `NO_EVENT; 
+        exception_vector_o = `NO_EVENT;
         exception_generated = 1'b0;
 
         case (instr_i[6:2])
@@ -956,7 +956,13 @@ module integer_decoder (
             default: exception_generated = 1'b1;
         endcase
 
-        `ifdef IDECODER_DEBUG if (!exception_generated_o) print(operation_string); `endif 
+        /* NO_EVENT is reserved for instructions that retire normally. */
+        if ((exception_generated || (instr_i[1:0] != 2'b11)) &&
+            (exception_vector_o == `NO_EVENT)) begin
+            exception_vector_o = `INSTR_ILLEGAL;
+        end
+
+        `ifdef IDECODER_DEBUG if (!exception_generated_o) print(operation_string); `endif
     end : decoder_logic
 
     assign exception_generated_o = exception_generated | (instr_i[1:0] != '1);
